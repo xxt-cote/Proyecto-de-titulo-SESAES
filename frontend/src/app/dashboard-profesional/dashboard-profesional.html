@@ -1,0 +1,542 @@
+<!-- dashboard-profesional.html -->
+<div class="dashboard-prof" [class.tema-oscuro]="temaOscuro">
+
+  <!-- ═══════════ SIDEBAR ═══════════ -->
+  <aside class="sidebar-prof">
+    <div class="sidebar-logo">
+      <img src="temporal.jpg" alt="UTEM">
+      <div class="sidebar-logo-divider"></div>
+      <div class="sidebar-logo-text">
+        <span class="sidebar-logo-title">SESAES</span>
+        <span class="sidebar-logo-sub">Salud Estudiantil</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <button class="nav-item" [class.active]="seccionActiva==='inicio'" (click)="navegarA('inicio')">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+        Inicio
+      </button>
+      <button class="nav-item" [class.active]="seccionActiva==='agenda'" (click)="navegarA('agenda')">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        Mi Agenda
+      </button>
+      <button class="nav-item" [class.active]="seccionActiva==='atenciones'" (click)="navegarA('atenciones')">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+        </svg>
+        Mis Atenciones
+      </button>
+      <button class="nav-item" [class.active]="seccionActiva==='perfil'" (click)="navegarA('perfil')">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+        </svg>
+        Perfil
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <!-- Botón Reportar Ausencia -->
+      <button class="btn-ausencia" (click)="abrirModalAusencia()">
+        📅 Reportar ausencia
+      </button>
+      <button class="logout-btn" (click)="cerrarSesion()">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+        Cerrar sesión
+      </button>
+    </div>
+  </aside>
+
+  <!-- ═══════════ MAIN ═══════════ -->
+  <div class="main-wrapper-prof">
+
+    <!-- TOPBAR -->
+    <header class="topbar-prof">
+      <div class="topbar-left">
+        <h1 class="topbar-title" *ngIf="seccionActiva!=='inicio'">{{ tituloSeccion }}</h1>
+        <h1 class="topbar-title" *ngIf="seccionActiva==='inicio'">Hola, {{ perfil.nombre || 'Profesional' }} 👋</h1>
+        <span class="topbar-sub" *ngIf="seccionActiva==='inicio'">{{ perfil.especialidad }} — SESAES</span>
+      </div>
+      <div class="topbar-actions">
+        <button class="tema-toggle-btn" (click)="toggleTema()" [title]="temaOscuro ? 'Modo claro' : 'Modo oscuro'">
+          <svg *ngIf="!temaOscuro" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+          </svg>
+          <svg *ngIf="temaOscuro" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+          </svg>
+        </button>
+        <button class="topbar-icon-btn" (click)="toggleNotificaciones()">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>
+          </svg>
+          <span class="notif-badge" *ngIf="notifNoLeidas > 0">{{ notifNoLeidas }}</span>
+        </button>
+        <div class="topbar-perfil">
+          <div class="prof-avatar-topbar" *ngIf="!perfil.foto_url">{{ perfil.iniciales || 'PR' }}</div>
+          <img *ngIf="perfil.foto_url" [src]="perfil.foto_url" class="prof-avatar-img-topbar" alt="Foto" />
+          <div class="topbar-perfil-info">
+            <span class="topbar-perfil-nombre">{{ perfil.nombre || 'Profesional' }}</span>
+            <span class="topbar-perfil-rol">{{ perfil.especialidad }}</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- PANEL NOTIFICACIONES -->
+    <div class="notif-panel" *ngIf="notifPanelAbierto">
+      <div class="notif-panel-header">
+        <span>Notificaciones</span>
+        <button class="notif-leer-todas" (click)="marcarTodasLeidas()">Marcar todas como leídas</button>
+      </div>
+      <div class="notif-lista">
+        <div *ngIf="notificaciones.length === 0" class="notif-vacia">Sin notificaciones</div>
+        <div *ngFor="let n of notificaciones" class="notif-item" [class.no-leida]="!n.leida" (click)="marcarLeida(n)">
+          <div class="notif-icono" [ngClass]="n.tipo"></div>
+          <div class="notif-texto">
+            <p>{{ n.mensaje }}</p>
+            <span>{{ n.fecha_creacion | date:'dd/MM HH:mm' }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mensaje-exito" *ngIf="mensajeExito">✓ {{ mensajeExito }}</div>
+    <div class="mensaje-error" *ngIf="mensajeError">✕ {{ mensajeError }}</div>
+
+    <main class="main-content-prof">
+
+      <!-- ══ INICIO ══ -->
+      <div *ngIf="seccionActiva==='inicio'">
+
+        <!-- Estado actual si no está activo -->
+        <div class="alerta-estado" *ngIf="perfil.estado !== 'activo'">
+          ⚠️ Tu estado actual es <strong>{{ perfil.estado }}</strong>. El administrador fue notificado.
+        </div>
+
+        <div class="inicio-layout-prof">
+          <div class="inicio-principal-prof">
+
+            <!-- Estadísticas del día -->
+            <div class="stats-grid-prof">
+              <div class="stat-card-prof blue">
+                <span class="stat-num-prof">{{ estadisticasDia.total_hoy }}</span>
+                <span class="stat-label-prof">Citas hoy</span>
+              </div>
+              <div class="stat-card-prof green">
+                <span class="stat-num-prof">{{ estadisticasDia.completadas }}</span>
+                <span class="stat-label-prof">Completadas</span>
+              </div>
+              <div class="stat-card-prof orange">
+                <span class="stat-num-prof">{{ estadisticasDia.pendientes }}</span>
+                <span class="stat-label-prof">Pendientes</span>
+              </div>
+              <div class="stat-card-prof red">
+                <span class="stat-num-prof">{{ estadisticasDia.inasistencias }}</span>
+                <span class="stat-label-prof">Inasistencias</span>
+              </div>
+            </div>
+
+            <!-- Citas de hoy -->
+            <div class="card-prof">
+              <div class="card-header-prof">
+                <h3 class="card-title-prof">Citas de Hoy</h3>
+                <button class="btn-ver-mas" (click)="navegarA('atenciones')">Ver todas →</button>
+              </div>
+              <div *ngIf="citasHoy.length === 0" class="tabla-vacia-prof">No tienes citas programadas para hoy</div>
+              <div *ngFor="let cita of citasHoy" class="cita-hoy-item" [class.urgente]="cita.urgente" [class.completada]="cita.estado==='completada'">
+                <div class="cita-hoy-hora">{{ cita.hora }}</div>
+                <div class="cita-hoy-info">
+                  <strong>{{ cita.estudiante }}</strong>
+                  <span>{{ cita.rut }} · {{ cita.carrera }}</span>
+                </div>
+                <span class="urgente-tag" *ngIf="cita.urgente">URGENTE</span>
+                <span class="estado-badge-prof" [ngClass]="cita.estado">{{ cita.estado }}</span>
+                <div class="cita-hoy-acciones" *ngIf="cita.estado === 'pendiente' && puedeGestionarCita(cita)">
+                  <button class="btn-completar" (click)="abrirModalCompletar(cita)">✓ Completar</button>
+                  <button class="btn-inasistencia" (click)="marcarInasistencia(cita)">✗ Inasistencia</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Próximas citas de la semana -->
+            <div class="card-prof">
+              <div class="card-header-prof">
+                <h3 class="card-title-prof">Próximas citas de la semana</h3>
+              </div>
+              <div *ngIf="proximasSemana.length === 0" class="tabla-vacia-prof">Sin citas próximas esta semana</div>
+              <div *ngFor="let cita of proximasSemana" class="cita-hoy-item" [class.urgente]="cita.urgente">
+                <div class="cita-hoy-hora">{{ cita.fecha | date:'dd/MM' }}<br><small>{{ cita.hora }}</small></div>
+                <div class="cita-hoy-info">
+                  <strong>{{ cita.estudiante }}</strong>
+                  <span>{{ cita.rut }} · {{ cita.carrera }}</span>
+                </div>
+                <span class="urgente-tag" *ngIf="cita.urgente">URGENTE</span>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Calendario del mes (solo visual) -->
+          <div class="card-prof inicio-calendario-prof">
+            <div class="calendario-header-prof">
+              <button class="cal-nav-btn" (click)="calMesAnterior()">‹</button>
+              <span>{{ calNombreMesVisible }}</span>
+              <button class="cal-nav-btn" (click)="calMesSiguiente()">›</button>
+            </div>
+            <div class="cal-grid-dias-nombre-prof">
+              <span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span>
+            </div>
+            <div class="cal-grid-prof">
+              <div *ngFor="let dia of calDiasMes" class="cal-celda-prof" [class.vacia]="!dia">
+                <span *ngIf="dia" [class.hoy]="dia.esHoy">{{ dia.num }}</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- ══ MI AGENDA ══ -->
+      <div *ngIf="seccionActiva==='agenda'">
+        <div class="semana-nav">
+          <button class="cal-nav-btn" (click)="semanaAnterior()">‹</button>
+          <span class="semana-label">{{ semanaLabel }}</span>
+          <button class="cal-nav-btn" (click)="semanaSiguiente()">›</button>
+          <button class="btn-hoy-prof" (click)="irAHoy()">Hoy</button>
+        </div>
+
+        <div class="leyenda-prof">
+          <span class="leyenda-item-prof libre">⬜ Disponible</span>
+          <span class="leyenda-item-prof ocupado">🟦 Cita habitual</span>
+          <span class="leyenda-item-prof urgente">🟥 Urgente</span>
+        </div>
+
+        <div class="agenda-layout">
+          <div class="card-prof horario-card-prof">
+            <div class="semana-grilla-prof">
+              <div class="hora-col-prof">
+                <div class="hora-celda-prof header"></div>
+                <div class="hora-celda-prof" *ngFor="let h of horasGrilla">{{ h }}</div>
+              </div>
+              <div class="dia-col-prof" *ngFor="let dia of semanaActual">
+                <div class="dia-header-prof" [class.hoy]="dia.esHoy">
+                  <span class="dia-nombre-prof">{{ dia.nombre }}</span>
+                  <span class="dia-num-prof">{{ dia.num }}</span>
+                </div>
+                <div class="bloque-prof" *ngFor="let h of horasGrilla"
+                     [class.libre]="getBloqueEstado(dia.fecha, h) === 'libre'"
+                     [class.ocupado]="getBloqueEstado(dia.fecha, h) === 'ocupado'"
+                     [class.urgente-bloque]="getBloqueEstado(dia.fecha, h) === 'urgente'"
+                     (click)="clickBloque(dia.fecha, h)">
+                  <span *ngIf="getBloqueInfo(dia.fecha, h) as info" class="bloque-info-prof">{{ info }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Panel detalle del día -->
+          <div class="card-prof detalle-dia-prof" *ngIf="diaSeleccionado">
+            <div class="detalle-header-prof">
+              <h4>{{ formatearDiaSeleccionado(diaSeleccionado) }}</h4>
+              <button class="detalle-cerrar-prof" (click)="diaSeleccionado=null">✕</button>
+            </div>
+            <div *ngIf="citasDiaSeleccionado.length === 0" class="tabla-vacia-prof">Sin citas este día</div>
+            <div *ngFor="let cita of citasDiaSeleccionado" class="detalle-cita-prof" [class.urgente]="cita.urgente">
+              <span class="detalle-hora-prof">{{ cita.hora }}</span>
+              <div class="detalle-info-prof">
+                <strong>{{ cita.estudiante }}</strong>
+                <span>{{ cita.rut }}</span>
+                <span *ngIf="cita.urgente" class="urgente-tag">URGENTE</span>
+              </div>
+              <span class="estado-badge-prof" [ngClass]="cita.estado">{{ cita.estado }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ MIS ATENCIONES ══ -->
+      <div *ngIf="seccionActiva==='atenciones'">
+        <div class="card-prof">
+          <div class="atenciones-filtros">
+            <input class="search-input-prof" [(ngModel)]="filtroBusquedaAt" placeholder="Buscar estudiante o RUT..." />
+            <select class="select-prof" [(ngModel)]="filtroEstadoAt" (change)="cargarAtenciones()">
+              <option value="">Todos los estados</option>
+              <option value="pendiente">Pendiente</option>
+              <option value="completada">Completada</option>
+              <option value="cancelada">Cancelada</option>
+              <option value="inasistencia">Inasistencia</option>
+            </select>
+            <button class="btn-filtrar-prof" (click)="cargarAtenciones()">Actualizar</button>
+          </div>
+
+          <table class="tabla-prof">
+            <thead>
+              <tr><th>ESTUDIANTE</th><th>FECHA</th><th>HORA</th><th>ESTADO</th><th>MEDICAMENTO</th><th>ACCIONES</th></tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let a of atencionesPaginadas">
+                <td>
+                  <div class="tabla-usuario-prof">
+                    <div class="mini-avatar-prof">{{ a.estudiante | slice:0:2 }}</div>
+                    <div>
+                      <strong>{{ a.estudiante }}</strong>
+                      <span>{{ a.rut }} · {{ a.carrera }}</span>
+                    </div>
+                  </div>
+                </td>
+                <td>{{ a.fecha }}</td>
+                <td>{{ a.hora }}</td>
+                <td><span class="estado-badge-prof" [ngClass]="a.estado">{{ a.estado }}</span></td>
+                <td>{{ a.medicamento || '—' }}</td>
+                <td>
+                  <div class="tabla-acciones-prof">
+                    <ng-container *ngIf="a.estado === 'pendiente'">
+                      <button class="btn-completar" *ngIf="puedeGestionarCita(a)" (click)="abrirModalCompletar(a)">✓ Completar</button>
+                      <button class="btn-inasistencia" *ngIf="puedeGestionarCita(a)" (click)="marcarInasistencia(a)">✗ Inasistencia</button>
+                      <span *ngIf="!puedeGestionarCita(a)" class="texto-gris" title="La cita todavía no ocurre">Pendiente (futura)</span>
+                    </ng-container>
+                    <span *ngIf="a.estado !== 'pendiente'" class="texto-gris">—</span>
+                  </div>
+                </td>
+              </tr>
+              <tr *ngIf="atencionesPaginadas.length === 0">
+                <td colspan="6" class="tabla-vacia-prof">No hay atenciones registradas</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="paginacion-prof">
+            <span>Mostrando {{ (pagAtenciones-1)*8+1 }}–{{ minVal(pagAtenciones*8, atencionesFiltradas.length) }} de {{ atencionesFiltradas.length }}</span>
+            <div class="pag-btns-prof">
+              <button class="btn-pag-prof" [disabled]="pagAtenciones===1" (click)="pagAtenciones=pagAtenciones-1">‹</button>
+              <button class="btn-pag-prof" *ngFor="let p of getPaginasAt()" [class.active]="p===pagAtenciones" (click)="pagAtenciones=p">{{ p }}</button>
+              <button class="btn-pag-prof" [disabled]="pagAtenciones*8>=atencionesFiltradas.length" (click)="pagAtenciones=pagAtenciones+1">›</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ PERFIL ══ -->
+      <div *ngIf="seccionActiva==='perfil'">
+        <div class="perfil-layout">
+
+          <!-- Foto y datos básicos -->
+          <div class="card-prof">
+            <div class="card-header-prof">
+              <h3 class="card-title-prof">Mi Perfil</h3>
+              <button class="btn-editar-perfil" *ngIf="!perfilEnEdicion" (click)="habilitarEdicionPerfil()">✎ Editar</button>
+            </div>
+            <div class="perfil-foto-row">
+              <div class="perfil-foto-wrap">
+                <div class="perfil-avatar-grande" *ngIf="!perfil.foto_url">{{ perfil.iniciales }}</div>
+                <img *ngIf="perfil.foto_url" [src]="perfil.foto_url" class="perfil-foto-img" alt="Foto" />
+                <label class="btn-editar-foto" *ngIf="perfilEnEdicion">
+                  <input type="file" accept="image/*" (change)="onFotoSeleccionada($event)" style="display:none" />
+                  📷
+                </label>
+              </div>
+              <div class="perfil-datos-basicos">
+                <span class="perfil-especialidad-badge">{{ perfil.especialidad }}</span>
+                <span class="perfil-correo">{{ perfil.correo }}</span>
+                <span class="perfil-rut">RUT: {{ perfil.rut || '—' }}</span>
+              </div>
+            </div>
+
+            <div class="campo-grupo-prof">
+              <label>Nombre completo</label>
+              <input [(ngModel)]="configPerfil.nombre" [disabled]="!perfilEnEdicion" placeholder="Tu nombre completo" />
+            </div>
+
+            <div class="campo-grupo-prof">
+              <label>Descripción profesional <span class="opcional">(opcional · máximo 500 caracteres)</span></label>
+              <textarea [(ngModel)]="configPerfil.descripcion" [disabled]="!perfilEnEdicion" (input)="onDescripcionChange()"
+                        placeholder="Describe tu especialidad, tipo de atenciones, años de experiencia..."
+                        maxlength="500" rows="4" class="textarea-descripcion"></textarea>
+              <span class="char-count" [class.limit]="charCount > 450">{{ charCount }}/500</span>
+            </div>
+
+            <div class="perfil-acciones-edicion" *ngIf="perfilEnEdicion">
+              <button class="btn-cancelar-modal-prof" (click)="cancelarEdicionPerfil()">Cancelar</button>
+              <button class="btn-guardar-prof" [disabled]="!perfilModificado" (click)="guardarPerfil()">Guardar cambios</button>
+            </div>
+          </div>
+
+          <!-- Cambiar contraseña -->
+          <div class="card-prof">
+            <div class="card-header-prof">
+              <h3 class="card-title-prof">Cambiar Contraseña</h3>
+              <button class="btn-editar-perfil" *ngIf="!passwordEnEdicion" (click)="habilitarEdicionPassword()">✎ Editar</button>
+            </div>
+
+            <div class="campo-grupo-prof">
+              <label>Contraseña actual</label>
+              <div class="password-wrap-prof">
+                <input [type]="mostrarContrasenaActual ? 'text' : 'password'" [(ngModel)]="configPerfil.contrasena_actual" [disabled]="!passwordEnEdicion" placeholder="••••••" />
+                <button class="btn-ojo-prof" (click)="mostrarContrasenaActual = !mostrarContrasenaActual" type="button">
+                  <svg *ngIf="!mostrarContrasenaActual" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                  </svg>
+                  <svg *ngIf="mostrarContrasenaActual" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
+                    <line x1="1" y1="1" x2="23" y2="23"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="campo-grupo-prof">
+              <label>Nueva contraseña</label>
+              <div class="password-wrap-prof">
+                <input [type]="mostrarContrasenaaNueva ? 'text' : 'password'" [(ngModel)]="configPerfil.contrasena_nueva" [disabled]="!passwordEnEdicion" placeholder="••••••" />
+                <button class="btn-ojo-prof" (click)="mostrarContrasenaaNueva = !mostrarContrasenaaNueva" type="button">
+                  <svg *ngIf="!mostrarContrasenaaNueva" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                  </svg>
+                  <svg *ngIf="mostrarContrasenaaNueva" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
+                    <line x1="1" y1="1" x2="23" y2="23"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="campo-grupo-prof">
+              <label>Confirmar nueva contraseña</label>
+              <div class="password-wrap-prof">
+                <input [type]="mostrarContrasenaConf ? 'text' : 'password'" [(ngModel)]="configPerfil.contrasena_conf" [disabled]="!passwordEnEdicion" placeholder="••••••" />
+                <button class="btn-ojo-prof" (click)="mostrarContrasenaConf = !mostrarContrasenaConf" type="button">
+                  <svg *ngIf="!mostrarContrasenaConf" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                  </svg>
+                  <svg *ngIf="mostrarContrasenaConf" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
+                    <line x1="1" y1="1" x2="23" y2="23"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="perfil-acciones-edicion" *ngIf="passwordEnEdicion">
+              <button class="btn-cancelar-modal-prof" (click)="cancelarEdicionPassword()">Cancelar</button>
+              <button class="btn-guardar-prof" [disabled]="!passwordModificada" (click)="cambiarPassword()">Cambiar contraseña</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+
+    <footer class="footer-prof">
+      <span>© 2026 SESAES – Plataforma de Bienestar Estudiantil Universitaria.</span>
+      <div class="footer-links-prof">
+        <span>Políticas de Privacidad</span><span>Términos de Servicio</span><span>Ayuda</span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- MODAL: REPORTAR AUSENCIA -->
+  <div class="modal-overlay-prof" *ngIf="modalAusenciaAbierto" (click)="cerrarModalAusencia()">
+    <div class="modal-prof" (click)="$event.stopPropagation()">
+      <div class="modal-header-prof">
+        <h3>⚠️ Reportar ausencia</h3>
+        <button class="modal-cerrar-prof" (click)="cerrarModalAusencia()">✕</button>
+      </div>
+      <p class="modal-desc">Las citas afectadas se cancelarán automáticamente y se notificará a los estudiantes.</p>
+
+      <div class="ausencia-tipo-opciones">
+        <label class="ausencia-tipo-card" [class.selected]="ausenciaTipo === 'temporal'">
+          <input type="radio" name="ausenciaTipo" value="temporal" [(ngModel)]="ausenciaTipo" />
+          <div>
+            <strong>Salida temporal</strong>
+            <span>Sales unas horas y vuelves el mismo día</span>
+          </div>
+        </label>
+        <label class="ausencia-tipo-card" [class.selected]="ausenciaTipo === 'dia_completo'">
+          <input type="radio" name="ausenciaTipo" value="dia_completo" [(ngModel)]="ausenciaTipo" />
+          <div>
+            <strong>Todo el día de hoy</strong>
+            <span>No podrás atender ninguna cita hoy</span>
+          </div>
+        </label>
+        <label class="ausencia-tipo-card" [class.selected]="ausenciaTipo === 'licencia'">
+          <input type="radio" name="ausenciaTipo" value="licencia" [(ngModel)]="ausenciaTipo" />
+          <div>
+            <strong>Licencia médica</strong>
+            <span>Un rango de días, semanas o hasta un mes</span>
+          </div>
+        </label>
+      </div>
+
+      <div class="form-grid" *ngIf="ausenciaTipo === 'temporal'" style="margin-bottom:12px">
+        <div class="campo-grupo-prof">
+          <label>Desde</label>
+          <input type="time" [(ngModel)]="ausenciaHoraInicio" />
+        </div>
+        <div class="campo-grupo-prof">
+          <label>Hasta</label>
+          <input type="time" [(ngModel)]="ausenciaHoraFin" />
+        </div>
+      </div>
+
+      <div class="form-grid" *ngIf="ausenciaTipo === 'licencia'" style="margin-bottom:12px">
+        <div class="campo-grupo-prof">
+          <label>Desde</label>
+          <input type="date" [(ngModel)]="ausenciaFechaInicio" />
+        </div>
+        <div class="campo-grupo-prof">
+          <label>Hasta</label>
+          <input type="date" [(ngModel)]="ausenciaFechaFin" />
+        </div>
+      </div>
+
+      <div class="campo-grupo-prof">
+        <label>Motivo <span class="opcional">(opcional)</span></label>
+        <input [(ngModel)]="ausenciaMotivo" placeholder="Ej: Malestar general, cita médica..." />
+      </div>
+      <div class="modal-footer-prof">
+        <button class="btn-cancelar-modal-prof" (click)="cerrarModalAusencia()">Cancelar</button>
+        <button class="btn-reportar" [disabled]="!ausenciaFormularioValido" (click)="reportarAusencia()">⚠️ Reportar y notificar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: COMPLETAR ATENCIÓN -->
+  <div class="modal-overlay-prof" *ngIf="modalCompletarAbierto" (click)="cerrarModalCompletar()">
+    <div class="modal-prof" (click)="$event.stopPropagation()">
+      <div class="modal-header-prof">
+        <h3>✓ Completar Atención</h3>
+        <button class="modal-cerrar-prof" (click)="cerrarModalCompletar()">✕</button>
+      </div>
+      <div *ngIf="citaParaCompletar" class="cita-resumen-modal">
+        <strong>{{ citaParaCompletar.estudiante }}</strong>
+        <span>{{ citaParaCompletar.fecha }} · {{ citaParaCompletar.hora }}</span>
+      </div>
+      <div class="campo-grupo-prof">
+        <label>Medicamento suministrado <span class="opcional">(opcional)</span></label>
+        <input [(ngModel)]="formCompletar.medicamento" placeholder="Ej: Ibuprofeno 400mg, Paracetamol..." />
+      </div>
+      <div class="campo-grupo-prof">
+        <label>Observaciones de la atención <span class="opcional">(opcional)</span></label>
+        <textarea [(ngModel)]="formCompletar.observaciones_atencion"
+                  placeholder="Notas clínicas, indicaciones, seguimiento..."
+                  rows="4" class="textarea-descripcion"></textarea>
+      </div>
+      <div class="modal-footer-prof">
+        <button class="btn-cancelar-modal-prof" (click)="cerrarModalCompletar()">Cancelar</button>
+        <button class="btn-guardar-modal-prof" (click)="confirmarCompletar()">✓ Confirmar atención</button>
+      </div>
+    </div>
+  </div>
+
+</div>

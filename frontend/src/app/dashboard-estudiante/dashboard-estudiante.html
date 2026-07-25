@@ -1,0 +1,521 @@
+<div class="dashboard">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <img src="temporal.jpg" alt="UTEM">
+      <div class="sidebar-logo-divider"></div>
+      <div class="sidebar-logo-text">
+        <span class="sidebar-logo-title">SESAES</span>
+        <span class="sidebar-logo-sub">Salud Estudiantil</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <button class="nav-item" [class.active]="seccionActiva === 'agendar'" (click)="navegarA('agendar')">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+        Agendar Hora
+      </button>
+      <button class="nav-item" [class.active]="seccionActiva === 'citas'" (click)="navegarA('citas')">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+        </svg>
+        Mis Citas
+      </button>
+      <button class="nav-item" [class.active]="seccionActiva === 'historial'" (click)="navegarA('historial')">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        Historial
+      </button>
+      <button class="nav-item" [class.active]="seccionActiva === 'configuracion'" (click)="navegarA('configuracion')">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+        Configuración
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-profile">
+        <div class="profile-avatar">
+          <img *ngIf="fotoPerfilUrl" [src]="fotoPerfilUrl" alt="Foto de perfil">
+          <span *ngIf="!fotoPerfilUrl">{{ estudianteIniciales }}</span>
+        </div>
+        <div class="profile-info">
+          <span class="profile-name">{{ estudianteNombre }}</span>
+          <span class="profile-role">Estudiante</span>
+        </div>
+      </div>
+      <button class="logout-btn" (click)="cerrarSesion()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+        </svg>
+        Cerrar sesión
+      </button>
+    </div>
+  </aside>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main class="main-content">
+
+    <div class="blob blob-green"></div>
+    <div class="blob blob-yellow"></div>
+    <div class="blob blob-blue"></div>
+    <div class="blob blob-pink"></div>
+
+    <!-- ══ TOPBAR FLOTANTE: TEMA + NOTIFICACIONES ══ -->
+    <div class="notif-topbar" style="display:flex; flex-direction:row; align-items:center; gap:10px;">
+      <button class="tema-toggle-btn-est" (click)="toggleTemaRapido()" [title]="temaOscuro ? 'Modo claro' : 'Modo oscuro'"
+              style="position:static; display:flex; align-items:center; justify-content:center;
+                     width:40px; height:40px; border-radius:50%; background:#fff; border:1px solid #e2e8f0;
+                     box-shadow:0 1px 3px rgba(0,0,0,0.08); color:#334155; cursor:pointer;">
+        <svg *ngIf="!temaOscuro" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+          <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+        <svg *ngIf="temaOscuro" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+        </svg>
+      </button>
+      <button class="notif-btn" (click)="toggleNotificaciones()" style="position:static;">
+        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>
+        </svg>
+        <span class="notif-badge-est" *ngIf="notifNoLeidas > 0">{{ notifNoLeidas }}</span>
+      </button>
+    </div>
+
+    <!-- PANEL DE NOTIFICACIONES -->
+    <div class="notif-panel-est" *ngIf="notifPanelAbierto">
+      <div class="notif-panel-header-est">
+        <span>Notificaciones</span>
+        <div class="notif-panel-header-acciones-est">
+          <button class="notif-eliminar-todas-est" *ngIf="notificaciones.length > 0" (click)="eliminarTodasNotificaciones()" title="Eliminar todas las notificaciones">
+            🗑️ Eliminar todas
+          </button>
+          <button class="notif-cerrar" (click)="notifPanelAbierto = false">✕</button>
+        </div>
+      </div>
+      <div class="notif-lista-est">
+        <div *ngIf="notificaciones.length === 0" class="notif-vacia-est">Sin notificaciones</div>
+        <div *ngFor="let n of notificaciones" class="notif-item-est" [class.no-leida]="!n.leida" (click)="marcarNotifLeida(n)">
+          <div class="notif-dot" [ngClass]="n.tipo"></div>
+          <div class="notif-texto-est">
+            <p>{{ n.mensaje }}</p>
+            <div class="notif-acciones-est" *ngIf="n.tipo === 'cancelacion' && !n.leida">
+              <button class="btn-reagendar-notif" (click)="reagendarDesdeCancelacion(n); $event.stopPropagation()">
+                ↻ Reagendar cita
+              </button>
+            </div>
+            <span>{{ n.fecha_creacion }}</span>
+          </div>
+          <button class="notif-eliminar-btn-est" (click)="eliminarNotificacion(n, $event)" title="Eliminar notificación">✕</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ AGENDAR HORA ══ -->
+    <div class="section" *ngIf="seccionActiva === 'agendar'">
+      <h1 class="section-title">Agendar Nueva Hora</h1>
+      <p class="section-subtitle">Sigue los pasos para confirmar tu atención médica.</p>
+
+      <!-- STEPPER -->
+      <div class="stepper">
+        <div class="step" [class.active]="pasoAgendar >= 1" [class.done]="pasoAgendar > 1">
+          <div class="step-circle">
+            <span *ngIf="pasoAgendar <= 1">1</span>
+            <svg *ngIf="pasoAgendar > 1" xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="3">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <span class="step-label">Especialidad</span>
+        </div>
+        <div class="step-line" [class.active]="pasoAgendar > 1"></div>
+        <div class="step" [class.active]="pasoAgendar >= 2" [class.done]="pasoAgendar > 2">
+          <div class="step-circle">
+            <span *ngIf="pasoAgendar <= 2">2</span>
+            <svg *ngIf="pasoAgendar > 2" xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="3">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <span class="step-label">Horario</span>
+        </div>
+        <div class="step-line" [class.active]="pasoAgendar > 2"></div>
+        <div class="step" [class.active]="pasoAgendar >= 3">
+          <div class="step-circle">3</div>
+          <span class="step-label">Confirmación</span>
+        </div>
+      </div>
+
+      <!-- PASO 1 -->
+      <div *ngIf="pasoAgendar === 1">
+        <div class="search-bar">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#94a3b8" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input type="text" placeholder="Buscar especialidad o profesional..." [(ngModel)]="busqueda" (ngModelChange)="pagProf = 0">
+          <select [(ngModel)]="filtroArea" (ngModelChange)="pagProf = 0">
+            <option value="">Todas las áreas</option>
+            <option *ngFor="let e of especialidadesDisponibles" [value]="e">{{ e }}</option>
+          </select>
+        </div>
+
+        <div class="profesionales-grid">
+          <div class="profesional-card" *ngFor="let p of profesionalesFiltrados()" (click)="seleccionarProfesional(p, $event)">
+            <div class="profesional-img">
+              <!-- Foto del profesional si existe -->
+              <img *ngIf="p.foto_url" [src]="p.foto_url" class="prof-foto-card" alt="Foto" />
+              <div class="profesional-avatar" *ngIf="!p.foto_url">{{ p.iniciales }}</div>
+              <div class="profesional-info-overlay">
+                <span class="profesional-nombre">{{ p.nombre }}</span>
+                <span class="profesional-especialidad">{{ p.especialidad }}</span>
+              </div>
+            </div>
+            <p class="profesional-desc">{{ p.descripcion || 'Atención médica especializada para estudiantes UTEM.' }}</p>
+            <button class="btn-agendar" (click)="seleccionarProfesional(p, $event)">Agendar Cita</button>
+          </div>
+          <div *ngIf="profesionalesFiltrados().length === 0" style="grid-column:1/-1;text-align:center;color:#94a3b8;padding:32px;font-size:14px;">
+            No se encontraron profesionales con esos filtros.
+          </div>
+        </div>
+
+        <!-- Paginación de profesionales -->
+        <div class="paginacion" *ngIf="profesionalesFiltradosTotal.length > profPorPagina">
+          <span>Mostrando {{ pagProf * profPorPagina + 1 }}–{{ ((pagProf + 1) * profPorPagina) > profesionalesFiltradosTotal.length ? profesionalesFiltradosTotal.length : (pagProf + 1) * profPorPagina }} de {{ profesionalesFiltradosTotal.length }} profesionales</span>
+          <div class="pag-btns">
+            <button class="btn-pag" [disabled]="!hayPaginaAnterior" (click)="paginaAnteriorProf()">‹ Anterior</button>
+            <button class="btn-pag" [disabled]="!hayPaginaSiguiente" (click)="paginaSiguienteProf()">Siguiente ›</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 2 -->
+      <div *ngIf="pasoAgendar === 2">
+        <div class="profesional-seleccionado">
+          <div class="profesional-avatar-sm">{{ profesionalSeleccionado?.iniciales }}</div>
+          <div>
+            <p class="ps-nombre">{{ profesionalSeleccionado?.nombre }}</p>
+            <p class="ps-esp">{{ profesionalSeleccionado?.especialidad }}</p>
+          </div>
+          <span class="badge-duracion">{{ profesionalSeleccionado?.duracion_min || 45 }} min</span>
+          <span class="badge-modalidad">Presencial</span>
+        </div>
+
+        <p class="horario-semana">Selecciona una fecha disponible (próximos 7 días, lunes a viernes)</p>
+
+        <div class="fecha-selector-wrap">
+          <button class="fecha-selector-btn" (click)="toggleCalendario()" [class.abierto]="calendarioAbierto">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#0d9488" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <span>{{ fechaSeleccionada ? getFechaDisplay() : 'Elegir una fecha' }}</span>
+            <svg class="fecha-selector-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#94a3b8" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          <!-- Calendario mensual -->
+          <div class="calendario-mes" *ngIf="calendarioAbierto">
+            <div class="cal-mes-header">
+              <button class="cal-nav-btn" (click)="mesAnterior()">‹</button>
+              <span class="cal-mes-nombre">{{ nombreMesVisible }}</span>
+              <button class="cal-nav-btn" (click)="mesSiguiente()">›</button>
+            </div>
+            <div class="cal-grid-dias-nombre">
+              <span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span>
+            </div>
+            <div class="cal-grid">
+              <div *ngFor="let dia of diasMes"
+                   class="cal-celda"
+                   [class.vacia]="!dia"
+                   [class.deshabilitada]="dia?.deshabilitado"
+                   [class.hoy]="dia?.esHoy"
+                   [class.seleccionada]="dia?.fecha === fechaSeleccionada"
+                   (click)="seleccionarDia(dia)">
+                <span *ngIf="dia">{{ dia.num }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel de horas -->
+        <div class="horas-panel" *ngIf="fechaSeleccionada">
+          <p class="horas-panel-titulo">Horas disponibles para {{ getFechaDisplay() }}</p>
+          <div *ngIf="cargando" style="color:#94a3b8;font-size:13px;text-align:center;padding:12px">Cargando horarios...</div>
+          <div class="horas-grid" *ngIf="!cargando && horasDisponibles.length > 0">
+            <button *ngFor="let hora of horasDisponibles"
+                    class="horario-btn"
+                    [class.selected]="horaSeleccionada === hora"
+                    (click)="seleccionarHora(hora)">
+              {{ hora }}
+            </button>
+          </div>
+          <div class="sin-horas-msg" *ngIf="!cargando && horasDisponibles.length === 0 && mensajeDisponibilidad">
+            {{ mensajeDisponibilidad }}
+          </div>
+        </div>
+
+        <div class="paso-acciones">
+          <button class="btn-volver" (click)="pasoAgendar = 1; profesionalSeleccionado = null">← Volver</button>
+          <button class="btn-continuar" [disabled]="!fechaSeleccionada || !horaSeleccionada" (click)="pasoAgendar = 3">Continuar →</button>
+        </div>
+      </div>
+
+      <!-- PASO 3 — CONFIRMACIÓN -->
+      <div *ngIf="pasoAgendar === 3">
+        <div class="confirmacion">
+          <div class="confirmacion-header">
+            <h2>Confirmar Cita Médica</h2>
+            <p>Revisa los detalles antes de confirmar tu reserva</p>
+          </div>
+
+          <div class="confirmacion-profesional">
+            <div class="profesional-avatar-sm">{{ profesionalSeleccionado?.iniciales }}</div>
+            <div>
+              <p class="ps-nombre">{{ profesionalSeleccionado?.nombre }}</p>
+              <p class="ps-esp">{{ profesionalSeleccionado?.especialidad }}</p>
+            </div>
+            <span class="badge-verificado">✓ Verificado</span>
+          </div>
+
+          <div class="confirmacion-detalles">
+            <div class="detalle-item">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#0d9488" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <span>{{ getFechaDisplay() }}</span>
+            </div>
+            <div class="detalle-item">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#0d9488" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>{{ getHoraDisplay() }}</span>
+            </div>
+            <div class="detalle-item">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#0d9488" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span>{{ infoCentro.direccion }}</span>
+            </div>
+          </div>
+
+          <div class="observaciones">
+            <label>Observaciones <span style="font-weight:400;color:#94a3b8">(opcional)</span></label>
+            <textarea [(ngModel)]="observaciones" placeholder="Describe brevemente el motivo de tu consulta..." rows="3"></textarea>
+          </div>
+
+          <div *ngIf="mensajeError" style="color:#ef4444;font-size:13px;margin-bottom:10px;">{{ mensajeError }}</div>
+
+          <div class="paso-acciones">
+            <button class="btn-volver" (click)="pasoAgendar = 2">← Volver</button>
+            <button class="btn-confirmar" (click)="confirmarCita()">Confirmar Cita</button>
+          </div>
+
+          <p class="confirmacion-aviso">Puedes cancelar hasta 5 horas antes de la cita sin penalización.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ MIS CITAS ══ -->
+    <div class="section" *ngIf="seccionActiva === 'citas'">
+      <h1 class="section-title">Mis Citas</h1>
+      <p class="section-subtitle">Gestiona tus próximas atenciones médicas.</p>
+
+      <div *ngIf="mensajeExito" style="background:#f0fdf9;border:1px solid #99f6e4;border-radius:8px;padding:12px 16px;color:#0d9488;font-size:14px;font-weight:600;margin-bottom:20px;">
+        {{ mensajeExito }}
+      </div>
+
+      <h3 class="subsection-title">Próximas citas</h3>
+      <div class="citas-lista">
+        <div class="cita-card" *ngFor="let cita of proximasCitas; let i = index">
+          <div class="cita-avatar">{{ cita.iniciales || cita.especialidad?.substring(0,2) }}</div>
+          <div class="cita-info">
+            <span class="cita-badge" [class.urgente]="cita.urgente">{{ cita.urgente ? '🔴 Urgente' : cita.especialidad }}</span>
+            <p class="cita-nombre">{{ cita.profesional }}</p>
+            <p class="cita-profesional">{{ cita.especialidad }}</p>
+          </div>
+          <div class="cita-fecha">
+            <span class="cita-label">FECHA</span>
+            <span class="cita-valor">{{ cita.fecha }}</span>
+            <span class="cita-label">HORA</span>
+            <span class="cita-valor">{{ cita.hora }}</span>
+          </div>
+          <div class="cita-acciones">
+            <button class="btn-reagendar" (click)="reagendarCita(cita)">Reagendar</button>
+            <button class="btn-cancelar" [disabled]="!puedeCancelar(cita)" (click)="cancelarCita(i, cita)">Cancelar</button>
+            <p class="cita-aviso-cancelacion" *ngIf="!puedeCancelar(cita)">{{ avisoCancelacion(cita) }}</p>
+          </div>
+        </div>
+        <div *ngIf="proximasCitas.length === 0" style="text-align:center;color:#94a3b8;padding:32px;font-size:14px;">
+          No tienes citas próximas. <button class="btn-reagendar" (click)="navegarA('agendar')">Agendar una hora</button>
+        </div>
+      </div>
+
+      <h3 class="subsection-title" style="margin-top:28px">Últimas atenciones</h3>
+      <table class="historial-tabla">
+        <thead>
+          <tr><th>FECHA</th><th>PROFESIONAL</th><th>ESPECIALIDAD</th><th>ESTADO</th><th>ACCIONES</th></tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let h of historialResumen()">
+            <td><p>{{ h.fecha }}</p><small>{{ h.hora }}</small></td>
+            <td><div class="profesional-cell"><div class="mini-avatar">{{ h.iniciales }}</div><span>{{ h.profesional }}</span></div></td>
+            <td>{{ h.especialidad }}</td>
+            <td><span class="estado-badge" [ngClass]="h.estado">{{ h.estado }}</span></td>
+            <td>
+              <span class="doc-link" *ngIf="h.estado === 'cancelada'" (click)="reagendarCita(h)">↻ Reagendar</span>
+              <span class="doc-link" *ngIf="h.estado === 'completada' && h.tiene_pdf" (click)="descargarPdf(h.id)">⬇ PDF</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ══ HISTORIAL ══ -->
+    <div class="section" *ngIf="seccionActiva === 'historial'">
+      <h1 class="section-title">Historial de Citas</h1>
+      <p class="section-subtitle">Consulta el registro de todas tus atenciones médicas.</p>
+
+      <div class="historial-stats">
+        <div class="stat-card"><span class="stat-label">Total citas</span><span class="stat-num">{{ totalCitas }}</span></div>
+        <div class="stat-card"><span class="stat-label">Completadas</span><span class="stat-num completadas">{{ citasCompletadas }}</span></div>
+        <div class="stat-card"><span class="stat-label">Canceladas</span><span class="stat-num canceladas">{{ citasCanceladas }}</span></div>
+      </div>
+
+      <div class="historial-filtros">
+        <input type="text" placeholder="Buscar profesional..." [(ngModel)]="filtroProfesional">
+        <select [(ngModel)]="filtroEspecialidad">
+          <option value="">Todas las especialidades</option>
+          <option *ngFor="let e of especialidadesDisponibles" [value]="e">{{ e }}</option>
+        </select>
+        <input type="date" [(ngModel)]="filtroFecha">
+        <button class="btn-filtrar" (click)="historialFiltrado()">Filtrar</button>
+        <button class="btn-volver" (click)="limpiarFiltros()">Limpiar</button>
+      </div>
+
+      <table class="historial-tabla">
+        <thead>
+          <tr><th>FECHA</th><th>PROFESIONAL</th><th>ESPECIALIDAD</th><th>ESTADO</th><th>ACCIONES</th></tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let h of historialFiltrado()">
+            <td><p>{{ h.fecha }}</p><small>{{ h.hora }}</small></td>
+            <td><div class="profesional-cell"><div class="mini-avatar">{{ h.iniciales }}</div><span>{{ h.profesional }}</span></div></td>
+            <td>{{ h.especialidad }}</td>
+            <td><span class="estado-badge" [ngClass]="h.estado">{{ h.estado }}</span></td>
+            <td>
+              <span class="doc-link" *ngIf="h.estado === 'cancelada'" (click)="reagendarCita(h)">↻ Reagendar</span>
+              <span class="doc-link" *ngIf="h.estado === 'completada' && h.tiene_pdf" (click)="descargarPdf(h.id)">⬇ PDF</span>
+              <span *ngIf="h.estado !== 'cancelada' && !(h.estado === 'completada' && h.tiene_pdf)" style="color:#94a3b8;font-size:12px;">No aplica</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="paginacion">
+        <span>Mostrando {{ historialFiltrado().length }} de {{ totalCitas }} registros</span>
+        <div>
+          <button class="btn-pag" disabled>Anterior</button>
+          <button class="btn-pag active" [disabled]="totalCitas <= 10">Siguiente</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ CONFIGURACIÓN ══ -->
+    <div class="section" *ngIf="seccionActiva === 'configuracion'">
+      <h1 class="section-title">Configuración de Cuenta</h1>
+      <p class="section-subtitle">Gestiona tu información personal y preferencias del portal.</p>
+
+      <div *ngIf="mensajeExito" style="background:#f0fdf9;border:1px solid #99f6e4;border-radius:8px;padding:12px 16px;color:#0d9488;font-size:14px;font-weight:600;margin-bottom:20px;">
+        {{ mensajeExito }}
+      </div>
+
+      <div class="config-grid">
+
+        <!-- Perfil -->
+        <div class="config-card">
+          <h3 class="config-card-title">👤 Perfil de Usuario</h3>
+          <div class="perfil-row">
+            <div class="perfil-avatar-wrap">
+              <div class="perfil-avatar-grande">
+                <img *ngIf="fotoPerfilUrl" [src]="fotoPerfilUrl" alt="Foto de perfil">
+                <span *ngIf="!fotoPerfilUrl">{{ estudianteIniciales }}</span>
+              </div>
+              <label class="btn-editar-foto" for="inputFoto" title="Cambiar foto">✎</label>
+              <input id="inputFoto" type="file" accept="image/*" (change)="onFotoSeleccionada($event)" hidden>
+            </div>
+            <div class="perfil-campos">
+              <div class="campo-grupo">
+                <label>Nombre Completo</label>
+                <input type="text" [value]="estudianteData?.nombre" disabled>
+              </div>
+              <div class="campo-grupo">
+                <label>Correo Institucional</label>
+                <input type="email" [value]="estudianteData?.correo" disabled>
+              </div>
+              <div class="campo-grupo">
+                <label>Número de Celular</label>
+                <div class="campo-editable">
+                  <div class="celular-input-wrap" [class.disabled]="!celularEnEdicion">
+                    <span class="celular-prefijo">+56</span>
+                    <input type="tel" inputmode="numeric"
+                           [ngModel]="celularEditable"
+                           (ngModelChange)="onCelularChange($event)"
+                           [disabled]="!celularEnEdicion"
+                           maxlength="9" placeholder="985632178">
+                  </div>
+                  <button class="btn-editar-campo" [disabled]="celularEnEdicion" (click)="habilitarEdicionCelular()">Editar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Datos Institucionales -->
+        <div class="config-card datos-institucionales">
+          <h3 class="config-card-title">📋 Datos Institucionales</h3>
+          <p class="dato-inst"><span>Carrera</span><strong>{{ estudianteData?.carrera || 'No registrada' }}</strong></p>
+          <p class="dato-inst"><span>RUT</span><strong>{{ estudianteData?.rut || 'No registrado' }}</strong></p>
+          <p class="dato-inst"><span>Estado</span><strong>Alumno Regular</strong></p>
+        </div>
+
+        <!-- Ubicación SESAES — datos dinámicos del backend -->
+        <div class="config-card">
+          <h3 class="config-card-title">📍 Ubicación SESAES</h3>
+          <div class="mapa-wrap">
+            <iframe src="https://maps.google.com/maps?q=Jos%C3%A9%20Pedro%20Alessandri%201200%2C%20%C3%91u%C3%B1oa%2C%20Chile&t=&z=16&ie=UTF8&iwloc=&output=embed"
+                    width="100%" height="180" style="border:0;" loading="lazy"></iframe>
+          </div>
+          <p class="ubicacion-direccion">{{ infoCentro.direccion }}</p>
+          <p class="ubicacion-direccion" *ngIf="infoCentro.telefono" style="font-size:12px;">📞 {{ infoCentro.telefono }}</p>
+          <p class="ubicacion-direccion" *ngIf="infoCentro.correo_contacto" style="font-size:12px;">✉️ {{ infoCentro.correo_contacto }}</p>
+          <p class="ubicacion-direccion" *ngIf="infoCentro.horario_atencion" style="font-size:12px;">🕐 {{ infoCentro.horario_atencion }}</p>
+          <button class="btn-cambiar" (click)="abrirComoLlegar()">Cómo llegar</button>
+        </div>
+
+      </div>
+
+      <div class="config-acciones">
+        <button class="btn-descartar" [disabled]="!hayCambiosPendientes" (click)="descartarCambios()">Descartar</button>
+        <button class="btn-guardar"   [disabled]="!hayCambiosPendientes" (click)="guardarCambios()">Guardar cambios</button>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div class="dashboard-footer">
+  <span>© 2026 SESAES - Plataforma de Bienestar Estudiantil Universitaria.</span>
+  <div class="footer-links">
+    <span>Políticas de Privacidad</span>
+    <span>Términos de Servicio</span>
+    <span>Ayuda</span>
+  </div>
+</div>

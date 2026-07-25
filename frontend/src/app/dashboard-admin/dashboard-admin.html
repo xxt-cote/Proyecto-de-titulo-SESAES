@@ -1,0 +1,910 @@
+<!-- dashboard-admin.html -->
+<div class="dashboard" [class.tema-oscuro]="temaOscuro">
+
+  <!-- ═══════════════ SIDEBAR ═══════════════ -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <img src="temporal.jpg" alt="UTEM">
+      <div class="sidebar-logo-divider"></div>
+      <div class="sidebar-logo-text">
+        <span class="sidebar-logo-title">SESAES</span>
+        <span class="sidebar-logo-sub">Salud Estudiantil</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <button class="nav-item" [class.active]="seccionActiva==='inicio'" (click)="navegarA('inicio')">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+        Inicio
+      </button>
+      <button class="nav-item" [class.active]="seccionActiva==='horario'" (click)="navegarA('horario')">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        Horario
+      </button>
+      <button class="nav-item" [class.active]="seccionActiva==='profesional'" (click)="navegarA('profesional')">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
+        </svg>
+        Profesional
+      </button>
+      <button class="nav-item" [class.active]="seccionActiva==='historial'" (click)="navegarA('historial')">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+        </svg>
+        Historial
+      </button>
+      <button class="nav-item" [class.active]="seccionActiva==='configuracion'" (click)="navegarA('configuracion')">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+        </svg>
+        Configuración
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-profile">
+        <div class="profile-avatar" *ngIf="!configCentro.foto_admin_url">AD</div>
+        <img *ngIf="configCentro.foto_admin_url" [src]="configCentro.foto_admin_url" class="profile-avatar-img" alt="Foto admin" />
+        <div class="profile-info">
+          <span class="profile-name">{{ configCentro.nombre_admin || 'Admin SESAES' }}</span>
+          <span class="profile-role">Administrador</span>
+        </div>
+      </div>
+      <button class="logout-btn" (click)="cerrarSesion()">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+        Cerrar sesión
+      </button>
+    </div>
+  </aside>
+
+  <!-- ═══════════════ MAIN ═══════════════ -->
+  <div class="main-wrapper">
+
+    <!-- TOPBAR -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <h1 class="topbar-title">{{ tituloSeccion }}</h1>
+        <span class="topbar-sub">{{ subtituloSeccion }}</span>
+      </div>
+      <div class="topbar-actions">
+        <button class="tema-toggle-btn" (click)="toggleTema()" [title]="temaOscuro ? 'Modo claro' : 'Modo oscuro'">
+          <svg *ngIf="!temaOscuro" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+          <svg *ngIf="temaOscuro" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+          </svg>
+        </button>
+        <button class="topbar-icon-btn" (click)="toggleNotificaciones()">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>
+          </svg>
+          <span class="notif-badge" *ngIf="notifNoLeidas > 0">{{ notifNoLeidas }}</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- PANEL NOTIFICACIONES -->
+    <div class="notif-panel" *ngIf="notifPanelAbierto">
+      <div class="notif-panel-header">
+        <label class="notif-checkbox-master" *ngIf="notificaciones.length > 0">
+          <input type="checkbox" [checked]="todasNotifSeleccionadas" (change)="toggleSeleccionarTodasNotif()" />
+        </label>
+        <span>Notificaciones</span>
+        <div class="notif-panel-header-acciones" *ngIf="!hayNotifSeleccionadas">
+          <button class="notif-leer-todas" (click)="marcarTodasLeidas()">Marcar todas como leídas</button>
+        </div>
+        <div class="notif-panel-header-acciones" *ngIf="hayNotifSeleccionadas">
+          <button class="notif-eliminar-todas" (click)="eliminarNotifSeleccionadas()">
+            🗑️ Eliminar seleccionadas ({{ notifSeleccionadas.length }})
+          </button>
+        </div>
+      </div>
+      <div class="notif-lista">
+        <div *ngIf="notificaciones.length === 0" class="notif-vacia">Sin notificaciones</div>
+        <div *ngFor="let n of notificaciones" class="notif-item" [class.no-leida]="!n.leida" [class.seleccionada]="n.seleccionada">
+          <label class="notif-checkbox" (click)="$event.stopPropagation()">
+            <input type="checkbox" [(ngModel)]="n.seleccionada" />
+          </label>
+          <div class="notif-contenido" (click)="marcarLeida(n)">
+            <div class="notif-icono" [ngClass]="n.tipo">
+              <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            </div>
+            <div class="notif-texto">
+              <p>{{ n.mensaje }}</p>
+              <span>{{ n.fecha_creacion | date:'dd/MM HH:mm' }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mensaje-exito" *ngIf="mensajeExito">✓ {{ mensajeExito }}</div>
+    <div class="mensaje-error" *ngIf="mensajeError">✕ {{ mensajeError }}</div>
+
+    <main class="main-content">
+
+      <!-- ══ INICIO ══ -->
+      <div *ngIf="seccionActiva==='inicio'">
+        <div class="blob blob-blue"></div>
+        <div class="blob blob-purple"></div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon blue">
+              <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+            </div>
+            <div class="stat-info">
+              <span class="stat-label">Reservas de hoy</span>
+              <span class="stat-num">{{ estadisticas.reservas_hoy }}</span>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon green">
+              <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
+              </svg>
+            </div>
+            <div class="stat-info">
+              <span class="stat-label">Profesionales activos</span>
+              <span class="stat-num">{{ estadisticas.profesionales_activos }}</span>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon teal">
+              <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+              </svg>
+            </div>
+            <div class="stat-info">
+              <span class="stat-label">Horas disponibles</span>
+              <span class="stat-num">{{ estadisticas.horas_disponibles }}</span>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon orange">
+              <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </div>
+            <div class="stat-info">
+              <span class="stat-label">Solicitudes urgentes</span>
+              <span class="stat-num urgente">{{ estadisticas.urgentes }}</span>
+            </div>
+            <span class="urgente-badge" *ngIf="estadisticas.urgentes > 0">URGENTE</span>
+          </div>
+        </div>
+
+        <!-- Disponibilidad Hoy -->
+        <div class="card disponibilidad-card">
+          <div class="card-header">
+            <h3 class="card-title">Disponibilidad Hoy</h3>
+          </div>
+          <div class="disponibilidad-lista">
+            <div *ngFor="let prof of resumenDia" class="disponibilidad-item">
+              <span class="disp-icono">{{ getIconoEstadoProf(prof.estado) }}</span>
+              <span class="disp-nombre">{{ prof.nombre }}</span>
+              <span class="disp-estado" [ngClass]="'disp-' + prof.estado">
+                {{ prof.estado === 'activo' ? 'Activo' : prof.estado === 'licencia' ? 'En licencia médica' : 'Inasistencia' }}
+                <span *ngIf="prof.estado === 'activo' && prof.citas_hoy !== undefined"> ({{ prof.citas_hoy }} citas hoy)</span>
+              </span>
+            </div>
+            <div *ngIf="resumenDia.length === 0" class="tabla-vacia">Sin datos de disponibilidad</div>
+          </div>
+        </div>
+
+        <!-- Próximas citas + Actividad -->
+        <div class="inicio-grid">
+          <div class="card proximas-citas-card">
+            <div class="card-header">
+              <h3 class="card-title">Próximas Citas</h3>
+              <button class="btn-ver-agenda" (click)="navegarA('horario')">Ver agenda completa →</button>
+            </div>
+            <table class="admin-tabla">
+              <thead>
+                <tr>
+                  <th>ESTUDIANTE</th><th>ESPECIALIDAD</th><th>PROFESIONAL</th><th>FECHA</th><th>HORARIO</th><th>ACCIONES</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let cita of proximasCitas">
+                  <td>
+                    <div class="tabla-usuario">
+                      <div class="mini-avatar">{{ cita.estudiante | slice:0:2 }}</div>
+                      <div><strong>{{ cita.estudiante }}</strong><span>{{ cita.rut }}</span></div>
+                    </div>
+                  </td>
+                  <td><span class="esp-badge">{{ cita.especialidad }}</span></td>
+                  <td>{{ cita.profesional }}</td>
+                  <td><span class="fecha-cell">{{ formatearFecha(cita.fecha) }}</span></td>
+                  <td><div class="horario-cell">{{ cita.hora }}</div></td>
+                  <td>
+                    <div class="tabla-acciones">
+                      <button class="btn-tabla inasistencia" (click)="marcarInasistencia(cita)" title="Marcar inasistencia">✕</button>
+                      <button class="btn-tabla cancelar" (click)="cancelarCitaAdmin(cita)" title="Cancelar cita">🗑</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr *ngIf="proximasCitas.length === 0">
+                  <td colspan="6" class="tabla-vacia">No hay citas próximas</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="card actividad-card">
+            <h3 class="card-title">Actividad Reciente</h3>
+            <div class="actividad-lista">
+              <div *ngFor="let item of actividadReciente" class="actividad-item">
+                <div class="actividad-icono" [ngClass]="item.tipo"></div>
+                <div class="actividad-texto"><p>{{ item.mensaje }}</p><span>{{ item.tiempo }}</span></div>
+              </div>
+              <div *ngIf="actividadReciente.length === 0" class="tabla-vacia">Sin actividad reciente</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Gráficos -->
+        <div class="graficos-grid">
+          <div class="card grafico-card">
+            <div class="card-header">
+              <h3 class="card-title">Citas por especialidad</h3>
+              <div class="grafico-filtros">
+                <select [(ngModel)]="filtroGraficoEspecialidad" (change)="cargarGraficoEspecialidad()">
+                  <option value="">Todas las especialidades</option>
+                  <option *ngFor="let e of especialidades">{{ e }}</option>
+                </select>
+                <select [(ngModel)]="filtroGraficoAnio" (change)="cargarGraficoEspecialidad()">
+                  <option value="2025">2025</option>
+                  <option value="2026">2026</option>
+                </select>
+                <input class="grafico-filtro-input" [(ngModel)]="filtroGraficoCarrera" placeholder="Carrera..." (change)="cargarGraficoEspecialidad()" />
+                <button class="btn-exportar-small" (click)="exportarEspecialidadExcel()">↓ Excel</button>
+              </div>
+            </div>
+            <div class="barras-especialidad">
+              <div *ngFor="let item of graficoEspecialidad" class="barra-row">
+                <span class="barra-label">{{ item.especialidad }}</span>
+                <div class="barra-wrap"><div class="barra-fill" [style.width.%]="item.porcentaje"></div></div>
+                <span class="barra-pct">{{ item.porcentaje }}%</span>
+              </div>
+              <div *ngIf="graficoEspecialidad.length === 0" class="tabla-vacia">Sin datos</div>
+            </div>
+          </div>
+
+          <div class="card grafico-card">
+            <div class="card-header">
+              <h3 class="card-title">Citas por semana</h3>
+              <button class="btn-exportar-small" (click)="exportarSemanaExcel()">↓ Excel</button>
+            </div>
+            <div class="barras-semana">
+              <div *ngFor="let item of graficoSemana" class="barra-semana-col">
+                <div class="barra-semana-wrap">
+                  <div class="barra-semana-fill" [style.height.%]="getAlturaBarraSemana(item.cantidad)"></div>
+                </div>
+                <span class="barra-semana-label">{{ item.dia }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ HORARIO ══ -->
+      <div *ngIf="seccionActiva==='horario'">
+        <div class="horario-filtros">
+          <div class="filtro-grupo">
+            <label>Especialidad</label>
+            <select [(ngModel)]="filtroEspecialidad" (change)="filtrarProfesionales()">
+              <option value="">Todas</option>
+              <option *ngFor="let e of especialidades">{{ e }}</option>
+            </select>
+          </div>
+          <div class="filtro-grupo">
+            <label>Profesional</label>
+            <select [(ngModel)]="filtroProfesionalId" (change)="cargarHorarioProfesional()">
+              <option value="">Seleccionar...</option>
+              <option *ngFor="let p of profesionalesFiltrados" [value]="p.id">{{ p.nombre }}</option>
+            </select>
+          </div>
+          <div class="horario-acciones-top">
+            <button class="btn-nueva-cita-top" (click)="abrirModalNuevaCita()" [disabled]="!filtroProfesionalId || profesionalActualBloqueado">
+              <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              Nueva Cita +
+            </button>
+            <button class="btn-imprimir" (click)="imprimirAgenda()">
+              <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
+              </svg>
+              Imprimir Agenda
+            </button>
+          </div>
+        </div>
+
+        <div class="horario-leyenda">
+          <span class="leyenda-item">🟢 Hora disponible</span>
+          <span class="leyenda-item">🔵 Cita habitual</span>
+          <span class="leyenda-item">🔴 Cita urgente</span>
+          <span class="leyenda-item">⚫ Bloqueado</span>
+        </div>
+
+        <div class="horario-bloqueado-aviso" *ngIf="filtroProfesionalId && profesionalActualBloqueado">
+          ⚠️ {{ profesionalActual?.nombre }} está actualmente en estado "{{ profesionalActual?.estado }}" — su agenda está bloqueada hasta que se reactive manualmente desde Profesional → Gestionar.
+        </div>
+
+        <div class="horario-layout" *ngIf="filtroProfesionalId">
+          <div class="card horario-card">
+            <div class="semana-header">
+              <button class="cal-nav-btn" (click)="semanaAnterior()">‹</button>
+              <span class="semana-titulo">{{ semanaLabel }}</span>
+              <button class="cal-nav-btn" (click)="semanaSiguiente()">›</button>
+              <button class="btn-hoy" (click)="irAHoy()">Hoy</button>
+            </div>
+            <div class="semana-grilla">
+              <div class="hora-col">
+                <div class="hora-celda header"></div>
+                <div class="hora-celda" *ngFor="let h of horasGrilla">{{ h }}</div>
+              </div>
+              <div class="dia-col" *ngFor="let dia of semanaActual">
+                <div class="dia-header" [class.hoy]="dia.esHoy">
+                  <span class="dia-nombre">{{ dia.nombre }}</span>
+                  <span class="dia-num">{{ dia.num }}</span>
+                </div>
+                <div class="bloque-celda" *ngFor="let h of horasGrilla"
+                     [class.disponible]="getBloqueEstado(dia.fecha, h) === 'disponible'"
+                     [class.ocupado]="getBloqueEstado(dia.fecha, h) === 'ocupado'"
+                     [class.urgente-bloque]="getBloqueEstado(dia.fecha, h) === 'urgente'"
+                     [class.bloqueado]="getBloqueEstado(dia.fecha, h) === 'bloqueado'"
+                     (click)="clickBloque(dia.fecha, h)">
+                  <span *ngIf="getBloqueInfo(dia.fecha, h) as info" class="bloque-info">{{ info }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card detalle-dia-card" *ngIf="diaSeleccionado">
+            <div class="detalle-header">
+              <h4>{{ formatearFecha(diaSeleccionado) }}</h4>
+              <button class="detalle-cerrar" (click)="diaSeleccionado=null">✕</button>
+            </div>
+            <div class="detalle-lista">
+              <div *ngFor="let cita of citasDiaSeleccionado" class="detalle-cita" [class.urgente]="cita.urgente">
+                <span class="detalle-hora">{{ cita.hora }}</span>
+                <div class="detalle-info">
+                  <strong>{{ cita.estudiante }}</strong>
+                  <span>{{ cita.especialidad }}</span>
+                  <span *ngIf="cita.urgente" class="urgente-tag">URGENTE</span>
+                </div>
+                <div class="detalle-acciones">
+                  <button class="btn-tabla cancelar" (click)="cancelarCitaAdmin(cita)" title="Cancelar">✕</button>
+                </div>
+              </div>
+              <div *ngIf="citasDiaSeleccionado.length === 0" class="tabla-vacia">Sin citas este día</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="horario-vacio" *ngIf="!filtroProfesionalId">
+          <p>Selecciona un profesional para ver su agenda</p>
+        </div>
+      </div>
+
+      <!-- ══ PROFESIONALES ══ -->
+      <div *ngIf="seccionActiva==='profesional'">
+        <div class="prof-stats">
+          <div class="stat-card-sm"><span class="stat-label">Total profesionales</span><span class="stat-num">{{ profesionales.length }}</span></div>
+          <div class="stat-card-sm"><span class="stat-label">Activos hoy</span><span class="stat-num green">{{ profesionalesActivos }}</span></div>
+          <div class="stat-card-sm"><span class="stat-label">Especialidades</span><span class="stat-num blue">{{ especialidades.length }}</span></div>
+          <div class="stat-card-sm"><span class="stat-label">Con incidencias</span><span class="stat-num orange">{{ profesionalesConIncidencia }}</span></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Listado de Personal</h3>
+            <div class="card-header-actions">
+              <input class="search-input" placeholder="Buscar profesional..." [(ngModel)]="busquedaProfesional" />
+              <button class="btn-agregar" (click)="abrirModalAgregar()">+ Agregar profesional</button>
+            </div>
+          </div>
+          <table class="admin-tabla">
+            <thead>
+              <tr><th>PROFESIONAL</th><th>ESPECIALIDAD</th><th>RUT</th><th>ESTADO</th><th>ACCIONES</th></tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let p of profesionalesPaginados">
+                <td>
+                  <div class="tabla-usuario">
+                    <div class="mini-avatar">{{ p.iniciales }}</div>
+                    <div><strong>{{ p.nombre }}</strong><span>{{ p.correo }}</span></div>
+                  </div>
+                </td>
+                <td>{{ p.especialidad }}</td>
+                <td>{{ p.rut || '—' }}</td>
+                <td><span class="estado-badge" [ngClass]="p.estado">{{ p.estado }}</span></td>
+                <td>
+                  <button class="btn-tabla-acciones" (click)="abrirModalAcciones(p)">⋯ Gestionar</button>
+                </td>
+              </tr>
+              <tr *ngIf="profesionalesPaginados.length === 0">
+                <td colspan="5" class="tabla-vacia">No hay profesionales registrados</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="paginacion">
+            <span>Mostrando {{ (pagProf-1)*6+1 }} a {{ minVal(pagProf*6, profesionalesFiltradosBusqueda.length) }} de {{ profesionalesFiltradosBusqueda.length }} profesionales</span>
+            <div class="pag-btns">
+              <button class="btn-pag" [disabled]="pagProf===1" (click)="pagProf=pagProf-1">‹</button>
+              <button class="btn-pag" *ngFor="let p of getPaginasProf()" [class.active]="p===pagProf" (click)="pagProf=p">{{ p }}</button>
+              <button class="btn-pag" [disabled]="pagProf*6>=profesionalesFiltradosBusqueda.length" (click)="pagProf=pagProf+1">›</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ HISTORIAL ══ -->
+      <div *ngIf="seccionActiva==='historial'">
+        <div class="card">
+          <div class="historial-filtros-admin">
+            <div class="filtro-grupo"><label>Buscar estudiante</label><input [(ngModel)]="histFiltroEstudiante" placeholder="Nombre o RUT..." /></div>
+            <div class="filtro-grupo"><label>Desde</label><input type="date" [(ngModel)]="histFiltroDesde" /></div>
+            <div class="filtro-grupo"><label>Hasta</label><input type="date" [(ngModel)]="histFiltroHasta" /></div>
+            <div class="filtro-grupo">
+              <label>Especialidad</label>
+              <select [(ngModel)]="histFiltroEspecialidad">
+                <option value="">Todas</option>
+                <option *ngFor="let e of especialidades">{{ e }}</option>
+              </select>
+            </div>
+            <div class="filtro-grupo">
+              <label>Estado</label>
+              <select [(ngModel)]="histFiltroEstado">
+                <option value="">Todos</option>
+                <option value="completada">Completada</option>
+                <option value="cancelada">Cancelada</option>
+                <option value="inasistencia">Inasistencia</option>
+                <option value="pendiente">Pendiente</option>
+              </select>
+            </div>
+            <div class="filtro-grupo"><label>Carrera</label><input [(ngModel)]="histFiltroCarrera" placeholder="Ej: Derecho..." /></div>
+          </div>
+          <div class="historial-acciones">
+            <button class="btn-filtrar" (click)="cargarHistorial()">Aplicar Filtros</button>
+            <button class="btn-limpiar" (click)="limpiarFiltrosHistorial()">Limpiar</button>
+            <button class="btn-exportar-pdf" (click)="exportarHistorialPdf()">↓ Exportar PDF</button>
+            <button class="btn-exportar-excel" (click)="exportarHistorialExcel()">↓ Exportar Excel</button>
+          </div>
+
+          <!-- Exportación CGR -->
+          <div class="cgr-panel">
+            <h4 class="cgr-titulo">📋 Exportación CGR (Contraloría General de la República)</h4>
+            <p class="cgr-desc">Excluye automáticamente los registros de prueba según lo solicitado.</p>
+            <div class="cgr-btns">
+              <button class="btn-cgr" (click)="exportarCGR2025()">
+                ↓ Atenciones 2025
+              </button>
+              <button class="btn-cgr" (click)="exportarCGR2026()">
+                ↓ Atenciones 2026 (hasta mayo)
+              </button>
+              <button class="btn-cgr secondary" (click)="exportarListadoAlumnos()">
+                ↓ Listado de Alumnos
+              </button>
+            </div>
+          </div>
+
+          <!-- Estadísticas del estudiante -->
+          <div class="est-stats-panel" *ngIf="estadisticasEstudiante">
+            <div class="est-stats-titulo">Resumen de <strong>{{ estadisticasEstudiante.nombre }}</strong></div>
+            <div class="est-stats-grid">
+              <div class="est-stat"><span class="est-stat-num">{{ estadisticasEstudiante.total }}</span><span class="est-stat-label">Total citas</span></div>
+              <div class="est-stat green"><span class="est-stat-num">{{ estadisticasEstudiante.completadas }}</span><span class="est-stat-label">Completadas</span></div>
+              <div class="est-stat red"><span class="est-stat-num">{{ estadisticasEstudiante.canceladas }}</span><span class="est-stat-label">Canceladas</span></div>
+              <div class="est-stat orange"><span class="est-stat-num">{{ estadisticasEstudiante.inasistencias }}</span><span class="est-stat-label">Inasistencias</span></div>
+            </div>
+          </div>
+
+          <table class="admin-tabla">
+            <thead>
+              <tr><th>ESTUDIANTE</th><th>ESPECIALIDAD</th><th>PROFESIONAL</th><th>FECHA Y HORA</th><th>ESTADO</th><th>ACCIONES</th></tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let h of historialPaginado">
+                <td>
+                  <div class="tabla-usuario">
+                    <div class="mini-avatar">{{ h.iniciales }}</div>
+                    <div><strong>{{ h.estudiante }}</strong><span>{{ h.rut }}</span></div>
+                  </div>
+                </td>
+                <td><span class="esp-badge">{{ h.especialidad }}</span></td>
+                <td>{{ h.profesional }}</td>
+                <td>{{ h.fecha }} — {{ h.hora }}</td>
+                <td><span class="estado-badge" [ngClass]="h.estado">{{ h.estado }}</span></td>
+                <td>
+                  <div class="tabla-acciones">
+                    <button class="btn-tabla ver" (click)="verDetalleCita(h)" title="Ver detalle">👁️</button>
+                    <button class="btn-tabla descargar" *ngIf="h.tiene_pdf" (click)="descargarPdf(h.id)" title="Descargar PDF">⬇️</button>
+                  </div>
+                </td>
+              </tr>
+              <tr *ngIf="historialPaginado.length === 0">
+                <td colspan="6" class="tabla-vacia">No hay registros con los filtros aplicados</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="paginacion">
+            <span>Mostrando {{ (pagHist-1)*8+1 }}–{{ minVal(pagHist*8, historialAdmin.length) }} de {{ historialAdmin.length }} resultados</span>
+            <div class="pag-btns">
+              <button class="btn-pag" [disabled]="pagHist===1" (click)="pagHist=pagHist-1">‹</button>
+              <button class="btn-pag" *ngFor="let p of getPaginasHist()" [class.active]="p===pagHist" (click)="pagHist=p">{{ p }}</button>
+              <button class="btn-pag" [disabled]="pagHist*8>=historialAdmin.length" (click)="pagHist=pagHist+1">›</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ CONFIGURACIÓN ══ -->
+      <div *ngIf="seccionActiva==='configuracion'">
+        <div class="config-nueva-layout">
+
+          <!-- A: Perfil -->
+          <div class="card config-card">
+            <div class="card-header">
+              <h3 class="card-title">Perfil del Administrador</h3>
+            </div>
+            <div class="perfil-foto-row">
+              <div class="perfil-foto-preview">
+                <img *ngIf="configCentro.foto_admin_url" [src]="configCentro.foto_admin_url" alt="Foto" />
+                <div *ngIf="!configCentro.foto_admin_url" class="perfil-foto-placeholder">AD</div>
+              </div>
+              <label class="btn-subir-foto">
+                <input type="file" accept="image/*" (change)="onFotoSeleccionada($event)" style="display:none" />
+                📷 Cambiar foto
+              </label>
+            </div>
+            <div class="campo-grupo" style="margin-bottom:12px">
+              <label>Nombre completo</label>
+              <input [(ngModel)]="configPerfil.nombre_admin" placeholder="Nombre del administrador" />
+            </div>
+            <p class="config-seccion-titulo">Cambiar contraseña</p>
+            <div class="form-grid">
+              <div class="campo-grupo">
+                <label>Contraseña actual</label>
+                <div class="password-wrap">
+                  <input [type]="mostrarContrasenaActual ? 'text' : 'password'" [(ngModel)]="configPerfil.contrasena_actual" placeholder="••••••" />
+                  <button class="btn-ojo" (click)="mostrarContrasenaActual = !mostrarContrasenaActual" type="button">
+                    <svg *ngIf="!mostrarContrasenaActual" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    <svg *ngIf="mostrarContrasenaActual" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
+                      <line x1="1" y1="1" x2="23" y2="23"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div class="campo-grupo">
+                <label>Nueva contraseña</label>
+                <div class="password-wrap">
+                  <input [type]="mostrarContrasenaaNueva ? 'text' : 'password'" [(ngModel)]="configPerfil.contrasena_nueva" placeholder="••••••" />
+                  <button class="btn-ojo" (click)="mostrarContrasenaaNueva = !mostrarContrasenaaNueva" type="button">
+                    <svg *ngIf="!mostrarContrasenaaNueva" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    <svg *ngIf="mostrarContrasenaaNueva" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
+                      <line x1="1" y1="1" x2="23" y2="23"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div class="campo-grupo">
+                <label>Confirmar nueva contraseña</label>
+                <div class="password-wrap">
+                  <input [type]="mostrarContrasenaConf ? 'text' : 'password'" [(ngModel)]="configPerfil.contrasena_conf" placeholder="••••••" />
+                  <button class="btn-ojo" (click)="mostrarContrasenaConf = !mostrarContrasenaConf" type="button">
+                    <svg *ngIf="!mostrarContrasenaConf" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    <svg *ngIf="mostrarContrasenaConf" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
+                      <line x1="1" y1="1" x2="23" y2="23"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <button class="btn-guardar-config" (click)="guardarPerfilAdmin()">Guardar cambios</button>
+          </div>
+
+          <!-- B: Información del Centro -->
+          <div class="card config-card">
+            <div class="card-header">
+              <h3 class="card-title">Información del Centro SESAES</h3>
+            </div>
+            <p class="card-desc">Estos datos son visibles para los estudiantes y se usan en los PDFs.</p>
+            <div class="form-grid">
+              <div class="campo-grupo"><label>Nombre del centro</label><input [(ngModel)]="configCentro.nombre_centro" /></div>
+              <div class="campo-grupo"><label>Teléfono de contacto</label><input [(ngModel)]="configCentro.telefono" placeholder="+56 2 XXXX XXXX" /></div>
+              <div class="campo-grupo" style="grid-column: 1 / -1"><label>Dirección</label><input [(ngModel)]="configCentro.direccion" /></div>
+              <div class="campo-grupo"><label>Correo de contacto</label><input [(ngModel)]="configCentro.correo_contacto" placeholder="sesaes@utem.cl" /></div>
+              <div class="campo-grupo"><label>Horario de atención</label><input [(ngModel)]="configCentro.horario_atencion" placeholder="Lunes a Viernes 08:00–18:00" /></div>
+            </div>
+            <button class="btn-guardar-config" (click)="guardarInfoCentro()" [disabled]="guardandoConfig">
+              {{ guardandoConfig ? 'Guardando...' : 'Guardar cambios' }}
+            </button>
+          </div>
+
+          <!-- C: Auditoría -->
+          <div class="card config-card auditoria-card">
+            <div class="card-header">
+              <h3 class="card-title">Auditoría / Log de Actividad</h3>
+              <div class="auditoria-filtros">
+                <input type="date" [(ngModel)]="auditFiltroDesde" />
+                <input type="date" [(ngModel)]="auditFiltroHasta" />
+                <button class="btn-filtrar" (click)="cargarAuditoria()">Filtrar</button>
+                <button class="btn-exportar-excel" (click)="exportarAuditoriaExcel()">↓ Excel</button>
+                <button class="btn-exportar-pdf" (click)="exportarAuditoriaPdf()">↓ PDF</button>
+                <button class="btn-eliminar-todo-auditoria" *ngIf="hayAuditoriaSeleccionada" (click)="eliminarAuditoriaSeleccionada()">
+                  🗑️ Eliminar seleccionados ({{ auditoriaSeleccionada.length }})
+                </button>
+              </div>
+            </div>
+            <div *ngIf="cargandoAuditoria" class="tabla-vacia">Cargando...</div>
+            <table class="admin-tabla" *ngIf="!cargandoAuditoria">
+              <thead>
+                <tr>
+                  <th class="th-checkbox">
+                    <input type="checkbox" *ngIf="auditoria.length > 0" [checked]="todaAuditoriaSeleccionada" (change)="toggleSeleccionarTodaAuditoria()" />
+                  </th>
+                  <th>FECHA / HORA</th><th>ACCIÓN</th><th>DETALLE</th><th>ENTIDAD</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let a of auditoria" [class.fila-seleccionada]="a.seleccionada">
+                  <td class="td-checkbox"><input type="checkbox" [(ngModel)]="a.seleccionada" /></td>
+                  <td>{{ a.fecha | date:'dd/MM/yyyy HH:mm' }}</td>
+                  <td>{{ a.accion }}</td>
+                  <td>{{ a.detalle }}</td>
+                  <td>{{ a.entidad }}{{ a.entidad_id ? ' #' + a.entidad_id : '' }}</td>
+                </tr>
+                <tr *ngIf="auditoria.length === 0">
+                  <td colspan="5" class="tabla-vacia">Sin registros de actividad</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+      </div>
+
+    </main>
+
+    <footer class="dashboard-footer">
+      <span>© 2026 SESAES – Plataforma de Bienestar Estudiantil Universitaria.</span>
+      <div class="footer-links">
+        <span>Políticas de Privacidad</span><span>Términos de Servicio</span><span>Ayuda</span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- MODAL: NUEVO PROFESIONAL -->
+  <div class="modal-overlay" *ngIf="modalProfAbierto" (click)="cerrarModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div *ngIf="!mostrarConfirmacionProf">
+        <div class="modal-header">
+          <h3>Nuevo Profesional</h3>
+          <button class="modal-cerrar" (click)="cerrarModal()">✕</button>
+        </div>
+        <div class="form-grid">
+          <div class="campo-grupo" style="grid-column: 1 / -1">
+            <label>Nombre Completo *</label>
+            <input [(ngModel)]="profNuevoDatos.nombre" placeholder="Dr. Nombre Apellido" />
+          </div>
+          <div class="campo-grupo">
+            <label>Especialidad *</label>
+            <select [(ngModel)]="profNuevoDatos.especialidad">
+              <option value="">Seleccionar...</option>
+              <option *ngFor="let e of especialidades">{{ e }}</option>
+              <option value="otra">+ Nueva especialidad</option>
+            </select>
+          </div>
+          <div class="campo-grupo" *ngIf="profNuevoDatos.especialidad === 'otra'">
+            <label>Nueva especialidad *</label>
+            <input [(ngModel)]="profNuevoDatos.especialidadNueva" placeholder="Nombre de la especialidad" />
+          </div>
+          <div class="campo-grupo">
+            <label>Correo electrónico * (@utem.cl)</label>
+            <input [(ngModel)]="profNuevoDatos.correo" placeholder="nombre@utem.cl"
+                   (input)="onCorreoChange()" [class.input-error]="!correoValido" />
+            <span class="campo-error" *ngIf="!correoValido">Debe ser @utem.cl</span>
+          </div>
+          <div class="campo-grupo">
+            <label>RUT (formato: 12.345.678-9)</label>
+            <input [(ngModel)]="profNuevoDatos.rut" placeholder="12.345.678-9"
+                   (input)="onRutChange()" [class.input-error]="!rutValido" />
+            <span class="campo-error" *ngIf="!rutValido">RUT inválido</span>
+          </div>
+          <!-- Selector de duración -->
+          <div class="campo-grupo" style="grid-column: 1 / -1">
+            <label>Duración de atención por paciente</label>
+            <div class="duracion-selector">
+              <input type="number" min="1" max="60" [(ngModel)]="duracionNumero" class="duracion-input" />
+              <select [(ngModel)]="duracionUnidad" class="duracion-unidad">
+                <option value="minutos">Minutos</option>
+                <option value="horas">Horas</option>
+              </select>
+              <span class="duracion-preview">= {{ duracionEnMinutos }} min por paciente</span>
+            </div>
+          </div>
+          <div class="campo-grupo" style="grid-column: 1 / -1">
+            <label>Estado inicial</label>
+            <input value="Activo" disabled style="background:#f1f5f9; color:#94a3b8" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-cancelar-modal" (click)="cerrarModal()">Cancelar</button>
+          <button class="btn-guardar-modal" (click)="continuarCrearProf()">Continuar →</button>
+        </div>
+      </div>
+
+      <div *ngIf="mostrarConfirmacionProf">
+        <div class="modal-header">
+          <h3>Confirmar nuevo profesional</h3>
+          <button class="modal-cerrar" (click)="cerrarModal()">✕</button>
+        </div>
+        <div class="confirmacion-resumen">
+          <div class="conf-row"><span class="conf-label">Nombre</span><span class="conf-val">{{ profNuevoDatos.nombre }}</span></div>
+          <div class="conf-row">
+            <span class="conf-label">Especialidad</span>
+            <span class="conf-val">{{ profNuevoDatos.especialidad === 'otra' ? profNuevoDatos.especialidadNueva : profNuevoDatos.especialidad }}</span>
+          </div>
+          <div class="conf-row"><span class="conf-label">Correo</span><span class="conf-val">{{ profNuevoDatos.correo }}</span></div>
+          <div class="conf-row"><span class="conf-label">RUT</span><span class="conf-val">{{ profNuevoDatos.rut || '—' }}</span></div>
+          <div class="conf-row"><span class="conf-label">Duración atención</span><span class="conf-val">{{ duracionEnMinutos }} minutos</span></div>
+          <div class="conf-row"><span class="conf-label">Estado</span><span class="conf-val"><span class="estado-badge activo">Activo</span></span></div>
+          <div class="conf-row conf-password"><span class="conf-label">Contraseña temporal</span><span class="conf-val conf-val-password">prof123</span></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-cancelar-modal" (click)="volverFormProf()">← Volver</button>
+          <button class="btn-guardar-modal" (click)="confirmarCrearProf()">✓ Confirmar y crear</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ACCIONES PROFESIONAL -->
+  <div class="modal-overlay" *ngIf="modalAccionesAbierto" (click)="cerrarModalAcciones()">
+    <div class="modal modal-acciones" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Gestionar Profesional</h3>
+        <button class="modal-cerrar" (click)="cerrarModalAcciones()">✕</button>
+      </div>
+      <div *ngIf="profSeleccionado">
+        <div class="prof-datos-readonly">
+          <div class="mini-avatar avatar-lg">{{ profSeleccionado.iniciales }}</div>
+          <div class="prof-datos-info">
+            <h4>{{ profSeleccionado.nombre }}</h4>
+            <span class="esp-badge">{{ profSeleccionado.especialidad }}</span>
+          </div>
+        </div>
+        <div class="prof-datos-grid">
+          <div class="dato-row"><span class="dato-label">Correo</span><span class="dato-val">{{ profSeleccionado.correo }}</span></div>
+          <div class="dato-row"><span class="dato-label">RUT</span><span class="dato-val">{{ profSeleccionado.rut || '—' }}</span></div>
+          <div class="dato-row">
+            <span class="dato-label">Estado actual</span>
+            <span class="estado-badge" [ngClass]="profSeleccionado.estado">{{ profSeleccionado.estado }}</span>
+          </div>
+        </div>
+
+        <!-- Duración de atención -->
+        <div class="modal-separador"></div>
+        <p class="config-seccion-titulo">Duración de atención por paciente</p>
+        <div class="duracion-selector" style="margin-bottom:12px">
+          <input type="number" min="1" max="60" [(ngModel)]="duracionNumero" class="duracion-input" />
+          <select [(ngModel)]="duracionUnidad" class="duracion-unidad">
+            <option value="minutos">Minutos</option>
+            <option value="horas">Horas</option>
+          </select>
+          <span class="duracion-preview">= {{ duracionEnMinutos }} min</span>
+          <button class="btn-guardar-modal" style="padding:7px 14px" (click)="guardarDuracionProfesional()">Guardar duración</button>
+        </div>
+
+        <div class="modal-separador"></div>
+        <p class="config-seccion-titulo">Cambiar estado operacional</p>
+        <div class="campo-grupo" style="margin-bottom:10px">
+          <label>Nuevo estado</label>
+          <select [(ngModel)]="profSeleccionado.nuevoEstado">
+            <option value="activo">Activo</option>
+            <option value="licencia">En Licencia Médica</option>
+            <option value="inasistencia">Inasistencia</option>
+          </select>
+        </div>
+        <div class="campo-grupo" *ngIf="estadoCambioRequiereMotivo" style="margin-bottom:10px">
+          <label>Motivo (opcional)</label>
+          <input [(ngModel)]="profSeleccionado.motivoCambio" placeholder="Ej: Licencia médica hasta el 30/06" />
+        </div>
+        <button class="btn-guardar-modal" style="width:100%;margin-bottom:12px" (click)="guardarEstadoProfesional()">Guardar Estado</button>
+
+        <div class="modal-separador"></div>
+        <button class="btn-eliminar-prof" (click)="eliminarProfesionalDesdeModal()">🗑️ Eliminar Profesional</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: DETALLE DE CITA (Historial) -->
+  <div class="modal-overlay" *ngIf="modalDetalleCitaAbierto" (click)="cerrarModalDetalleCita()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Detalle de la cita</h3>
+        <button class="modal-cerrar" (click)="cerrarModalDetalleCita()">✕</button>
+      </div>
+      <div *ngIf="citaDetalle" class="prof-datos-grid">
+        <div class="dato-row"><span class="dato-label">Estudiante</span><span class="dato-val">{{ citaDetalle.estudiante }}</span></div>
+        <div class="dato-row"><span class="dato-label">RUT</span><span class="dato-val">{{ citaDetalle.rut || '—' }}</span></div>
+        <div class="dato-row" *ngIf="citaDetalle.carrera"><span class="dato-label">Carrera</span><span class="dato-val">{{ citaDetalle.carrera }}</span></div>
+        <div class="dato-row"><span class="dato-label">Especialidad</span><span class="dato-val">{{ citaDetalle.especialidad }}</span></div>
+        <div class="dato-row"><span class="dato-label">Profesional</span><span class="dato-val">{{ citaDetalle.profesional }}</span></div>
+        <div class="dato-row"><span class="dato-label">Fecha</span><span class="dato-val">{{ citaDetalle.fecha }}</span></div>
+        <div class="dato-row"><span class="dato-label">Hora</span><span class="dato-val">{{ citaDetalle.hora }}</span></div>
+        <div class="dato-row"><span class="dato-label">Estado</span><span class="estado-badge" [ngClass]="citaDetalle.estado">{{ citaDetalle.estado }}</span></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancelar-modal" (click)="cerrarModalDetalleCita()">Cerrar</button>
+        <button class="btn-guardar-modal" *ngIf="citaDetalle?.tiene_pdf" (click)="descargarPdf(citaDetalle.id)">⬇ Descargar PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: NUEVA CITA -->
+  <div class="modal-overlay" *ngIf="modalCitaAbierto" (click)="cerrarModalCita()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Nueva Cita{{ nuevaCita.urgente ? ' — URGENTE' : '' }}</h3>
+        <button class="modal-cerrar" (click)="cerrarModalCita()">✕</button>
+      </div>
+      <div class="campo-grupo" style="margin-bottom:12px; position:relative">
+        <label>Buscar estudiante (nombre o RUT) *</label>
+        <input [(ngModel)]="busquedaEstudiante" placeholder="Escribe 3 caracteres o más..."
+            (input)="buscarEstudiante()" autocomplete="off" />
+        <div class="estudiante-dropdown" *ngIf="resultadosEstudiante.length > 0">
+          <div *ngFor="let est of resultadosEstudiante" class="estudiante-opcion" (click)="seleccionarEstudiante(est)">
+            <strong>{{ est.nombre }}</strong>
+            <span>{{ est.rut }} · {{ est.carrera }}</span>
+          </div>
+        </div>
+        <div class="buscando-label" *ngIf="buscandoEstudiante">Buscando...</div>
+      </div>
+      <div class="form-grid">
+        <div class="campo-grupo"><label>Fecha</label><input type="date" [(ngModel)]="nuevaCita.fecha" /></div>
+        <div class="campo-grupo"><label>Hora</label><input [(ngModel)]="nuevaCita.hora" placeholder="09:00" /></div>
+        <div class="campo-grupo" style="grid-column: 1 / -1">
+          <label>Observaciones (opcional)</label>
+          <input [(ngModel)]="nuevaCita.observaciones" placeholder="Motivo de la cita" />
+        </div>
+        <div class="campo-grupo toggle-row" style="grid-column: 1 / -1">
+          <span>¿Es urgente?</span>
+          <div class="toggle" [class.on]="nuevaCita.urgente" (click)="nuevaCita.urgente = !nuevaCita.urgente"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancelar-modal" (click)="cerrarModalCita()">Cancelar</button>
+        <button class="btn-guardar-modal" (click)="crearCitaDesdeHorario()">Confirmar Cita</button>
+      </div>
+    </div>
+  </div>
+
+</div>
