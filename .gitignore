@@ -1,1 +1,12 @@
 inicio de sesion/
+
+# Python / backend
+__pycache__/
+*.pyc
+venv/
+.env
+
+# Angular / frontend
+node_modules/
+.angular/
+dist/
