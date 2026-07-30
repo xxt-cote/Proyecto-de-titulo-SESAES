@@ -47,14 +47,6 @@
     </nav>
 
     <div class="sidebar-footer">
-      <div class="sidebar-profile">
-        <div class="profile-avatar" *ngIf="!configCentro.foto_admin_url">AD</div>
-        <img *ngIf="configCentro.foto_admin_url" [src]="configCentro.foto_admin_url" class="profile-avatar-img" alt="Foto admin" />
-        <div class="profile-info">
-          <span class="profile-name">{{ configCentro.nombre_admin || 'Admin SESAES' }}</span>
-          <span class="profile-role">Administrador</span>
-        </div>
-      </div>
       <button class="logout-btn" (click)="cerrarSesion()">
         <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
@@ -70,7 +62,8 @@
     <!-- TOPBAR -->
     <header class="topbar">
       <div class="topbar-left">
-        <h1 class="topbar-title">{{ tituloSeccion }}</h1>
+        <h1 class="topbar-title" *ngIf="seccionActiva!=='inicio'">{{ tituloSeccion }}</h1>
+        <h1 class="topbar-title" *ngIf="seccionActiva==='inicio'">Hola, {{ configCentro.nombre_admin || 'Administrador/a' }} 👋</h1>
         <span class="topbar-sub">{{ subtituloSeccion }}</span>
       </div>
       <div class="topbar-actions">
@@ -91,6 +84,14 @@
           </svg>
           <span class="notif-badge" *ngIf="notifNoLeidas > 0">{{ notifNoLeidas }}</span>
         </button>
+        <div class="topbar-perfil">
+          <div class="admin-avatar-topbar" *ngIf="!configCentro.foto_admin_url">AD</div>
+          <img *ngIf="configCentro.foto_admin_url" [src]="configCentro.foto_admin_url" class="admin-avatar-img-topbar" alt="Foto admin" />
+          <div class="topbar-perfil-info">
+            <span class="topbar-perfil-nombre">{{ configCentro.nombre_admin || 'Admin SESAES' }}</span>
+            <span class="topbar-perfil-rol">Administrador</span>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -247,14 +248,33 @@
             </table>
           </div>
 
-          <div class="card actividad-card">
-            <h3 class="card-title">Actividad Reciente</h3>
-            <div class="actividad-lista">
-              <div *ngFor="let item of actividadReciente" class="actividad-item">
-                <div class="actividad-icono" [ngClass]="item.tipo"></div>
-                <div class="actividad-texto"><p>{{ item.mensaje }}</p><span>{{ item.tiempo }}</span></div>
+          <div class="inicio-lateral">
+            <div class="card actividad-card">
+              <h3 class="card-title">Actividad Reciente</h3>
+              <div class="actividad-lista">
+                <div *ngFor="let item of actividadReciente" class="actividad-item">
+                  <div class="actividad-icono" [ngClass]="item.tipo"></div>
+                  <div class="actividad-texto"><p>{{ item.mensaje }}</p><span>{{ item.tiempo }}</span></div>
+                </div>
+                <div *ngIf="actividadReciente.length === 0" class="tabla-vacia">Sin actividad reciente</div>
               </div>
-              <div *ngIf="actividadReciente.length === 0" class="tabla-vacia">Sin actividad reciente</div>
+            </div>
+
+            <!-- Calendario del mes (solo visual) -->
+            <div class="card inicio-calendario">
+              <div class="calendario-header">
+                <button class="cal-nav-btn" (click)="calMesAnterior()">‹</button>
+                <span>{{ calNombreMesVisible }}</span>
+                <button class="cal-nav-btn" (click)="calMesSiguiente()">›</button>
+              </div>
+              <div class="cal-grid-dias-nombre-admin">
+                <span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span>
+              </div>
+              <div class="cal-grid-admin">
+                <div *ngFor="let dia of calDiasMes" class="cal-celda-admin" [class.vacia]="!dia">
+                  <span *ngIf="dia" [class.hoy]="dia.esHoy">{{ dia.num }}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -265,25 +285,22 @@
             <div class="card-header">
               <h3 class="card-title">Citas por especialidad</h3>
               <div class="grafico-filtros">
-                <select [(ngModel)]="filtroGraficoEspecialidad" (change)="cargarGraficoEspecialidad()">
-                  <option value="">Todas las especialidades</option>
-                  <option *ngFor="let e of especialidades">{{ e }}</option>
-                </select>
                 <select [(ngModel)]="filtroGraficoAnio" (change)="cargarGraficoEspecialidad()">
-                  <option value="2025">2025</option>
-                  <option value="2026">2026</option>
+                  <option *ngFor="let a of aniosDisponiblesGrafico" [value]="a">{{ a }}</option>
                 </select>
                 <input class="grafico-filtro-input" [(ngModel)]="filtroGraficoCarrera" placeholder="Carrera..." (change)="cargarGraficoEspecialidad()" />
                 <button class="btn-exportar-small" (click)="exportarEspecialidadExcel()">↓ Excel</button>
               </div>
             </div>
-            <div class="barras-especialidad">
-              <div *ngFor="let item of graficoEspecialidad" class="barra-row">
-                <span class="barra-label">{{ item.especialidad }}</span>
-                <div class="barra-wrap"><div class="barra-fill" [style.width.%]="item.porcentaje"></div></div>
-                <span class="barra-pct">{{ item.porcentaje }}%</span>
-              </div>
-              <div *ngIf="graficoEspecialidad.length === 0" class="tabla-vacia">Sin datos</div>
+            <div class="grafico-canvas-wrap">
+              <canvas #chartEspecialidad></canvas>
+            </div>
+            <div class="grafico-leyenda">
+              <span *ngFor="let item of graficoEspecialidad; let i = index" class="leyenda-chip">
+                <span class="leyenda-dot" [style.background]="coloresGrafico[i % coloresGrafico.length]"></span>
+                {{ item.especialidad }} {{ item.porcentaje }}%
+              </span>
+              <span *ngIf="graficoEspecialidad.length === 0" class="tabla-vacia">Sin datos</span>
             </div>
           </div>
 
@@ -292,13 +309,8 @@
               <h3 class="card-title">Citas por semana</h3>
               <button class="btn-exportar-small" (click)="exportarSemanaExcel()">↓ Excel</button>
             </div>
-            <div class="barras-semana">
-              <div *ngFor="let item of graficoSemana" class="barra-semana-col">
-                <div class="barra-semana-wrap">
-                  <div class="barra-semana-fill" [style.height.%]="getAlturaBarraSemana(item.cantidad)"></div>
-                </div>
-                <span class="barra-semana-label">{{ item.dia }}</span>
-              </div>
+            <div class="grafico-canvas-wrap">
+              <canvas #chartSemana></canvas>
             </div>
           </div>
         </div>
@@ -391,7 +403,8 @@
                   <span>{{ cita.especialidad }}</span>
                   <span *ngIf="cita.urgente" class="urgente-tag">URGENTE</span>
                 </div>
-                <div class="detalle-acciones">
+                <span class="estado-badge" [ngClass]="cita.estado">{{ cita.estado }}</span>
+                <div class="detalle-acciones" *ngIf="cita.estado === 'pendiente'">
                   <button class="btn-tabla cancelar" (click)="cancelarCitaAdmin(cita)" title="Cancelar">✕</button>
                 </div>
               </div>
@@ -493,12 +506,21 @@
           <div class="cgr-panel">
             <h4 class="cgr-titulo">📋 Exportación CGR (Contraloría General de la República)</h4>
             <p class="cgr-desc">Excluye automáticamente los registros de prueba según lo solicitado.</p>
+            <div class="cgr-selector">
+              <div class="cgr-campo">
+                <label>Año</label>
+                <select [(ngModel)]="cgrAnio">
+                  <option *ngFor="let a of cgrAniosDisponibles" [value]="a">{{ a }}</option>
+                </select>
+              </div>
+              <div class="cgr-campo">
+                <label>Hasta fecha <span class="opcional">(opcional)</span></label>
+                <input type="date" [(ngModel)]="cgrFechaFin" />
+              </div>
+            </div>
             <div class="cgr-btns">
-              <button class="btn-cgr" (click)="exportarCGR2025()">
-                ↓ Atenciones 2025
-              </button>
-              <button class="btn-cgr" (click)="exportarCGR2026()">
-                ↓ Atenciones 2026 (hasta mayo)
+              <button class="btn-cgr" (click)="exportarCGR()">
+                ↓ Atenciones {{ cgrAnio }}{{ cgrFechaFin ? ' (hasta ' + cgrFechaFin + ')' : '' }}
               </button>
               <button class="btn-cgr secondary" (click)="exportarListadoAlumnos()">
                 ↓ Listado de Alumnos
@@ -564,27 +586,28 @@
           <div class="card config-card">
             <div class="card-header">
               <h3 class="card-title">Perfil del Administrador</h3>
+              <button class="btn-editar-perfil" *ngIf="!adminPerfilEnEdicion" (click)="habilitarEdicionPerfilAdmin()">✎ Editar</button>
             </div>
             <div class="perfil-foto-row">
               <div class="perfil-foto-preview">
                 <img *ngIf="configCentro.foto_admin_url" [src]="configCentro.foto_admin_url" alt="Foto" />
                 <div *ngIf="!configCentro.foto_admin_url" class="perfil-foto-placeholder">AD</div>
               </div>
-              <label class="btn-subir-foto">
+              <label class="btn-subir-foto" *ngIf="adminPerfilEnEdicion">
                 <input type="file" accept="image/*" (change)="onFotoSeleccionada($event)" style="display:none" />
                 📷 Cambiar foto
               </label>
             </div>
             <div class="campo-grupo" style="margin-bottom:12px">
               <label>Nombre completo</label>
-              <input [(ngModel)]="configPerfil.nombre_admin" placeholder="Nombre del administrador" />
+              <input [(ngModel)]="configPerfil.nombre_admin" [disabled]="!adminPerfilEnEdicion" placeholder="Nombre del administrador" />
             </div>
             <p class="config-seccion-titulo">Cambiar contraseña</p>
             <div class="form-grid">
               <div class="campo-grupo">
                 <label>Contraseña actual</label>
                 <div class="password-wrap">
-                  <input [type]="mostrarContrasenaActual ? 'text' : 'password'" [(ngModel)]="configPerfil.contrasena_actual" placeholder="••••••" />
+                  <input [type]="mostrarContrasenaActual ? 'text' : 'password'" [(ngModel)]="configPerfil.contrasena_actual" [disabled]="!adminPerfilEnEdicion" placeholder="••••••" />
                   <button class="btn-ojo" (click)="mostrarContrasenaActual = !mostrarContrasenaActual" type="button">
                     <svg *ngIf="!mostrarContrasenaActual" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
@@ -599,7 +622,7 @@
               <div class="campo-grupo">
                 <label>Nueva contraseña</label>
                 <div class="password-wrap">
-                  <input [type]="mostrarContrasenaaNueva ? 'text' : 'password'" [(ngModel)]="configPerfil.contrasena_nueva" placeholder="••••••" />
+                  <input [type]="mostrarContrasenaaNueva ? 'text' : 'password'" [(ngModel)]="configPerfil.contrasena_nueva" [disabled]="!adminPerfilEnEdicion" placeholder="••••••" />
                   <button class="btn-ojo" (click)="mostrarContrasenaaNueva = !mostrarContrasenaaNueva" type="button">
                     <svg *ngIf="!mostrarContrasenaaNueva" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
@@ -614,7 +637,7 @@
               <div class="campo-grupo">
                 <label>Confirmar nueva contraseña</label>
                 <div class="password-wrap">
-                  <input [type]="mostrarContrasenaConf ? 'text' : 'password'" [(ngModel)]="configPerfil.contrasena_conf" placeholder="••••••" />
+                  <input [type]="mostrarContrasenaConf ? 'text' : 'password'" [(ngModel)]="configPerfil.contrasena_conf" [disabled]="!adminPerfilEnEdicion" placeholder="••••••" />
                   <button class="btn-ojo" (click)="mostrarContrasenaConf = !mostrarContrasenaConf" type="button">
                     <svg *ngIf="!mostrarContrasenaConf" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
@@ -627,25 +650,32 @@
                 </div>
               </div>
             </div>
-            <button class="btn-guardar-config" (click)="guardarPerfilAdmin()">Guardar cambios</button>
+            <div class="perfil-acciones-edicion" *ngIf="adminPerfilEnEdicion">
+              <button class="btn-cancelar-modal" (click)="cancelarEdicionPerfilAdmin()">Cancelar</button>
+              <button class="btn-guardar-config" [disabled]="!perfilAdminModificado" (click)="guardarPerfilAdmin()">Guardar cambios</button>
+            </div>
           </div>
 
           <!-- B: Información del Centro -->
           <div class="card config-card">
             <div class="card-header">
               <h3 class="card-title">Información del Centro SESAES</h3>
+              <button class="btn-editar-perfil" *ngIf="!centroEnEdicion" (click)="habilitarEdicionCentro()">✎ Editar</button>
             </div>
             <p class="card-desc">Estos datos son visibles para los estudiantes y se usan en los PDFs.</p>
             <div class="form-grid">
-              <div class="campo-grupo"><label>Nombre del centro</label><input [(ngModel)]="configCentro.nombre_centro" /></div>
-              <div class="campo-grupo"><label>Teléfono de contacto</label><input [(ngModel)]="configCentro.telefono" placeholder="+56 2 XXXX XXXX" /></div>
-              <div class="campo-grupo" style="grid-column: 1 / -1"><label>Dirección</label><input [(ngModel)]="configCentro.direccion" /></div>
-              <div class="campo-grupo"><label>Correo de contacto</label><input [(ngModel)]="configCentro.correo_contacto" placeholder="sesaes@utem.cl" /></div>
-              <div class="campo-grupo"><label>Horario de atención</label><input [(ngModel)]="configCentro.horario_atencion" placeholder="Lunes a Viernes 08:00–18:00" /></div>
+              <div class="campo-grupo"><label>Nombre del centro</label><input [(ngModel)]="configCentro.nombre_centro" [disabled]="!centroEnEdicion" /></div>
+              <div class="campo-grupo"><label>Teléfono de contacto</label><input [(ngModel)]="configCentro.telefono" [disabled]="!centroEnEdicion" placeholder="+56 2 XXXX XXXX" /></div>
+              <div class="campo-grupo" style="grid-column: 1 / -1"><label>Dirección</label><input [(ngModel)]="configCentro.direccion" [disabled]="!centroEnEdicion" /></div>
+              <div class="campo-grupo"><label>Correo de contacto</label><input [(ngModel)]="configCentro.correo_contacto" [disabled]="!centroEnEdicion" placeholder="sesaes@utem.cl" /></div>
+              <div class="campo-grupo"><label>Horario de atención</label><input [(ngModel)]="configCentro.horario_atencion" [disabled]="!centroEnEdicion" placeholder="Lunes a Viernes 08:00–18:00" /></div>
             </div>
-            <button class="btn-guardar-config" (click)="guardarInfoCentro()" [disabled]="guardandoConfig">
-              {{ guardandoConfig ? 'Guardando...' : 'Guardar cambios' }}
-            </button>
+            <div class="perfil-acciones-edicion" *ngIf="centroEnEdicion">
+              <button class="btn-cancelar-modal" (click)="cancelarEdicionCentro()">Cancelar</button>
+              <button class="btn-guardar-config" [disabled]="!centroModificado || guardandoConfig" (click)="guardarInfoCentro()">
+                {{ guardandoConfig ? 'Guardando...' : 'Guardar cambios' }}
+              </button>
+            </div>
           </div>
 
           <!-- C: Auditoría -->

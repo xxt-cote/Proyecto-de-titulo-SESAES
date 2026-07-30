@@ -1,8 +1,11 @@
-import { Component, OnInit, ViewEncapsulation } from '@angular/core';
+import { Component, OnInit, AfterViewInit, OnDestroy, ViewChild, ElementRef, ViewEncapsulation } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
+import { Chart, registerables } from 'chart.js';
+
+Chart.register(...registerables);
 
 const API = 'http://localhost:8080';
 
@@ -14,7 +17,7 @@ const API = 'http://localhost:8080';
   styleUrl: './dashboard-admin.css',
   encapsulation: ViewEncapsulation.None
 })
-export class DashboardAdminComponent implements OnInit {
+export class DashboardAdminComponent implements OnInit, AfterViewInit, OnDestroy {
 
   seccionActiva = 'inicio';
   temaOscuro    = false;
@@ -48,6 +51,7 @@ export class DashboardAdminComponent implements OnInit {
     if (temaGuardado === 'true') this.temaOscuro = true;
     this.cargarDatos();
     this.generarSemanaActual();
+    this.generarCalendarioInicio();
   }
 
   cargarDatos(): void {
@@ -69,7 +73,10 @@ export class DashboardAdminComponent implements OnInit {
     this.mensajeError  = '';
     this.notifPanelAbierto = false;
     if (seccion === 'configuracion') { this.cargarAuditoria(); this.cargarConfiguracionCentro(); }
-  }
+    if (seccion === 'inicio') {
+      setTimeout(() => this.crearGraficos(), 0);
+    }
+}
 
   cerrarSesion(): void { localStorage.clear(); window.location.href = '/login'; }
 
@@ -245,6 +252,8 @@ export class DashboardAdminComponent implements OnInit {
     this.http.patch(`${API}/admin/citas/${cita.id}/cancelar`, { motivo: 'inasistencia' }).subscribe({
       next: () => {
         this.proximasCitas = this.proximasCitas.filter(c => c.id !== cita.id);
+        const citaH = this.citasHorario.find(c => c.id === cita.id);
+        if (citaH) citaH.estado = 'inasistencia';
         this.mensajeExito = 'Inasistencia registrada.';
         setTimeout(() => this.mensajeExito = '', 3000);
       },
@@ -257,7 +266,10 @@ export class DashboardAdminComponent implements OnInit {
     this.http.patch(`${API}/admin/citas/${cita.id}/cancelar`, { motivo: 'Cancelada por administrador' }).subscribe({
       next: () => {
         this.proximasCitas = this.proximasCitas.filter(c => c.id !== cita.id);
-        this.citasHorario  = this.citasHorario.filter(c => c.id !== cita.id);
+        // Se actualiza el estado en el mismo lugar (no se elimina), para que el panel
+        // de Horario siga mostrando la cita con su estado real en vez de hacerla desaparecer.
+        const citaH = this.citasHorario.find(c => c.id === cita.id);
+        if (citaH) citaH.estado = 'cancelada';
         this.mensajeExito = 'Cita cancelada. El estudiante fue notificado.';
         setTimeout(() => this.mensajeExito = '', 3000);
       },
@@ -269,33 +281,94 @@ export class DashboardAdminComponent implements OnInit {
   // GRÁFICOS
   // ══════════════════════════════════════
 
+  @ViewChild('chartEspecialidad') chartEspecialidadRef!: ElementRef<HTMLCanvasElement>;
+  @ViewChild('chartSemana') chartSemanaRef!: ElementRef<HTMLCanvasElement>;
+  private chartEspecialidad?: Chart;
+  private chartSemana?: Chart;
+
+  readonly coloresGrafico = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#8b5cf6', '#64748b'];
+
   graficoEspecialidad: any[] = [];
   graficoSemana:       any[] = [];
   filtroGraficoMes          = '';
-  filtroGraficoAnio         = '2026';
-  filtroGraficoEspecialidad = '';
+  filtroGraficoAnio         = new Date().getFullYear();
   filtroGraficoCarrera      = '';
 
   readonly meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                     'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
+  get aniosDisponiblesGrafico(): number[] {
+    const actual = new Date().getFullYear();
+    const anios: number[] = [];
+    for (let a = actual + 1; a >= actual - 3; a--) anios.push(a);
+    return anios;
+  }
+
+  ngAfterViewInit(): void {
+    this.crearGraficos();
+  }
+
+  ngOnDestroy(): void {
+    this.chartEspecialidad?.destroy();
+    this.chartSemana?.destroy();
+  }
+
+private crearGraficos(): void {
+    this.chartEspecialidad?.destroy();
+    this.chartSemana?.destroy();
+
+    if (this.chartEspecialidadRef) {
+      this.chartEspecialidad = new Chart(this.chartEspecialidadRef.nativeElement, {
+        type: 'doughnut',
+        data: { labels: [], datasets: [{ data: [], backgroundColor: this.coloresGrafico, borderWidth: 2 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+      });
+    }
+    if (this.chartSemanaRef) {
+      this.chartSemana = new Chart(this.chartSemanaRef.nativeElement, {
+        type: 'line',
+        data: { labels: [], datasets: [{ data: [], borderColor: '#2a78d6', backgroundColor: 'rgba(42,120,214,0.1)', fill: true, tension: 0.3, pointRadius: 3 }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+        }
+      });
+    }
+
+    this.actualizarGraficoEspecialidad();
+    this.actualizarGraficoSemana();
+}
+
+  private actualizarGraficoEspecialidad(): void {
+    if (!this.chartEspecialidad) return;
+    this.chartEspecialidad.data.labels = this.graficoEspecialidad.map(d => d.especialidad);
+    this.chartEspecialidad.data.datasets[0].data = this.graficoEspecialidad.map(d => d.cantidad);
+    this.chartEspecialidad.update();
+  }
+
+  private actualizarGraficoSemana(): void {
+    if (!this.chartSemana) return;
+    this.chartSemana.data.labels = this.graficoSemana.map(d => d.dia);
+    this.chartSemana.data.datasets[0].data = this.graficoSemana.map(d => d.cantidad);
+    this.chartSemana.update();
+  }
+
   cargarGraficoEspecialidad(): void {
     let url = `${API}/admin/graficos/especialidad?anio=${this.filtroGraficoAnio}`;
-    if (this.filtroGraficoMes)          url += `&mes=${this.filtroGraficoMes}`;
-    if (this.filtroGraficoEspecialidad) url += `&especialidad=${encodeURIComponent(this.filtroGraficoEspecialidad)}`;
-    if (this.filtroGraficoCarrera)      url += `&carrera=${encodeURIComponent(this.filtroGraficoCarrera)}`;
-    this.http.get<any[]>(url).subscribe({ next: (data) => { this.graficoEspecialidad = data ?? []; }, error: () => {} });
+    if (this.filtroGraficoMes)     url += `&mes=${this.filtroGraficoMes}`;
+    if (this.filtroGraficoCarrera) url += `&carrera=${encodeURIComponent(this.filtroGraficoCarrera)}`;
+    this.http.get<any[]>(url).subscribe({
+      next: (data) => { this.graficoEspecialidad = data ?? []; this.actualizarGraficoEspecialidad(); },
+      error: () => {}
+    });
   }
 
   cargarGraficoSemana(): void {
     this.http.get<any[]>(`${API}/admin/graficos/semana`).subscribe({
-      next: (data) => { this.graficoSemana = data ?? []; }, error: () => {}
+      next: (data) => { this.graficoSemana = data ?? []; this.actualizarGraficoSemana(); },
+      error: () => {}
     });
-  }
-
-  getAlturaBarraSemana(cantidad: number): number {
-    const max = Math.max(...this.graficoSemana.map(d => d.cantidad), 1);
-    return Math.round((cantidad / max) * 100);
   }
 
   exportarEspecialidadExcel(): void {
@@ -316,6 +389,23 @@ export class DashboardAdminComponent implements OnInit {
 
   exportarCGR2025(): void { window.open(`${API}/admin/exportar/cgr?anio=2025`, '_blank'); }
   exportarCGR2026(): void { window.open(`${API}/admin/exportar/cgr?anio=2026&fecha_fin=2026-05-31`, '_blank'); }
+
+  // Selector de año dinámico para CGR (reemplaza los botones fijos 2025/2026)
+  cgrAnio     = new Date().getFullYear();
+  cgrFechaFin = '';
+
+  get cgrAniosDisponibles(): number[] {
+    const actual = new Date().getFullYear();
+    const anios: number[] = [];
+    for (let a = actual + 1; a >= actual - 3; a--) anios.push(a);
+    return anios;
+  }
+
+  exportarCGR(): void {
+    let url = `${API}/admin/exportar/cgr?anio=${this.cgrAnio}`;
+    if (this.cgrFechaFin) url += `&fecha_fin=${this.cgrFechaFin}`;
+    window.open(url, '_blank');
+  }
   exportarListadoAlumnos(): void { window.open(`${API}/admin/exportar/alumnos`, '_blank'); }
 
   // ══════════════════════════════════════
@@ -377,6 +467,44 @@ export class DashboardAdminComponent implements OnInit {
     });
   }
 
+  // ══════════════════════════════════════
+  // CALENDARIO DE INICIO (solo visual — mes completo, sin seleccion de dia)
+  // ══════════════════════════════════════
+
+  calMesVisible  = new Date().getMonth();
+  calAnioVisible = new Date().getFullYear();
+  calDiasMes: any[] = [];
+
+  get calNombreMesVisible(): string {
+    return `${this.meses[this.calMesVisible]} ${this.calAnioVisible}`;
+  }
+
+  generarCalendarioInicio(): void {
+    const primerDia = new Date(this.calAnioVisible, this.calMesVisible, 1);
+    const ultimoDia = new Date(this.calAnioVisible, this.calMesVisible + 1, 0);
+    const hoy       = this.toDateStr(new Date());
+    const offset    = (primerDia.getDay() + 6) % 7;
+    const celdas: any[] = [];
+    for (let i = 0; i < offset; i++) celdas.push(null);
+    for (let dia = 1; dia <= ultimoDia.getDate(); dia++) {
+      const fechaStr = `${this.calAnioVisible}-${String(this.calMesVisible+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
+      celdas.push({ num: dia, esHoy: fechaStr === hoy });
+    }
+    this.calDiasMes = celdas;
+  }
+
+  calMesAnterior(): void {
+    this.calMesVisible--;
+    if (this.calMesVisible < 0) { this.calMesVisible = 11; this.calAnioVisible--; }
+    this.generarCalendarioInicio();
+  }
+
+  calMesSiguiente(): void {
+    this.calMesVisible++;
+    if (this.calMesVisible > 11) { this.calMesVisible = 0; this.calAnioVisible++; }
+    this.generarCalendarioInicio();
+  }
+
   generarSemanaActual(): void {
     const hoy = new Date();
     const lunes = new Date(hoy);
@@ -419,6 +547,7 @@ export class DashboardAdminComponent implements OnInit {
     if (this.profesionalActualBloqueado) return 'bloqueado';
     const cita = this.citasHorario.find(c => {
       if (c.fecha !== fecha) return false;
+      if (c.estado === 'cancelada' || c.estado === 'inasistencia') return false;
       return this.convertirA24h(c.hora) === hora.substring(0,5);
     });
     if (!cita) return 'disponible';
@@ -429,6 +558,7 @@ export class DashboardAdminComponent implements OnInit {
   getBloqueInfo(fecha: string, hora: string): string {
     const cita = this.citasHorario.find(c => {
       if (c.fecha !== fecha) return false;
+      if (c.estado === 'cancelada' || c.estado === 'inasistencia') return false;
       return this.convertirA24h(c.hora) === hora.substring(0,5);
     });
     return cita ? cita.estudiante : '';
@@ -763,29 +893,92 @@ export class DashboardAdminComponent implements OnInit {
   mostrarContrasenaaNueva  = false;
   mostrarContrasenaConf   = false;
 
+  // Edición de Perfil admin / Información del Centro: campos bloqueados hasta presionar "Editar"
+  adminPerfilEnEdicion = false;
+  centroEnEdicion      = false;
+  configCentroOriginal: any = {};
+
+  habilitarEdicionPerfilAdmin(): void { this.adminPerfilEnEdicion = true; }
+
+  cancelarEdicionPerfilAdmin(): void {
+    this.adminPerfilEnEdicion = false;
+    this.configPerfil.nombre_admin      = this.configCentro.nombre_admin || '';
+    this.configPerfil.contrasena_actual = '';
+    this.configPerfil.contrasena_nueva  = '';
+    this.configPerfil.contrasena_conf   = '';
+  }
+
+  get perfilAdminModificado(): boolean {
+    return this.configPerfil.nombre_admin !== (this.configCentro.nombre_admin || '')
+        || !!this.configPerfil.contrasena_actual
+        || !!this.configPerfil.contrasena_nueva;
+  }
+
+  habilitarEdicionCentro(): void { this.centroEnEdicion = true; }
+
+  cancelarEdicionCentro(): void {
+    this.centroEnEdicion = false;
+    this.configCentro.nombre_centro    = this.configCentroOriginal.nombre_centro;
+    this.configCentro.telefono         = this.configCentroOriginal.telefono;
+    this.configCentro.direccion        = this.configCentroOriginal.direccion;
+    this.configCentro.correo_contacto  = this.configCentroOriginal.correo_contacto;
+    this.configCentro.horario_atencion = this.configCentroOriginal.horario_atencion;
+  }
+
+  get centroModificado(): boolean {
+    const o = this.configCentroOriginal;
+    return this.configCentro.nombre_centro    !== o.nombre_centro
+        || this.configCentro.telefono         !== o.telefono
+        || this.configCentro.direccion        !== o.direccion
+        || this.configCentro.correo_contacto  !== o.correo_contacto
+        || this.configCentro.horario_atencion !== o.horario_atencion;
+  }
+
   cargarConfiguracionCentro(): void {
     this.http.get<any>(`${API}/configuracion-centro`).subscribe({
-      next: (data) => { this.configCentro = data ?? this.configCentro; this.configPerfil.nombre_admin = data?.nombre_admin ?? ''; },
+      next: (data) => {
+        this.configCentro = data ?? this.configCentro;
+        this.configPerfil.nombre_admin = data?.nombre_admin ?? '';
+        this.configCentroOriginal = {
+          nombre_centro: this.configCentro.nombre_centro, telefono: this.configCentro.telefono,
+          direccion: this.configCentro.direccion, correo_contacto: this.configCentro.correo_contacto,
+          horario_atencion: this.configCentro.horario_atencion
+        };
+      },
       error: () => {}
     });
   }
 
   guardarInfoCentro(): void {
+    if (!this.centroModificado) return;
     this.guardandoConfig = true;
     this.http.patch(`${API}/configuracion-centro`, {
       nombre_centro: this.configCentro.nombre_centro, direccion: this.configCentro.direccion,
       telefono: this.configCentro.telefono, correo_contacto: this.configCentro.correo_contacto,
       horario_atencion: this.configCentro.horario_atencion
     }).subscribe({
-      next: () => { this.guardandoConfig = false; this.mensajeExito = 'Información del centro guardada.'; setTimeout(() => this.mensajeExito = '', 3000); },
+      next: () => {
+        this.guardandoConfig = false;
+        this.centroEnEdicion = false;
+        this.configCentroOriginal = {
+          nombre_centro: this.configCentro.nombre_centro, telefono: this.configCentro.telefono,
+          direccion: this.configCentro.direccion, correo_contacto: this.configCentro.correo_contacto,
+          horario_atencion: this.configCentro.horario_atencion
+        };
+        this.mensajeExito = 'Información del centro guardada.'; setTimeout(() => this.mensajeExito = '', 3000);
+      },
       error: () => { this.guardandoConfig = false; this.mensajeError = 'No se pudo guardar.'; setTimeout(() => this.mensajeError = '', 3000); }
     });
   }
 
   guardarPerfilAdmin(): void {
+    if (!this.perfilAdminModificado) return;
     const payloadCentro: any = { nombre_admin: this.configPerfil.nombre_admin };
     if (this.configCentro.foto_admin_url) payloadCentro.foto_admin_url = this.configCentro.foto_admin_url;
-    this.http.patch(`${API}/configuracion-centro`, payloadCentro).subscribe({ error: () => {} });
+    this.http.patch(`${API}/configuracion-centro`, payloadCentro).subscribe({
+      next: () => { this.configCentro.nombre_admin = this.configPerfil.nombre_admin; },
+      error: () => {}
+    });
     if (this.configPerfil.contrasena_nueva) {
       if (this.configPerfil.contrasena_nueva !== this.configPerfil.contrasena_conf) {
         this.mensajeError = 'Las contraseñas nuevas no coinciden.'; setTimeout(() => this.mensajeError = '', 3000); return;
@@ -796,16 +989,19 @@ export class DashboardAdminComponent implements OnInit {
         next: () => {
           this.mensajeExito = 'Perfil y contraseña actualizados.';
           this.configPerfil.contrasena_actual = ''; this.configPerfil.contrasena_nueva = ''; this.configPerfil.contrasena_conf = '';
+          this.adminPerfilEnEdicion = false;
           setTimeout(() => this.mensajeExito = '', 3000);
         },
         error: (err) => { this.mensajeError = err?.error?.detail || 'Contraseña actual incorrecta.'; setTimeout(() => this.mensajeError = '', 3000); }
       });
     } else {
+      this.adminPerfilEnEdicion = false;
       this.mensajeExito = 'Perfil actualizado.'; setTimeout(() => this.mensajeExito = '', 3000);
     }
   }
 
   onFotoSeleccionada(event: any): void {
+    if (!this.adminPerfilEnEdicion) return;
     const file = event.target.files?.[0]; if (!file) return;
     const reader = new FileReader();
     reader.onload = (e: any) => { this.configCentro.foto_admin_url = e.target.result; };

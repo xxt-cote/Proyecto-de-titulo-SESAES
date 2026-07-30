@@ -264,7 +264,6 @@ def eliminar_profesional(prof_id: int, db: Session = Depends(get_db)):
             asunto="SESAES — Cancelación de cita",
             cuerpo=f"Tu cita del {cita.fecha} a las {cita.hora} fue cancelada.",
             tipo="cancelacion", referencia_id=cita.id)
-    # Desactivar usuario en vez de eliminar (conserva historial)
     if prof.usuario_id:
         usuario = db.query(Usuario).filter(Usuario.id == prof.usuario_id).first()
         if usuario: usuario.activo = False
@@ -432,13 +431,16 @@ def get_notificaciones_admin(db: Session = Depends(get_db)):
 # ══════════════════════════════════════
 # EXPORTACIÓN CGR
 # ══════════════════════════════════════
+# Solo se incluyen atenciones "completada" — un reporte de este tipo
+# debe reflejar atenciones que realmente ocurrieron, no citas agendadas
+# (pendiente) que todavía no se realizan.
 
 @router.get("/exportar/cgr")
 def exportar_cgr(anio: int, fecha_fin: str = None, db: Session = Depends(get_db)):
     query = db.query(Cita)\
         .join(Profesional, Cita.profesional_id == Profesional.id)\
         .join(Usuario, Cita.estudiante_id == Usuario.id)\
-        .filter(Cita.fecha.like(f"{anio}%"), Cita.estado.in_(["completada","pendiente"]))
+        .filter(Cita.fecha.like(f"{anio}%"), Cita.estado == "completada")
     if fecha_fin: query = query.filter(Cita.fecha <= fecha_fin)
     citas = query.order_by(Cita.fecha).all()
     headers = ["Nombre Completo","RUT","Tipo de Atención","Fecha","Hora","Medicamento Suministrado","Profesional que Atendió"]

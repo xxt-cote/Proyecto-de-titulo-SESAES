@@ -1486,33 +1486,29 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════ */
-/* TEMA OSCURO — paleta médica azul/morado             */
-/* Fondo: #0d1117  Cards: #161b22  Acento: #4f8ef7    */
+/* TEMA OSCURO — paleta SESAES (verde / naranja)        */
+/* Fondo: #111827  Cards: #242f42  Acento: #0d9488     */
+/* Misma paleta que el dashboard profesional            */
 /* ═══════════════════════════════════════════════════ */
 
 body.tema-oscuro {
-  background: #0d1117;
-}
-
-body.tema-oscuro .sidebar-logo img {
-  mix-blend-mode: screen;
-  filter: brightness(0.9);
+  background: #111827;
 }
 
 /* ── Blobs ── */
-body.tema-oscuro .blob-green  { background: #f39c12; opacity: 0.04; }
-body.tema-oscuro .blob-yellow { background: #d97e0a; opacity: 0.04; }
-body.tema-oscuro .blob-blue   { background: #4fc3f7; opacity: 0.04; }
-body.tema-oscuro .blob-pink   { background: #a78bfa; opacity: 0.03; }
+body.tema-oscuro .blob-green  { background: #0d9488; opacity: 0.06; }
+body.tema-oscuro .blob-yellow { background: #f39c12; opacity: 0.05; }
+body.tema-oscuro .blob-blue   { background: #4f8ef7; opacity: 0.04; }
+body.tema-oscuro .blob-pink   { background: #7c4dff; opacity: 0.03; }
 
 /* ── Sidebar ── */
 body.tema-oscuro .sidebar {
-  background: #0d1117;
-  border-color: #21262d;
+  background: #1c2534;
+  border-color: #3a4a63;
 }
 
 body.tema-oscuro .main-content {
-  background: #0d1117;
+  background: #111827;
 }
 
 /* ── Cards y superficies ── */
@@ -1525,107 +1521,42 @@ body.tema-oscuro .horas-panel,
 body.tema-oscuro .confirmacion,
 body.tema-oscuro .profesional-seleccionado,
 body.tema-oscuro .search-bar {
-  background: #161b22;
-  border-color: #21262d;
+  background: #242f42;
+  border-color: #3a4a63;
   box-shadow: 0 2px 12px rgba(0,0,0,0.4);
 }
 
-/* ── Cabecera verde de cards de profesionales → azul/morado ── */
-body.tema-oscuro .profesional-img {
-  background: linear-gradient(135deg, #1a2236, #1e1a3a);
-}
-
-/* ── Confirmación header → azul/morado ── */
-body.tema-oscuro .confirmacion-header {
-  background: linear-gradient(135deg, #1a2236, #1e1a3a);
-}
-
-/* ── Datos institucionales card → azul oscuro ── */
-body.tema-oscuro .datos-institucionales {
-  background: linear-gradient(135deg, #1a2236, #1e1a3a);
-}
-
-/* ── Avatares circulares ── */
-body.tema-oscuro .cita-avatar,
-body.tema-oscuro .profile-avatar,
-body.tema-oscuro .profesional-avatar-sm,
-body.tema-oscuro .mini-avatar,
-body.tema-oscuro .perfil-avatar-grande {
-  background: linear-gradient(135deg, #4f8ef7, #7c4dff);
-}
-
-/* ── Botón Agendar Cita dentro de card ── */
-body.tema-oscuro .btn-agendar {
-  background: linear-gradient(135deg, #4f8ef7, #7c4dff);
-  border: none;
-}
-
+/* ── Hover del botón agendar (el fondo base ya es teal) ── */
 body.tema-oscuro .btn-agendar:hover {
-  background: linear-gradient(135deg, #3a7de8, #6a3de0);
-}
-
-/* ── Botón Reagendar ── */
-body.tema-oscuro .btn-reagendar {
-  background: linear-gradient(135deg, #4f8ef7, #7c4dff);
-  border: none;
-}
-
-/* ── Botones de acción principal (confirmar, continuar, guardar, filtrar) ── */
-body.tema-oscuro .btn-confirmar,
-body.tema-oscuro .btn-continuar,
-body.tema-oscuro .btn-guardar,
-body.tema-oscuro .btn-filtrar {
-  background: linear-gradient(135deg, #4f8ef7, #7c4dff);
-  border: none;
-}
-
-/* ── Stepper activo ── */
-body.tema-oscuro .step.active .step-circle,
-body.tema-oscuro .step.done .step-circle {
-  background: linear-gradient(135deg, #4f8ef7, #7c4dff);
-  border-color: #4f8ef7;
-}
-
-body.tema-oscuro .step-line.active {
-  background: #4f8ef7;
-}
-
-body.tema-oscuro .step.active .step-label {
-  color: #4f8ef7;
-}
-
-/* ── Paginación botón activo ── */
-body.tema-oscuro .btn-pag.active {
-  background: linear-gradient(135deg, #4f8ef7, #7c4dff);
-  border-color: #4f8ef7;
+  background: #0f766e;
 }
 
 /* ── Historial ── */
 body.tema-oscuro .historial-tabla {
-  background: #161b22;
-  border-color: #21262d;
+  background: #242f42;
+  border-color: #3a4a63;
   box-shadow: 0 2px 12px rgba(0,0,0,0.4);
 }
 
 body.tema-oscuro .historial-tabla th {
-  background: #1c2128;
-  color: #6e7681;
-  border-color: #21262d;
+  background: #1c2534;
+  color: #8b96a8;
+  border-color: #3a4a63;
 }
 
 body.tema-oscuro .historial-tabla td {
-  border-color: #1c2128;
+  border-color: #2d3b52;
   color: #c9d1d9;
 }
 
 body.tema-oscuro .fecha-selector-btn {
-  background: #161b22;
-  border-color: #21262d;
+  background: #242f42;
+  border-color: #3a4a63;
 }
 
 body.tema-oscuro .dashboard-footer {
-  background: #0d1117;
-  border-color: #21262d;
+  background: #1c2534;
+  border-color: #3a4a63;
 }
 
 /* ── Textos principales ── */
@@ -1639,9 +1570,12 @@ body.tema-oscuro .cal-mes-nombre,
 body.tema-oscuro .fecha-selector-btn span,
 body.tema-oscuro .horas-panel-titulo,
 body.tema-oscuro .subsection-title,
-body.tema-oscuro .sidebar-logo-title,
 body.tema-oscuro .cita-valor {
   color: #e6edf3;
+}
+
+body.tema-oscuro .sidebar-logo-title {
+  color: #4f8ef7;
 }
 
 /* ── Textos secundarios ── */
@@ -1653,12 +1587,11 @@ body.tema-oscuro .cita-aviso,
 body.tema-oscuro .profile-role,
 body.tema-oscuro .sidebar-logo-sub,
 body.tema-oscuro .stat-label,
-body.tema-oscuro .footer-links,
-body.tema-oscuro .dashboard-footer {
-  color: #6e7681;
+body.tema-oscuro .footer-links {
+  color: #8b96a8;
 }
 
-/* ── Texto blanco en datos institucionales (siempre blanco, oscuro o no) ── */
+/* ── Texto blanco en datos institucionales (siempre blanco) ── */
 body.tema-oscuro .datos-institucionales .config-card-title,
 body.tema-oscuro .datos-institucionales .dato-inst span,
 body.tema-oscuro .datos-institucionales .dato-inst strong {
@@ -1667,109 +1600,109 @@ body.tema-oscuro .datos-institucionales .dato-inst strong {
 
 /* ── Sidebar nav ── */
 body.tema-oscuro .nav-item {
-  color: #6e7681;
+  color: #8b96a8;
 }
 
 body.tema-oscuro .nav-item:hover {
-  background: #1c2128;
+  background: #2d3b52;
   color: #c9d1d9;
 }
 
 body.tema-oscuro .nav-item.active {
-  background: linear-gradient(135deg, rgba(79,142,247,0.15), rgba(124,77,255,0.10));
-  color: #4f8ef7;
-  border-left: 3px solid #4f8ef7;
+  background: rgba(13,148,136,0.15);
+  color: #0d9488;
+  border-left: 3px solid #0d9488;
 }
 
 body.tema-oscuro .sidebar-logo-divider {
-  background: #21262d;
+  background: #3a4a63;
 }
 
 body.tema-oscuro .sidebar-footer {
-  border-color: #21262d;
+  border-color: #3a4a63;
 }
 
 body.tema-oscuro .logout-btn {
-  background: #161b22;
-  border-color: #21262d;
+  background: #242f42;
+  border-color: #3a4a63;
   color: #f85149;
 }
 
 body.tema-oscuro .logout-btn:hover {
-  background: #1f1316;
+  background: #2a1a1c;
   border-color: #6e2e2e;
 }
 
 /* ── Calendario ── */
 body.tema-oscuro .cal-celda span {
-  color: #8b949e;
+  color: #c9d1d9;
 }
 
 body.tema-oscuro .cal-celda.deshabilitada span {
-  color: #2d333b;
+  color: #56637a;
 }
 
 body.tema-oscuro .cal-grid-dias-nombre span {
-  color: #3d444d;
+  color: #56637a;
 }
 
 body.tema-oscuro .cal-nav-btn {
-  background: #1c2128;
-  border-color: #21262d;
-  color: #6e7681;
+  background: #2d3b52;
+  border-color: #3a4a63;
+  color: #8b96a8;
 }
 
 body.tema-oscuro .cal-nav-btn:hover {
-  border-color: #4f8ef7;
-  background: #1a2236;
-  color: #4f8ef7;
+  border-color: #0d9488;
+  background: rgba(13,148,136,0.12);
+  color: #0d9488;
 }
 
 body.tema-oscuro .cal-celda:not(.deshabilitada):not(.vacia):hover span {
-  background: #1a2236;
-  color: #4f8ef7;
+  background: rgba(13,148,136,0.12);
+  color: #0d9488;
 }
 
 body.tema-oscuro .cal-celda.hoy span {
-  color: #4f8ef7;
+  color: #f39c12;
 }
 
 body.tema-oscuro .cal-celda.hoy::after {
-  background: #4f8ef7;
+  background: #f39c12;
 }
 
 body.tema-oscuro .cal-celda.hoy.deshabilitada span {
-  color: #2d333b !important;
+  color: #56637a !important;
 }
 
 body.tema-oscuro .cal-celda.hoy.deshabilitada::after {
-  background: #2d333b;
+  background: #56637a;
 }
 
 body.tema-oscuro .cal-celda.seleccionada span {
-  background: linear-gradient(135deg, #4f8ef7, #7c4dff);
+  background: #0d9488;
   color: #ffffff !important;
-  box-shadow: 0 4px 12px rgba(79,142,247,0.35);
+  box-shadow: 0 4px 12px rgba(13,148,136,0.35);
 }
 
 /* ── Horarios ── */
 body.tema-oscuro .horario-btn {
-  background: #1c2128;
-  border-color: #21262d;
+  background: #2d3b52;
+  border-color: #3a4a63;
   color: #c9d1d9;
 }
 
 body.tema-oscuro .horario-btn:hover {
-  border-color: #4f8ef7;
-  background: #1a2236;
-  color: #4f8ef7;
+  border-color: #0d9488;
+  background: rgba(13,148,136,0.12);
+  color: #0d9488;
 }
 
 body.tema-oscuro .horario-btn.selected {
-  background: linear-gradient(135deg, #4f8ef7, #7c4dff);
+  background: #0d9488;
   border-color: transparent;
   color: #ffffff;
-  box-shadow: 0 4px 12px rgba(79,142,247,0.35);
+  box-shadow: 0 4px 12px rgba(13,148,136,0.35);
 }
 
 /* ── Formularios ── */
@@ -1779,123 +1712,99 @@ body.tema-oscuro .historial-filtros input,
 body.tema-oscuro .historial-filtros select,
 body.tema-oscuro .search-bar input,
 body.tema-oscuro .observaciones textarea {
-  background: #1c2128;
-  border-color: #21262d;
+  background: #2d3b52;
+  border-color: #3a4a63;
   color: #c9d1d9;
 }
 
 body.tema-oscuro .campo-grupo input:disabled {
-  color: #3d444d;
+  color: #56637a;
 }
 
 body.tema-oscuro .campo-grupo label {
-  color: #3d444d;
-}
-
-/* ── Botones de tema ── */
-body.tema-oscuro .tema-btn {
-  background: #1c2128;
-  border-color: #21262d;
-  color: #6e7681;
-}
-
-body.tema-oscuro .tema-btn:hover {
-  border-color: #4f8ef7;
-  color: #4f8ef7;
-}
-
-body.tema-oscuro .tema-btn.active {
-  background: linear-gradient(135deg, rgba(79,142,247,0.15), rgba(124,77,255,0.10));
-  border-color: #4f8ef7;
-  color: #4f8ef7;
-  font-weight: 700;
+  color: #8b96a8;
 }
 
 /* ── Botones secundarios ── */
 body.tema-oscuro .btn-volver,
-body.tema-oscuro .btn-descartar {
-  background: #1c2128;
-  border-color: #21262d;
-  color: #6e7681;
-}
-
+body.tema-oscuro .btn-descartar,
 body.tema-oscuro .btn-pag {
-  background: #1c2128;
-  border-color: #21262d;
-  color: #6e7681;
+  background: #2d3b52;
+  border-color: #3a4a63;
+  color: #8b96a8;
 }
 
-body.tema-oscuro .btn-editar-campo {
-  background: rgba(79,142,247,0.10);
-  border-color: #4f8ef7;
-  color: #4f8ef7;
-}
-
+body.tema-oscuro .btn-editar-campo,
 body.tema-oscuro .btn-cambiar {
-  background: rgba(79,142,247,0.10);
-  border-color: #4f8ef7;
-  color: #4f8ef7;
+  background: rgba(13,148,136,0.12);
+  border-color: #0d9488;
+  color: #2dd4bf;
+}
+
+body.tema-oscuro .btn-editar-campo:hover,
+body.tema-oscuro .btn-cambiar:hover {
+  background: rgba(13,148,136,0.2);
 }
 
 /* ── Badges ── */
 body.tema-oscuro .cita-badge {
+  background: rgba(13,148,136,0.15);
+  color: #2dd4bf;
+}
+
+body.tema-oscuro .badge-duracion {
+  background: rgba(13,148,136,0.15);
+  color: #2dd4bf;
+}
+
+body.tema-oscuro .badge-modalidad {
   background: rgba(79,142,247,0.15);
   color: #4f8ef7;
 }
 
-body.tema-oscuro .badge-duracion {
-  background: rgba(79,142,247,0.12);
-  color: #4f8ef7;
-}
-
-body.tema-oscuro .badge-modalidad {
-  background: rgba(124,77,255,0.12);
-  color: #a78bfa;
-}
-
 body.tema-oscuro .badge-verificado {
-  background: rgba(79,142,247,0.12);
-  color: #4f8ef7;
+  background: rgba(13,148,136,0.15);
+  color: #2dd4bf;
 }
 
 body.tema-oscuro .doc-link {
-  color: #4f8ef7;
+  color: #2dd4bf;
 }
 
 body.tema-oscuro .horario-semana {
-  color: #6e7681;
+  color: #8b96a8;
 }
 
 /* ── Paginación ── */
 body.tema-oscuro .paginacion {
-  color: #3d444d;
+  color: #56637a;
 }
 
 /* ── Mapa ── */
 body.tema-oscuro .ubicacion-direccion {
-  color: #6e7681;
+  color: #8b96a8;
 }
 
 body.tema-oscuro .mapa-wrap {
-  border-color: #21262d;
+  border-color: #3a4a63;
 }
 
 /* ── Celular ── */
 body.tema-oscuro .perfil-row .campo-grupo input {
-  background: #1c2128;
-  border-color: #21262d;
+  background: #2d3b52;
+  border-color: #3a4a63;
   color: #c9d1d9;
 }
 
 body.tema-oscuro .celular-input-wrap {
-  background: #1c2128;
-  border-color: #21262d;
+  background: #2d3b52;
+  border-color: #3a4a63;
 }
 
 body.tema-oscuro .celular-prefijo {
-  background: #161b22;
-  color: #6e7681;
-  border-color: #21262d;
+  background: #242f42;
+  color: #8b96a8;
+  border-color: #3a4a63;
 }
 
 body.tema-oscuro .celular-input-wrap input {
@@ -1903,29 +1812,25 @@ body.tema-oscuro .celular-input-wrap input {
 }
 
 body.tema-oscuro .celular-input-wrap input:disabled {
-  color: #3d444d;
+  color: #56637a;
 }
 
 /* ── Sin horas ── */
 body.tema-oscuro .sin-horas-msg {
-  background: #1a1e2e;
-  border-color: #2d3561;
-  color: #6e8ef0;
+  background: rgba(234,88,12,0.1);
+  border-color: rgba(234,88,12,0.3);
+  color: #fb923c;
 }
 
 /* ── Search bar ── */
-body.tema-oscuro .search-bar {
-  border-color: #21262d;
-}
-
 body.tema-oscuro .search-bar select {
-  color: #6e7681;
+  color: #8b96a8;
   background: transparent;
 }
 
 /* ── Panel horas ── */
 body.tema-oscuro .horas-panel-titulo {
-  border-color: #21262d;
+  border-color: #3a4a63;
 }
 
 /* ── Confirmación ── */
@@ -1934,7 +1839,7 @@ body.tema-oscuro .detalle-item {
 }
 
 body.tema-oscuro .observaciones label {
-  color: #6e7681;
+  color: #8b96a8;
 }
 
 /* ── Cancelación ── */
@@ -1944,8 +1849,8 @@ body.tema-oscuro .cita-aviso-cancelacion {
 
 /* ── Estados historial en oscuro ── */
 body.tema-oscuro .estado-badge.completada {
-  background: rgba(79,142,247,0.12);
-  color: #4f8ef7;
+  background: rgba(13,148,136,0.15);
+  color: #2dd4bf;
 }
 
 body.tema-oscuro .estado-badge.cancelada {
@@ -1954,8 +1859,8 @@ body.tema-oscuro .estado-badge.cancelada {
 }
 
 body.tema-oscuro .estado-badge.inasistencia {
-  background: rgba(202,138,4,0.12);
-  color: #d4a500;
+  background: rgba(234,88,12,0.15);
+  color: #fb923c;
 }
 /* ══════════════════════════════════════ */
 /* NOTIFICACIONES — DASHBOARD ESTUDIANTE */
@@ -2105,19 +2010,19 @@ body.tema-oscuro .estado-badge.inasistencia {
 /* ══ TEMA OSCURO — notificaciones ══ */
 
 body.tema-oscuro .notif-btn {
-  background: #161b22;
-  border-color: #21262d;
-  color: #6e7681;
+  background: #242f42;
+  border-color: #3a4a63;
+  color: #8b96a8;
 }
 
 body.tema-oscuro .notif-panel-est {
-  background: #161b22;
-  border-color: #21262d;
+  background: #242f42;
+  border-color: #3a4a63;
 }
 
 body.tema-oscuro .notif-panel-header-est {
   color: #e6edf3;
-  border-color: #21262d;
+  border-color: #3a4a63;
 }
 
 body.tema-oscuro .notif-item-est { border-color: #2d3b52; }
