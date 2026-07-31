@@ -35,7 +35,7 @@ body {
   align-items: center;
   gap: 10px;
   padding: 18px 16px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid #e2e8f0; 
 }
 
 .sidebar-logo img {
@@ -225,30 +225,6 @@ body {
   display: flex;
   flex-direction: column;
   min-width: 0;
-}
-.dashboard-footer {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 48px;
-  padding: 14px 32px;
-  background: #fff;
-  border-top: 1px solid #e2e8f0;
-  font-size: 12px;
-  color: #94a3b8;
-  /* sin margin-left */
-}
-.footer-links {
-  display: flex;
-  gap: 18px;
-}
-
-.footer-links span {
-  cursor: pointer;
-}
-
-.footer-links span:hover {
-  color: #0d9488;
 }
 
 /* ══════════════════════════════════════ */
@@ -1980,8 +1956,9 @@ body.tema-oscuro .estado-badge.inasistencia {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: -32px 0 24px;  
-  padding: 16px 0 16px;  
+  margin: -32px -40px 24px -40px;   /* 👈 ahora también rompe el padding horizontal */
+  padding: 16px 40px;               /* 👈 restaura el espacio interno para que el contenido no toque los bordes */
+  background: #fff;                  /* 👈 AGREGAR: mismo blanco que .sidebar */
   border-bottom: 1px solid #e2e8f0;
 }
 
@@ -2096,12 +2073,18 @@ body.tema-oscuro .sidebar {
   border-color: #3a4a63;
 }
 
+body.tema-oscuro .sidebar-logo {
+  border-color: #3a4a63;
+}
+
 body.tema-oscuro .main-content {
   background: #111827;
 }
 
+
 /* ── Topbar ── */
 body.tema-oscuro .topbar-est {
+  background: #1c2534;
   border-color: #3a4a63;
 }
 
@@ -2179,11 +2162,6 @@ body.tema-oscuro .historial-tabla td {
 
 body.tema-oscuro .fecha-selector-btn {
   background: #242f42;
-  border-color: #3a4a63;
-}
-
-body.tema-oscuro .dashboard-footer {
-  background: #1c2534;
   border-color: #3a4a63;
 }
 
