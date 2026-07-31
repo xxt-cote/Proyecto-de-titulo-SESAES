@@ -51,6 +51,7 @@
   </aside>
 
   <!-- CONTENIDO PRINCIPAL -->
+  <div class="main-wrapper">    
   <main class="main-content">
 
     <div class="blob blob-green"></div>
@@ -402,7 +403,7 @@
           <tr><th>FECHA</th><th>PROFESIONAL</th><th>ESPECIALIDAD</th><th>ESTADO</th><th>ACCIONES</th></tr>
         </thead>
         <tbody>
-          <tr *ngFor="let h of historialFiltrado()">
+       <tr *ngFor="let h of historialMostrado">
             <td><p>{{ h.fecha }}</p><small>{{ h.hora }}</small></td>
             <td><div class="profesional-cell"><div class="mini-avatar">{{ h.iniciales }}</div><span>{{ h.profesional }}</span></div></td>
             <td>{{ h.especialidad }}</td>
@@ -417,7 +418,7 @@
       </table>
 
       <div class="paginacion">
-        <span>Mostrando {{ historialFiltrado().length }} de {{ totalCitas }} registros</span>
+        <span>Mostrando {{ historialMostrado.length }} de {{ totalCitas }} registros</span>
         <div>
           <button class="btn-pag" disabled>Anterior</button>
           <button class="btn-pag active" [disabled]="totalCitas <= 10">Siguiente</button>
@@ -504,13 +505,13 @@
     </div>
 
   </main>
-</div>
-
-<div class="dashboard-footer">
+  <div class="dashboard-footer">
   <span>© 2026 SESAES - Plataforma de Bienestar Estudiantil Universitaria.</span>
   <div class="footer-links">
     <span>Políticas de Privacidad</span>
     <span>Términos de Servicio</span>
     <span>Ayuda</span>
   </div>
+</div>
+</div>
 </div>

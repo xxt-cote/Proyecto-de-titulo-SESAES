@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewEncapsulation } from '@angular/core';
+import { Component, OnInit, ViewEncapsulation, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -67,7 +67,11 @@ get subtituloSeccionEst(): string {
       : nombre.substring(0, 2).toUpperCase();
   }
 
-  constructor(private router: Router, private http: HttpClient) {}
+  constructor(
+    private router: Router,
+    private http: HttpClient,
+    private cdr: ChangeDetectorRef
+  ) {}
 
   ngOnInit(): void {
     this.cargarProfesionales();
@@ -90,7 +94,10 @@ get subtituloSeccionEst(): string {
 
   cargarInfoCentro(): void {
     this.http.get<any>(`${API}/configuracion-centro`).subscribe({
-      next: (data) => { this.infoCentro = data ?? this.infoCentro; },
+      next: (data) => {
+        this.infoCentro = data ?? this.infoCentro;
+        this.cdr.detectChanges();
+      },
       error: () => {}
     });
   }
@@ -108,6 +115,7 @@ get subtituloSeccionEst(): string {
       next: (data) => {
         this.notificaciones = data ?? [];
         this.notifNoLeidas  = this.notificaciones.filter(n => !n.leida).length;
+        this.cdr.detectChanges();
       },
       error: () => {}
     });
@@ -118,7 +126,11 @@ get subtituloSeccionEst(): string {
   marcarNotifLeida(n: any): void {
     if (n.leida) return;
     this.http.patch(`${API}/notificaciones/${n.id}/leer`, {}).subscribe({
-      next: () => { n.leida = true; this.notifNoLeidas = Math.max(0, this.notifNoLeidas - 1); }
+      next: () => {
+        n.leida = true;
+        this.notifNoLeidas = Math.max(0, this.notifNoLeidas - 1);
+        this.cdr.detectChanges();
+      }
     });
   }
 
@@ -128,13 +140,18 @@ get subtituloSeccionEst(): string {
       next: () => {
         if (!n.leida) this.notifNoLeidas = Math.max(0, this.notifNoLeidas - 1);
         this.notificaciones = this.notificaciones.filter(x => x.id !== n.id);
+        this.cdr.detectChanges();
       }
     });
   }
 
   eliminarTodasNotificaciones(): void {
     this.http.delete(`${API}/notificaciones/eliminar-todas/${this.estudianteId}`).subscribe({
-      next: () => { this.notificaciones = []; this.notifNoLeidas = 0; }
+      next: () => {
+        this.notificaciones = [];
+        this.notifNoLeidas = 0;
+        this.cdr.detectChanges();
+      }
     });
   }
 
@@ -158,6 +175,7 @@ get subtituloSeccionEst(): string {
             iniciales: p.iniciales ?? this.calcularIniciales(p.nombre)
           }));
         }
+        this.cdr.detectChanges();
       },
       error: () => {}
     });
@@ -172,14 +190,21 @@ get subtituloSeccionEst(): string {
 
   cargarProximasCitas(): void {
     this.http.get<any[]>(`${API}/citas/estudiante/${this.estudianteId}`).subscribe({
-      next: (data) => { this.proximasCitas = data ?? []; },
+      next: (data) => {
+        this.proximasCitas = data ?? [];
+        this.cdr.detectChanges();
+      },
       error: () => {}
     });
   }
 
   cargarHistorial(): void {
     this.http.get<any[]>(`${API}/historial/estudiante/${this.estudianteId}`).subscribe({
-      next: (data) => { this.historialCompleto = data ?? []; },
+      next: (data) => {
+        this.historialCompleto = data ?? [];
+        this.historialMostrado = this.historialCompleto;
+        this.cdr.detectChanges();
+      },
       error: () => {}
     });
   }
@@ -322,10 +347,12 @@ get subtituloSeccionEst(): string {
         this.mensajeDisponibilidad = data?.mensaje ?? null;
         if (this.horasDisponibles.length > 0) this.mensajeDisponibilidad = null;
         this.cargando = false; this._cargandoDisponibilidad = false;
+        this.cdr.detectChanges();
       },
       error: (err) => {
         this.mensajeDisponibilidad   = err?.error?.detail ?? 'No se pudo cargar la disponibilidad.';
         this.cargando = false; this._cargandoDisponibilidad = false;
+        this.cdr.detectChanges();
       }
     });
   }
@@ -365,8 +392,12 @@ get subtituloSeccionEst(): string {
         this.resetAgendar();
         this.mensajeExito  = '✓ ¡Tu hora fue agendada correctamente!';
         this.seccionActiva = 'citas';
+        this.cdr.detectChanges();
       },
-      error: (err) => { this.mensajeError = err?.error?.detail || 'No se pudo agendar la cita.'; }
+      error: (err) => {
+        this.mensajeError = err?.error?.detail || 'No se pudo agendar la cita.';
+        this.cdr.detectChanges();
+      }
     });
   }
 
@@ -410,7 +441,11 @@ get subtituloSeccionEst(): string {
   cancelarCita(index: number, cita: any): void {
     if (!confirm('¿Estás seguro de que deseas cancelar esta cita?')) return;
     this.http.delete(`${API}/citas/${cita.id}`).subscribe({
-      next: () => { this.proximasCitas.splice(index, 1); this.cargarHistorial(); },
+      next: () => {
+        this.proximasCitas.splice(index, 1);
+        this.cargarHistorial();
+        this.cdr.detectChanges();
+      },
       error: (err) => { alert(err?.error?.detail || 'No se pudo cancelar la cita.'); }
     });
   }
@@ -426,21 +461,30 @@ get subtituloSeccionEst(): string {
   // ══════════════════════════════════════
   // HISTORIAL
   // ══════════════════════════════════════
-
   historialCompleto: any[] = [];
+  historialMostrado: any[] = [];
 
-  historialResumen() { return this.historialCompleto.slice(0, 3); }
+  historialResumen() {
+    return this.historialCompleto.slice(0, 3);
+  }
 
   historialFiltrado() {
-    return this.historialCompleto.filter(h => {
-      const matchProf  = !this.filtroProfesional  || h.profesional.toLowerCase().includes(this.filtroProfesional.toLowerCase());
+    this.historialMostrado = this.historialCompleto.filter(h => {
+      const matchProf  = !this.filtroProfesional  || (h.profesional ?? '').toLowerCase().includes(this.filtroProfesional.toLowerCase());
       const matchEsp   = !this.filtroEspecialidad || h.especialidad === this.filtroEspecialidad;
       const matchFecha = !this.filtroFecha         || h.fechaRaw === this.filtroFecha;
       return matchProf && matchEsp && matchFecha;
     });
+    this.cdr.detectChanges();
   }
 
-  limpiarFiltros(): void { this.filtroProfesional = ''; this.filtroEspecialidad = ''; this.filtroFecha = ''; }
+  limpiarFiltros(): void {
+    this.filtroProfesional = '';
+    this.filtroEspecialidad = '';
+    this.filtroFecha = '';
+    this.historialMostrado = this.historialCompleto;
+    this.cdr.detectChanges();
+  }
 
   get totalCitas()       { return this.historialCompleto.length; }
   get citasCompletadas() { return this.historialCompleto.filter(h => h.estado === 'completada').length; }
@@ -475,8 +519,12 @@ get subtituloSeccionEst(): string {
         document.body.classList.toggle('tema-oscuro', this.temaOscuro);
         this.cargarProximasCitas();
         this.cargarHistorial();
+        this.cdr.detectChanges();
       },
-      error: () => { this.cargarProximasCitas(); this.cargarHistorial(); }
+      error: () => {
+        this.cargarProximasCitas();
+        this.cargarHistorial();
+      }
     });
   }
 
@@ -500,7 +548,11 @@ get subtituloSeccionEst(): string {
     if (!file) return;
     if (!file.type.startsWith('image/')) { alert('Por favor selecciona un archivo de imagen válido.'); return; }
     const reader = new FileReader();
-    reader.onload = () => { this.fotoPerfilUrl = reader.result as string; this.fotoPerfilCambiada = true; };
+    reader.onload = () => {
+      this.fotoPerfilUrl = reader.result as string;
+      this.fotoPerfilCambiada = true;
+      this.cdr.detectChanges();
+    };
     reader.readAsDataURL(file);
     input.value = '';
   }
@@ -534,9 +586,14 @@ get subtituloSeccionEst(): string {
         this.celularEditable = this.celularOriginal;
         this.fotoPerfilCambiada = false; this.celularEnEdicion = false;
         this.mensajeExito = '✓ Cambios guardados correctamente.';
-        setTimeout(() => this.mensajeExito = '', 3000);
+        setTimeout(() => { this.mensajeExito = ''; this.cdr.detectChanges(); }, 3000);
+        this.cdr.detectChanges();
       },
-      error: () => { this.mensajeError = 'No se pudieron guardar los cambios.'; setTimeout(() => this.mensajeError = '', 3000); }
+      error: () => {
+        this.mensajeError = 'No se pudieron guardar los cambios.';
+        setTimeout(() => { this.mensajeError = ''; this.cdr.detectChanges(); }, 3000);
+        this.cdr.detectChanges();
+      }
     });
   }
 
