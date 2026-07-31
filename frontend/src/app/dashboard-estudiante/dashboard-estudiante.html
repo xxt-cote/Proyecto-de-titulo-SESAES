@@ -40,23 +40,14 @@
     </nav>
 
     <div class="sidebar-footer">
-      <div class="sidebar-profile">
-        <div class="profile-avatar">
-          <img *ngIf="fotoPerfilUrl" [src]="fotoPerfilUrl" alt="Foto de perfil">
-          <span *ngIf="!fotoPerfilUrl">{{ estudianteIniciales }}</span>
-        </div>
-        <div class="profile-info">
-          <span class="profile-name">{{ estudianteNombre }}</span>
-          <span class="profile-role">Estudiante</span>
-        </div>
-      </div>
-      <button class="logout-btn" (click)="cerrarSesion()">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-        </svg>
-        Cerrar sesión
-      </button>
-    </div>
+  <button class="logout-btn" (click)="cerrarSesion()">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+    </svg>
+    Cerrar sesión
+  </button>
+</div>
+
   </aside>
 
   <!-- CONTENIDO PRINCIPAL -->
@@ -67,30 +58,41 @@
     <div class="blob blob-blue"></div>
     <div class="blob blob-pink"></div>
 
-    <!-- ══ TOPBAR FLOTANTE: TEMA + NOTIFICACIONES ══ -->
-    <div class="notif-topbar" style="display:flex; flex-direction:row; align-items:center; gap:10px;">
-      <button class="tema-toggle-btn-est" (click)="toggleTemaRapido()" [title]="temaOscuro ? 'Modo claro' : 'Modo oscuro'"
-              style="position:static; display:flex; align-items:center; justify-content:center;
-                     width:40px; height:40px; border-radius:50%; background:#fff; border:1px solid #e2e8f0;
-                     box-shadow:0 1px 3px rgba(0,0,0,0.08); color:#334155; cursor:pointer;">
-        <svg *ngIf="!temaOscuro" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
-          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-          <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
-          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-        </svg>
-        <svg *ngIf="temaOscuro" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
-        </svg>
-      </button>
-      <button class="notif-btn" (click)="toggleNotificaciones()" style="position:static;">
-        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>
-        </svg>
-        <span class="notif-badge-est" *ngIf="notifNoLeidas > 0">{{ notifNoLeidas }}</span>
-      </button>
+    <!-- ══ TOPBAR ══ -->
+<header class="topbar-est">
+  <div class="topbar-left-est">
+    <h1 class="topbar-title-est" *ngIf="seccionActiva === 'agendar'">Hola, {{ estudianteNombre }} 👋</h1>
+    <h1 class="topbar-title-est" *ngIf="seccionActiva !== 'agendar'">{{ tituloSeccionEst }}</h1>
+    <span class="topbar-sub-est">{{ subtituloSeccionEst }}</span>
+  </div>
+  <div class="topbar-actions-est">
+    <button class="topbar-icon-btn-est" (click)="toggleTemaRapido()" [title]="temaOscuro ? 'Modo claro' : 'Modo oscuro'">
+      <svg *ngIf="!temaOscuro" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+        <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+      </svg>
+      <svg *ngIf="temaOscuro" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+      </svg>
+    </button>
+    <button class="topbar-icon-btn-est" (click)="toggleNotificaciones()">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>
+      </svg>
+      <span class="notif-badge-est" *ngIf="notifNoLeidas > 0">{{ notifNoLeidas }}</span>
+    </button>
+    <div class="topbar-perfil-est">
+      <div class="avatar-topbar-est" *ngIf="!fotoPerfilUrl">{{ estudianteIniciales }}</div>
+      <img *ngIf="fotoPerfilUrl" [src]="fotoPerfilUrl" class="avatar-img-topbar-est" alt="Foto de perfil" />
+      <div class="topbar-perfil-info-est">
+        <span class="topbar-perfil-nombre-est">{{ estudianteNombre }}</span>
+        <span class="topbar-perfil-rol-est">Estudiante</span>
+      </div>
     </div>
-
+  </div>
+</header>
     <!-- PANEL DE NOTIFICACIONES -->
     <div class="notif-panel-est" *ngIf="notifPanelAbierto">
       <div class="notif-panel-header-est">
@@ -122,9 +124,7 @@
 
     <!-- ══ AGENDAR HORA ══ -->
     <div class="section" *ngIf="seccionActiva === 'agendar'">
-      <h1 class="section-title">Agendar Nueva Hora</h1>
-      <p class="section-subtitle">Sigue los pasos para confirmar tu atención médica.</p>
-
+  
       <!-- STEPPER -->
       <div class="stepper">
         <div class="step" [class.active]="pasoAgendar >= 1" [class.done]="pasoAgendar > 1">
@@ -167,19 +167,21 @@
         </div>
 
         <div class="profesionales-grid">
+
           <div class="profesional-card" *ngFor="let p of profesionalesFiltrados()" (click)="seleccionarProfesional(p, $event)">
-            <div class="profesional-img">
-              <!-- Foto del profesional si existe -->
-              <img *ngIf="p.foto_url" [src]="p.foto_url" class="prof-foto-card" alt="Foto" />
-              <div class="profesional-avatar" *ngIf="!p.foto_url">{{ p.iniciales }}</div>
-              <div class="profesional-info-overlay">
-                <span class="profesional-nombre">{{ p.nombre }}</span>
-                <span class="profesional-especialidad">{{ p.especialidad }}</span>
-              </div>
-            </div>
-            <p class="profesional-desc">{{ p.descripcion || 'Atención médica especializada para estudiantes UTEM.' }}</p>
-            <button class="btn-agendar" (click)="seleccionarProfesional(p, $event)">Agendar Cita</button>
-          </div>
+  <div class="profesional-img">
+    <!-- Foto del profesional si existe -->
+    <img *ngIf="p.foto_url" [src]="p.foto_url" class="prof-foto-card" alt="Foto" />
+    <div class="profesional-avatar-full" *ngIf="!p.foto_url">{{ p.iniciales }}</div>
+  </div>
+  <div class="profesional-info-body">
+    <span class="profesional-nombre">{{ p.nombre }}</span>
+    <span class="profesional-especialidad">{{ p.especialidad }}</span>
+  </div>
+  <p class="profesional-desc">{{ p.descripcion || 'Atención médica especializada para estudiantes UTEM.' }}</p>
+  <button class="btn-agendar" (click)="seleccionarProfesional(p, $event)">Agendar Cita</button>
+</div>
+
           <div *ngIf="profesionalesFiltrados().length === 0" style="grid-column:1/-1;text-align:center;color:#94a3b8;padding:32px;font-size:14px;">
             No se encontraron profesionales con esos filtros.
           </div>
@@ -325,9 +327,6 @@
 
     <!-- ══ MIS CITAS ══ -->
     <div class="section" *ngIf="seccionActiva === 'citas'">
-      <h1 class="section-title">Mis Citas</h1>
-      <p class="section-subtitle">Gestiona tus próximas atenciones médicas.</p>
-
       <div *ngIf="mensajeExito" style="background:#f0fdf9;border:1px solid #99f6e4;border-radius:8px;padding:12px 16px;color:#0d9488;font-size:14px;font-weight:600;margin-bottom:20px;">
         {{ mensajeExito }}
       </div>
@@ -380,9 +379,7 @@
 
     <!-- ══ HISTORIAL ══ -->
     <div class="section" *ngIf="seccionActiva === 'historial'">
-      <h1 class="section-title">Historial de Citas</h1>
-      <p class="section-subtitle">Consulta el registro de todas tus atenciones médicas.</p>
-
+      
       <div class="historial-stats">
         <div class="stat-card"><span class="stat-label">Total citas</span><span class="stat-num">{{ totalCitas }}</span></div>
         <div class="stat-card"><span class="stat-label">Completadas</span><span class="stat-num completadas">{{ citasCompletadas }}</span></div>
@@ -430,9 +427,7 @@
 
     <!-- ══ CONFIGURACIÓN ══ -->
     <div class="section" *ngIf="seccionActiva === 'configuracion'">
-      <h1 class="section-title">Configuración de Cuenta</h1>
-      <p class="section-subtitle">Gestiona tu información personal y preferencias del portal.</p>
-
+      
       <div *ngIf="mensajeExito" style="background:#f0fdf9;border:1px solid #99f6e4;border-radius:8px;padding:12px 16px;color:#0d9488;font-size:14px;font-weight:600;margin-bottom:20px;">
         {{ mensajeExito }}
       </div>

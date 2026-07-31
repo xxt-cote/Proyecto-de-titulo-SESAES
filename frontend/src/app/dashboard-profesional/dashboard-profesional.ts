@@ -138,22 +138,23 @@ export class DashboardProfesionalComponent implements OnInit {
     this.http.get<any>(`${API}/profesional/${this.profDbId}/perfil`).subscribe({
       next: (data) => {
         this.perfil = data;
+        this.perfilOriginalFotoUrl = data.foto_url || null;   // ← agregar esta línea
         this.temaOscuro = data.tema_oscuro || false;
         this.configPerfil.nombre      = data.nombre || '';
         this.configPerfil.descripcion = data.descripcion || '';
         this.charCount = (data.descripcion || '').length;
-        // El paso de la grilla depende de la duración de atención del profesional
         this.generarHorasGrilla();
       },
       error: () => {}
     });
-  }
+}
 
   // ¿Hay cambios sin guardar en el formulario de perfil?
   get perfilModificado(): boolean {
     return this.configPerfil.nombre !== (this.perfil.nombre || '')
-        || this.configPerfil.descripcion !== (this.perfil.descripcion || '');
-  }
+        || this.configPerfil.descripcion !== (this.perfil.descripcion || '')
+        || this.perfil.foto_url !== this.perfilOriginalFotoUrl;  
+}
 
   // ¿Hay datos suficientes para intentar el cambio de contraseña?
   get passwordModificada(): boolean {
@@ -480,7 +481,7 @@ export class DashboardProfesionalComponent implements OnInit {
   // Edición de Perfil / Contraseña: campos bloqueados hasta que se presiona "Editar"
   perfilEnEdicion   = false;
   passwordEnEdicion = false;
-
+  private perfilOriginalFotoUrl: string | null = null;
   habilitarEdicionPerfil(): void { this.perfilEnEdicion = true; }
 
   cancelarEdicionPerfil(): void {
@@ -517,12 +518,13 @@ export class DashboardProfesionalComponent implements OnInit {
       nombre: this.configPerfil.nombre, descripcion: this.configPerfil.descripcion, foto_url: this.perfil.foto_url
     }).subscribe({
       next: () => {
-        this.perfil.nombre = this.configPerfil.nombre;
-        this.perfil.descripcion = this.configPerfil.descripcion;
-        this.perfilEnEdicion = false;
-        this.mensajeExito = 'Perfil actualizado correctamente.';
-        setTimeout(() => this.mensajeExito = '', 3000);
-      },
+    this.perfil.nombre = this.configPerfil.nombre;
+    this.perfil.descripcion = this.configPerfil.descripcion;
+    this.perfilOriginalFotoUrl = this.perfil.foto_url;   // ← agregar esta línea
+    this.perfilEnEdicion = false;
+    this.mensajeExito = 'Perfil actualizado correctamente.';
+    setTimeout(() => this.mensajeExito = '', 3000);
+},
       error: (err) => { this.mensajeError = err?.error?.detail || 'No se pudo guardar.'; setTimeout(() => this.mensajeError = '', 3000); }
     });
   }

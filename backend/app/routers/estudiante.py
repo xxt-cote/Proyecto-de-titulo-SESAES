@@ -10,7 +10,10 @@ router = APIRouter(prefix="/estudiante", tags=["Estudiante"])
 
 @router.get("/{estudiante_id}", response_model=EstudianteOut)
 def obtener_estudiante(estudiante_id: int, db: Session = Depends(get_db)):
-    usuario = db.query(Usuario).filter(Usuario.id == estudiante_id).first()
+    usuario = db.query(Usuario).filter(
+        Usuario.id == estudiante_id,
+        Usuario.rol == "estudiante"
+    ).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Estudiante no encontrado")
     return usuario
@@ -18,7 +21,10 @@ def obtener_estudiante(estudiante_id: int, db: Session = Depends(get_db)):
 
 @router.patch("/{estudiante_id}", response_model=EstudianteOut)
 def actualizar_estudiante(estudiante_id: int, datos: EstudianteUpdate, db: Session = Depends(get_db)):
-    usuario = db.query(Usuario).filter(Usuario.id == estudiante_id).first()
+    usuario = db.query(Usuario).filter(
+        Usuario.id == estudiante_id,
+        Usuario.rol == "estudiante"
+    ).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Estudiante no encontrado")
 

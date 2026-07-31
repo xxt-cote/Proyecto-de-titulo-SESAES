@@ -40,6 +40,25 @@ export class DashboardEstudianteComponent implements OnInit {
   get estudianteNombre(): string {
     return this.estudianteData?.nombre || 'Estudiante';
   }
+  get tituloSeccionEst(): string {
+  const map: Record<string, string> = {
+    agendar:       'Agendar Nueva Hora',
+    citas:         'Mis Citas',
+    historial:     'Historial de Citas',
+    configuracion: 'Configuración de Cuenta'
+  };
+  return map[this.seccionActiva] ?? 'SESAES';
+}
+
+get subtituloSeccionEst(): string {
+  const map: Record<string, string> = {
+    agendar:       'Sigue los pasos para confirmar tu atención médica.',
+    citas:         'Gestiona tus próximas atenciones médicas.',
+    historial:     'Consulta el registro de todas tus atenciones médicas.',
+    configuracion: 'Gestiona tu información personal y preferencias del portal.'
+  };
+  return map[this.seccionActiva] ?? '';
+}
   get estudianteIniciales(): string {
     const nombre = this.estudianteNombre;
     const partes = nombre.split(' ');

@@ -142,6 +142,7 @@
         <div class="blob blob-blue"></div>
         <div class="blob blob-purple"></div>
 
+        <!-- 1. Estadísticas -->
         <div class="stats-grid">
           <div class="stat-card">
             <div class="stat-icon blue">
@@ -191,25 +192,80 @@
           </div>
         </div>
 
-        <!-- Disponibilidad Hoy -->
-        <div class="card disponibilidad-card">
-          <div class="card-header">
-            <h3 class="card-title">Disponibilidad Hoy</h3>
-          </div>
-          <div class="disponibilidad-lista">
-            <div *ngFor="let prof of resumenDia" class="disponibilidad-item">
-              <span class="disp-icono">{{ getIconoEstadoProf(prof.estado) }}</span>
-              <span class="disp-nombre">{{ prof.nombre }}</span>
-              <span class="disp-estado" [ngClass]="'disp-' + prof.estado">
-                {{ prof.estado === 'activo' ? 'Activo' : prof.estado === 'licencia' ? 'En licencia médica' : 'Inasistencia' }}
-                <span *ngIf="prof.estado === 'activo' && prof.citas_hoy !== undefined"> ({{ prof.citas_hoy }} citas hoy)</span>
-              </span>
+        <!-- 2. Gráficos -->
+        <div class="graficos-grid">
+          <div class="card grafico-card">
+            <div class="card-header">
+              <h3 class="card-title">Citas por especialidad</h3>
+              <div class="grafico-filtros">
+                <select [(ngModel)]="filtroGraficoAnio" (change)="cargarGraficoEspecialidad()">
+                  <option *ngFor="let a of aniosDisponiblesGrafico" [value]="a">{{ a }}</option>
+                </select>
+                <input class="grafico-filtro-input" [(ngModel)]="filtroGraficoCarrera" placeholder="Carrera..." (change)="cargarGraficoEspecialidad()" />
+                <button class="btn-exportar-small" (click)="exportarEspecialidadExcel()">↓ Excel</button>
+              </div>
             </div>
-            <div *ngIf="resumenDia.length === 0" class="tabla-vacia">Sin datos de disponibilidad</div>
+            <div class="grafico-canvas-wrap">
+              <canvas #chartEspecialidad></canvas>
+            </div>
+            <div class="grafico-leyenda">
+              <span *ngFor="let item of graficoEspecialidad; let i = index" class="leyenda-chip">
+                <span class="leyenda-dot" [style.background]="coloresGrafico[i % coloresGrafico.length]"></span>
+                {{ item.especialidad }} {{ item.porcentaje }}%
+              </span>
+              <span *ngIf="graficoEspecialidad.length === 0" class="tabla-vacia">Sin datos</span>
+            </div>
+          </div>
+
+          <div class="card grafico-card">
+            <div class="card-header">
+              <h3 class="card-title">Citas por semana</h3>
+              <button class="btn-exportar-small" (click)="exportarSemanaExcel()">↓ Excel</button>
+            </div>
+            <div class="grafico-canvas-wrap">
+              <canvas #chartSemana></canvas>
+            </div>
           </div>
         </div>
 
-        <!-- Próximas citas + Actividad -->
+        <!-- 3. Disponibilidad Hoy + Calendario -->
+        <div class="inicio-grid">
+          <div class="card disponibilidad-card">
+            <div class="card-header">
+              <h3 class="card-title">Disponibilidad Hoy</h3>
+            </div>
+            <div class="disponibilidad-lista">
+              <div *ngFor="let prof of resumenDia" class="disponibilidad-item">
+                <span class="disp-icono">{{ getIconoEstadoProf(prof.estado) }}</span>
+                <span class="disp-nombre">{{ prof.nombre }}</span>
+                <span class="disp-estado" [ngClass]="'disp-' + prof.estado">
+                  {{ prof.estado === 'activo' ? 'Activo' : prof.estado === 'licencia' ? 'En licencia médica' : 'Inasistencia' }}
+                  <span *ngIf="prof.estado === 'activo' && prof.citas_hoy !== undefined"> ({{ prof.citas_hoy }} citas hoy)</span>
+                </span>
+              </div>
+              <div *ngIf="resumenDia.length === 0" class="tabla-vacia">Sin datos de disponibilidad</div>
+            </div>
+          </div>
+
+          <!-- Calendario del mes (solo visual) -->
+          <div class="card inicio-calendario">
+            <div class="calendario-header">
+              <button class="cal-nav-btn" (click)="calMesAnterior()">‹</button>
+              <span>{{ calNombreMesVisible }}</span>
+              <button class="cal-nav-btn" (click)="calMesSiguiente()">›</button>
+            </div>
+            <div class="cal-grid-dias-nombre-admin">
+              <span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span>
+            </div>
+            <div class="cal-grid-admin">
+              <div *ngFor="let dia of calDiasMes" class="cal-celda-admin" [class.vacia]="!dia">
+                <span *ngIf="dia" [class.hoy]="dia.esHoy">{{ dia.num }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. Próximas Citas + Actividad Reciente -->
         <div class="inicio-grid">
           <div class="card proximas-citas-card">
             <div class="card-header">
@@ -248,69 +304,14 @@
             </table>
           </div>
 
-          <div class="inicio-lateral">
-            <div class="card actividad-card">
-              <h3 class="card-title">Actividad Reciente</h3>
-              <div class="actividad-lista">
-                <div *ngFor="let item of actividadReciente" class="actividad-item">
-                  <div class="actividad-icono" [ngClass]="item.tipo"></div>
-                  <div class="actividad-texto"><p>{{ item.mensaje }}</p><span>{{ item.tiempo }}</span></div>
-                </div>
-                <div *ngIf="actividadReciente.length === 0" class="tabla-vacia">Sin actividad reciente</div>
+          <div class="card actividad-card">
+            <h3 class="card-title">Actividad Reciente</h3>
+            <div class="actividad-lista">
+              <div *ngFor="let item of actividadReciente" class="actividad-item">
+                <div class="actividad-icono" [ngClass]="item.tipo"></div>
+                <div class="actividad-texto"><p>{{ item.mensaje }}</p><span>{{ item.tiempo }}</span></div>
               </div>
-            </div>
-
-            <!-- Calendario del mes (solo visual) -->
-            <div class="card inicio-calendario">
-              <div class="calendario-header">
-                <button class="cal-nav-btn" (click)="calMesAnterior()">‹</button>
-                <span>{{ calNombreMesVisible }}</span>
-                <button class="cal-nav-btn" (click)="calMesSiguiente()">›</button>
-              </div>
-              <div class="cal-grid-dias-nombre-admin">
-                <span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span>
-              </div>
-              <div class="cal-grid-admin">
-                <div *ngFor="let dia of calDiasMes" class="cal-celda-admin" [class.vacia]="!dia">
-                  <span *ngIf="dia" [class.hoy]="dia.esHoy">{{ dia.num }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Gráficos -->
-        <div class="graficos-grid">
-          <div class="card grafico-card">
-            <div class="card-header">
-              <h3 class="card-title">Citas por especialidad</h3>
-              <div class="grafico-filtros">
-                <select [(ngModel)]="filtroGraficoAnio" (change)="cargarGraficoEspecialidad()">
-                  <option *ngFor="let a of aniosDisponiblesGrafico" [value]="a">{{ a }}</option>
-                </select>
-                <input class="grafico-filtro-input" [(ngModel)]="filtroGraficoCarrera" placeholder="Carrera..." (change)="cargarGraficoEspecialidad()" />
-                <button class="btn-exportar-small" (click)="exportarEspecialidadExcel()">↓ Excel</button>
-              </div>
-            </div>
-            <div class="grafico-canvas-wrap">
-              <canvas #chartEspecialidad></canvas>
-            </div>
-            <div class="grafico-leyenda">
-              <span *ngFor="let item of graficoEspecialidad; let i = index" class="leyenda-chip">
-                <span class="leyenda-dot" [style.background]="coloresGrafico[i % coloresGrafico.length]"></span>
-                {{ item.especialidad }} {{ item.porcentaje }}%
-              </span>
-              <span *ngIf="graficoEspecialidad.length === 0" class="tabla-vacia">Sin datos</span>
-            </div>
-          </div>
-
-          <div class="card grafico-card">
-            <div class="card-header">
-              <h3 class="card-title">Citas por semana</h3>
-              <button class="btn-exportar-small" (click)="exportarSemanaExcel()">↓ Excel</button>
-            </div>
-            <div class="grafico-canvas-wrap">
-              <canvas #chartSemana></canvas>
+              <div *ngIf="actividadReciente.length === 0" class="tabla-vacia">Sin actividad reciente</div>
             </div>
           </div>
         </div>
