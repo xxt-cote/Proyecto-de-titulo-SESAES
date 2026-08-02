@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 
-const API = 'http://localhost:8080';
+const API = 'https://sesaes-backend.onrender.com';
 
 @Component({
   selector: 'app-dashboard-estudiante',
