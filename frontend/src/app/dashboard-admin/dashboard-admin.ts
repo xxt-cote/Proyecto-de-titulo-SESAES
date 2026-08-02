@@ -4,10 +4,11 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { Chart, registerables } from 'chart.js';
-
+import { environment } from '../config';
 Chart.register(...registerables);
 
-const API = 'http://localhost:8080';
+
+const API = environment.apiUrl;
 
 @Component({
   selector: 'app-dashboard-admin',
