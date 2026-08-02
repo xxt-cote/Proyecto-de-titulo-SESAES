@@ -4,8 +4,9 @@ import { FormsModule } from '@angular/forms';
 import { AuthService } from '../auth.service';
 import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
+import { environment } from '../config';
 
-const API = 'http://localhost:8080';
+const API = environment.apiUrl;
 
 @Component({
   selector: 'app-login',
