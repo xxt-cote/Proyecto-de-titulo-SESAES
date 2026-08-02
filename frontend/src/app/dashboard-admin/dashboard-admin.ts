@@ -581,10 +581,17 @@ private crearGraficos(): void {
 
   irAHoy(): void { this.generarSemanaActual(); if (this.filtroProfesionalId) this.cargarHorarioProfesional(); }
 
-  // Si el profesional está de licencia/inasistencia, toda su agenda se muestra "bloqueado"
-  // (no sabemos hasta cuándo dura la ausencia, así que se bloquea entera hasta que el admin lo reactive)
+// ¿La hora indicada cae dentro del horario de almuerzo del profesional actual?
+  private esHoraDeAlmuerzo(hora: string): boolean {
+    const prof = this.profesionalActual;
+    if (!prof || !prof.hora_almuerzo_inicio || !prof.hora_almuerzo_fin) return false;
+    const h = hora.substring(0, 5);
+    return h >= prof.hora_almuerzo_inicio && h < prof.hora_almuerzo_fin;
+  }
+
   getBloqueEstado(fecha: string, hora: string): string {
     if (this.profesionalActualBloqueado) return 'bloqueado';
+    if (this.esHoraDeAlmuerzo(hora)) return 'bloqueado';
     const cita = this.citasHorario.find(c => {
       if (c.fecha !== fecha) return false;
       if (c.estado === 'cancelada' || c.estado === 'inasistencia') return false;
@@ -596,6 +603,7 @@ private crearGraficos(): void {
   }
 
   getBloqueInfo(fecha: string, hora: string): string {
+    if (this.esHoraDeAlmuerzo(hora)) return 'Almuerzo';
     const cita = this.citasHorario.find(c => {
       if (c.fecha !== fecha) return false;
       if (c.estado === 'cancelada' || c.estado === 'inasistencia') return false;

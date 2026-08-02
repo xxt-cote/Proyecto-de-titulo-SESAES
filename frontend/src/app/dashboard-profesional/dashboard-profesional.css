@@ -289,6 +289,9 @@ body { margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; background: #f
 
 .perfil-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
 
+.perfil-layout .card-prof:nth-child(3) {
+  grid-column: 1 / -1;
+}
 .perfil-foto-row { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
 .perfil-foto-wrap { position: relative; flex-shrink: 0; }
 .perfil-avatar-grande { width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(135deg, #0d9488, #0f766e); color: white; font-size: 22px; font-weight: 700; display: flex; align-items: center; justify-content: center; }

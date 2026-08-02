@@ -23,6 +23,16 @@ def _generar_bloques(duracion_min: int) -> list:
     return bloques
 
 
+def _parsear_hora_24h(hora_str: str):
+    """Convierte 'HH:MM' (24h) a objeto time. Devuelve None si es inválido o vacío."""
+    if not hora_str:
+        return None
+    try:
+        return datetime.strptime(hora_str, "%H:%M").time()
+    except ValueError:
+        return None
+
+
 @router.get("/disponibilidad/{profesional_id}")
 def get_disponibilidad(profesional_id: int, fecha: str, db: Session = Depends(get_db)):
     """
@@ -52,6 +62,12 @@ def get_disponibilidad(profesional_id: int, fecha: str, db: Session = Depends(ge
     if fecha_obj == hoy:
         ahora = datetime.now().time()
         bloques = [b for b in bloques if b > ahora]
+
+    # Descartar el bloque de almuerzo del profesional, si lo tiene definido
+    almuerzo_inicio = _parsear_hora_24h(prof.hora_almuerzo_inicio)
+    almuerzo_fin    = _parsear_hora_24h(prof.hora_almuerzo_fin)
+    if almuerzo_inicio and almuerzo_fin:
+        bloques = [b for b in bloques if not (almuerzo_inicio <= b < almuerzo_fin)]
 
     # Descartar bloques ya ocupados por una cita activa (pendiente o completada)
     ocupadas_raw = db.query(Cita.hora).filter(

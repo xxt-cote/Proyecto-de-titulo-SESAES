@@ -10,12 +10,16 @@ from app.routers.admin import router as admin_router
 from app.routers.notificaciones import router as notificaciones_router
 from app.routers.configuracion_centro import router as configuracion_centro_router
 from app.routers.correos import router as correos_router
+import os
 
 app = FastAPI()
 
+origins_env = os.getenv("CORS_ORIGINS", "http://localhost:4200")
+origins = [o.strip() for o in origins_env.split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:4200"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -530,6 +530,49 @@ export class DashboardProfesionalComponent implements OnInit {
   mostrarContrasenaaNueva  = false;
   mostrarContrasenaConf   = false;
 
+  // Horario de almuerzo
+horarioAlmuerzoEnEdicion = false;
+almuerzoHoraInicio = '';   // valor del <input type="time">, formato "HH:MM"
+
+habilitarEdicionAlmuerzo(): void {
+  this.horarioAlmuerzoEnEdicion = true;
+  this.almuerzoHoraInicio = this.perfil.hora_almuerzo_inicio || '';
+}
+
+cancelarEdicionAlmuerzo(): void {
+  this.horarioAlmuerzoEnEdicion = false;
+  this.almuerzoHoraInicio = this.perfil.hora_almuerzo_inicio || '';
+}
+
+get almuerzoHoraFinPreview(): string {
+  if (!this.almuerzoHoraInicio) return '';
+  const [h, m] = this.almuerzoHoraInicio.split(':').map(Number);
+  const totalMin = h * 60 + m + 60;
+  const finH = Math.floor(totalMin / 60) % 24;
+  const finM = totalMin % 60;
+  return `${String(finH).padStart(2,'0')}:${String(finM).padStart(2,'0')}`;
+}
+
+guardarHorarioAlmuerzo(): void {
+  if (!this.almuerzoHoraInicio) return;
+  this.http.patch<any>(`${API}/profesional/${this.profDbId}/horario-almuerzo`, {
+    hora_almuerzo_inicio: this.almuerzoHoraInicio
+  }).subscribe({
+    next: (resp) => {
+      this.perfil.hora_almuerzo_inicio = resp.hora_almuerzo_inicio;
+      this.perfil.hora_almuerzo_fin    = resp.hora_almuerzo_fin;
+      this.horarioAlmuerzoEnEdicion = false;
+      this.mensajeExito = `Horario de almuerzo guardado: ${resp.hora_almuerzo_inicio} - ${resp.hora_almuerzo_fin}`;
+      this.cdr.detectChanges();
+      setTimeout(() => { this.mensajeExito = ''; this.cdr.detectChanges(); }, 3000);
+    },
+    error: (err) => {
+      this.mensajeError = err?.error?.detail || 'No se pudo guardar el horario de almuerzo.';
+      this.cdr.detectChanges();
+      setTimeout(() => { this.mensajeError = ''; this.cdr.detectChanges(); }, 3000);
+    }
+  });
+}
   // Edición de Perfil / Contraseña: campos bloqueados hasta que se presiona "Editar"
   perfilEnEdicion   = false;
   passwordEnEdicion = false;

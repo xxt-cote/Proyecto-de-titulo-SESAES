@@ -432,6 +432,41 @@
               <button class="btn-guardar-prof" [disabled]="!passwordModificada" (click)="cambiarPassword()">Cambiar contraseña</button>
             </div>
           </div>
+          <!-- Horario de almuerzo -->
+          <div class="card-prof">
+            <div class="card-header-prof">
+              <h3 class="card-title-prof">🍽️ Horario de Almuerzo</h3>
+              <button class="btn-editar-perfil" *ngIf="!horarioAlmuerzoEnEdicion" (click)="habilitarEdicionAlmuerzo()">✎ Editar</button>
+            </div>
+            <p class="modal-desc" style="margin-bottom:16px">
+              Define tu hora de almuerzo. Este bloque de 1 hora quedará bloqueado automáticamente
+              y no aparecerá disponible para que los estudiantes agenden citas.
+            </p>
+
+            <div class="campo-grupo-prof">
+              <label>Hora de inicio</label>
+              <input type="time" [(ngModel)]="almuerzoHoraInicio" [disabled]="!horarioAlmuerzoEnEdicion" />
+            </div>
+
+            <div class="campo-grupo-prof" *ngIf="almuerzoHoraInicio">
+              <label>Rango bloqueado (1 hora exacta)</label>
+              <input type="text" [value]="almuerzoHoraInicio + ' – ' + almuerzoHoraFinPreview" disabled />
+            </div>
+
+            <div class="campo-grupo-prof" *ngIf="!horarioAlmuerzoEnEdicion && perfil.hora_almuerzo_inicio">
+              <label>Horario actual</label>
+              <input type="text" [value]="perfil.hora_almuerzo_inicio + ' – ' + perfil.hora_almuerzo_fin" disabled />
+            </div>
+            <div class="campo-grupo-prof" *ngIf="!horarioAlmuerzoEnEdicion && !perfil.hora_almuerzo_inicio">
+              <span class="texto-gris">Aún no has definido tu horario de almuerzo.</span>
+            </div>
+
+         <div class="perfil-acciones-edicion" *ngIf="horarioAlmuerzoEnEdicion">
+              <button class="btn-cancelar-modal-prof" (click)="cancelarEdicionAlmuerzo()">Cancelar</button>
+              <button class="btn-guardar-prof" [disabled]="!almuerzoHoraInicio" (click)="guardarHorarioAlmuerzo()">Guardar horario</button>
+            </div>
+          </div>
+
         </div>
       </div>
     </main>
