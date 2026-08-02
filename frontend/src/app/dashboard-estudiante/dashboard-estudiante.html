@@ -496,6 +496,24 @@
           <button class="btn-cambiar" (click)="abrirComoLlegar()">Cómo llegar</button>
         </div>
 
+        <!-- Preguntas Frecuentes -->
+        <div class="config-card faq-card">
+          <h3 class="config-card-title">❓ Preguntas Frecuentes</h3>
+          <div class="faq-lista">
+            <div class="faq-item" *ngFor="let faq of faqs" [class.abierta]="faq.abierta">
+              <button class="faq-pregunta" (click)="toggleFaq(faq)">
+                <span>{{ faq.pregunta }}</span>
+                <svg class="faq-chevron" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#64748b" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              <div class="faq-respuesta" *ngIf="faq.abierta">
+                <p>{{ faq.respuesta }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
 
       <div class="config-acciones">
@@ -503,7 +521,3 @@
         <button class="btn-guardar"   [disabled]="!hayCambiosPendientes" (click)="guardarCambios()">Guardar cambios</button>
       </div>
     </div>
-
-  </main>
-</div>
-</div>

@@ -68,7 +68,7 @@ class ProfesionalUpdate(BaseModel):
     correo:       Optional[str] = None
     rut:          Optional[str] = None
     estado:       Optional[str] = None
-
+    hora_almuerzo_inicio: Optional[str] = None 
 
 class ProfesionalOut(BaseModel):
     id:           int
@@ -81,7 +81,8 @@ class ProfesionalOut(BaseModel):
     correo:       Optional[str] = None
     rut:          Optional[str] = None
     usuario_id:   Optional[int] = None
-
+    hora_almuerzo_inicio: Optional[str] = None  
+    hora_almuerzo_fin:    Optional[str] = None
     class Config:
         from_attributes = True
 

@@ -501,7 +501,18 @@ get subtituloSeccionEst(): string {
   fotoPerfilUrl: string | null = null;
   fotoPerfilCambiada   = false;
   temaOscuro           = false;
+  
+faqs = [
+  { pregunta: '¿Cómo cancelar una cita?', respuesta: 'Ve a "Mis Citas", busca la cita que deseas cancelar y presiona el botón "Cancelar". Puedes cancelar hasta 5 horas antes de la hora agendada.', abierta: false },
+  { pregunta: '¿Cómo reprogramar una cita?', respuesta: 'En "Mis Citas", presiona el botón "Reagendar" junto a la cita. Esto te llevará al flujo de agendamiento con el mismo profesional para elegir una nueva fecha y hora.', abierta: false },
+  { pregunta: '¿Qué pasa si llego tarde?', respuesta: 'Si llegas tarde, el profesional podría no poder atenderte y tu cita quedará marcada como inasistencia. Te recomendamos llegar con anticipación.', abierta: false },
+  { pregunta: '¿Qué debo llevar a mi cita?', respuesta: 'Trae tu credencial de estudiante UTEM. Si tu atención lo requiere, también lleva exámenes o documentación médica previa relacionada con tu consulta.', abierta: false },
+  { pregunta: '¿Puedo elegir otro profesional?', respuesta: 'Sí. En "Agendar Hora" puedes ver todos los profesionales disponibles por especialidad y elegir con cuál deseas atenderte.', abierta: false }
+];
 
+toggleFaq(faq: any): void {
+  faq.abierta = !faq.abierta;
+}
   get hayCambiosPendientes(): boolean {
     return this.celularEditable !== this.celularOriginal || this.fotoPerfilCambiada;
   }

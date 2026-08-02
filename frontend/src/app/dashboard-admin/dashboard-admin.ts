@@ -1,4 +1,4 @@
-import { Component, OnInit, AfterViewInit, OnDestroy, ViewChild, ElementRef, ViewEncapsulation } from '@angular/core';
+import { Component, OnInit, AfterViewInit, OnDestroy, ViewChild, ElementRef, ViewEncapsulation, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -44,7 +44,11 @@ export class DashboardAdminComponent implements OnInit, AfterViewInit, OnDestroy
     return map[this.seccionActiva] ?? '';
   }
 
-  constructor(private router: Router, private http: HttpClient) {}
+  constructor(
+    private router: Router,
+    private http: HttpClient,
+    private cdr: ChangeDetectorRef
+  ) {}
 
   ngOnInit(): void {
     const temaGuardado = localStorage.getItem('admin_tema_oscuro');
@@ -119,6 +123,7 @@ export class DashboardAdminComponent implements OnInit, AfterViewInit, OnDestroy
       next: (data) => {
         this.notificaciones = (data ?? []).map(n => ({ ...n, seleccionada: false }));
         this.notifNoLeidas  = this.notificaciones.filter(n => !n.leida).length;
+        this.cdr.detectChanges();
       },
       error: () => {}
     });
@@ -129,14 +134,22 @@ export class DashboardAdminComponent implements OnInit, AfterViewInit, OnDestroy
   marcarLeida(n: any): void {
     if (n.leida) return;
     this.http.patch(`${API}/notificaciones/${n.id}/leer`, {}).subscribe({
-      next: () => { n.leida = true; this.notifNoLeidas = Math.max(0, this.notifNoLeidas - 1); }
+      next: () => {
+        n.leida = true;
+        this.notifNoLeidas = Math.max(0, this.notifNoLeidas - 1);
+        this.cdr.detectChanges();
+      }
     });
   }
 
   marcarTodasLeidas(): void {
     const adminId = Number(localStorage.getItem('usuario_id')) || 11;
     this.http.patch(`${API}/notificaciones/leer-todas/${adminId}`, {}).subscribe({
-      next: () => { this.notificaciones.forEach(n => n.leida = true); this.notifNoLeidas = 0; }
+      next: () => {
+        this.notificaciones.forEach(n => n.leida = true);
+        this.notifNoLeidas = 0;
+        this.cdr.detectChanges();
+      }
     });
   }
 
@@ -160,6 +173,7 @@ export class DashboardAdminComponent implements OnInit, AfterViewInit, OnDestroy
         next: () => {
           if (!n.leida) this.notifNoLeidas = Math.max(0, this.notifNoLeidas - 1);
           this.notificaciones = this.notificaciones.filter(x => x.id !== n.id);
+          this.cdr.detectChanges();
         },
         error: () => { this.mensajeError = 'No se pudo eliminar una de las notificaciones.'; setTimeout(() => this.mensajeError = '', 3000); }
       });
@@ -174,7 +188,11 @@ export class DashboardAdminComponent implements OnInit, AfterViewInit, OnDestroy
 
   cargarEstadisticas(): void {
     this.http.get<any>(`${API}/admin/estadisticas`).subscribe({
-      next: (data) => { this.estadisticas = data; }, error: () => {}
+      next: (data) => {
+        this.estadisticas = data;
+        this.cdr.detectChanges();
+      },
+      error: () => {}
     });
   }
 
@@ -186,7 +204,11 @@ export class DashboardAdminComponent implements OnInit, AfterViewInit, OnDestroy
 
   cargarResumenDia(): void {
     this.http.get<any[]>(`${API}/admin/resumen-dia`).subscribe({
-      next: (data) => { this.resumenDia = data ?? []; }, error: () => {}
+      next: (data) => {
+        this.resumenDia = data ?? [];
+        this.cdr.detectChanges();
+      },
+      error: () => {}
     });
   }
 
@@ -211,6 +233,7 @@ export class DashboardAdminComponent implements OnInit, AfterViewInit, OnDestroy
           tiempo:  this.tiempoRelativo(a.fecha),
           tipo:    this.tipoAuditoria(a.accion)
         }));
+        this.cdr.detectChanges();
       },
       error: () => { this.actividadReciente = []; }
     });
@@ -243,7 +266,11 @@ export class DashboardAdminComponent implements OnInit, AfterViewInit, OnDestroy
 
   cargarProximasCitas(): void {
     this.http.get<any[]>(`${API}/admin/proximas-citas`).subscribe({
-      next: (data) => { this.proximasCitas = data ?? []; }, error: () => {}
+      next: (data) => {
+        this.proximasCitas = data ?? [];
+        this.cdr.detectChanges();
+      },
+      error: () => {}
     });
   }
 
@@ -256,6 +283,7 @@ export class DashboardAdminComponent implements OnInit, AfterViewInit, OnDestroy
         if (citaH) citaH.estado = 'inasistencia';
         this.mensajeExito = 'Inasistencia registrada.';
         setTimeout(() => this.mensajeExito = '', 3000);
+        this.cdr.detectChanges();
       },
       error: () => { this.mensajeError = 'Error al registrar inasistencia.'; setTimeout(() => this.mensajeError = '', 3000); }
     });
@@ -272,6 +300,7 @@ export class DashboardAdminComponent implements OnInit, AfterViewInit, OnDestroy
         if (citaH) citaH.estado = 'cancelada';
         this.mensajeExito = 'Cita cancelada. El estudiante fue notificado.';
         setTimeout(() => this.mensajeExito = '', 3000);
+        this.cdr.detectChanges();
       },
       error: () => { this.mensajeError = 'Error al cancelar cita.'; setTimeout(() => this.mensajeError = '', 3000); }
     });
@@ -359,14 +388,22 @@ private crearGraficos(): void {
     if (this.filtroGraficoMes)     url += `&mes=${this.filtroGraficoMes}`;
     if (this.filtroGraficoCarrera) url += `&carrera=${encodeURIComponent(this.filtroGraficoCarrera)}`;
     this.http.get<any[]>(url).subscribe({
-      next: (data) => { this.graficoEspecialidad = data ?? []; this.actualizarGraficoEspecialidad(); },
+      next: (data) => {
+        this.graficoEspecialidad = data ?? [];
+        this.actualizarGraficoEspecialidad();
+        this.cdr.detectChanges();
+      },
       error: () => {}
     });
   }
 
   cargarGraficoSemana(): void {
     this.http.get<any[]>(`${API}/admin/graficos/semana`).subscribe({
-      next: (data) => { this.graficoSemana = data ?? []; this.actualizarGraficoSemana(); },
+      next: (data) => {
+        this.graficoSemana = data ?? [];
+        this.actualizarGraficoSemana();
+        this.cdr.detectChanges();
+      },
       error: () => {}
     });
   }
@@ -462,7 +499,10 @@ private crearGraficos(): void {
   cargarHorarioProfesional(): void {
     if (!this.filtroProfesionalId) return;
     this.http.get<any[]>(`${API}/profesional/${this.filtroProfesionalId}/citas`).subscribe({
-      next: (data) => { this.citasHorario = data ?? []; },
+      next: (data) => {
+        this.citasHorario = data ?? [];
+        this.cdr.detectChanges();
+      },
       error: () => { this.citasHorario = []; }
     });
   }
@@ -603,8 +643,12 @@ private crearGraficos(): void {
     if (q.length < 2) { this.resultadosEstudiante = []; return; }
     this.buscandoEstudiante = true;
     this.http.get<any[]>(`${API}/admin/estudiantes?q=${encodeURIComponent(q)}`).subscribe({
-      next: (data) => { this.resultadosEstudiante = data ?? []; this.buscandoEstudiante = false; },
-      error: () => { this.resultadosEstudiante = []; this.buscandoEstudiante = false; }
+      next: (data) => {
+        this.resultadosEstudiante = data ?? [];
+        this.buscandoEstudiante = false;
+        this.cdr.detectChanges();
+      },
+      error: () => { this.resultadosEstudiante = []; this.buscandoEstudiante = false; this.cdr.detectChanges(); }
     });
   }
 
@@ -630,6 +674,7 @@ private crearGraficos(): void {
         this.cerrarModalCita(); this.cargarHorarioProfesional();
         this.mensajeExito = 'Cita creada correctamente.';
         setTimeout(() => this.mensajeExito = '', 3000);
+        this.cdr.detectChanges();
       },
       error: (err) => { this.mensajeError = err?.error?.detail || 'No se pudo crear la cita.'; setTimeout(() => this.mensajeError = '', 3000); }
     });
@@ -683,7 +728,11 @@ private crearGraficos(): void {
 
   cargarProfesionales(): void {
     this.http.get<any[]>(`${API}/admin/profesionales`).subscribe({
-      next: (data) => { this.profesionales = data ?? []; }, error: () => {}
+      next: (data) => {
+        this.profesionales = data ?? [];
+        this.cdr.detectChanges();
+      },
+      error: () => {}
     });
   }
 
@@ -742,7 +791,12 @@ private crearGraficos(): void {
       correo: this.profNuevoDatos.correo, rut: this.profNuevoDatos.rut,
       duracion_min: this.duracionEnMinutos, estado: 'activo', password: 'prof123'
     }).subscribe({
-      next: () => { this.cerrarModal(); this.cargarProfesionales(); this.mensajeExito = 'Profesional creado. Contraseña temporal: prof123'; setTimeout(() => this.mensajeExito = '', 5000); },
+      next: () => {
+        this.cerrarModal(); this.cargarProfesionales();
+        this.mensajeExito = 'Profesional creado. Contraseña temporal: prof123';
+        setTimeout(() => this.mensajeExito = '', 5000);
+        this.cdr.detectChanges();
+      },
       error: (err) => { this.mensajeError = err?.error?.detail || 'No se pudo crear el profesional.'; setTimeout(() => this.mensajeError = '', 3000); }
     });
   }
@@ -768,7 +822,11 @@ private crearGraficos(): void {
       estado: this.profSeleccionado.nuevoEstado, motivo: this.profSeleccionado.motivoCambio || '',
       cancelar_citas: cancelarCitas
     }).subscribe({
-      next: () => { this.cerrarModalAcciones(); this.cargarProfesionales(); this.mensajeExito = 'Estado actualizado.'; setTimeout(() => this.mensajeExito = '', 3000); },
+      next: () => {
+        this.cerrarModalAcciones(); this.cargarProfesionales();
+        this.mensajeExito = 'Estado actualizado.'; setTimeout(() => this.mensajeExito = '', 3000);
+        this.cdr.detectChanges();
+      },
       error: () => { this.mensajeError = 'No se pudo actualizar el estado.'; setTimeout(() => this.mensajeError = '', 3000); }
     });
   }
@@ -776,7 +834,11 @@ private crearGraficos(): void {
   guardarDuracionProfesional(): void {
     if (!this.profSeleccionado) return;
     this.http.patch(`${API}/admin/profesionales/${this.profSeleccionado.id}`, { duracion_min: this.duracionEnMinutos }).subscribe({
-      next: () => { this.cargarProfesionales(); this.mensajeExito = `Duración actualizada a ${this.duracionEnMinutos} min.`; setTimeout(() => this.mensajeExito = '', 3000); },
+      next: () => {
+        this.cargarProfesionales();
+        this.mensajeExito = `Duración actualizada a ${this.duracionEnMinutos} min.`; setTimeout(() => this.mensajeExito = '', 3000);
+        this.cdr.detectChanges();
+      },
       error: () => { this.mensajeError = 'No se pudo actualizar la duración.'; setTimeout(() => this.mensajeError = '', 3000); }
     });
   }
@@ -786,7 +848,11 @@ private crearGraficos(): void {
     if (!confirm(`¿Eliminar a ${this.profSeleccionado.nombre}?`)) return;
     if (!confirm('Se cancelarán TODAS sus citas pendientes y se notificará a los estudiantes. ¿Confirmar?')) return;
     this.http.delete(`${API}/admin/profesionales/${this.profSeleccionado.id}`).subscribe({
-      next: () => { this.cerrarModalAcciones(); this.cargarProfesionales(); this.mensajeExito = 'Profesional eliminado.'; setTimeout(() => this.mensajeExito = '', 3000); },
+      next: () => {
+        this.cerrarModalAcciones(); this.cargarProfesionales();
+        this.mensajeExito = 'Profesional eliminado.'; setTimeout(() => this.mensajeExito = '', 3000);
+        this.cdr.detectChanges();
+      },
       error: () => { this.mensajeError = 'No se pudo eliminar.'; setTimeout(() => this.mensajeError = '', 3000); }
     });
   }
@@ -837,6 +903,7 @@ private crearGraficos(): void {
         this.historialAdmin = data ?? []; this.pagHist = 1;
         if (this.histFiltroEstudiante.trim()) this.calcularEstadisticasEstudiante(this.historialAdmin);
         else this.estadisticasEstudiante = null;
+        this.cdr.detectChanges();
       },
       error: () => {}
     });
@@ -944,6 +1011,7 @@ private crearGraficos(): void {
           direccion: this.configCentro.direccion, correo_contacto: this.configCentro.correo_contacto,
           horario_atencion: this.configCentro.horario_atencion
         };
+        this.cdr.detectChanges();
       },
       error: () => {}
     });
@@ -966,8 +1034,9 @@ private crearGraficos(): void {
           horario_atencion: this.configCentro.horario_atencion
         };
         this.mensajeExito = 'Información del centro guardada.'; setTimeout(() => this.mensajeExito = '', 3000);
+        this.cdr.detectChanges();
       },
-      error: () => { this.guardandoConfig = false; this.mensajeError = 'No se pudo guardar.'; setTimeout(() => this.mensajeError = '', 3000); }
+      error: () => { this.guardandoConfig = false; this.mensajeError = 'No se pudo guardar.'; setTimeout(() => this.mensajeError = '', 3000); this.cdr.detectChanges(); }
     });
   }
 
@@ -976,7 +1045,10 @@ private crearGraficos(): void {
     const payloadCentro: any = { nombre_admin: this.configPerfil.nombre_admin };
     if (this.configCentro.foto_admin_url) payloadCentro.foto_admin_url = this.configCentro.foto_admin_url;
     this.http.patch(`${API}/configuracion-centro`, payloadCentro).subscribe({
-      next: () => { this.configCentro.nombre_admin = this.configPerfil.nombre_admin; },
+      next: () => {
+        this.configCentro.nombre_admin = this.configPerfil.nombre_admin;
+        this.cdr.detectChanges();
+      },
       error: () => {}
     });
     if (this.configPerfil.contrasena_nueva) {
@@ -991,12 +1063,14 @@ private crearGraficos(): void {
           this.configPerfil.contrasena_actual = ''; this.configPerfil.contrasena_nueva = ''; this.configPerfil.contrasena_conf = '';
           this.adminPerfilEnEdicion = false;
           setTimeout(() => this.mensajeExito = '', 3000);
+          this.cdr.detectChanges();
         },
-        error: (err) => { this.mensajeError = err?.error?.detail || 'Contraseña actual incorrecta.'; setTimeout(() => this.mensajeError = '', 3000); }
+        error: (err) => { this.mensajeError = err?.error?.detail || 'Contraseña actual incorrecta.'; setTimeout(() => this.mensajeError = '', 3000); this.cdr.detectChanges(); }
       });
     } else {
       this.adminPerfilEnEdicion = false;
       this.mensajeExito = 'Perfil actualizado.'; setTimeout(() => this.mensajeExito = '', 3000);
+      this.cdr.detectChanges();
     }
   }
 
@@ -1004,7 +1078,10 @@ private crearGraficos(): void {
     if (!this.adminPerfilEnEdicion) return;
     const file = event.target.files?.[0]; if (!file) return;
     const reader = new FileReader();
-    reader.onload = (e: any) => { this.configCentro.foto_admin_url = e.target.result; };
+    reader.onload = (e: any) => {
+      this.configCentro.foto_admin_url = e.target.result;
+      this.cdr.detectChanges();
+    };
     reader.readAsDataURL(file);
   }
 
@@ -1023,14 +1100,21 @@ private crearGraficos(): void {
     if (this.auditFiltroDesde) url += `fecha_inicio=${this.auditFiltroDesde}&`;
     if (this.auditFiltroHasta) url += `fecha_fin=${this.auditFiltroHasta}&`;
     this.http.get<any[]>(url).subscribe({
-      next: (data) => { this.auditoria = (data ?? []).map(a => ({ ...a, seleccionada: false })); this.cargandoAuditoria = false; },
-      error: () => { this.auditoria = []; this.cargandoAuditoria = false; }
+      next: (data) => {
+        this.auditoria = (data ?? []).map(a => ({ ...a, seleccionada: false }));
+        this.cargandoAuditoria = false;
+        this.cdr.detectChanges();
+      },
+      error: () => { this.auditoria = []; this.cargandoAuditoria = false; this.cdr.detectChanges(); }
     });
   }
 
   eliminarAuditoria(id: number): void {
     this.http.delete(`${API}/admin/auditoria/${id}`).subscribe({
-      next: () => { this.auditoria = this.auditoria.filter(a => a.id !== id); },
+      next: () => {
+        this.auditoria = this.auditoria.filter(a => a.id !== id);
+        this.cdr.detectChanges();
+      },
       error: () => { this.mensajeError = 'No se pudo eliminar el registro.'; setTimeout(() => this.mensajeError = '', 3000); }
     });
   }
@@ -1052,7 +1136,10 @@ private crearGraficos(): void {
     if (!confirm(`¿Eliminar ${seleccionadas.length} registro(s) de auditoría seleccionados? Esta acción no se puede deshacer.`)) return;
     seleccionadas.forEach(a => {
       this.http.delete(`${API}/admin/auditoria/${a.id}`).subscribe({
-        next: () => { this.auditoria = this.auditoria.filter(x => x.id !== a.id); },
+        next: () => {
+          this.auditoria = this.auditoria.filter(x => x.id !== a.id);
+          this.cdr.detectChanges();
+        },
         error: () => { this.mensajeError = 'No se pudo eliminar uno de los registros.'; setTimeout(() => this.mensajeError = '', 3000); }
       });
     });

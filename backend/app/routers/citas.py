@@ -3,6 +3,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from datetime import datetime
 import io
+import os
 
 from app.database import get_db
 from app.models.cita import Cita
@@ -163,40 +164,43 @@ def descargar_pdf_cita(cita_id: int, db: Session = Depends(get_db)):
     prof = db.query(Profesional).filter(Profesional.id == cita.profesional_id).first()
 
     from fpdf import FPDF
-    import os
 
     LOGO_PATH = os.path.join(os.path.dirname(__file__), "..", "static", "temporal.jpg")
- 
+
     pdf = FPDF()
     pdf.add_page()
 
     # ── Encabezado con logo institucional ──
     if os.path.exists(LOGO_PATH):
-        pdf.image(LOGO_PATH, x=10, y=10, w=20)
-        pdf.set_xy(35, 12)
+        pdf.image(LOGO_PATH, x=10, y=8, w=20)
+        pdf.set_xy(35, 10)
     else:
-        pdf.set_xy(10, 12)
+        pdf.set_xy(10, 10)
 
     pdf.set_font("Helvetica", "B", 16)
     pdf.cell(0, 8, "SESAES - Resumen de Atención", ln=True)
     pdf.set_x(35 if os.path.exists(LOGO_PATH) else 10)
     pdf.set_font("Helvetica", "", 9)
-    pdf.set_text_color(120, 120, 120)
     pdf.cell(0, 6, "Universidad Tecnológica Metropolitana - Salud Estudiantil", ln=True)
-    pdf.set_text_color(0, 0, 0)
 
-    pdf.ln(8)
+    pdf.ln(10)
     pdf.set_draw_color(200, 200, 200)
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
     pdf.ln(6)
 
-    # ── Datos de la atención ──
-    pdf.set_font("Helvetica", "", 12)
-    pdf.cell(0, 8, f"Profesional: {prof.nombre if prof else '-'}", ln=True)
-    pdf.cell(0, 8, f"Especialidad: {prof.especialidad if prof else '-'}", ln=True)
-    pdf.cell(0, 8, f"Fecha: {cita.fecha}", ln=True)
-    pdf.cell(0, 8, f"Hora: {cita.hora}", ln=True)
-    pdf.cell(0, 8, f"Motivo de consulta: {cita.observaciones or 'No especificado'}", ln=True)
+    # ── Datos de la atención (etiqueta en negrita + valor normal) ──
+    def campo(pdf, etiqueta, valor):
+        pdf.set_font("Helvetica", "B", 12)
+        ancho_etiqueta = pdf.get_string_width(etiqueta) + 2
+        pdf.cell(ancho_etiqueta, 8, etiqueta)
+        pdf.set_font("Helvetica", "", 12)
+        pdf.cell(0, 8, valor, ln=True)
+
+    campo(pdf, "Profesional:", f" {prof.nombre if prof else '-'}")
+    campo(pdf, "Especialidad:", f" {prof.especialidad if prof else '-'}")
+    campo(pdf, "Fecha:", f" {cita.fecha}")
+    campo(pdf, "Hora:", f" {cita.hora}")
+    campo(pdf, "Motivo de consulta:", f" {cita.observaciones or 'No especificado'}")
 
     # ── Indicaciones médicas / receta ──
     pdf.ln(6)
@@ -227,11 +231,9 @@ def descargar_pdf_cita(cita_id: int, db: Session = Depends(get_db)):
     pdf.cell(75, 6, prof.nombre if prof else "-", ln=True, align="C")
     pdf.set_x(120)
     pdf.set_font("Helvetica", "", 9)
-    pdf.set_text_color(100, 100, 100)
     pdf.cell(75, 5, prof.especialidad if prof else "-", ln=True, align="C")
     pdf.set_x(120)
     pdf.cell(75, 5, "SESAES - UTEM", ln=True, align="C")
-    pdf.set_text_color(0, 0, 0)
 
     buffer = io.BytesIO(pdf.output())
     buffer.seek(0)

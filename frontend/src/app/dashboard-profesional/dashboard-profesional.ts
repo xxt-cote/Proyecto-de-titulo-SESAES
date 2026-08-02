@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewEncapsulation } from '@angular/core';
+import { Component, OnInit, ViewEncapsulation, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -43,7 +43,11 @@ export class DashboardProfesionalComponent implements OnInit {
     return map[this.seccionActiva] ?? 'SESAES';
   }
 
-  constructor(private router: Router, private http: HttpClient) {}
+  constructor(
+    private router: Router,
+    private http: HttpClient,
+    private cdr: ChangeDetectorRef
+  ) {}
 
   ngOnInit(): void {
     const temaGuardado = localStorage.getItem('prof_tema_oscuro');
@@ -110,6 +114,7 @@ export class DashboardProfesionalComponent implements OnInit {
       next: (data) => {
         this.notificaciones = data ?? [];
         this.notifNoLeidas  = this.notificaciones.filter(n => !n.leida).length;
+        this.cdr.detectChanges();
       },
       error: () => {}
     });
@@ -120,13 +125,21 @@ export class DashboardProfesionalComponent implements OnInit {
   marcarLeida(n: any): void {
     if (n.leida) return;
     this.http.patch(`${API}/notificaciones/${n.id}/leer`, {}).subscribe({
-      next: () => { n.leida = true; this.notifNoLeidas = Math.max(0, this.notifNoLeidas - 1); }
+      next: () => {
+        n.leida = true;
+        this.notifNoLeidas = Math.max(0, this.notifNoLeidas - 1);
+        this.cdr.detectChanges();
+      }
     });
   }
 
   marcarTodasLeidas(): void {
     this.http.patch(`${API}/notificaciones/leer-todas/${this.perfil.usuario_id || 0}`, {}).subscribe({
-      next: () => { this.notificaciones.forEach(n => n.leida = true); this.notifNoLeidas = 0; }
+      next: () => {
+        this.notificaciones.forEach(n => n.leida = true);
+        this.notifNoLeidas = 0;
+        this.cdr.detectChanges();
+      }
     });
   }
 
@@ -144,6 +157,7 @@ export class DashboardProfesionalComponent implements OnInit {
         this.configPerfil.descripcion = data.descripcion || '';
         this.charCount = (data.descripcion || '').length;
         this.generarHorasGrilla();
+        this.cdr.detectChanges();
       },
       error: () => {}
     });
@@ -172,14 +186,22 @@ export class DashboardProfesionalComponent implements OnInit {
 
   cargarEstadisticasDia(): void {
     this.http.get<any>(`${API}/profesional/${this.profDbId}/estadisticas-dia`).subscribe({
-      next: (data) => { this.estadisticasDia = data; }, error: () => {}
+      next: (data) => {
+        this.estadisticasDia = data;
+        this.cdr.detectChanges();
+      },
+      error: () => {}
     });
   }
 
   cargarCitasHoy(): void {
     const fechaStr = this.hoyStr();
     this.http.get<any[]>(`${API}/profesional/${this.profDbId}/citas?fecha=${fechaStr}`).subscribe({
-      next: (data) => { this.citasHoy = data ?? []; }, error: () => {}
+      next: (data) => {
+        this.citasHoy = data ?? [];
+        this.cdr.detectChanges();
+      },
+      error: () => {}
     });
   }
 
@@ -202,8 +224,12 @@ export class DashboardProfesionalComponent implements OnInit {
           .filter(c => c.fecha > hoy && c.fecha <= limite)
           .sort((a, b) => a.fecha === b.fecha ? a.hora.localeCompare(b.hora) : a.fecha.localeCompare(b.fecha))
           .slice(0, 6);
+        this.cdr.detectChanges();
       },
-      error: () => { this.proximasSemana = []; }
+      error: () => {
+        this.proximasSemana = [];
+        this.cdr.detectChanges();
+      }
     });
   }
 
@@ -308,9 +334,14 @@ export class DashboardProfesionalComponent implements OnInit {
         this.cargarEstadisticasDia();
         if (this.seccionActiva === 'agenda') this.cargarCitasSemana();
         this.mensajeExito = 'Ausencia reportada. Se notificó a los estudiantes afectados.';
-        setTimeout(() => this.mensajeExito = '', 4000);
+        this.cdr.detectChanges();
+        setTimeout(() => { this.mensajeExito = ''; this.cdr.detectChanges(); }, 4000);
       },
-      error: (err) => { this.mensajeError = err?.error?.detail || 'No se pudo reportar la ausencia.'; setTimeout(() => this.mensajeError = '', 3000); }
+      error: (err) => {
+        this.mensajeError = err?.error?.detail || 'No se pudo reportar la ausencia.';
+        this.cdr.detectChanges();
+        setTimeout(() => { this.mensajeError = ''; this.cdr.detectChanges(); }, 3000);
+      }
     });
   }
 
@@ -372,8 +403,14 @@ export class DashboardProfesionalComponent implements OnInit {
     const fechaFin    = this.semanaActual[6]?.fecha;
     if (!fechaInicio) return;
     this.http.get<any[]>(`${API}/profesional/${this.profDbId}/citas`).subscribe({
-      next: (data) => { this.citasSemana = (data ?? []).filter(c => c.fecha >= fechaInicio && c.fecha <= fechaFin); },
-      error: () => { this.citasSemana = []; }
+      next: (data) => {
+        this.citasSemana = (data ?? []).filter(c => c.fecha >= fechaInicio && c.fecha <= fechaFin);
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.citasSemana = [];
+        this.cdr.detectChanges();
+      }
     });
   }
 
@@ -411,7 +448,12 @@ export class DashboardProfesionalComponent implements OnInit {
     let url = `${API}/profesional/${this.profDbId}/citas`;
     if (this.filtroEstadoAt) url += `?estado=${this.filtroEstadoAt}`;
     this.http.get<any[]>(url).subscribe({
-      next: (data) => { this.atenciones = data ?? []; this.pagAtenciones = 1; }, error: () => {}
+      next: (data) => {
+        this.atenciones = data ?? [];
+        this.pagAtenciones = 1;
+        this.cdr.detectChanges();
+      },
+      error: () => {}
     });
   }
 
@@ -447,9 +489,14 @@ export class DashboardProfesionalComponent implements OnInit {
         this.cargarEstadisticasDia();
         this.cargarCitasHoy();
         this.mensajeExito = 'Atención completada correctamente.';
-        setTimeout(() => this.mensajeExito = '', 3000);
+        this.cdr.detectChanges();
+        setTimeout(() => { this.mensajeExito = ''; this.cdr.detectChanges(); }, 3000);
       },
-      error: () => { this.mensajeError = 'No se pudo completar la atención.'; setTimeout(() => this.mensajeError = '', 3000); }
+      error: () => {
+        this.mensajeError = 'No se pudo completar la atención.';
+        this.cdr.detectChanges();
+        setTimeout(() => { this.mensajeError = ''; this.cdr.detectChanges(); }, 3000);
+      }
     });
   }
 
@@ -462,9 +509,14 @@ export class DashboardProfesionalComponent implements OnInit {
         this.cargarEstadisticasDia();
         this.cargarCitasHoy();
         this.mensajeExito = 'Inasistencia registrada.';
-        setTimeout(() => this.mensajeExito = '', 3000);
+        this.cdr.detectChanges();
+        setTimeout(() => { this.mensajeExito = ''; this.cdr.detectChanges(); }, 3000);
       },
-      error: () => { this.mensajeError = 'No se pudo registrar.'; setTimeout(() => this.mensajeError = '', 3000); }
+      error: () => {
+        this.mensajeError = 'No se pudo registrar.';
+        this.cdr.detectChanges();
+        setTimeout(() => { this.mensajeError = ''; this.cdr.detectChanges(); }, 3000);
+      }
     });
   }
 
@@ -507,7 +559,10 @@ export class DashboardProfesionalComponent implements OnInit {
     const file = event.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (e: any) => { this.perfil.foto_url = e.target.result; };
+    reader.onload = (e: any) => {
+      this.perfil.foto_url = e.target.result;
+      this.cdr.detectChanges();
+    };
     reader.readAsDataURL(file);
     event.target.value = '';
   }
@@ -523,9 +578,14 @@ export class DashboardProfesionalComponent implements OnInit {
     this.perfilOriginalFotoUrl = this.perfil.foto_url;   // ← agregar esta línea
     this.perfilEnEdicion = false;
     this.mensajeExito = 'Perfil actualizado correctamente.';
-    setTimeout(() => this.mensajeExito = '', 3000);
+    this.cdr.detectChanges();
+    setTimeout(() => { this.mensajeExito = ''; this.cdr.detectChanges(); }, 3000);
 },
-      error: (err) => { this.mensajeError = err?.error?.detail || 'No se pudo guardar.'; setTimeout(() => this.mensajeError = '', 3000); }
+      error: (err) => {
+        this.mensajeError = err?.error?.detail || 'No se pudo guardar.';
+        this.cdr.detectChanges();
+        setTimeout(() => { this.mensajeError = ''; this.cdr.detectChanges(); }, 3000);
+      }
     });
   }
 
@@ -541,9 +601,14 @@ export class DashboardProfesionalComponent implements OnInit {
         this.configPerfil.contrasena_actual = ''; this.configPerfil.contrasena_nueva = ''; this.configPerfil.contrasena_conf = '';
         this.passwordEnEdicion = false;
         this.mensajeExito = 'Contraseña actualizada correctamente.';
-        setTimeout(() => this.mensajeExito = '', 3000);
+        this.cdr.detectChanges();
+        setTimeout(() => { this.mensajeExito = ''; this.cdr.detectChanges(); }, 3000);
       },
-      error: (err) => { this.mensajeError = err?.error?.detail || 'Contraseña actual incorrecta.'; setTimeout(() => this.mensajeError = '', 3000); }
+      error: (err) => {
+        this.mensajeError = err?.error?.detail || 'Contraseña actual incorrecta.';
+        this.cdr.detectChanges();
+        setTimeout(() => { this.mensajeError = ''; this.cdr.detectChanges(); }, 3000);
+      }
     });
   }
 }
