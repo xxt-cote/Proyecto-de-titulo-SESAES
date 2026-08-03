@@ -16,7 +16,9 @@ class Profesional(Base):
     estado = Column(String, default="activo")
     correo = Column(String, nullable=True)
     rut = Column(String, nullable=True)
-    foto_url = Column(String, nullable=True)   # ← NUEVO
+    foto_url = Column(String, nullable=True)
+    hora_almuerzo_inicio = Column(String, nullable=True)
+    hora_almuerzo_fin = Column(String, nullable=True)
 
     horarios = relationship("HorarioDisponible", back_populates="profesional")
     citas = relationship("Cita", back_populates="profesional")

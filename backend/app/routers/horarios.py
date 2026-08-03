@@ -8,6 +8,8 @@ from app.models.cita import Cita
 
 router = APIRouter(tags=["horarios"])
 
+# ... (todo el resto igual, sin la clase Profesional al final)
+
 HORA_INICIO = time(8, 0)
 HORA_FIN    = time(18, 0)
 
