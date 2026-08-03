@@ -39,6 +39,7 @@ export class DashboardProfesionalComponent implements OnInit {
       inicio:     'Bienvenido/a',
       agenda:     'Mi Agenda',
       atenciones: 'Mis Atenciones',
+      horario:    'Mi Horario',
       perfil:     'Perfil y Configuración'
     };
     return map[this.seccionActiva] ?? 'SESAES';
@@ -64,6 +65,7 @@ export class DashboardProfesionalComponent implements OnInit {
     this.cargarNotificaciones();
     this.generarSemanaActual();
     this.generarCalendarioInicio();
+    this.cargarSolicitudesHorario();
   }
 
   navegarA(seccion: string): void {
@@ -73,6 +75,7 @@ export class DashboardProfesionalComponent implements OnInit {
     this.notifPanelAbierto = false;
     if (seccion === 'agenda')     this.cargarCitasSemana();
     if (seccion === 'atenciones') this.cargarAtenciones();
+    if (seccion === 'horario')    this.cargarSolicitudesHorario();
   }
 
   cerrarSesion(): void { localStorage.clear(); window.location.href = '/login'; }
@@ -358,11 +361,19 @@ export class DashboardProfesionalComponent implements OnInit {
 
   // Genera la grilla de horas según la duración de atención configurada por el profesional
   // (antes estaba fijo a pasos de 60 min, por lo que las citas de 45 min no calzaban con ninguna fila)
+ private horaAMinutos(hora: string, fallback: number): number {
+    if (!hora) return fallback;
+    const [h, m] = hora.split(':').map(Number);
+    return h * 60 + m;
+  }
+
   generarHorasGrilla(): void {
-    const pasoMin = this.perfil.duracion_min || 60;
+    const pasoMin   = this.perfil.duracion_min || 60;
+    const inicioMin = this.horaAMinutos(this.perfil.horario_inicio, 8 * 60);
+    const finMin    = this.horaAMinutos(this.perfil.horario_fin, 18 * 60);
     const horas: string[] = [];
-    let min = 8 * 60;
-    while (min < 18 * 60) {
+    let min = inicioMin;
+    while (min < finMin) {
       const h = Math.floor(min / 60).toString().padStart(2,'0');
       const m = (min % 60).toString().padStart(2,'0');
       horas.push(`${h}:${m}`);
@@ -370,7 +381,6 @@ export class DashboardProfesionalComponent implements OnInit {
     }
     this.horasGrilla = horas;
   }
-
   generarSemanaActual(): void {
     const hoy = new Date();
     const lunes = new Date(hoy);
@@ -415,13 +425,23 @@ export class DashboardProfesionalComponent implements OnInit {
     });
   }
 
+private esHoraDeColacion(hora: string): boolean {
+    const inicio = this.perfil.hora_almuerzo_inicio;
+    const fin    = this.perfil.hora_almuerzo_fin;
+    if (!inicio || !fin) return false;
+    const h = hora.substring(0, 5);
+    return h >= inicio && h < fin;
+  }
+
   getBloqueEstado(fecha: string, hora: string): string {
+    if (this.esHoraDeColacion(hora)) return 'bloqueado';
     const cita = this.citasSemana.find(c => c.fecha === fecha && c.hora?.startsWith(hora.substring(0,5)));
     if (!cita) return 'libre';
     return cita.urgente ? 'urgente' : 'ocupado';
   }
 
   getBloqueInfo(fecha: string, hora: string): string {
+    if (this.esHoraDeColacion(hora)) return 'Colación';
     const cita = this.citasSemana.find(c => c.fecha === fecha && c.hora?.startsWith(hora.substring(0,5)));
     return cita ? cita.estudiante : '';
   }
@@ -556,19 +576,18 @@ get almuerzoHoraFinPreview(): string {
 
 guardarHorarioAlmuerzo(): void {
   if (!this.almuerzoHoraInicio) return;
-  this.http.patch<any>(`${API}/profesional/${this.profDbId}/horario-almuerzo`, {
+  this.http.post<any>(`${API}/profesional/${this.profDbId}/solicitar-colacion`, {
     hora_almuerzo_inicio: this.almuerzoHoraInicio
   }).subscribe({
     next: (resp) => {
-      this.perfil.hora_almuerzo_inicio = resp.hora_almuerzo_inicio;
-      this.perfil.hora_almuerzo_fin    = resp.hora_almuerzo_fin;
       this.horarioAlmuerzoEnEdicion = false;
-      this.mensajeExito = `Horario de almuerzo guardado: ${resp.hora_almuerzo_inicio} - ${resp.hora_almuerzo_fin}`;
+      this.mensajeExito = `Solicitud enviada: colación ${resp.hora_inicio} - ${resp.hora_fin}. Queda pendiente de aprobación del administrador.`;
+      this.cargarSolicitudesHorario();
       this.cdr.detectChanges();
-      setTimeout(() => { this.mensajeExito = ''; this.cdr.detectChanges(); }, 3000);
+      setTimeout(() => { this.mensajeExito = ''; this.cdr.detectChanges(); }, 4000);
     },
     error: (err) => {
-      this.mensajeError = err?.error?.detail || 'No se pudo guardar el horario de almuerzo.';
+      this.mensajeError = err?.error?.detail || 'No se pudo enviar la solicitud de colación.';
       this.cdr.detectChanges();
       setTimeout(() => { this.mensajeError = ''; this.cdr.detectChanges(); }, 3000);
     }
@@ -650,6 +669,57 @@ guardarHorarioAlmuerzo(): void {
       },
       error: (err) => {
         this.mensajeError = err?.error?.detail || 'Contraseña actual incorrecta.';
+        this.cdr.detectChanges();
+        setTimeout(() => { this.mensajeError = ''; this.cdr.detectChanges(); }, 3000);
+      }
+    });
+  }
+  // ══════════════════════════════════════
+  // MI HORARIO — solicitud de jornada laboral
+  // ══════════════════════════════════════
+
+  jornadaHoraInicio = '';
+  jornadaHoraFin    = '';
+  solicitudesHorario: any[] = [];
+
+  get solicitudJornadaPendiente(): any {
+    return this.solicitudesHorario.find(s => s.tipo === 'jornada' && s.estado === 'pendiente');
+  }
+
+  get solicitudColacionPendiente(): any {
+    return this.solicitudesHorario.find(s => s.tipo === 'colacion' && s.estado === 'pendiente');
+  }
+
+  cargarSolicitudesHorario(): void {
+    this.http.get<any[]>(`${API}/profesional/${this.profDbId}/solicitudes-horario`).subscribe({
+      next: (data) => {
+        this.solicitudesHorario = data ?? [];
+        this.cdr.detectChanges();
+      },
+      error: () => {}
+    });
+  }
+
+  get jornadaFormularioValido(): boolean {
+    return !!this.jornadaHoraInicio && !!this.jornadaHoraFin && this.jornadaHoraInicio < this.jornadaHoraFin;
+  }
+
+  solicitarJornada(): void {
+    if (!this.jornadaFormularioValido) return;
+    this.http.post<any>(`${API}/profesional/${this.profDbId}/solicitar-jornada`, {
+      horario_inicio: this.jornadaHoraInicio,
+      horario_fin: this.jornadaHoraFin
+    }).subscribe({
+      next: (resp) => {
+        this.mensajeExito = `Solicitud enviada: jornada ${resp.hora_inicio} - ${resp.hora_fin}. Queda pendiente de aprobación del administrador.`;
+        this.jornadaHoraInicio = '';
+        this.jornadaHoraFin = '';
+        this.cargarSolicitudesHorario();
+        this.cdr.detectChanges();
+        setTimeout(() => { this.mensajeExito = ''; this.cdr.detectChanges(); }, 4000);
+      },
+      error: (err) => {
+        this.mensajeError = err?.error?.detail || 'No se pudo enviar la solicitud de jornada.';
         this.cdr.detectChanges();
         setTimeout(() => { this.mensajeError = ''; this.cdr.detectChanges(); }, 3000);
       }

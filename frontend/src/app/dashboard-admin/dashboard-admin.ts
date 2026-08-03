@@ -70,6 +70,7 @@ export class DashboardAdminComponent implements OnInit, AfterViewInit, OnDestroy
     this.cargarResumenDia();
     this.cargarActividadReciente();
     this.cargarConfiguracionCentro();
+    this.cargarSolicitudesHorarioAdmin();
   }
 
   navegarA(seccion: string): void {
@@ -78,10 +79,11 @@ export class DashboardAdminComponent implements OnInit, AfterViewInit, OnDestroy
     this.mensajeError  = '';
     this.notifPanelAbierto = false;
     if (seccion === 'configuracion') { this.cargarAuditoria(); this.cargarConfiguracionCentro(); }
+    if (seccion === 'horario') { this.cargarSolicitudesHorarioAdmin(); }
     if (seccion === 'inicio') {
       setTimeout(() => this.crearGraficos(), 0);
     }
-}
+  }
 
   cerrarSesion(): void { localStorage.clear(); window.location.href = '/login'; }
 
@@ -460,9 +462,14 @@ private crearGraficos(): void {
   get horasGrilla(): string[] {
     const prof = this.profesionales.find(p => String(p.id) === String(this.filtroProfesionalId));
     const duracion = prof?.duracion_min || 60;
+    const inicioStr = prof?.horario_inicio || '08:00';
+    const finStr    = prof?.horario_fin    || '18:00';
+    const [hIni, mIni] = inicioStr.split(':').map(Number);
+    const [hFin, mFin] = finStr.split(':').map(Number);
     const horas: string[] = [];
-    let minutos = 8 * 60;
-    while (minutos < 18 * 60) {
+    let minutos = hIni * 60 + mIni;
+    const finMin = hFin * 60 + mFin;
+    while (minutos < finMin) {
       const h = Math.floor(minutos / 60).toString().padStart(2,'0');
       const m = (minutos % 60).toString().padStart(2,'0');
       horas.push(`${h}:${m}`);
@@ -604,7 +611,7 @@ private crearGraficos(): void {
   }
 
   getBloqueInfo(fecha: string, hora: string): string {
-    if (this.esHoraDeAlmuerzo(hora)) return 'Almuerzo';
+    if (this.esHoraDeAlmuerzo(hora)) return 'Colación';
     const cita = this.citasHorario.find(c => {
       if (c.fecha !== fecha) return false;
       if (c.estado === 'cancelada' || c.estado === 'inasistencia') return false;
@@ -702,7 +709,54 @@ private crearGraficos(): void {
       ventana.print();
     }
   }
+ // ══════════════════════════════════════
+  // SOLICITUDES DE HORARIO (colación y jornada)
+  // ══════════════════════════════════════
 
+  solicitudesHorarioAdmin: any[] = [];
+
+  cargarSolicitudesHorarioAdmin(): void {
+    this.http.get<any[]>(`${API}/admin/solicitudes-horario?estado=pendiente`).subscribe({
+      next: (data) => {
+        this.solicitudesHorarioAdmin = data ?? [];
+        this.cdr.detectChanges();
+      },
+      error: () => {}
+    });
+  }
+
+  aprobarSolicitudHorario(s: any): void {
+    this.http.patch(`${API}/admin/solicitudes-horario/${s.id}/aprobar`, {}).subscribe({
+      next: () => {
+        this.solicitudesHorarioAdmin = this.solicitudesHorarioAdmin.filter(x => x.id !== s.id);
+        this.cargarProfesionales();
+        if (this.filtroProfesionalId) this.cargarHorarioProfesional();
+        this.mensajeExito = `Solicitud de ${s.profesional_nombre} aprobada.`;
+        setTimeout(() => this.mensajeExito = '', 3000);
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.mensajeError = err?.error?.detail || 'No se pudo aprobar la solicitud.';
+        setTimeout(() => this.mensajeError = '', 3000);
+      }
+    });
+  }
+
+  rechazarSolicitudHorario(s: any): void {
+    const motivo = prompt('Motivo del rechazo (opcional):') || '';
+    this.http.patch(`${API}/admin/solicitudes-horario/${s.id}/rechazar`, { motivo }).subscribe({
+      next: () => {
+        this.solicitudesHorarioAdmin = this.solicitudesHorarioAdmin.filter(x => x.id !== s.id);
+        this.mensajeExito = `Solicitud de ${s.profesional_nombre} rechazada.`;
+        setTimeout(() => this.mensajeExito = '', 3000);
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.mensajeError = err?.error?.detail || 'No se pudo rechazar la solicitud.';
+        setTimeout(() => this.mensajeError = '', 3000);
+      }
+    });
+  }
   // ══════════════════════════════════════
   // PROFESIONALES
   // ══════════════════════════════════════

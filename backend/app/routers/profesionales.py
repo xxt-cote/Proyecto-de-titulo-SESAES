@@ -80,8 +80,10 @@ def get_perfil(prof_id: int, db: Session = Depends(get_db)):
         "duracion_min": prof.duracion_min,
         "tema_oscuro":  usuario.tema_oscuro if usuario else False,
         "usuario_id":   prof.usuario_id,
-        "hora_almuerzo_inicio": prof.hora_almuerzo_inicio,   # ← NUEVO
-        "hora_almuerzo_fin":    prof.hora_almuerzo_fin        # ← NUEVO
+        "hora_almuerzo_inicio": prof.hora_almuerzo_inicio,
+        "hora_almuerzo_fin":    prof.hora_almuerzo_fin,
+        "horario_inicio": prof.horario_inicio,
+        "horario_fin":    prof.horario_fin
     }
 
 @router.patch("/profesional/{prof_id}/perfil")

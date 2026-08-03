@@ -71,6 +71,12 @@ def get_disponibilidad(profesional_id: int, fecha: str, db: Session = Depends(ge
     if almuerzo_inicio and almuerzo_fin:
         bloques = [b for b in bloques if not (almuerzo_inicio <= b < almuerzo_fin)]
 
+    # Descartar horas fuera de la jornada laboral del profesional, si la tiene definida
+    jornada_inicio = _parsear_hora_24h(prof.horario_inicio)
+    jornada_fin    = _parsear_hora_24h(prof.horario_fin)
+    if jornada_inicio and jornada_fin:
+        bloques = [b for b in bloques if jornada_inicio <= b < jornada_fin]
+
     # Descartar bloques ya ocupados por una cita activa (pendiente o completada)
     ocupadas_raw = db.query(Cita.hora).filter(
         Cita.profesional_id == profesional_id,
@@ -81,7 +87,7 @@ def get_disponibilidad(profesional_id: int, fecha: str, db: Session = Depends(ge
 
     horas_disponibles = []
     for b in bloques:
-        hora_str = b.strftime("%I:%M %p")
+        hora_str = b.strftime("%H:%M")
         if hora_str not in ocupadas:
             horas_disponibles.append(hora_str)
 

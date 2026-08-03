@@ -319,6 +319,32 @@
 
       <!-- ══ HORARIO ══ -->
       <div *ngIf="seccionActiva==='horario'">
+        <!-- Solicits -->
+      <div class="card" *ngIf="solicitudesHorarioAdmin.length > 0">
+          <div class="card-header">
+            <h3 class="card-title">⏳ Solicitudes de Horario Pendientes ({{ solicitudesHorarioAdmin.length }})</h3>
+          </div>
+          <table class="admin-tabla">
+            <thead>
+              <tr><th>PROFESIONAL</th><th>ESPECIALIDAD</th><th>TIPO</th><th>HORARIO SOLICITADO</th><th>SOLICITADO EL</th><th>ACCIONES</th></tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let s of solicitudesHorarioAdmin">
+                <td>{{ s.profesional_nombre }}</td>
+                <td><span class="esp-badge">{{ s.especialidad }}</span></td>
+                <td>{{ s.tipo === 'colacion' ? '🍽️ Colación' : '🕐 Jornada' }}</td>
+                <td>{{ s.hora_inicio }} – {{ s.hora_fin }}</td>
+                <td>{{ s.fecha_solicitud | date:'dd/MM/yyyy HH:mm' }}</td>
+                <td>
+                  <div class="tabla-acciones">
+                    <button class="btn-tabla ver" (click)="aprobarSolicitudHorario(s)" title="Aprobar">✓ Aprobar</button>
+                    <button class="btn-tabla cancelar" (click)="rechazarSolicitudHorario(s)" title="Rechazar">✕ Rechazar</button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
         <div class="horario-filtros">
           <div class="filtro-grupo">
             <label>Especialidad</label>
