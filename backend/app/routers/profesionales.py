@@ -79,31 +79,31 @@ def get_perfil(prof_id: int, db: Session = Depends(get_db)):
         "foto_url":     prof.foto_url,
         "duracion_min": prof.duracion_min,
         "tema_oscuro":  usuario.tema_oscuro if usuario else False,
-        "usuario_id":   prof.usuario_id
-    }
-
-@router.get("/profesional/{prof_id}/perfil")
-def get_perfil(prof_id: int, db: Session = Depends(get_db)):
-    prof = db.query(Profesional).filter(Profesional.id == prof_id).first()
-    if not prof:
-        raise HTTPException(status_code=404, detail="Profesional no encontrado")
-    usuario = db.query(Usuario).filter(Usuario.id == prof.usuario_id).first()
-    return {
-        "id":           prof.id,
-        "nombre":       prof.nombre,
-        "especialidad": prof.especialidad,
-        "iniciales":    prof.iniciales,
-        "descripcion":  prof.descripcion,
-        "correo":       prof.correo,
-        "rut":          prof.rut,
-        "estado":       prof.estado or "activo",
-        "foto_url":     prof.foto_url,
-        "duracion_min": prof.duracion_min,
-        "tema_oscuro":  usuario.tema_oscuro if usuario else False,
         "usuario_id":   prof.usuario_id,
         "hora_almuerzo_inicio": prof.hora_almuerzo_inicio,   # ← NUEVO
         "hora_almuerzo_fin":    prof.hora_almuerzo_fin        # ← NUEVO
     }
+
+@router.patch("/profesional/{prof_id}/perfil")
+def actualizar_perfil(prof_id: int, body: dict, db: Session = Depends(get_db)):
+    prof = db.query(Profesional).filter(Profesional.id == prof_id).first()
+    if not prof:
+        raise HTTPException(status_code=404, detail="Profesional no encontrado")
+
+    if "nombre" in body:
+        prof.nombre = body["nombre"]
+    if "descripcion" in body:
+        prof.descripcion = body["descripcion"]
+    if "foto_url" in body:
+        prof.foto_url = body["foto_url"]
+    if "tema_oscuro" in body:
+        usuario = db.query(Usuario).filter(Usuario.id == prof.usuario_id).first()
+        if usuario:
+            usuario.tema_oscuro = body["tema_oscuro"]
+
+    registrar_auditoria(db, "Profesional actualizó su perfil", None, "profesional", prof_id)
+    db.commit()
+    return {"message": "Perfil actualizado correctamente"}
 
 @router.patch("/profesional/{prof_id}/cambiar-password")
 def cambiar_password(prof_id: int, body: dict, db: Session = Depends(get_db)):
