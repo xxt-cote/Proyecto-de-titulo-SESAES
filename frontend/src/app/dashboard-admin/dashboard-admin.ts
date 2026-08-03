@@ -972,6 +972,7 @@ private crearGraficos(): void {
   // Edición de Perfil admin / Información del Centro: campos bloqueados hasta presionar "Editar"
   adminPerfilEnEdicion = false;
   centroEnEdicion      = false;
+  fotoAdminCambiada    = false;
   configCentroOriginal: any = {};
 
   habilitarEdicionPerfilAdmin(): void { this.adminPerfilEnEdicion = true; }
@@ -987,7 +988,8 @@ private crearGraficos(): void {
   get perfilAdminModificado(): boolean {
     return this.configPerfil.nombre_admin !== (this.configCentro.nombre_admin || '')
         || !!this.configPerfil.contrasena_actual
-        || !!this.configPerfil.contrasena_nueva;
+        || !!this.configPerfil.contrasena_nueva
+        || this.fotoAdminCambiada;
   }
 
   habilitarEdicionCentro(): void { this.centroEnEdicion = true; }
@@ -1068,19 +1070,21 @@ private crearGraficos(): void {
         contrasena_actual: this.configPerfil.contrasena_actual, contrasena_nueva: this.configPerfil.contrasena_nueva
       }).subscribe({
         next: () => {
-          this.mensajeExito = 'Perfil y contraseña actualizados.';
-          this.configPerfil.contrasena_actual = ''; this.configPerfil.contrasena_nueva = ''; this.configPerfil.contrasena_conf = '';
-          this.adminPerfilEnEdicion = false;
-          setTimeout(() => this.mensajeExito = '', 3000);
-          this.cdr.detectChanges();
-        },
+  this.mensajeExito = 'Perfil y contraseña actualizados.';
+  this.configPerfil.contrasena_actual = ''; this.configPerfil.contrasena_nueva = ''; this.configPerfil.contrasena_conf = '';
+  this.adminPerfilEnEdicion = false;
+  this.fotoAdminCambiada = false;
+  setTimeout(() => this.mensajeExito = '', 3000);
+  this.cdr.detectChanges();
+},
         error: (err) => { this.mensajeError = err?.error?.detail || 'Contraseña actual incorrecta.'; setTimeout(() => this.mensajeError = '', 3000); this.cdr.detectChanges(); }
       });
-    } else {
-      this.adminPerfilEnEdicion = false;
-      this.mensajeExito = 'Perfil actualizado.'; setTimeout(() => this.mensajeExito = '', 3000);
-      this.cdr.detectChanges();
-    }
+  } else {
+  this.adminPerfilEnEdicion = false;
+  this.fotoAdminCambiada = false;
+  this.mensajeExito = 'Perfil actualizado.'; setTimeout(() => this.mensajeExito = '', 3000);
+  this.cdr.detectChanges();
+}
   }
 
   onFotoSeleccionada(event: any): void {
@@ -1089,6 +1093,7 @@ private crearGraficos(): void {
     const reader = new FileReader();
     reader.onload = (e: any) => {
       this.configCentro.foto_admin_url = e.target.result;
+      this.fotoAdminCambiada = true;
       this.cdr.detectChanges();
     };
     reader.readAsDataURL(file);
