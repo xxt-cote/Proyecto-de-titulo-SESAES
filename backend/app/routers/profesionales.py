@@ -119,33 +119,7 @@ def cambiar_password(prof_id: int, body: dict, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Contraseña actualizada correctamente"}
 
-@router.patch("/profesional/{prof_id}/horario-almuerzo")
-def actualizar_horario_almuerzo(prof_id: int, body: dict, db: Session = Depends(get_db)):
-    prof = db.query(Profesional).filter(Profesional.id == prof_id).first()
-    if not prof:
-        raise HTTPException(status_code=404, detail="Profesional no encontrado")
 
-    hora_inicio = body.get("hora_almuerzo_inicio")
-    if not hora_inicio:
-        raise HTTPException(status_code=400, detail="Debes indicar la hora de inicio del almuerzo")
-
-    inicio_min = _hora_a_minutos(hora_inicio)
-    if inicio_min < 0:
-        raise HTTPException(status_code=400, detail="Formato de hora inválido")
-
-    # Calculamos automáticamente el fin = inicio + 1 hora (regla legal fija)
-    fin_min = inicio_min + 60
-    fin_h   = fin_min // 60
-    fin_m   = fin_min % 60
-    hora_fin = f"{fin_h:02d}:{fin_m:02d}"
-
-    prof.hora_almuerzo_inicio = hora_inicio
-    prof.hora_almuerzo_fin    = hora_fin
-
-    registrar_auditoria(db, "Profesional definió horario de almuerzo",
-                        f"{prof.nombre}: {hora_inicio} - {hora_fin}", "profesional", prof_id)
-    db.commit()
-    return {"message": "Horario de almuerzo actualizado", "hora_almuerzo_inicio": hora_inicio, "hora_almuerzo_fin": hora_fin}
 # ══════════════════════════════════════
 # ESTADÍSTICAS DEL DÍA
 # ══════════════════════════════════════

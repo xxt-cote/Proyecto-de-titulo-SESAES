@@ -19,6 +19,9 @@ class Profesional(Base):
     foto_url = Column(String, nullable=True)
     hora_almuerzo_inicio = Column(String, nullable=True)
     hora_almuerzo_fin = Column(String, nullable=True)
+    horario_inicio = Column(String, nullable=True)
+    horario_fin = Column(String, nullable=True)
 
     horarios = relationship("HorarioDisponible", back_populates="profesional")
     citas = relationship("Cita", back_populates="profesional")
+    solicitudes_horario = relationship("SolicitudHorario", back_populates="profesional")

@@ -10,6 +10,8 @@ from app.routers.admin import router as admin_router
 from app.routers.notificaciones import router as notificaciones_router
 from app.routers.configuracion_centro import router as configuracion_centro_router
 from app.routers.correos import router as correos_router
+from app.routers.solicitudes_horario import router as solicitudes_horario_router
+
 import os
 
 app = FastAPI()
@@ -40,7 +42,7 @@ app.include_router(admin_router)
 app.include_router(notificaciones_router)
 app.include_router(configuracion_centro_router)
 app.include_router(correos_router)
-
+app.include_router(solicitudes_horario_router)
 
 @app.get("/")
 def home():
