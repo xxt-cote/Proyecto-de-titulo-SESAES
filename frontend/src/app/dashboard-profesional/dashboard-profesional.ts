@@ -432,17 +432,25 @@ private esHoraDeColacion(hora: string): boolean {
     const h = hora.substring(0, 5);
     return h >= inicio && h < fin;
   }
-
-  getBloqueEstado(fecha: string, hora: string): string {
+private convertirA24h(hora: string): string {
+    if (!hora) return '';
+    if (!hora.includes('AM') && !hora.includes('PM')) return hora.substring(0,5);
+    const [time, period] = hora.trim().split(' ');
+    let [h, m] = time.split(':').map(Number);
+    if (period === 'PM' && h !== 12) h += 12;
+    if (period === 'AM' && h === 12) h = 0;
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+  }
+getBloqueEstado(fecha: string, hora: string): string {
     if (this.esHoraDeColacion(hora)) return 'bloqueado';
-    const cita = this.citasSemana.find(c => c.fecha === fecha && c.hora?.startsWith(hora.substring(0,5)));
+    const cita = this.citasSemana.find(c => c.fecha === fecha && this.convertirA24h(c.hora) === hora.substring(0,5));
     if (!cita) return 'libre';
     return cita.urgente ? 'urgente' : 'ocupado';
   }
 
   getBloqueInfo(fecha: string, hora: string): string {
     if (this.esHoraDeColacion(hora)) return 'Colación';
-    const cita = this.citasSemana.find(c => c.fecha === fecha && c.hora?.startsWith(hora.substring(0,5)));
+    const cita = this.citasSemana.find(c => c.fecha === fecha && this.convertirA24h(c.hora) === hora.substring(0,5));
     return cita ? cita.estudiante : '';
   }
 
