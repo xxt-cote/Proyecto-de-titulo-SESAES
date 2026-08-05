@@ -19,7 +19,11 @@ const API = environment.apiUrl;
   encapsulation: ViewEncapsulation.None
 })
 export class DashboardAdminComponent implements OnInit, AfterViewInit, OnDestroy {
+sidebarMovilAbierta = false;
 
+toggleSidebarMovil(): void {
+  this.sidebarMovilAbierta = !this.sidebarMovilAbierta;
+}
   seccionActiva = 'inicio';
   temaOscuro    = false;
   mensajeExito  = '';
@@ -74,16 +78,16 @@ export class DashboardAdminComponent implements OnInit, AfterViewInit, OnDestroy
   }
 
   navegarA(seccion: string): void {
-    this.seccionActiva = seccion;
-    this.mensajeExito  = '';
-    this.mensajeError  = '';
-    this.notifPanelAbierto = false;
-    if (seccion === 'configuracion') { this.cargarAuditoria(); this.cargarConfiguracionCentro(); }
-    if (seccion === 'horario') { this.cargarSolicitudesHorarioAdmin(); }
-    if (seccion === 'inicio') {
-      setTimeout(() => this.crearGraficos(), 0);
-    }
+  this.seccionActiva = seccion;
+  this.mensajeExito  = '';
+  this.mensajeError  = '';
+  this.notifPanelAbierto = false;
+  this.sidebarMovilAbierta = false;   
+  if (seccion === 'configuracion') { this.cargarAuditoria(); this.cargarConfiguracionCentro(); }
+  if (seccion === 'inicio') {
+    setTimeout(() => this.crearGraficos(), 0);
   }
+}
 
   cerrarSesion(): void { localStorage.clear(); window.location.href = '/login'; }
 

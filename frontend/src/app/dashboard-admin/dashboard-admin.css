@@ -336,21 +336,6 @@ body {
 
 .main-content { flex: 1; padding: 28px 32px; position: relative; overflow-x: hidden; }
 
-.dashboard-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 32px;
-  background: #fff;
-  border-top: 1px solid #e2e8f0;
-  font-size: 11px;
-  color: #94a3b8;
-}
-
-.footer-links { display: flex; gap: 16px; }
-.footer-links span { cursor: pointer; }
-.footer-links span:hover { color: #4f8ef7; }
-
 /* ══════════════════════════════════════ */
 /* BLOBS DECORATIVOS                     */
 /* ══════════════════════════════════════ */
@@ -1089,4 +1074,149 @@ body {
 .dashboard.tema-oscuro .profile-avatar,
 .dashboard.tema-oscuro .perfil-foto-placeholder {
   background: linear-gradient(135deg, #f39c12, #d97e0a);
+}
+/* ══════════════════════════════════════ */
+/* RESPONSIVE — TABLET Y MÓVIL           */
+/* ══════════════════════════════════════ */
+
+.btn-hamburguesa {
+  display: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1.5px solid #e2e8f0;
+  background: #fff;
+  color: #64748b;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-right: 12px;
+}
+
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 150;
+}
+
+@media (max-width: 1024px) {
+
+  .btn-hamburguesa { display: flex; }
+
+  .sidebar {
+    position: fixed;
+    left: -240px;
+    top: 0;
+    height: 100vh;
+    z-index: 200;
+    transition: left .2s ease;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.15);
+  }
+
+  .dashboard.sidebar-abierta .sidebar {
+    left: 0;
+  }
+
+  .dashboard.sidebar-abierta .sidebar-overlay {
+    display: block;
+  }
+
+  .main-wrapper { width: 100%; }
+
+  .topbar { padding: 14px 20px; }
+  .main-content { padding: 20px; }
+
+  /* Grids de 4 columnas → 2 columnas */
+  .stats-grid,
+  .prof-stats,
+  .est-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* Grids de 2 columnas laterales → 1 columna */
+  .inicio-grid,
+  .graficos-grid,
+  .config-nueva-layout,
+  .horario-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .historial-filtros-admin {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .topbar { padding: 12px 16px; }
+  .main-content { padding: 16px; }
+
+  .topbar-title { font-size: 17px; }
+  .topbar-sub { display: none; }
+
+  /* Ocultar info del perfil en el topbar, dejar solo el avatar */
+  .topbar-perfil-info { display: none; }
+  .topbar-perfil { padding-left: 8px; }
+
+  .stats-grid,
+  .prof-stats,
+  .est-stats-grid,
+  .historial-filtros-admin {
+    grid-template-columns: 1fr;
+  }
+
+  .card { padding: 16px; }
+
+  .horario-filtros {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .horario-acciones-top {
+    margin-left: 0;
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .btn-nueva-cita-top,
+  .btn-imprimir {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .cgr-selector,
+  .cgr-btns {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .card-header-actions {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .search-input { width: 100%; }
+}
+
+/* Tema oscuro — overlay y hamburguesa */
+.dashboard.tema-oscuro .btn-hamburguesa { background: #242f42; border-color: #3a4a63; color: #8b96a8; }
+@media (max-width: 1024px) {
+  /* Envuelve las tablas en scroll horizontal en vez de comprimirlas */
+  .card:has(.admin-tabla) {
+    overflow-x: auto;
+  }
+  .admin-tabla {
+    min-width: 700px;
+  }
+
+  /* La grilla de horario semanal también necesita scroll horizontal */
+  .semana-grilla {
+    overflow-x: auto;
+  }
 }

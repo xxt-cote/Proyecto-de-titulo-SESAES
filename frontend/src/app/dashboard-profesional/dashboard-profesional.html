@@ -1,7 +1,8 @@
 <!-- dashboard-profesional.html -->
-<div class="dashboard-prof" [class.tema-oscuro]="temaOscuro">
+<div class="dashboard-prof" [class.tema-oscuro]="temaOscuro" [class.sidebar-movil-abierto]="sidebarMovilAbierto">
 
   <!-- ═══════════ SIDEBAR ═══════════ -->
+  <div class="sidebar-backdrop" *ngIf="sidebarMovilAbierto" (click)="toggleSidebarMovil()"></div>
   <aside class="sidebar-prof">
     <div class="sidebar-logo">
       <img src="temporal.jpg" alt="UTEM">
@@ -47,7 +48,6 @@
     </nav>
 
     <div class="sidebar-footer">
-      <!-- Botón Reportar Ausencia -->
       <button class="btn-ausencia" (click)="abrirModalAusencia()">
         📅 Reportar ausencia
       </button>
@@ -66,6 +66,11 @@
     <!-- TOPBAR -->
     <header class="topbar-prof">
       <div class="topbar-left">
+        <button class="btn-hamburguesa" (click)="toggleSidebarMovil()">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        </button>
         <h1 class="topbar-title" *ngIf="seccionActiva!=='inicio'">{{ tituloSeccion }}</h1>
         <h1 class="topbar-title" *ngIf="seccionActiva==='inicio'">Hola, {{ perfil.nombre || 'Profesional' }} 👋</h1>
         <span class="topbar-sub" *ngIf="seccionActiva==='inicio'">{{ perfil.especialidad }} — SESAES</span>
@@ -101,16 +106,33 @@
     <!-- PANEL NOTIFICACIONES -->
     <div class="notif-panel" *ngIf="notifPanelAbierto">
       <div class="notif-panel-header">
-        <span>Notificaciones</span>
-        <button class="notif-leer-todas" (click)="marcarTodasLeidas()">Marcar todas como leídas</button>
+        <label class="notif-select-all">
+          <input type="checkbox" [checked]="notifTodasSeleccionadas" (change)="toggleSeleccionarTodasNotif()" [disabled]="notificaciones.length===0" />
+          <span>Notificaciones</span>
+        </label>
+        <button class="notif-leer-todas" (click)="marcarTodasLeidas()" *ngIf="!notifHaySeleccionadas">Marcar todas como leídas</button>
       </div>
+
+      <div class="notif-acciones-masivas" *ngIf="notifHaySeleccionadas">
+        <span>{{ notifSeleccionadas.size }} seleccionada{{ notifSeleccionadas.size === 1 ? '' : 's' }}</span>
+        <div class="notif-acciones-masivas-btns">
+          <button (click)="marcarSeleccionadasLeidas()">✓ Marcar leídas</button>
+          <button class="danger" (click)="eliminarSeleccionadas()">🗑 Eliminar</button>
+        </div>
+      </div>
+
       <div class="notif-lista">
         <div *ngIf="notificaciones.length === 0" class="notif-vacia">Sin notificaciones</div>
-        <div *ngFor="let n of notificaciones" class="notif-item" [class.no-leida]="!n.leida" (click)="marcarLeida(n)">
+        <div *ngFor="let n of notificaciones" class="notif-item" [class.no-leida]="!n.leida">
+          <input type="checkbox" [checked]="notifSeleccionadas.has(n.id)" (change)="toggleSeleccionNotif(n)" (click)="$event.stopPropagation()" />
           <div class="notif-icono" [ngClass]="n.tipo"></div>
-          <div class="notif-texto">
+          <div class="notif-texto" (click)="marcarLeida(n)">
             <p>{{ n.mensaje }}</p>
             <span>{{ n.fecha_creacion | date:'dd/MM HH:mm' }}</span>
+          </div>
+          <div class="notif-item-acciones">
+            <button *ngIf="!n.leida" title="Marcar como leída" (click)="marcarLeida(n)">✓</button>
+            <button title="Eliminar" (click)="eliminarNotificacion(n)">🗑</button>
           </div>
         </div>
       </div>
@@ -223,7 +245,7 @@
         </div>
 
         <div class="leyenda-prof">
-          <span class="leyenda-item-prof libre">⬜ Disponible</span>
+          <span class="leyenda-item-prof libre">🟩 Disponible</span>
           <span class="leyenda-item-prof ocupado">🟦 Cita habitual</span>
           <span class="leyenda-item-prof urgente">🟥 Urgente</span>
         </div>
@@ -275,17 +297,18 @@
       <!-- ══ MIS ATENCIONES ══ -->
       <div *ngIf="seccionActiva==='atenciones'">
         <div class="card-prof">
-          <div class="atenciones-filtros">
-            <input class="search-input-prof" [(ngModel)]="filtroBusquedaAt" placeholder="Buscar estudiante o RUT..." />
-            <select class="select-prof" [(ngModel)]="filtroEstadoAt" (change)="cargarAtenciones()">
-              <option value="">Todos los estados</option>
-              <option value="pendiente">Pendiente</option>
-              <option value="completada">Completada</option>
-              <option value="cancelada">Cancelada</option>
-              <option value="inasistencia">Inasistencia</option>
-            </select>
-            <button class="btn-filtrar-prof" (click)="cargarAtenciones()">Actualizar</button>
-          </div>
+        <div class="atenciones-filtros">
+          <input class="search-input-prof" [(ngModel)]="filtroBusquedaAt" (ngModelChange)="pagAtenciones=1" placeholder="Buscar estudiante o RUT..." />
+          <select class="select-prof" [(ngModel)]="filtroEstadoAt" (change)="cargarAtenciones()">
+            <option value="">Todos los estados</option>
+            <option value="pendiente">Pendiente</option>
+            <option value="completada">Completada</option>
+            <option value="cancelada">Cancelada</option>
+            <option value="inasistencia">Inasistencia</option>
+          </select>
+          <button class="btn-filtrar-prof" (click)="cargarAtenciones()">Actualizar</button>
+          <button class="btn-limpiar-prof" (click)="limpiarFiltrosAtenciones()">Limpiar</button>
+        </div>
 
           <table class="tabla-prof">
             <thead>
@@ -338,6 +361,7 @@
       <div *ngIf="seccionActiva==='horario'">
         <div class="perfil-layout">
 
+          <!-- Jornada Laboral -->
           <div class="card-prof">
             <div class="card-header-prof">
               <h3 class="card-title-prof">🕐 Jornada Laboral</h3>
@@ -377,18 +401,71 @@
             </ng-container>
           </div>
 
+          <!-- Horario de Almuerzo -->
+          <div class="card-prof">
+            <div class="card-header-prof">
+              <h3 class="card-title-prof">🍽️ Horario de Almuerzo</h3>
+              <button class="btn-editar-perfil" *ngIf="!horarioAlmuerzoEnEdicion && !solicitudColacionPendiente" (click)="habilitarEdicionAlmuerzo()">✎ Editar</button>
+            </div>
+            <p class="modal-desc" style="margin-bottom:16px">
+              Define tu hora de almuerzo. Al enviarla, queda pendiente de aprobación del administrador
+              antes de bloquearse en tu agenda.
+            </p>
+            <div class="alerta-estado" *ngIf="solicitudColacionPendiente">
+              ⏳ Tienes una solicitud de colación pendiente: {{ solicitudColacionPendiente.hora_inicio }} – {{ solicitudColacionPendiente.hora_fin }}, esperando aprobación del administrador.
+            </div>
+            <ng-container *ngIf="!solicitudColacionPendiente">
+              <div class="campo-grupo-prof">
+                <label>Hora de inicio</label>
+                <input type="time" [(ngModel)]="almuerzoHoraInicio" [disabled]="!horarioAlmuerzoEnEdicion" />
+              </div>
+              <div class="campo-grupo-prof" *ngIf="almuerzoHoraInicio">
+                <label>Rango a solicitar (1 hora exacta)</label>
+                <input type="text" [value]="almuerzoHoraInicio + ' – ' + almuerzoHoraFinPreview" disabled />
+              </div>
+              <div class="campo-grupo-prof" *ngIf="!horarioAlmuerzoEnEdicion && perfil.hora_almuerzo_inicio">
+                <label>Horario aprobado actualmente</label>
+                <input type="text" [value]="perfil.hora_almuerzo_inicio + ' – ' + perfil.hora_almuerzo_fin" disabled />
+              </div>
+              <div class="campo-grupo-prof" *ngIf="!horarioAlmuerzoEnEdicion && !perfil.hora_almuerzo_inicio">
+                <span class="texto-gris">Aún no tienes un horario de almuerzo aprobado.</span>
+              </div>
+              <div class="perfil-acciones-edicion" *ngIf="horarioAlmuerzoEnEdicion">
+                <button class="btn-cancelar-modal-prof" (click)="cancelarEdicionAlmuerzo()">Cancelar</button>
+                <button class="btn-guardar-prof" [disabled]="!almuerzoHoraInicio" (click)="guardarHorarioAlmuerzo()">Enviar solicitud</button>
+              </div>
+            </ng-container>
+          </div>
+
           <!-- Historial de solicitudes -->
           <div class="card-prof">
             <div class="card-header-prof">
-              <h3 class="card-title-prof">Historial de solicitudes</h3>
+              <label class="notif-select-all" *ngIf="solicitudesHorario.length > 0">
+                <input type="checkbox" [checked]="solicitudesTodasSeleccionadas" (change)="toggleSeleccionarTodasSolicitudes()" />
+                <span>Historial de solicitudes</span>
+              </label>
+              <h3 class="card-title-prof" *ngIf="solicitudesHorario.length === 0">Historial de solicitudes</h3>
             </div>
+
+            <div class="notif-acciones-masivas" *ngIf="solicitudesHaySeleccionadas">
+              <span>{{ solicitudesSeleccionadas.size }} seleccionada{{ solicitudesSeleccionadas.size === 1 ? '' : 's' }}</span>
+              <div class="notif-acciones-masivas-btns">
+                <button class="danger" (click)="eliminarSolicitudesSeleccionadas()">🗑 Eliminar</button>
+              </div>
+            </div>
+
             <div *ngIf="solicitudesHorario.length === 0" class="tabla-vacia-prof">Aún no has enviado solicitudes</div>
             <div *ngFor="let s of solicitudesHorario" class="cita-hoy-item">
+              <input type="checkbox" [checked]="solicitudesSeleccionadas.has(s.id)" (change)="toggleSeleccionSolicitud(s)" />
               <div class="cita-hoy-info">
                 <strong>{{ s.tipo === 'colacion' ? '🍽️ Colación' : '🕐 Jornada' }}: {{ s.hora_inicio }} – {{ s.hora_fin }}</strong>
-                <span *ngIf="s.estado === 'rechazado'">Motivo: {{ s.motivo_rechazo }}</span>
+                <span *ngIf="s.estado !== 'pendiente' && s.fecha_respuesta">
+                  {{ s.estado === 'rechazado' ? 'Rechazada' : 'Aprobada' }} el {{ s.fecha_respuesta | date:'dd/MM/yyyy HH:mm' }}
+                </span>
+                <span *ngIf="s.estado === 'rechazado' && s.motivo_rechazo">Motivo: {{ s.motivo_rechazo }}</span>
               </div>
               <span class="estado-badge-prof" [ngClass]="s.estado">{{ s.estado }}</span>
+              <button class="btn-eliminar-solicitud" title="Eliminar" (click)="eliminarSolicitud(s)">🗑</button>
             </div>
           </div>
 
@@ -500,60 +577,10 @@
               <button class="btn-guardar-prof" [disabled]="!passwordModificada" (click)="cambiarPassword()">Cambiar contraseña</button>
             </div>
           </div>
-
-          <!-- Horario de almuerzo -->
-          <div class="card-prof">
-            <div class="card-header-prof">
-              <h3 class="card-title-prof">🍽️ Horario de Almuerzo</h3>
-              <button class="btn-editar-perfil" *ngIf="!horarioAlmuerzoEnEdicion && !solicitudColacionPendiente" (click)="habilitarEdicionAlmuerzo()">✎ Editar</button>
-            </div>
-            <p class="modal-desc" style="margin-bottom:16px">
-              Define tu hora de almuerzo. Al enviarla, queda pendiente de aprobación del administrador
-              antes de bloquearse en tu agenda.
-            </p>
-
-            <div class="alerta-estado" *ngIf="solicitudColacionPendiente">
-              ⏳ Tienes una solicitud de colación pendiente: {{ solicitudColacionPendiente.hora_inicio }} – {{ solicitudColacionPendiente.hora_fin }}, esperando aprobación del administrador.
-            </div>
-
-            <ng-container *ngIf="!solicitudColacionPendiente">
-              <div class="campo-grupo-prof">
-                <label>Hora de inicio</label>
-                <input type="time" [(ngModel)]="almuerzoHoraInicio" [disabled]="!horarioAlmuerzoEnEdicion" />
-              </div>
-
-              <div class="campo-grupo-prof" *ngIf="almuerzoHoraInicio">
-                <label>Rango a solicitar (1 hora exacta)</label>
-                <input type="text" [value]="almuerzoHoraInicio + ' – ' + almuerzoHoraFinPreview" disabled />
-              </div>
-
-              <div class="campo-grupo-prof" *ngIf="!horarioAlmuerzoEnEdicion && perfil.hora_almuerzo_inicio">
-                <label>Horario aprobado actualmente</label>
-                <input type="text" [value]="perfil.hora_almuerzo_inicio + ' – ' + perfil.hora_almuerzo_fin" disabled />
-              </div>
-              <div class="campo-grupo-prof" *ngIf="!horarioAlmuerzoEnEdicion && !perfil.hora_almuerzo_inicio">
-                <span class="texto-gris">Aún no tienes un horario de almuerzo aprobado.</span>
-              </div>
-
-              <div class="perfil-acciones-edicion" *ngIf="horarioAlmuerzoEnEdicion">
-                <button class="btn-cancelar-modal-prof" (click)="cancelarEdicionAlmuerzo()">Cancelar</button>
-                <button class="btn-guardar-prof" [disabled]="!almuerzoHoraInicio" (click)="guardarHorarioAlmuerzo()">Enviar solicitud</button>
-              </div>
-            </ng-container>
-          </div>
-
         </div>
       </div>
 
     </main>
-
-
-    <footer class="footer-prof">
-      <span>© 2026 SESAES – Plataforma de Bienestar Estudiantil Universitaria.</span>
-      <div class="footer-links-prof">
-        <span>Políticas de Privacidad</span><span>Términos de Servicio</span><span>Ayuda</span>
-      </div>
-    </footer>
   </div>
 
   <!-- MODAL: REPORTAR AUSENCIA -->
@@ -565,49 +592,43 @@
       </div>
       <p class="modal-desc">Las citas afectadas se cancelarán automáticamente y se notificará a los estudiantes.</p>
 
-      <div class="ausencia-tipo-opciones">
-        <label class="ausencia-tipo-card" [class.selected]="ausenciaTipo === 'temporal'">
-          <input type="radio" name="ausenciaTipo" value="temporal" [(ngModel)]="ausenciaTipo" />
-          <div>
-            <strong>Salida temporal</strong>
-            <span>Sales unas horas y vuelves el mismo día</span>
-          </div>
-        </label>
-        <label class="ausencia-tipo-card" [class.selected]="ausenciaTipo === 'dia_completo'">
-          <input type="radio" name="ausenciaTipo" value="dia_completo" [(ngModel)]="ausenciaTipo" />
-          <div>
-            <strong>Todo el día de hoy</strong>
-            <span>No podrás atender ninguna cita hoy</span>
-          </div>
-        </label>
-        <label class="ausencia-tipo-card" [class.selected]="ausenciaTipo === 'licencia'">
-          <input type="radio" name="ausenciaTipo" value="licencia" [(ngModel)]="ausenciaTipo" />
-          <div>
-            <strong>Licencia médica</strong>
-            <span>Un rango de días, semanas o hasta un mes</span>
-          </div>
-        </label>
+      <!-- Selector segmentado -->
+      <label class="ausencia-selector-label">Tipo de ausencia</label>
+      <div class="ausencia-tipos-selector">
+        <button *ngFor="let t of ausenciaTipos"
+                type="button"
+                class="ausencia-tipo-btn"
+                [class.selected]="ausenciaTipo === t.valor"
+                (click)="ausenciaTipo = t.valor">
+          <span class="ausencia-tipo-icono">{{ t.icono }}</span>
+          <span class="ausencia-tipo-label">{{ t.label }}</span>
+        </button>
       </div>
 
-      <div class="form-grid" *ngIf="ausenciaTipo === 'temporal'" style="margin-bottom:12px">
-        <div class="campo-grupo-prof">
-          <label>Desde</label>
-          <input type="time" [(ngModel)]="ausenciaHoraInicio" />
-        </div>
-        <div class="campo-grupo-prof">
-          <label>Hasta</label>
-          <input type="time" [(ngModel)]="ausenciaHoraFin" />
-        </div>
-      </div>
+      <!-- Panel de campos según el tipo elegido -->
+      <div class="ausencia-panel-campos">
+        <span class="ausencia-panel-desc">{{ ausenciaTipoActual?.desc }}</span>
 
-      <div class="form-grid" *ngIf="ausenciaTipo === 'licencia'" style="margin-bottom:12px">
-        <div class="campo-grupo-prof">
-          <label>Desde</label>
-          <input type="date" [(ngModel)]="ausenciaFechaInicio" />
+        <div class="form-grid" *ngIf="ausenciaTipo === 'temporal'">
+          <div class="campo-grupo-prof">
+            <label>Desde</label>
+            <input type="time" [(ngModel)]="ausenciaHoraInicio" />
+          </div>
+          <div class="campo-grupo-prof">
+            <label>Hasta</label>
+            <input type="time" [(ngModel)]="ausenciaHoraFin" />
+          </div>
         </div>
-        <div class="campo-grupo-prof">
-          <label>Hasta</label>
-          <input type="date" [(ngModel)]="ausenciaFechaFin" />
+
+        <div class="form-grid" *ngIf="ausenciaTipo === 'licencia'">
+          <div class="campo-grupo-prof">
+            <label>Desde</label>
+            <input type="date" [(ngModel)]="ausenciaFechaInicio" />
+          </div>
+          <div class="campo-grupo-prof">
+            <label>Hasta</label>
+            <input type="date" [(ngModel)]="ausenciaFechaFin" />
+          </div>
         </div>
       </div>
 
@@ -615,6 +636,7 @@
         <label>Motivo <span class="opcional">(opcional)</span></label>
         <input [(ngModel)]="ausenciaMotivo" placeholder="Ej: Malestar general, cita médica..." />
       </div>
+
       <div class="modal-footer-prof">
         <button class="btn-cancelar-modal-prof" (click)="cerrarModalAusencia()">Cancelar</button>
         <button class="btn-reportar" [disabled]="!ausenciaFormularioValido" (click)="reportarAusencia()">⚠️ Reportar y notificar</button>

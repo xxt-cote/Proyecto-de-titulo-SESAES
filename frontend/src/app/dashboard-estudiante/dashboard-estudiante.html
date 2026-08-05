@@ -1,6 +1,7 @@
-<div class="dashboard">
+<div class="dashboard" [class.sidebar-movil-abierto]="sidebarMovilAbierto">
 
   <!-- SIDEBAR -->
+  <div class="sidebar-backdrop" *ngIf="sidebarMovilAbierto" (click)="toggleSidebarMovil()"></div>
   <aside class="sidebar">
     <div class="sidebar-logo">
       <img src="temporal.jpg" alt="UTEM">
@@ -62,7 +63,12 @@
     <!-- ══ TOPBAR ══ -->
 <header class="topbar-est">
   <div class="topbar-left-est">
-    <h1 class="topbar-title-est" *ngIf="seccionActiva === 'agendar'">Hola, {{ estudianteNombre }} 👋</h1>
+  <button class="btn-hamburguesa" (click)="toggleSidebarMovil()">
+    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+    </svg>
+  </button>
+  <h1 class="topbar-title-est" *ngIf="seccionActiva === 'agendar'">Hola, {{ estudianteNombre }} 👋</h1>
     <h1 class="topbar-title-est" *ngIf="seccionActiva !== 'agendar'">{{ tituloSeccionEst }}</h1>
     <span class="topbar-sub-est">{{ subtituloSeccionEst }}</span>
   </div>
@@ -94,34 +100,48 @@
     </div>
   </div>
 </header>
-    <!-- PANEL DE NOTIFICACIONES -->
-    <div class="notif-panel-est" *ngIf="notifPanelAbierto">
-      <div class="notif-panel-header-est">
-        <span>Notificaciones</span>
-        <div class="notif-panel-header-acciones-est">
-          <button class="notif-eliminar-todas-est" *ngIf="notificaciones.length > 0" (click)="eliminarTodasNotificaciones()" title="Eliminar todas las notificaciones">
-            🗑️ Eliminar todas
+  <!-- PANEL DE NOTIFICACIONES -->
+<div class="notif-panel-est" *ngIf="notifPanelAbierto">
+  <div class="notif-panel-header-est">
+    <label class="notif-select-all-est">
+      <input type="checkbox" [checked]="notifTodasSeleccionadas" (change)="toggleSeleccionarTodasNotif()" [disabled]="notificaciones.length===0" />
+      <span>Notificaciones</span>
+    </label>
+    <div class="notif-panel-header-acciones-est">
+      <button class="notif-leer-todas-est" (click)="marcarTodasLeidas()" *ngIf="!notifHaySeleccionadas && notificaciones.length > 0">Marcar todas como leídas</button>
+      <button class="notif-cerrar" (click)="notifPanelAbierto = false">✕</button>
+    </div>
+  </div>
+
+  <div class="notif-acciones-masivas-est" *ngIf="notifHaySeleccionadas">
+    <span>{{ notifSeleccionadas.size }} seleccionada{{ notifSeleccionadas.size === 1 ? '' : 's' }}</span>
+    <div class="notif-acciones-masivas-btns-est">
+      <button (click)="marcarSeleccionadasLeidas()">✓ Marcar leídas</button>
+      <button class="danger" (click)="eliminarSeleccionadas()">🗑 Eliminar</button>
+    </div>
+  </div>
+
+  <div class="notif-lista-est">
+    <div *ngIf="notificaciones.length === 0" class="notif-vacia-est">Sin notificaciones</div>
+    <div *ngFor="let n of notificaciones" class="notif-item-est" [class.no-leida]="!n.leida">
+      <input type="checkbox" [checked]="notifSeleccionadas.has(n.id)" (change)="toggleSeleccionNotif(n)" (click)="$event.stopPropagation()" />
+      <div class="notif-dot" [ngClass]="n.tipo"></div>
+      <div class="notif-texto-est" (click)="marcarNotifLeida(n)">
+        <p>{{ n.mensaje }}</p>
+        <div class="notif-acciones-est" *ngIf="n.tipo === 'cancelacion' && !n.leida">
+          <button class="btn-reagendar-notif" (click)="reagendarDesdeCancelacion(n); $event.stopPropagation()">
+            ↻ Reagendar cita
           </button>
-          <button class="notif-cerrar" (click)="notifPanelAbierto = false">✕</button>
         </div>
+        <span>{{ n.fecha_creacion }}</span>
       </div>
-      <div class="notif-lista-est">
-        <div *ngIf="notificaciones.length === 0" class="notif-vacia-est">Sin notificaciones</div>
-        <div *ngFor="let n of notificaciones" class="notif-item-est" [class.no-leida]="!n.leida" (click)="marcarNotifLeida(n)">
-          <div class="notif-dot" [ngClass]="n.tipo"></div>
-          <div class="notif-texto-est">
-            <p>{{ n.mensaje }}</p>
-            <div class="notif-acciones-est" *ngIf="n.tipo === 'cancelacion' && !n.leida">
-              <button class="btn-reagendar-notif" (click)="reagendarDesdeCancelacion(n); $event.stopPropagation()">
-                ↻ Reagendar cita
-              </button>
-            </div>
-            <span>{{ n.fecha_creacion }}</span>
-          </div>
-          <button class="notif-eliminar-btn-est" (click)="eliminarNotificacion(n, $event)" title="Eliminar notificación">✕</button>
-        </div>
+      <div class="notif-item-acciones-est">
+        <button *ngIf="!n.leida" title="Marcar como leída" (click)="marcarNotifLeida(n)">✓</button>
+        <button title="Eliminar" (click)="eliminarNotificacion(n)">🗑</button>
       </div>
     </div>
+  </div>
+</div>
 
     <!-- ══ AGENDAR HORA ══ -->
     <div class="section" *ngIf="seccionActiva === 'agendar'">

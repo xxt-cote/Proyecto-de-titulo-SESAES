@@ -18,6 +18,10 @@ const API = environment.apiUrl;
 export class DashboardEstudianteComponent implements OnInit {
 
   seccionActiva  = 'agendar';
+  sidebarMovilAbierto = false;
+  toggleSidebarMovil(): void {  
+  this.sidebarMovilAbierto = !this.sidebarMovilAbierto;
+}
   pasoAgendar    = 1;
   busqueda       = '';
   filtroArea     = '';
@@ -106,10 +110,10 @@ get subtituloSeccionEst(): string {
   // ══════════════════════════════════════
   // NOTIFICACIONES
   // ══════════════════════════════════════
-
   notificaciones: any[] = [];
   notifPanelAbierto     = false;
   notifNoLeidas         = 0;
+  notifSeleccionadas    = new Set<number>();
 
   cargarNotificaciones(): void {
     this.http.get<any[]>(`${API}/notificaciones/${this.estudianteId}`).subscribe({
@@ -135,25 +139,75 @@ get subtituloSeccionEst(): string {
     });
   }
 
-  eliminarNotificacion(n: any, event: Event): void {
-    event.stopPropagation();
-    this.http.delete(`${API}/notificaciones/${n.id}`).subscribe({
+  marcarTodasLeidas(): void {
+    this.http.patch(`${API}/notificaciones/leer-todas/${this.estudianteId}`, {}).subscribe({
       next: () => {
-        if (!n.leida) this.notifNoLeidas = Math.max(0, this.notifNoLeidas - 1);
-        this.notificaciones = this.notificaciones.filter(x => x.id !== n.id);
+        this.notificaciones.forEach(n => n.leida = true);
+        this.notifNoLeidas = 0;
         this.cdr.detectChanges();
       }
     });
   }
 
-  eliminarTodasNotificaciones(): void {
-    this.http.delete(`${API}/notificaciones/eliminar-todas/${this.estudianteId}`).subscribe({
+  get notifHaySeleccionadas(): boolean {
+    return this.notifSeleccionadas.size > 0;
+  }
+
+  get notifTodasSeleccionadas(): boolean {
+    return this.notificaciones.length > 0 && this.notifSeleccionadas.size === this.notificaciones.length;
+  }
+
+  toggleSeleccionNotif(n: any): void {
+    if (this.notifSeleccionadas.has(n.id)) this.notifSeleccionadas.delete(n.id);
+    else this.notifSeleccionadas.add(n.id);
+  }
+
+  toggleSeleccionarTodasNotif(): void {
+    if (this.notifTodasSeleccionadas) {
+      this.notifSeleccionadas.clear();
+    } else {
+      this.notificaciones.forEach(n => this.notifSeleccionadas.add(n.id));
+    }
+  }
+
+  marcarSeleccionadasLeidas(): void {
+    const ids = Array.from(this.notifSeleccionadas);
+    ids.forEach(id => {
+      this.http.patch(`${API}/notificaciones/${id}/leer`, {}).subscribe({
+        next: () => {
+          const n = this.notificaciones.find(x => x.id === id);
+          if (n && !n.leida) { n.leida = true; this.notifNoLeidas = Math.max(0, this.notifNoLeidas - 1); }
+          this.cdr.detectChanges();
+        }
+      });
+    });
+    this.notifSeleccionadas.clear();
+  }
+
+  eliminarNotificacion(n: any): void {
+    this.http.delete(`${API}/notificaciones/${n.id}`).subscribe({
       next: () => {
-        this.notificaciones = [];
-        this.notifNoLeidas = 0;
+        if (!n.leida) this.notifNoLeidas = Math.max(0, this.notifNoLeidas - 1);
+        this.notificaciones = this.notificaciones.filter(x => x.id !== n.id);
+        this.notifSeleccionadas.delete(n.id);
         this.cdr.detectChanges();
       }
     });
+  }
+
+  eliminarSeleccionadas(): void {
+    const ids = Array.from(this.notifSeleccionadas);
+    ids.forEach(id => {
+      this.http.delete(`${API}/notificaciones/${id}`).subscribe({
+        next: () => {
+          const n = this.notificaciones.find(x => x.id === id);
+          this.notificaciones = this.notificaciones.filter(x => x.id !== id);
+          if (n && !n.leida) this.notifNoLeidas = Math.max(0, this.notifNoLeidas - 1);
+          this.cdr.detectChanges();
+        }
+      });
+    });
+    this.notifSeleccionadas.clear();
   }
 
   reagendarDesdeCancelacion(n: any): void {
@@ -215,6 +269,7 @@ get subtituloSeccionEst(): string {
     this.mensajeExito      = '';
     this.mensajeError      = '';
     this.notifPanelAbierto = false;
+    this.sidebarMovilAbierto = false;
   }
 
   cerrarSesion(): void {

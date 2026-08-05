@@ -1,7 +1,8 @@
 <!-- dashboard-admin.html -->
-<div class="dashboard" [class.tema-oscuro]="temaOscuro">
+<div class="dashboard" [class.tema-oscuro]="temaOscuro" [class.sidebar-abierta]="sidebarMovilAbierta">
 
   <!-- ═══════════════ SIDEBAR ═══════════════ -->
+  <div class="sidebar-overlay" *ngIf="sidebarMovilAbierta" (click)="toggleSidebarMovil()"></div>
   <aside class="sidebar">
     <div class="sidebar-logo">
       <img src="temporal.jpg" alt="UTEM">
@@ -61,7 +62,12 @@
 
     <!-- TOPBAR -->
     <header class="topbar">
-      <div class="topbar-left">
+      <button class="btn-hamburguesa" (click)="toggleSidebarMovil()">
+        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+  </button>
+  <div class="topbar-left">
         <h1 class="topbar-title" *ngIf="seccionActiva!=='inicio'">{{ tituloSeccion }}</h1>
         <h1 class="topbar-title" *ngIf="seccionActiva==='inicio'">Hola, {{ configCentro.nombre_admin || 'Administrador/a' }} 👋</h1>
         <span class="topbar-sub">{{ subtituloSeccion }}</span>
@@ -750,12 +756,7 @@
 
     </main>
 
-    <footer class="dashboard-footer">
-      <span>© 2026 SESAES – Plataforma de Bienestar Estudiantil Universitaria.</span>
-      <div class="footer-links">
-        <span>Políticas de Privacidad</span><span>Términos de Servicio</span><span>Ayuda</span>
-      </div>
-    </footer>
+  
   </div>
 
   <!-- MODAL: NUEVO PROFESIONAL -->

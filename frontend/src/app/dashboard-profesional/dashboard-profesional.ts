@@ -18,6 +18,11 @@ const API = environment.apiUrl;
 export class DashboardProfesionalComponent implements OnInit {
 
   seccionActiva = 'inicio';
+  sidebarMovilAbierto = false;
+
+toggleSidebarMovil(): void {
+  this.sidebarMovilAbierto = !this.sidebarMovilAbierto;
+}
   temaOscuro    = false;
   mensajeExito  = '';
   mensajeError  = '';
@@ -69,15 +74,15 @@ export class DashboardProfesionalComponent implements OnInit {
   }
 
   navegarA(seccion: string): void {
-    this.seccionActiva     = seccion;
-    this.mensajeExito      = '';
-    this.mensajeError      = '';
-    this.notifPanelAbierto = false;
-    if (seccion === 'agenda')     this.cargarCitasSemana();
-    if (seccion === 'atenciones') this.cargarAtenciones();
-    if (seccion === 'horario')    this.cargarSolicitudesHorario();
-  }
-
+  this.seccionActiva     = seccion;
+  this.mensajeExito      = '';
+  this.mensajeError      = '';
+  this.notifPanelAbierto = false;
+  this.sidebarMovilAbierto = false; 
+  if (seccion === 'agenda')     this.cargarCitasSemana();
+  if (seccion === 'atenciones') this.cargarAtenciones();
+  if (seccion === 'horario')    this.cargarSolicitudesHorario();
+}
   cerrarSesion(): void { localStorage.clear(); window.location.href = '/login'; }
 
   toggleTema(): void {
@@ -146,7 +151,72 @@ export class DashboardProfesionalComponent implements OnInit {
       }
     });
   }
+notifSeleccionadas = new Set<number>();
 
+get notifHaySeleccionadas(): boolean {
+  return this.notifSeleccionadas.size > 0;
+}
+
+get notifTodasSeleccionadas(): boolean {
+  return this.notificaciones.length > 0 && this.notifSeleccionadas.size === this.notificaciones.length;
+}
+
+toggleSeleccionNotif(n: any): void {
+  if (this.notifSeleccionadas.has(n.id)) this.notifSeleccionadas.delete(n.id);
+  else this.notifSeleccionadas.add(n.id);
+}
+
+toggleSeleccionarTodasNotif(): void {
+  if (this.notifTodasSeleccionadas) {
+    this.notifSeleccionadas.clear();
+  } else {
+    this.notificaciones.forEach(n => this.notifSeleccionadas.add(n.id));
+  }
+}
+
+marcarSeleccionadasLeidas(): void {
+  const ids = Array.from(this.notifSeleccionadas);
+  ids.forEach(id => {
+    this.http.patch(`${API}/notificaciones/${id}/leer`, {}).subscribe({
+      next: () => {
+        const n = this.notificaciones.find(x => x.id === id);
+        if (n && !n.leida) { n.leida = true; this.notifNoLeidas = Math.max(0, this.notifNoLeidas - 1); }
+        this.cdr.detectChanges();
+      }
+    });
+  });
+  this.notifSeleccionadas.clear();
+}
+
+eliminarNotificacion(n: any): void {
+  this.http.delete(`${API}/notificaciones/${n.id}`).subscribe({
+    next: () => {
+      this.notificaciones = this.notificaciones.filter(x => x.id !== n.id);
+      this.notifSeleccionadas.delete(n.id);
+      if (!n.leida) this.notifNoLeidas = Math.max(0, this.notifNoLeidas - 1);
+      this.cdr.detectChanges();
+    },
+    error: () => {
+      this.mensajeError = 'No se pudo eliminar la notificación.';
+      setTimeout(() => { this.mensajeError = ''; this.cdr.detectChanges(); }, 3000);
+    }
+  });
+}
+
+eliminarSeleccionadas(): void {
+  const ids = Array.from(this.notifSeleccionadas);
+  ids.forEach(id => {
+    this.http.delete(`${API}/notificaciones/${id}`).subscribe({
+      next: () => {
+        const n = this.notificaciones.find(x => x.id === id);
+        this.notificaciones = this.notificaciones.filter(x => x.id !== id);
+        if (n && !n.leida) this.notifNoLeidas = Math.max(0, this.notifNoLeidas - 1);
+        this.cdr.detectChanges();
+      }
+    });
+  });
+  this.notifSeleccionadas.clear();
+}
   // ══════════════════════════════════════
   // PERFIL
   // ══════════════════════════════════════
@@ -306,6 +376,15 @@ export class DashboardProfesionalComponent implements OnInit {
   }
 
   cerrarModalAusencia(): void { this.modalAusenciaAbierto = false; }
+ausenciaTipos: { valor: 'temporal' | 'dia_completo' | 'licencia'; icono: string; label: string; desc: string }[] = [
+  { valor: 'temporal',     icono: '⏱️', label: 'Temporal',        desc: 'Sales unas horas y vuelves el mismo día' },
+  { valor: 'dia_completo', icono: '📅', label: 'Todo el día',     desc: 'No podrás atender ninguna cita hoy' },
+  { valor: 'licencia',     icono: '🏥', label: 'Licencia médica', desc: 'Un rango de días, semanas o hasta un mes' }
+];
+get ausenciaTipoActual() {
+  return this.ausenciaTipos.find(t => t.valor === this.ausenciaTipo);
+}
+
 
   get ausenciaFormularioValido(): boolean {
     if (this.ausenciaTipo === 'temporal') return !!this.ausenciaHoraInicio && !!this.ausenciaHoraFin;
@@ -485,7 +564,11 @@ getBloqueEstado(fecha: string, hora: string): string {
       error: () => {}
     });
   }
-
+limpiarFiltrosAtenciones(): void {
+  this.filtroBusquedaAt = '';
+  this.filtroEstadoAt = '';
+  this.cargarAtenciones();
+}
   get atencionesFiltradas(): any[] {
     const q = this.filtroBusquedaAt.toLowerCase();
     return !q ? this.atenciones : this.atenciones.filter(a => a.estudiante.toLowerCase().includes(q) || (a.rut || '').includes(q));
@@ -711,7 +794,55 @@ guardarHorarioAlmuerzo(): void {
   get jornadaFormularioValido(): boolean {
     return !!this.jornadaHoraInicio && !!this.jornadaHoraFin && this.jornadaHoraInicio < this.jornadaHoraFin;
   }
+  solicitudesSeleccionadas = new Set<number>();
 
+get solicitudesHaySeleccionadas(): boolean {
+  return this.solicitudesSeleccionadas.size > 0;
+}
+
+get solicitudesTodasSeleccionadas(): boolean {
+  return this.solicitudesHorario.length > 0 && this.solicitudesSeleccionadas.size === this.solicitudesHorario.length;
+}
+
+toggleSeleccionSolicitud(s: any): void {
+  if (this.solicitudesSeleccionadas.has(s.id)) this.solicitudesSeleccionadas.delete(s.id);
+  else this.solicitudesSeleccionadas.add(s.id);
+}
+
+toggleSeleccionarTodasSolicitudes(): void {
+  if (this.solicitudesTodasSeleccionadas) {
+    this.solicitudesSeleccionadas.clear();
+  } else {
+    this.solicitudesHorario.forEach(s => this.solicitudesSeleccionadas.add(s.id));
+  }
+}
+
+eliminarSolicitud(s: any): void {
+  this.http.delete(`${API}/solicitudes-horario/${s.id}`).subscribe({
+    next: () => {
+      this.solicitudesHorario = this.solicitudesHorario.filter(x => x.id !== s.id);
+      this.solicitudesSeleccionadas.delete(s.id);
+      this.cdr.detectChanges();
+    },
+    error: () => {
+      this.mensajeError = 'No se pudo eliminar la solicitud.';
+      setTimeout(() => { this.mensajeError = ''; this.cdr.detectChanges(); }, 3000);
+    }
+  });
+}
+
+eliminarSolicitudesSeleccionadas(): void {
+  const ids = Array.from(this.solicitudesSeleccionadas);
+  ids.forEach(id => {
+    this.http.delete(`${API}/solicitudes-horario/${id}`).subscribe({
+      next: () => {
+        this.solicitudesHorario = this.solicitudesHorario.filter(x => x.id !== id);
+        this.cdr.detectChanges();
+      }
+    });
+  });
+  this.solicitudesSeleccionadas.clear();
+}
   solicitarJornada(): void {
     if (!this.jornadaFormularioValido) return;
     this.http.post<any>(`${API}/profesional/${this.profDbId}/solicitar-jornada`, {

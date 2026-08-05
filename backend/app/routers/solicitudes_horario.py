@@ -134,6 +134,15 @@ def get_mis_solicitudes(prof_id: int, db: Session = Depends(get_db)):
         }
         for s in solicitudes
     ]
+@router.delete("/solicitudes-horario/{solicitud_id}")
+def eliminar_solicitud(solicitud_id: int, db: Session = Depends(get_db)):
+    solicitud = db.query(SolicitudHorario).filter(SolicitudHorario.id == solicitud_id).first()
+    if not solicitud:
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+
+    db.delete(solicitud)
+    db.commit()
+    return {"message": "Solicitud eliminada correctamente"}
 
 
 # ══════════════════════════════════════
