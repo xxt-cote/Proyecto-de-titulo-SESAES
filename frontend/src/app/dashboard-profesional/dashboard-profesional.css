@@ -143,7 +143,7 @@ body { margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; background: #f
 .notif-item { display: flex; align-items: flex-start; gap: 10px; padding: 12px 16px; border-bottom: 1px solid #f8fafc; transition: background .1s; }
 .notif-item:hover { background: #f8fafc; }
 .notif-item.no-leida { background: #f0fdf9; }
-.notif-item input[type="checkbox"] { margin-top: 3px; flex-shrink: 0; }
+.notif-item input[type="checkbox"] { margin-top: 3px; flex-shrink: 0; accent-color: #0d9488; }
 
 .notif-icono { width: 8px; height: 8px; border-radius: 50%; background: #0d9488; margin-top: 5px; flex-shrink: 0; }
 .notif-icono.cancelacion { background: #ef4444; }
@@ -273,6 +273,8 @@ body { margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; background: #f
 .cal-celda-prof { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; }
 .cal-celda-prof span { width: 27px; height: 27px; display: flex; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 500; color: #334155; border-radius: 50%; }
 .cal-celda-prof span.hoy { background: #0d9488; color: white; font-weight: 700; }
+.cal-celda-prof span.feriado { background: #fff7ed; color: #ea580c; font-weight: 600; }
+.cal-celda-prof span.feriado.hoy { background: #0d9488; color: white; }
 
 .stats-grid-prof { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
 
@@ -312,9 +314,11 @@ body { margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; background: #f
 .dia-col-prof { flex: 1; min-width: 90px; border-left: 1px solid #f1f5f9; }
 .dia-header-prof { height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; border-bottom: 1px solid #f1f5f9; gap: 2px; }
 .dia-header-prof.hoy { background: #f0fdf9; }
+.dia-header-prof.feriado { background: #fff7ed; }
+.dia-header-prof.feriado .dia-num-prof { color: #ea580c; }
 .dia-nombre-prof { font-size: 10px; font-weight: 600; color: #94a3b8; text-transform: uppercase; }
 .dia-num-prof    { font-size: 15px; font-weight: 700; color: #1e293b; }
-.dia-header-prof.hoy .dia-num-prof { color: #0d9488; }
+.dia-header-prof.hoy .dia-num-prof { color: #4f8ef7; }
 
 .bloque-prof { height: 48px; border-bottom: 1px solid #f8fafc; cursor: pointer; display: flex; align-items: center; padding: 0 6px; transition: background .1s; }
 .bloque-prof.libre          { background: #f0fdf9; }
@@ -384,6 +388,8 @@ body { margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; background: #f
 .perfil-foto-wrap { position: relative; flex-shrink: 0; }
 .perfil-avatar-grande { width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(135deg, #0d9488, #0f766e); color: white; font-size: 22px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
 .perfil-foto-img { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; display: block; }
+.perfil-foto-img.clickable { cursor: pointer; transition: opacity .15s; }
+.perfil-foto-img.clickable:hover { opacity: 0.85; }
 .btn-editar-foto { position: absolute; bottom: 0; right: 0; width: 26px; height: 26px; border-radius: 50%; background: #0d9488; color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; cursor: pointer; border: 2px solid white; }
 
 .perfil-datos-basicos { display: flex; flex-direction: column; gap: 4px; }
@@ -502,6 +508,17 @@ body { margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; background: #f
 
   .card-prof { padding: 16px; }
 
+  /* Botones Cancelar/Guardar siempre visibles, sin scrollear */
+  .perfil-acciones-edicion {
+    position: sticky;
+    bottom: 0;
+    background: #fff;
+    margin: 16px -16px -16px;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    box-shadow: 0 -4px 12px rgba(0,0,0,0.08);
+    z-index: 5;
+  }
+
   .notif-panel { right: 16px; left: 16px; width: auto; top: 60px; }
 
   .modal-prof { padding: 20px; width: 92vw; }
@@ -555,6 +572,7 @@ body { margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; background: #f
 
 /* -- Componentes compartidos  -- */
 .dashboard-prof.tema-oscuro .card-prof { background: #242f42; border-color: #3a4a63; box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
+.dashboard-prof.tema-oscuro .perfil-acciones-edicion { background: #242f42; }
 .dashboard-prof.tema-oscuro .card-title-prof { color: #e6edf3; }
 .dashboard-prof.tema-oscuro .campo-grupo-prof label { color: #8b96a8; }
 .dashboard-prof.tema-oscuro .campo-grupo-prof input,
@@ -587,6 +605,7 @@ body { margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; background: #f
 /* -- Mi Agenda -- */
 .dashboard-prof.tema-oscuro .semana-label { color: #e6edf3; }
 .dashboard-prof.tema-oscuro .dia-num-prof { color: #e6edf3; }
+.dashboard-prof.tema-oscuro .dia-header-prof.hoy .dia-num-prof { color: #60a5fa; }
 .dashboard-prof.tema-oscuro .hora-celda-prof { color: #8b96a8; border-color: #3a4a63; }
 .dashboard-prof.tema-oscuro .dia-col-prof { border-color: #3a4a63; }
 .dashboard-prof.tema-oscuro .dia-header-prof { border-color: #3a4a63; }

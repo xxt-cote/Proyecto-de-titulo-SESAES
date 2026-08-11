@@ -5,6 +5,7 @@ from app.database import get_db
 from app.models.configuracion_centro import ConfiguracionCentro
 from app.models.usuario import Usuario
 from app.schemas import ConfiguracionCentroOut, ConfiguracionCentroUpdate
+from app.security import verify_password, hash_password
 
 router = APIRouter(prefix="/configuracion-centro", tags=["configuracion-centro"])
 
@@ -63,10 +64,10 @@ def cambiar_password_admin(body: dict, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Usuario administrador no encontrado")
 
     # Verificar contraseña actual
-    if admin.password != contrasena_actual:
+    if not verify_password(contrasena_actual, admin.password):
         raise HTTPException(status_code=400, detail="La contraseña actual es incorrecta")
 
     # Actualizar contraseña
-    admin.password = contrasena_nueva
+    admin.password = hash_password(contrasena_nueva)
     db.commit()
     return {"message": "Contraseña actualizada correctamente"}

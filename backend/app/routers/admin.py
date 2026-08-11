@@ -7,6 +7,7 @@ from datetime import datetime, date, timedelta
 import io
 
 from app.database import get_db
+from app.security import hash_password
 from app.models.cita import Cita
 from app.models.profesional import Profesional
 from app.models.usuario import Usuario
@@ -205,7 +206,7 @@ def crear_profesional(datos: ProfesionalCreate, db: Session = Depends(get_db)):
     if not iniciales and datos.nombre:
         partes = datos.nombre.split()
         iniciales = (partes[0][0] + partes[1][0]).upper() if len(partes) >= 2 else datos.nombre[:2].upper()
-    nuevo_usuario = Usuario(correo=datos.correo, password=datos.password or "prof123",
+    nuevo_usuario = Usuario(correo=datos.correo, password=hash_password(datos.password or "prof123"),
                             rol="profesional", nombre=datos.nombre, activo=True)
     db.add(nuevo_usuario)
     db.commit()

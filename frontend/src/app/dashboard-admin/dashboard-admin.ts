@@ -5,6 +5,9 @@ import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { Chart, registerables } from 'chart.js';
 import { environment } from '../config';
+import { PhotoCropperComponent } from '../shared/photo-cropper/photo-cropper';
+import { PhotoViewerComponent } from '../shared/photo-viewer/photo-viewer';
+import { obtenerFeriado } from '../shared/feriados-chile';
 Chart.register(...registerables);
 
 
@@ -13,7 +16,7 @@ const API = environment.apiUrl;
 @Component({
   selector: 'app-dashboard-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePipe],
+  imports: [CommonModule, FormsModule, DatePipe, PhotoCropperComponent, PhotoViewerComponent],
   templateUrl: './dashboard-admin.html',
   styleUrl: './dashboard-admin.css',
   encapsulation: ViewEncapsulation.None
@@ -169,6 +172,30 @@ toggleSidebarMovil(): void {
   toggleSeleccionarTodasNotif(): void {
     const nuevoValor = !this.todasNotifSeleccionadas;
     this.notificaciones.forEach(n => n.seleccionada = nuevoValor);
+  }
+
+  marcarSeleccionadasLeidas(): void {
+    const seleccionadas = this.notifSeleccionadas.filter(n => !n.leida);
+    if (!seleccionadas.length) return;
+    seleccionadas.forEach(n => {
+      this.http.patch(`${API}/notificaciones/${n.id}/leer`, {}).subscribe({
+        next: () => {
+          n.leida = true;
+          n.seleccionada = false;
+          this.notifNoLeidas = Math.max(0, this.notifNoLeidas - 1);
+          this.cdr.detectChanges();
+        }
+      });
+    });
+  }
+
+  eliminarNotificacion(n: any): void {
+    this.http.delete(`${API}/notificaciones/${n.id}`).subscribe({
+      next: () => {
+        this.notificaciones = this.notificaciones.filter(x => x.id !== n.id);
+        this.cdr.detectChanges();
+      }
+    });
   }
 
   eliminarNotifSeleccionadas(): void {
@@ -540,7 +567,7 @@ private crearGraficos(): void {
     for (let i = 0; i < offset; i++) celdas.push(null);
     for (let dia = 1; dia <= ultimoDia.getDate(); dia++) {
       const fechaStr = `${this.calAnioVisible}-${String(this.calMesVisible+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
-      celdas.push({ num: dia, esHoy: fechaStr === hoy });
+      celdas.push({ num: dia, fecha: fechaStr, esHoy: fechaStr === hoy });
     }
     this.calDiasMes = celdas;
   }
@@ -581,13 +608,21 @@ private crearGraficos(): void {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   }
 
+  // Convierte "YYYY-MM-DD" a Date usando la zona horaria LOCAL, no UTC.
+  // new Date("YYYY-MM-DD") se interpreta como medianoche UTC y al convertir
+  // a hora de Chile retrocede un día — por eso NUNCA se debe usar así.
+  private parseDateStrLocal(fechaStr: string): Date {
+    const [anio, mes, dia] = fechaStr.split('-').map(Number);
+    return new Date(anio, mes - 1, dia);
+  }
+
   semanaAnterior(): void {
-    const lunes = new Date(this.semanaActual[0].fecha); lunes.setDate(lunes.getDate() - 7);
+    const lunes = this.parseDateStrLocal(this.semanaActual[0].fecha); lunes.setDate(lunes.getDate() - 7);
     this.buildSemana(lunes); if (this.filtroProfesionalId) this.cargarHorarioProfesional();
   }
 
   semanaSiguiente(): void {
-    const lunes = new Date(this.semanaActual[0].fecha); lunes.setDate(lunes.getDate() + 7);
+    const lunes = this.parseDateStrLocal(this.semanaActual[0].fecha); lunes.setDate(lunes.getDate() + 7);
     this.buildSemana(lunes); if (this.filtroProfesionalId) this.cargarHorarioProfesional();
   }
 
@@ -679,11 +714,15 @@ private crearGraficos(): void {
     this.resultadosEstudiante    = [];
   }
 
+  creandoCita = false;
+
   crearCitaDesdeHorario(): void {
+    if (this.creandoCita) return; // evita doble envío por doble clic
     if (!this.nuevaCita.estudiante_id) {
       this.mensajeError = 'Debes seleccionar un estudiante.';
       setTimeout(() => this.mensajeError = '', 3000); return;
     }
+    this.creandoCita = true;
     const endpoint = this.nuevaCita.urgente ? `${API}/admin/citas/urgente` : `${API}/citas`;
     this.http.post<any>(endpoint, {
       estudiante_id: this.nuevaCita.estudiante_id, profesional_id: this.nuevaCita.profesional_id,
@@ -694,9 +733,15 @@ private crearGraficos(): void {
         this.cerrarModalCita(); this.cargarHorarioProfesional();
         this.mensajeExito = 'Cita creada correctamente.';
         setTimeout(() => this.mensajeExito = '', 3000);
+        this.creandoCita = false;
         this.cdr.detectChanges();
       },
-      error: (err) => { this.mensajeError = err?.error?.detail || 'No se pudo crear la cita.'; setTimeout(() => this.mensajeError = '', 3000); }
+      error: (err) => {
+        this.mensajeError = err?.error?.detail || 'No se pudo crear la cita.';
+        setTimeout(() => this.mensajeError = '', 3000);
+        this.creandoCita = false;
+        this.cdr.detectChanges();
+      }
     });
   }
 
@@ -1145,16 +1190,35 @@ private crearGraficos(): void {
 }
   }
 
+  imagenParaRecortar: string | null = null;
+  verFotoAmpliada = false;
+
   onFotoSeleccionada(event: any): void {
     if (!this.adminPerfilEnEdicion) return;
     const file = event.target.files?.[0]; if (!file) return;
     const reader = new FileReader();
     reader.onload = (e: any) => {
-      this.configCentro.foto_admin_url = e.target.result;
-      this.fotoAdminCambiada = true;
+      this.imagenParaRecortar = e.target.result;
       this.cdr.detectChanges();
     };
     reader.readAsDataURL(file);
+  }
+
+  onFotoRecortada(dataUrl: string): void {
+    this.configCentro.foto_admin_url = dataUrl;
+    this.fotoAdminCambiada  = true;
+    this.imagenParaRecortar = null;
+    this.cdr.detectChanges();
+  }
+
+  esFeriado(fecha: string | undefined): boolean {
+    return !!fecha && !!obtenerFeriado(fecha);
+  }
+
+  nombreFeriado(fecha: string | undefined): string {
+    if (!fecha) return '';
+    const f = obtenerFeriado(fecha);
+    return f ? `Feriado: ${f.nombre}` : '';
   }
 
   // ══════════════════════════════════════

@@ -1,0 +1,5 @@
+# CODEOWNERS
+# Esto define quién debe aprobar los Pull Requests antes de poder mergear a main.
+# El asterisco (*) significa "todos los archivos del repositorio".
+
+* @xxt-cote

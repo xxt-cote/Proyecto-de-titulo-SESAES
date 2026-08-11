@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 from app.database import get_db
 from app.models.usuario import Usuario
+from app.security import verify_password, hash_password, is_legacy_plaintext
 
 router = APIRouter()
 
@@ -20,8 +21,15 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=401, detail="Usuario no existe")
 
-    if user.password != data.password:
+    if not verify_password(data.password, user.password):
         raise HTTPException(status_code=401, detail="Contraseña incorrecta")
+
+    # Migración transparente: si la contraseña seguía en texto plano
+    # (usuarios creados antes de esta actualización), se re-hashea ahora
+    # que sabemos que el usuario la escribió correctamente.
+    if is_legacy_plaintext(user.password):
+        user.password = hash_password(data.password)
+        db.commit()
 
     if user.activo is False:
         raise HTTPException(status_code=403, detail="Esta cuenta ha sido desactivada. Contacta al administrador.")

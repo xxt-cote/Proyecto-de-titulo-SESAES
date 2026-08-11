@@ -104,19 +104,21 @@
     <!-- PANEL NOTIFICACIONES -->
     <div class="notif-panel" *ngIf="notifPanelAbierto">
       <div class="notif-panel-header">
-        <label class="notif-checkbox-master" *ngIf="notificaciones.length > 0">
-          <input type="checkbox" [checked]="todasNotifSeleccionadas" (change)="toggleSeleccionarTodasNotif()" />
+        <label class="notif-select-all">
+          <input type="checkbox" [checked]="todasNotifSeleccionadas" (change)="toggleSeleccionarTodasNotif()" [disabled]="notificaciones.length===0" />
+          <span>Notificaciones</span>
         </label>
-        <span>Notificaciones</span>
-        <div class="notif-panel-header-acciones" *ngIf="!hayNotifSeleccionadas">
-          <button class="notif-leer-todas" (click)="marcarTodasLeidas()">Marcar todas como leídas</button>
-        </div>
-        <div class="notif-panel-header-acciones" *ngIf="hayNotifSeleccionadas">
-          <button class="notif-eliminar-todas" (click)="eliminarNotifSeleccionadas()">
-            🗑️ Eliminar seleccionadas ({{ notifSeleccionadas.length }})
-          </button>
+        <button class="notif-leer-todas" (click)="marcarTodasLeidas()" *ngIf="!hayNotifSeleccionadas">Marcar todas como leídas</button>
+      </div>
+
+      <div class="notif-acciones-masivas" *ngIf="hayNotifSeleccionadas">
+        <span>{{ notifSeleccionadas.length }} seleccionada{{ notifSeleccionadas.length === 1 ? '' : 's' }}</span>
+        <div class="notif-acciones-masivas-btns">
+          <button (click)="marcarSeleccionadasLeidas()">✓ Marcar leídas</button>
+          <button class="danger" (click)="eliminarNotifSeleccionadas()">🗑️ Eliminar</button>
         </div>
       </div>
+
       <div class="notif-lista">
         <div *ngIf="notificaciones.length === 0" class="notif-vacia">Sin notificaciones</div>
         <div *ngFor="let n of notificaciones" class="notif-item" [class.no-leida]="!n.leida" [class.seleccionada]="n.seleccionada">
@@ -124,15 +126,15 @@
             <input type="checkbox" [(ngModel)]="n.seleccionada" />
           </label>
           <div class="notif-contenido" (click)="marcarLeida(n)">
-            <div class="notif-icono" [ngClass]="n.tipo">
-              <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-              </svg>
-            </div>
+            <div class="notif-icono" [ngClass]="n.tipo"></div>
             <div class="notif-texto">
               <p>{{ n.mensaje }}</p>
               <span>{{ n.fecha_creacion | date:'dd/MM HH:mm' }}</span>
             </div>
+          </div>
+          <div class="notif-item-acciones">
+            <button *ngIf="!n.leida" title="Marcar como leída" (click)="marcarLeida(n)">✓</button>
+            <button title="Eliminar" (click)="eliminarNotificacion(n)">🗑️</button>
           </div>
         </div>
       </div>
@@ -265,7 +267,7 @@
             </div>
             <div class="cal-grid-admin">
               <div *ngFor="let dia of calDiasMes" class="cal-celda-admin" [class.vacia]="!dia">
-                <span *ngIf="dia" [class.hoy]="dia.esHoy">{{ dia.num }}</span>
+                <span *ngIf="dia" [class.hoy]="dia.esHoy" [class.feriado]="esFeriado(dia.fecha)" [title]="nombreFeriado(dia.fecha)">{{ dia.num }}</span>
               </div>
             </div>
           </div>
@@ -299,7 +301,7 @@
                   <td>
                     <div class="tabla-acciones">
                       <button class="btn-tabla inasistencia" (click)="marcarInasistencia(cita)" title="Marcar inasistencia">✕</button>
-                      <button class="btn-tabla cancelar" (click)="cancelarCitaAdmin(cita)" title="Cancelar cita">🗑</button>
+                      <button class="btn-tabla cancelar" (click)="cancelarCitaAdmin(cita)" title="Cancelar cita">🗑️</button>
                     </div>
                   </td>
                 </tr>
@@ -387,6 +389,7 @@
           <span class="leyenda-item">🔵 Cita habitual</span>
           <span class="leyenda-item">🔴 Cita urgente</span>
           <span class="leyenda-item">⚫ Bloqueado</span>
+          <span class="leyenda-item">🟠 Feriado</span>
         </div>
 
         <div class="horario-bloqueado-aviso" *ngIf="filtroProfesionalId && profesionalActualBloqueado">
@@ -407,7 +410,7 @@
                 <div class="hora-celda" *ngFor="let h of horasGrilla">{{ h }}</div>
               </div>
               <div class="dia-col" *ngFor="let dia of semanaActual">
-                <div class="dia-header" [class.hoy]="dia.esHoy">
+                <div class="dia-header" [class.hoy]="dia.esHoy" [class.feriado]="esFeriado(dia.fecha)" [title]="nombreFeriado(dia.fecha)">
                   <span class="dia-nombre">{{ dia.nombre }}</span>
                   <span class="dia-num">{{ dia.num }}</span>
                 </div>
@@ -622,7 +625,7 @@
               <button class="btn-editar-perfil" *ngIf="!adminPerfilEnEdicion" (click)="habilitarEdicionPerfilAdmin()">✎ Editar</button>
             </div>
             <div class="perfil-foto-row">
-              <div class="perfil-foto-preview">
+              <div class="perfil-foto-preview" [class.clickable]="configCentro.foto_admin_url" (click)="configCentro.foto_admin_url && (verFotoAmpliada = true)">
                 <img *ngIf="configCentro.foto_admin_url" [src]="configCentro.foto_admin_url" alt="Foto" />
                 <div *ngIf="!configCentro.foto_admin_url" class="perfil-foto-placeholder">AD</div>
               </div>
@@ -642,10 +645,10 @@
                 <div class="password-wrap">
                   <input [type]="mostrarContrasenaActual ? 'text' : 'password'" [(ngModel)]="configPerfil.contrasena_actual" [disabled]="!adminPerfilEnEdicion" placeholder="••••••" />
                   <button class="btn-ojo" (click)="mostrarContrasenaActual = !mostrarContrasenaActual" type="button">
-                    <svg *ngIf="!mostrarContrasenaActual" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <svg *ngIf="mostrarContrasenaActual" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
                     </svg>
-                    <svg *ngIf="mostrarContrasenaActual" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <svg *ngIf="!mostrarContrasenaActual" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                       <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
                       <line x1="1" y1="1" x2="23" y2="23"/>
                     </svg>
@@ -657,10 +660,10 @@
                 <div class="password-wrap">
                   <input [type]="mostrarContrasenaaNueva ? 'text' : 'password'" [(ngModel)]="configPerfil.contrasena_nueva" [disabled]="!adminPerfilEnEdicion" placeholder="••••••" />
                   <button class="btn-ojo" (click)="mostrarContrasenaaNueva = !mostrarContrasenaaNueva" type="button">
-                    <svg *ngIf="!mostrarContrasenaaNueva" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <svg *ngIf="mostrarContrasenaaNueva" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
                     </svg>
-                    <svg *ngIf="mostrarContrasenaaNueva" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <svg *ngIf="!mostrarContrasenaaNueva" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                       <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
                       <line x1="1" y1="1" x2="23" y2="23"/>
                     </svg>
@@ -672,10 +675,10 @@
                 <div class="password-wrap">
                   <input [type]="mostrarContrasenaConf ? 'text' : 'password'" [(ngModel)]="configPerfil.contrasena_conf" [disabled]="!adminPerfilEnEdicion" placeholder="••••••" />
                   <button class="btn-ojo" (click)="mostrarContrasenaConf = !mostrarContrasenaConf" type="button">
-                    <svg *ngIf="!mostrarContrasenaConf" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <svg *ngIf="mostrarContrasenaConf" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
                     </svg>
-                    <svg *ngIf="mostrarContrasenaConf" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <svg *ngIf="!mostrarContrasenaConf" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                       <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
                       <line x1="1" y1="1" x2="23" y2="23"/>
                     </svg>
@@ -960,9 +963,20 @@
       </div>
       <div class="modal-footer">
         <button class="btn-cancelar-modal" (click)="cerrarModalCita()">Cancelar</button>
-        <button class="btn-guardar-modal" (click)="crearCitaDesdeHorario()">Confirmar Cita</button>
+        <button class="btn-guardar-modal" [disabled]="creandoCita" (click)="crearCitaDesdeHorario()">{{ creandoCita ? 'Creando…' : 'Confirmar Cita' }}</button>
       </div>
     </div>
   </div>
 
 </div>
+
+<app-photo-cropper *ngIf="imagenParaRecortar"
+  [imagenSrc]="imagenParaRecortar"
+  (recortada)="onFotoRecortada($event)"
+  (cancelado)="imagenParaRecortar = null">
+</app-photo-cropper>
+
+<app-photo-viewer *ngIf="verFotoAmpliada && configCentro.foto_admin_url"
+  [imagenSrc]="configCentro.foto_admin_url"
+  (cerrar)="verFotoAmpliada = false">
+</app-photo-viewer>

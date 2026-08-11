@@ -4,13 +4,16 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../config';
+import { PhotoCropperComponent } from '../shared/photo-cropper/photo-cropper';
+import { PhotoViewerComponent } from '../shared/photo-viewer/photo-viewer';
+import { obtenerFeriado } from '../shared/feriados-chile';
 
 const API = environment.apiUrl;
 
 @Component({
   selector: 'app-dashboard-profesional',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePipe],
+  imports: [CommonModule, FormsModule, DatePipe, PhotoCropperComponent, PhotoViewerComponent],
   templateUrl: './dashboard-profesional.html',
   styleUrl: './dashboard-profesional.css',
   encapsulation: ViewEncapsulation.None
@@ -82,6 +85,7 @@ toggleSidebarMovil(): void {
   if (seccion === 'agenda')     this.cargarCitasSemana();
   if (seccion === 'atenciones') this.cargarAtenciones();
   if (seccion === 'horario')    this.cargarSolicitudesHorario();
+  if (seccion === 'historial-clinico') this.cargarPacientesHistorial();
 }
   cerrarSesion(): void { localStorage.clear(); window.location.href = '/login'; }
 
@@ -336,7 +340,7 @@ eliminarSeleccionadas(): void {
     for (let i = 0; i < offset; i++) celdas.push(null);
     for (let dia = 1; dia <= ultimoDia.getDate(); dia++) {
       const fechaStr = `${this.calAnioVisible}-${String(this.calMesVisible+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
-      celdas.push({ num: dia, esHoy: fechaStr === hoy });
+      celdas.push({ num: dia, fecha: fechaStr, esHoy: fechaStr === hoy });
     }
     this.calDiasMes = celdas;
   }
@@ -392,8 +396,11 @@ get ausenciaTipoActual() {
     return true; // dia_completo no necesita campos extra
   }
 
+  enviandoAusencia = false;
+
   reportarAusencia(): void {
-    if (!this.ausenciaFormularioValido) return;
+    if (!this.ausenciaFormularioValido || this.enviandoAusencia) return;
+    this.enviandoAusencia = true;
     const body: any = {
       tipo:   this.ausenciaTipo,
       motivo: this.ausenciaMotivo
@@ -417,11 +424,13 @@ get ausenciaTipoActual() {
         this.cargarEstadisticasDia();
         if (this.seccionActiva === 'agenda') this.cargarCitasSemana();
         this.mensajeExito = 'Ausencia reportada. Se notificó a los estudiantes afectados.';
+        this.enviandoAusencia = false;
         this.cdr.detectChanges();
         setTimeout(() => { this.mensajeExito = ''; this.cdr.detectChanges(); }, 4000);
       },
       error: (err) => {
         this.mensajeError = err?.error?.detail || 'No se pudo reportar la ausencia.';
+        this.enviandoAusencia = false;
         this.cdr.detectChanges();
         setTimeout(() => { this.mensajeError = ''; this.cdr.detectChanges(); }, 3000);
       }
@@ -484,8 +493,16 @@ get ausenciaTipoActual() {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   }
 
-  semanaAnterior(): void { const l = new Date(this.semanaActual[0].fecha); l.setDate(l.getDate() - 7); this.buildSemana(l); this.cargarCitasSemana(); }
-  semanaSiguiente(): void { const l = new Date(this.semanaActual[0].fecha); l.setDate(l.getDate() + 7); this.buildSemana(l); this.cargarCitasSemana(); }
+  // Convierte "YYYY-MM-DD" a Date usando la zona horaria LOCAL, no UTC.
+  // new Date("YYYY-MM-DD") se interpreta como medianoche UTC y al convertir
+  // a hora de Chile retrocede un día — por eso NUNCA se debe usar así.
+  private parseDateStrLocal(fechaStr: string): Date {
+    const [anio, mes, dia] = fechaStr.split('-').map(Number);
+    return new Date(anio, mes - 1, dia);
+  }
+
+  semanaAnterior(): void { const l = this.parseDateStrLocal(this.semanaActual[0].fecha); l.setDate(l.getDate() - 7); this.buildSemana(l); this.cargarCitasSemana(); }
+  semanaSiguiente(): void { const l = this.parseDateStrLocal(this.semanaActual[0].fecha); l.setDate(l.getDate() + 7); this.buildSemana(l); this.cargarCitasSemana(); }
   irAHoy(): void { this.generarSemanaActual(); this.cargarCitasSemana(); }
 
   cargarCitasSemana(): void {
@@ -665,13 +682,17 @@ get almuerzoHoraFinPreview(): string {
   return `${String(finH).padStart(2,'0')}:${String(finM).padStart(2,'0')}`;
 }
 
+enviandoAlmuerzo = false;
+
 guardarHorarioAlmuerzo(): void {
-  if (!this.almuerzoHoraInicio) return;
+  if (!this.almuerzoHoraInicio || this.enviandoAlmuerzo) return; // evita doble envío por doble clic
+  this.enviandoAlmuerzo = true;
   this.http.post<any>(`${API}/profesional/${this.profDbId}/solicitar-colacion`, {
     hora_almuerzo_inicio: this.almuerzoHoraInicio
   }).subscribe({
     next: (resp) => {
       this.horarioAlmuerzoEnEdicion = false;
+      this.enviandoAlmuerzo = false;
       this.mensajeExito = `Solicitud enviada: colación ${resp.hora_inicio} - ${resp.hora_fin}. Queda pendiente de aprobación del administrador.`;
       this.cargarSolicitudesHorario();
       this.cdr.detectChanges();
@@ -679,6 +700,7 @@ guardarHorarioAlmuerzo(): void {
     },
     error: (err) => {
       this.mensajeError = err?.error?.detail || 'No se pudo enviar la solicitud de colación.';
+      this.enviandoAlmuerzo = false;
       this.cdr.detectChanges();
       setTimeout(() => { this.mensajeError = ''; this.cdr.detectChanges(); }, 3000);
     }
@@ -708,17 +730,36 @@ guardarHorarioAlmuerzo(): void {
 
   onDescripcionChange(): void { this.charCount = (this.configPerfil.descripcion || '').length; }
 
+  imagenParaRecortar: string | null = null;
+  verFotoAmpliada = false;
+
   onFotoSeleccionada(event: any): void {
     if (!this.perfilEnEdicion) return;
     const file = event.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (e: any) => {
-      this.perfil.foto_url = e.target.result;
+      this.imagenParaRecortar = e.target.result;
       this.cdr.detectChanges();
     };
     reader.readAsDataURL(file);
     event.target.value = '';
+  }
+
+  onFotoRecortada(dataUrl: string): void {
+    this.perfil.foto_url    = dataUrl;
+    this.imagenParaRecortar = null;
+    this.cdr.detectChanges();
+  }
+
+  esFeriado(fecha: string | undefined): boolean {
+    return !!fecha && !!obtenerFeriado(fecha);
+  }
+
+  nombreFeriado(fecha: string | undefined): string {
+    if (!fecha) return '';
+    const f = obtenerFeriado(fecha);
+    return f ? `Feriado: ${f.nombre}` : '';
   }
 
   guardarPerfil(): void {
@@ -859,6 +900,141 @@ eliminarSolicitudesSeleccionadas(): void {
       },
       error: (err) => {
         this.mensajeError = err?.error?.detail || 'No se pudo enviar la solicitud de jornada.';
+        this.cdr.detectChanges();
+        setTimeout(() => { this.mensajeError = ''; this.cdr.detectChanges(); }, 3000);
+      }
+    });
+  }
+
+  // ══════════════════════════════════════
+  // HISTORIAL CLÍNICO
+  // ══════════════════════════════════════
+
+  pacientesHistorial: any[] = [];
+  busquedaPaciente = '';
+  cargandoPacientesHistorial = false;
+
+  pacienteSeleccionado: any = null;   // { estudiante_id, nombre, ... }
+  fichaPreguntas: any[] = [];
+  fichaRespuestas: any = {};
+  fichaExiste = false;
+  fichaEnEdicion = false;
+  fichaFechaModificacion: string | null = null;
+  guardandoFicha = false;
+
+  gestionarPlantillaAbierto = false;
+  plantillaPreguntasEdit: any[] = [];
+  guardandoPlantilla = false;
+
+  get pacientesHistorialFiltrados(): any[] {
+    const q = this.busquedaPaciente.trim().toLowerCase();
+    if (!q) return this.pacientesHistorial;
+    return this.pacientesHistorial.filter(p =>
+      (p.nombre || '').toLowerCase().includes(q) || (p.correo || '').toLowerCase().includes(q)
+    );
+  }
+
+  cargarPacientesHistorial(): void {
+    this.cargandoPacientesHistorial = true;
+    this.http.get<any[]>(`${API}/historial-clinico/${this.profDbId}/pacientes`).subscribe({
+      next: (data) => { this.pacientesHistorial = data; this.cargandoPacientesHistorial = false; this.cdr.detectChanges(); },
+      error: () => { this.pacientesHistorial = []; this.cargandoPacientesHistorial = false; this.cdr.detectChanges(); }
+    });
+  }
+
+  abrirFichaPaciente(paciente: any): void {
+    this.pacienteSeleccionado = paciente;
+    this.fichaEnEdicion = false;
+    this.http.get<any>(`${API}/historial-clinico/${this.profDbId}/${paciente.estudiante_id}`).subscribe({
+      next: (data) => {
+        this.fichaPreguntas   = data.preguntas;
+        this.fichaRespuestas  = { ...data.respuestas };
+        this.fichaExiste      = data.existe;
+        this.fichaFechaModificacion = data.fecha_modificacion;
+        this.fichaEnEdicion   = !data.existe; // primera vez → entra directo en modo edición
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.mensajeError = 'No se pudo cargar la ficha del paciente.';
+        this.pacienteSeleccionado = null;
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  cerrarFichaPaciente(): void {
+    this.pacienteSeleccionado = null;
+    this.fichaPreguntas  = [];
+    this.fichaRespuestas = {};
+  }
+
+  habilitarEdicionFicha(): void { this.fichaEnEdicion = true; }
+
+  cancelarEdicionFicha(): void {
+    if (!this.fichaExiste) { this.cerrarFichaPaciente(); return; }
+    this.abrirFichaPaciente(this.pacienteSeleccionado);
+  }
+
+  guardarFicha(): void {
+    if (this.guardandoFicha) return;
+    this.guardandoFicha = true;
+    this.http.put(`${API}/historial-clinico/${this.profDbId}/${this.pacienteSeleccionado.estudiante_id}`, {
+      respuestas: this.fichaRespuestas
+    }).subscribe({
+      next: () => {
+        this.fichaExiste = true;
+        this.fichaEnEdicion = false;
+        this.guardandoFicha = false;
+        this.mensajeExito = 'Ficha guardada correctamente.';
+        this.cargarPacientesHistorial();
+        this.cdr.detectChanges();
+        setTimeout(() => { this.mensajeExito = ''; this.cdr.detectChanges(); }, 3000);
+      },
+      error: () => {
+        this.mensajeError = 'No se pudo guardar la ficha.';
+        this.guardandoFicha = false;
+        this.cdr.detectChanges();
+        setTimeout(() => { this.mensajeError = ''; this.cdr.detectChanges(); }, 3000);
+      }
+    });
+  }
+
+  // ── Gestionar preguntas de la plantilla (por especialidad) ──
+
+  abrirGestionPlantilla(): void {
+    this.http.get<any>(`${API}/historial-clinico/plantilla/${this.profDbId}`).subscribe({
+      next: (data) => {
+        this.plantillaPreguntasEdit = data.preguntas.map((p: any) => ({ ...p }));
+        this.gestionarPlantillaAbierto = true;
+        this.cdr.detectChanges();
+      },
+      error: () => { this.mensajeError = 'No se pudo cargar la plantilla de preguntas.'; this.cdr.detectChanges(); }
+    });
+  }
+
+  agregarPreguntaPlantilla(): void {
+    this.plantillaPreguntasEdit.push({ id: null, etiqueta: '', tipo: 'texto', orden: this.plantillaPreguntasEdit.length });
+  }
+
+  eliminarPreguntaPlantilla(index: number): void {
+    this.plantillaPreguntasEdit.splice(index, 1);
+  }
+
+  guardarPlantilla(): void {
+    const preguntasValidas = this.plantillaPreguntasEdit.filter(p => p.etiqueta.trim());
+    if (this.guardandoPlantilla) return;
+    this.guardandoPlantilla = true;
+    this.http.put(`${API}/historial-clinico/plantilla/${this.profDbId}`, { preguntas: preguntasValidas }).subscribe({
+      next: () => {
+        this.gestionarPlantillaAbierto = false;
+        this.guardandoPlantilla = false;
+        this.mensajeExito = 'Preguntas actualizadas correctamente.';
+        this.cdr.detectChanges();
+        setTimeout(() => { this.mensajeExito = ''; this.cdr.detectChanges(); }, 3000);
+      },
+      error: () => {
+        this.mensajeError = 'No se pudo guardar la plantilla.';
+        this.guardandoPlantilla = false;
         this.cdr.detectChanges();
         setTimeout(() => { this.mensajeError = ''; this.cdr.detectChanges(); }, 3000);
       }

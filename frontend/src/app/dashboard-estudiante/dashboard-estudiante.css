@@ -817,6 +817,34 @@ body {
   font-weight: 700;
 }
 
+.cal-celda.feriado span {
+  background: #fff7ed;
+  color: #ea580c;
+}
+
+.cal-celda.feriado.deshabilitada span {
+  background: transparent;
+  color: #ea580c;
+  opacity: 0.55;
+}
+
+.cal-celda.feriado::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #ea580c;
+}
+
+.cal-celda.feriado.seleccionada span {
+  background: linear-gradient(135deg, #0d9488, #0f766e);
+  color: white !important;
+}
+
 .horas-panel {
   background: white;
   border-radius: 20px;
@@ -1310,6 +1338,39 @@ body {
   margin-bottom: 16px;
 }
 
+.card-header-perfil-est {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.card-header-perfil-est .config-card-title { margin-bottom: 0; }
+
+.btn-editar-perfil {
+  padding: 6px 14px;
+  border: 1.5px solid #0d9488;
+  border-radius: 8px;
+  background: white;
+  color: #0d9488;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-editar-perfil:hover { background: #f0fdf9; }
+
+.perfil-acciones-edicion {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+.perfil-acciones-edicion .btn-guardar,
+.perfil-acciones-edicion .btn-descartar { flex: 1; }
+
+body.tema-oscuro .btn-editar-perfil { background: #2d3b52; border-color: #0d9488; color: #2dd4bf; }
+body.tema-oscuro .btn-editar-perfil:hover { background: rgba(13,148,136,0.15); }
+
 .datos-institucionales {
   background: linear-gradient(135deg, #0d9488, #0f766e);
   justify-content: center;
@@ -1369,6 +1430,9 @@ body {
   overflow: hidden;
   flex-shrink: 0;
 }
+
+.perfil-avatar-grande.clickable { cursor: pointer; transition: opacity .15s; }
+.perfil-avatar-grande.clickable:hover { opacity: 0.85; }
 
 .perfil-avatar-grande img {
   width: 100%;
@@ -1432,6 +1496,16 @@ body {
 .campo-grupo input:disabled {
   background: #f8fafc;
   color: #94a3b8;
+}
+
+.campo-grupo input.input-error {
+  border-color: #ef4444 !important;
+}
+
+.campo-error {
+  font-size: 11px;
+  color: #ef4444;
+  margin-top: 2px;
 }
 
 .campo-editable {
@@ -1870,6 +1944,17 @@ body {
   .topbar-perfil-info-est { display: none; }
   .topbar-perfil-est { padding-left: 8px; }
 
+  /* Botones Cancelar/Guardar siempre visibles, sin scrollear */
+  .perfil-acciones-edicion {
+    position: sticky;
+    bottom: 0;
+    background: #fff;
+    margin: 16px -16px -16px;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    box-shadow: 0 -4px 12px rgba(0,0,0,0.08);
+    z-index: 5;
+  }
+
   .profesionales-grid { grid-template-columns: 1fr; }
   .historial-stats     { grid-template-columns: 1fr; }
   .horas-grid           { grid-template-columns: repeat(2, 1fr); }
@@ -1974,6 +2059,8 @@ body.tema-oscuro .search-bar {
   box-shadow: 0 2px 12px rgba(0,0,0,0.4);
 }
 
+body.tema-oscuro .perfil-acciones-edicion { background: #242f42; }
+
 body.tema-oscuro .btn-agendar:hover { background: #0f766e; }
 
 body.tema-oscuro .search-bar select { color: #8b96a8; background: transparent; }
@@ -2031,6 +2118,8 @@ body.tema-oscuro .cal-celda.hoy span                { color: #f39c12; }
 body.tema-oscuro .cal-celda.hoy::after              { background: #f39c12; }
 body.tema-oscuro .cal-celda.hoy.deshabilitada span  { color: #56637a !important; }
 body.tema-oscuro .cal-celda.hoy.deshabilitada::after { background: #56637a; }
+body.tema-oscuro .cal-celda.feriado span { background: rgba(234,88,12,0.12); color: #fb923c; }
+body.tema-oscuro .cal-celda.feriado::before { background: #fb923c; }
 
 body.tema-oscuro .cal-celda.seleccionada span {
   background: #0d9488;

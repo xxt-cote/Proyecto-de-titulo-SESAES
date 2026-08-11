@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from datetime import date, datetime
 
 from app.database import get_db
+from app.security import verify_password, hash_password
 from app.models.cita import Cita
 from app.models.profesional import Profesional
 from app.models.usuario import Usuario
@@ -115,9 +116,9 @@ def cambiar_password(prof_id: int, body: dict, db: Session = Depends(get_db)):
     usuario = db.query(Usuario).filter(Usuario.id == prof.usuario_id).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    if usuario.password != body.get("contrasena_actual"):
+    if not verify_password(body.get("contrasena_actual"), usuario.password):
         raise HTTPException(status_code=400, detail="La contraseña actual es incorrecta")
-    usuario.password = body.get("contrasena_nueva")
+    usuario.password = hash_password(body.get("contrasena_nueva"))
     db.commit()
     return {"message": "Contraseña actualizada correctamente"}
 
