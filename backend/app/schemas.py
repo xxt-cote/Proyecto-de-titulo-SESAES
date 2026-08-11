@@ -1,6 +1,7 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional
 from datetime import datetime
+import re
 
 
 # ══════════════════════════════════════
@@ -23,6 +24,7 @@ class CitaCreate(BaseModel):
 class EstudianteOut(BaseModel):
     id:          int
     correo:      str
+    correo_secundario: Optional[str] = None
     rol:         str
     nombre:      Optional[str]  = None
     telefono:    Optional[str]  = None
@@ -38,10 +40,21 @@ class EstudianteOut(BaseModel):
 class EstudianteUpdate(BaseModel):
     nombre:      Optional[str]  = None
     telefono:    Optional[str]  = None
+    correo_secundario: Optional[str] = None
     foto_url:    Optional[str]  = None
     tema_oscuro: Optional[bool] = None
     carrera:     Optional[str]  = None
     rut:         Optional[str]  = None
+
+    @field_validator("correo_secundario")
+    @classmethod
+    def validar_correo_secundario(cls, valor):
+        if valor is None or valor == "":
+            return valor
+        patron = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+        if not re.match(patron, valor):
+            raise ValueError("El correo secundario no tiene un formato válido")
+        return valor
 
 
 # ══════════════════════════════════════

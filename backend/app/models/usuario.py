@@ -7,6 +7,7 @@ class Usuario(Base):
 
     id          = Column(Integer, primary_key=True, index=True)
     correo      = Column(String, unique=True, index=True)
+    correo_secundario = Column(String, nullable=True)  # solo aplica a estudiantes
     password    = Column(String)
     rol         = Column(String)
     nombre      = Column(String, nullable=True)

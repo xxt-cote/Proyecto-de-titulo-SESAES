@@ -21,6 +21,8 @@ export class LoginComponent {
   password = '';
   error = '';
   cargando = false;
+  cargandoLento = false;
+  private timeoutLento: any;
   recordarme = false;
   mostrarPassword = false;
   errorCorreo = false;
@@ -37,8 +39,13 @@ export class LoginComponent {
     this.validarCorreo();
     if (this.errorCorreo) return;
 
-    this.error    = '';
-    this.cargando = true;
+    this.error         = '';
+    this.cargando       = true;
+    this.cargandoLento  = false;
+
+    // Si la respuesta tarda (ej. el backend en Render estaba "dormido"),
+    // avisamos para que no parezca que la app quedó pegada.
+    this.timeoutLento = setTimeout(() => { this.cargandoLento = true; }, 4000);
 
     this.auth.login(this.correo, this.password).subscribe({
       next: (res) => {
@@ -49,24 +56,30 @@ export class LoginComponent {
           this.http.get<any>(`${API}/profesional/buscar-por-usuario/${res.id}`).subscribe({
             next: (prof) => {
               localStorage.setItem('prof_db_id', String(prof.id));
-              this.cargando = false;
+              this.finalizarCarga();
               this.redirigir(res.rol);
             },
             error: () => {
-              this.cargando = false;
+              this.finalizarCarga();
               this.error = 'Tu cuenta de profesional no está vinculada correctamente. Contacta al administrador.';
             }
           });
         } else {
-          this.cargando = false;
+          this.finalizarCarga();
           this.redirigir(res.rol);
         }
       },
       error: (err) => {
-        this.error    = err?.error?.detail || 'Correo o contraseña incorrectos.';
-        this.cargando = false;
+        this.error = err?.error?.detail || 'Correo o contraseña incorrectos.';
+        this.finalizarCarga();
       }
     });
+  }
+
+  private finalizarCarga(): void {
+    clearTimeout(this.timeoutLento);
+    this.cargando      = false;
+    this.cargandoLento = false;
   }
 
   private redirigir(rol: string): void {

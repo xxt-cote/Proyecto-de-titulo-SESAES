@@ -117,7 +117,7 @@
     <span>{{ notifSeleccionadas.size }} seleccionada{{ notifSeleccionadas.size === 1 ? '' : 's' }}</span>
     <div class="notif-acciones-masivas-btns-est">
       <button (click)="marcarSeleccionadasLeidas()">✓ Marcar leídas</button>
-      <button class="danger" (click)="eliminarSeleccionadas()">🗑 Eliminar</button>
+      <button class="danger" (click)="eliminarSeleccionadas()">🗑️ Eliminar</button>
     </div>
   </div>
 
@@ -137,7 +137,7 @@
       </div>
       <div class="notif-item-acciones-est">
         <button *ngIf="!n.leida" title="Marcar como leída" (click)="marcarNotifLeida(n)">✓</button>
-        <button title="Eliminar" (click)="eliminarNotificacion(n)">🗑</button>
+        <button title="Eliminar" (click)="eliminarNotificacion(n)">🗑️</button>
       </div>
     </div>
   </div>
@@ -260,6 +260,8 @@
                    [class.deshabilitada]="dia?.deshabilitado"
                    [class.hoy]="dia?.esHoy"
                    [class.seleccionada]="dia?.fecha === fechaSeleccionada"
+                   [class.feriado]="esFeriado(dia?.fecha)"
+                   [title]="nombreFeriado(dia?.fecha)"
                    (click)="seleccionarDia(dia)">
                 <span *ngIf="dia">{{ dia.num }}</span>
               </div>
@@ -338,7 +340,7 @@
 
           <div class="paso-acciones">
             <button class="btn-volver" (click)="pasoAgendar = 2">← Volver</button>
-            <button class="btn-confirmar" (click)="confirmarCita()">Confirmar Cita</button>
+            <button class="btn-confirmar" [disabled]="enviandoCita" (click)="confirmarCita()">{{ enviandoCita ? 'Agendando…' : 'Confirmar Cita' }}</button>
           </div>
 
           <p class="confirmacion-aviso">Puedes cancelar hasta 5 horas antes de la cita sin penalización.</p>
@@ -457,14 +459,17 @@
 
         <!-- Perfil -->
         <div class="config-card">
-          <h3 class="config-card-title">👤 Perfil de Usuario</h3>
+          <div class="card-header-perfil-est">
+            <h3 class="config-card-title">👤 Perfil de Usuario</h3>
+            <button class="btn-editar-perfil" *ngIf="!perfilEnEdicion" (click)="habilitarEdicionPerfil()">✎ Editar</button>
+          </div>
           <div class="perfil-row">
             <div class="perfil-avatar-wrap">
-              <div class="perfil-avatar-grande">
+              <div class="perfil-avatar-grande" [class.clickable]="fotoPerfilUrl" (click)="fotoPerfilUrl && (verFotoAmpliada = true)">
                 <img *ngIf="fotoPerfilUrl" [src]="fotoPerfilUrl" alt="Foto de perfil">
                 <span *ngIf="!fotoPerfilUrl">{{ estudianteIniciales }}</span>
               </div>
-              <label class="btn-editar-foto" for="inputFoto" title="Cambiar foto">✎</label>
+              <label class="btn-editar-foto" for="inputFoto" title="Cambiar foto" *ngIf="perfilEnEdicion">✎</label>
               <input id="inputFoto" type="file" accept="image/*" (change)="onFotoSeleccionada($event)" hidden>
             </div>
             <div class="perfil-campos">
@@ -477,20 +482,31 @@
                 <input type="email" [value]="estudianteData?.correo" disabled>
               </div>
               <div class="campo-grupo">
+                <label>Correo Secundario <span style="font-weight:400; color:#94a3b8;">(opcional)</span></label>
+                <input type="email"
+                       [ngModel]="correoSecundarioEditable"
+                       (ngModelChange)="correoSecundarioEditable = $event"
+                       [disabled]="!perfilEnEdicion"
+                       [class.input-error]="perfilEnEdicion && !correoSecundarioValido"
+                       placeholder="ej: tucorreo@gmail.com">
+                <span class="campo-error" *ngIf="perfilEnEdicion && !correoSecundarioValido">Ingresa un correo válido.</span>
+              </div>
+              <div class="campo-grupo">
                 <label>Número de Celular</label>
-                <div class="campo-editable">
-                  <div class="celular-input-wrap" [class.disabled]="!celularEnEdicion">
-                    <span class="celular-prefijo">+56</span>
-                    <input type="tel" inputmode="numeric"
-                           [ngModel]="celularEditable"
-                           (ngModelChange)="onCelularChange($event)"
-                           [disabled]="!celularEnEdicion"
-                           maxlength="9" placeholder="985632178">
-                  </div>
-                  <button class="btn-editar-campo" [disabled]="celularEnEdicion" (click)="habilitarEdicionCelular()">Editar</button>
+                <div class="celular-input-wrap" [class.disabled]="!perfilEnEdicion">
+                  <span class="celular-prefijo">+56</span>
+                  <input type="tel" inputmode="numeric"
+                         [ngModel]="celularEditable"
+                         (ngModelChange)="onCelularChange($event)"
+                         [disabled]="!perfilEnEdicion"
+                         maxlength="9" placeholder="985632178">
                 </div>
               </div>
             </div>
+          </div>
+          <div class="perfil-acciones-edicion" *ngIf="perfilEnEdicion">
+            <button class="btn-descartar" (click)="cancelarEdicionPerfil()">Cancelar</button>
+            <button class="btn-guardar" [disabled]="!perfilModificado || !correoSecundarioValido" (click)="guardarPerfil()">Guardar cambios</button>
           </div>
         </div>
 
@@ -506,7 +522,7 @@
         <div class="config-card">
           <h3 class="config-card-title">📍 Ubicación SESAES</h3>
           <div class="mapa-wrap">
-            <iframe src="https://maps.google.com/maps?q=Jos%C3%A9%20Pedro%20Alessandri%201200%2C%20%C3%91u%C3%B1oa%2C%20Chile&t=&z=16&ie=UTF8&iwloc=&output=embed"
+            <iframe [src]="getMapaUrl()"
                     width="100%" height="180" style="border:0;" loading="lazy"></iframe>
           </div>
           <p class="ubicacion-direccion">{{ infoCentro.direccion }}</p>
@@ -535,9 +551,15 @@
         </div>
 
       </div>
-
-      <div class="config-acciones">
-        <button class="btn-descartar" [disabled]="!hayCambiosPendientes" (click)="descartarCambios()">Descartar</button>
-        <button class="btn-guardar"   [disabled]="!hayCambiosPendientes" (click)="guardarCambios()">Guardar cambios</button>
-      </div>
     </div>
+
+    <app-photo-cropper *ngIf="imagenParaRecortar"
+      [imagenSrc]="imagenParaRecortar"
+      (recortada)="onFotoRecortada($event)"
+      (cancelado)="imagenParaRecortar = null">
+    </app-photo-cropper>
+
+    <app-photo-viewer *ngIf="verFotoAmpliada && fotoPerfilUrl"
+      [imagenSrc]="fotoPerfilUrl"
+      (cerrar)="verFotoAmpliada = false">
+    </app-photo-viewer>

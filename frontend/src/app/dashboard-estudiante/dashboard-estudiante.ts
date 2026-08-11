@@ -3,14 +3,18 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 
 import { environment } from '../config';
+import { PhotoCropperComponent } from '../shared/photo-cropper/photo-cropper';
+import { PhotoViewerComponent } from '../shared/photo-viewer/photo-viewer';
+import { obtenerFeriado } from '../shared/feriados-chile';
 const API = environment.apiUrl;
 
 @Component({
   selector: 'app-dashboard-estudiante',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, PhotoCropperComponent, PhotoViewerComponent],
   templateUrl: './dashboard-estudiante.html',
   styleUrl: './dashboard-estudiante.css',
   encapsulation: ViewEncapsulation.None
@@ -75,7 +79,8 @@ get subtituloSeccionEst(): string {
   constructor(
     private router: Router,
     private http: HttpClient,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private sanitizer: DomSanitizer
   ) {}
 
   ngOnInit(): void {
@@ -424,7 +429,10 @@ get subtituloSeccionEst(): string {
     return `${nombresDia[fecha.getDay()]} ${dia} de ${this.NOMBRES_MES[mes-1]}, ${anio}`;
   }
 
+  enviandoCita = false;
+
   confirmarCita(): void {
+    if (this.enviandoCita) return; // evita doble envío por doble clic
     this.mensajeError = '';
     const duplicada = this.proximasCitas.find(
       c => c.especialidad === this.profesionalSeleccionado?.especialidad && c.estado === 'pendiente'
@@ -433,6 +441,7 @@ get subtituloSeccionEst(): string {
       this.mensajeError = 'Ya tienes una cita pendiente en esta especialidad.';
       return;
     }
+    this.enviandoCita = true;
     const profesionalId = this.profesionalSeleccionado.profesional_id ?? this.profesionalSeleccionado.id;
     this.http.post<any>(`${API}/citas`, {
       estudiante_id: this.estudianteId, profesional_id: profesionalId,
@@ -448,10 +457,12 @@ get subtituloSeccionEst(): string {
         this.resetAgendar();
         this.mensajeExito  = '✓ ¡Tu hora fue agendada correctamente!';
         this.seccionActiva = 'citas';
+        this.enviandoCita = false;
         this.cdr.detectChanges();
       },
       error: (err) => {
         this.mensajeError = err?.error?.detail || 'No se pudo agendar la cita.';
+        this.enviandoCita = false;
         this.cdr.detectChanges();
       }
     });
@@ -552,10 +563,14 @@ get subtituloSeccionEst(): string {
 
   estudianteData: any  = null;
   celularOriginal      = '';
-  celularEditable      = '';
-  celularEnEdicion     = false;
+  celularEditable       = '';
+  correoSecundarioOriginal = '';
+  correoSecundarioEditable = '';
+  perfilEnEdicion      = false;
   fotoPerfilUrl: string | null = null;
   fotoPerfilCambiada   = false;
+  imagenParaRecortar: string | null = null;
+  verFotoAmpliada = false;
   temaOscuro           = false;
   
 faqs = [
@@ -569,8 +584,15 @@ faqs = [
 toggleFaq(faq: any): void {
   faq.abierta = !faq.abierta;
 }
-  get hayCambiosPendientes(): boolean {
-    return this.celularEditable !== this.celularOriginal || this.fotoPerfilCambiada;
+  get perfilModificado(): boolean {
+    return this.celularEditable !== this.celularOriginal
+        || this.correoSecundarioEditable !== this.correoSecundarioOriginal
+        || this.fotoPerfilCambiada;
+  }
+
+  get correoSecundarioValido(): boolean {
+    if (!this.correoSecundarioEditable) return true; // opcional, vacío es válido
+    return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(this.correoSecundarioEditable);
   }
 
   cargarDatosEstudiante(): void {
@@ -581,6 +603,8 @@ toggleFaq(faq: any): void {
         if (data.id) localStorage.setItem('usuario_id', String(data.id));
         this.celularOriginal = this.extraerDigitosCelular(data.telefono);
         this.celularEditable = this.celularOriginal;
+        this.correoSecundarioOriginal = data.correo_secundario || '';
+        this.correoSecundarioEditable = this.correoSecundarioOriginal;
         this.fotoPerfilUrl   = data.foto_url || null;
         this.temaOscuro      = data.tema_oscuro || false;
         document.body.classList.toggle('tema-oscuro', this.temaOscuro);
@@ -603,7 +627,7 @@ toggleFaq(faq: any): void {
     return digitos ? `+56 ${digitos}` : '';
   }
 
-  habilitarEdicionCelular(): void { this.celularEnEdicion = true; }
+  habilitarEdicionPerfil(): void { this.perfilEnEdicion = true; }
 
   onCelularChange(valor: string): void {
     this.celularEditable = (valor || '').replace(/\D/g, '').slice(0, 9);
@@ -616,12 +640,28 @@ toggleFaq(faq: any): void {
     if (!file.type.startsWith('image/')) { alert('Por favor selecciona un archivo de imagen válido.'); return; }
     const reader = new FileReader();
     reader.onload = () => {
-      this.fotoPerfilUrl = reader.result as string;
-      this.fotoPerfilCambiada = true;
+      this.imagenParaRecortar = reader.result as string;
       this.cdr.detectChanges();
     };
     reader.readAsDataURL(file);
     input.value = '';
+  }
+
+  onFotoRecortada(dataUrl: string): void {
+    this.fotoPerfilUrl      = dataUrl;
+    this.fotoPerfilCambiada = true;
+    this.imagenParaRecortar = null;
+    this.cdr.detectChanges();
+  }
+
+  esFeriado(fecha: string | undefined): boolean {
+    return !!fecha && !!obtenerFeriado(fecha);
+  }
+
+  nombreFeriado(fecha: string | undefined): string {
+    if (!fecha) return '';
+    const f = obtenerFeriado(fecha);
+    return f ? `Feriado: ${f.nombre}` : '';
   }
 
   toggleTema(oscuro: boolean): void {
@@ -635,29 +675,34 @@ toggleFaq(faq: any): void {
     this.toggleTema(!this.temaOscuro);
   }
 
-  descartarCambios(): void {
+  cancelarEdicionPerfil(): void {
     this.celularEditable    = this.celularOriginal;
-    this.celularEnEdicion   = false;
+    this.correoSecundarioEditable = this.correoSecundarioOriginal;
+    this.perfilEnEdicion    = false;
     this.fotoPerfilUrl      = this.estudianteData?.foto_url || null;
     this.fotoPerfilCambiada = false;
   }
 
-  guardarCambios(): void {
+  guardarPerfil(): void {
+    if (!this.perfilModificado || !this.correoSecundarioValido) return;
     const payload: any = {};
     if (this.celularEditable !== this.celularOriginal) payload.telefono = this.formatearCelularCompleto(this.celularEditable);
+    if (this.correoSecundarioEditable !== this.correoSecundarioOriginal) payload.correo_secundario = this.correoSecundarioEditable || null;
     if (this.fotoPerfilCambiada) payload.foto_url = this.fotoPerfilUrl;
     this.http.patch<any>(`${API}/estudiante/${this.estudianteId}`, payload).subscribe({
       next: (data) => {
         this.estudianteData = data;
         this.celularOriginal = this.extraerDigitosCelular(data.telefono);
         this.celularEditable = this.celularOriginal;
-        this.fotoPerfilCambiada = false; this.celularEnEdicion = false;
+        this.correoSecundarioOriginal = data.correo_secundario || '';
+        this.correoSecundarioEditable = this.correoSecundarioOriginal;
+        this.fotoPerfilCambiada = false; this.perfilEnEdicion = false;
         this.mensajeExito = '✓ Cambios guardados correctamente.';
         setTimeout(() => { this.mensajeExito = ''; this.cdr.detectChanges(); }, 3000);
         this.cdr.detectChanges();
       },
-      error: () => {
-        this.mensajeError = 'No se pudieron guardar los cambios.';
+      error: (err) => {
+        this.mensajeError = err?.error?.detail || 'No se pudieron guardar los cambios.';
         setTimeout(() => { this.mensajeError = ''; this.cdr.detectChanges(); }, 3000);
         this.cdr.detectChanges();
       }
@@ -665,6 +710,13 @@ toggleFaq(faq: any): void {
   }
 
   abrirComoLlegar(): void {
-    window.open('https://www.google.com/maps/dir/?api=1&destination=Jos%C3%A9+Pedro+Alessandri+1200,+%C3%91u%C3%B1oa,+Chile', '_blank');
+    const destino = encodeURIComponent(this.infoCentro.direccion || 'José Pedro Alessandri 1200, Ñuñoa, Chile');
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${destino}`, '_blank');
+  }
+
+  getMapaUrl(): SafeResourceUrl {
+    const q = encodeURIComponent(this.infoCentro.direccion || 'José Pedro Alessandri 1200, Ñuñoa, Chile');
+    const url = `https://maps.google.com/maps?q=${q}&t=&z=16&ie=UTF8&iwloc=&output=embed`;
+    return this.sanitizer.bypassSecurityTrustResourceUrl(url);
   }
 }

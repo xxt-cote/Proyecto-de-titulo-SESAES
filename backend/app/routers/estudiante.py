@@ -32,6 +32,8 @@ def actualizar_estudiante(estudiante_id: int, datos: EstudianteUpdate, db: Sessi
         usuario.nombre = datos.nombre
     if datos.telefono is not None:
         usuario.telefono = datos.telefono
+    if datos.correo_secundario is not None:
+        usuario.correo_secundario = datos.correo_secundario or None
     if datos.foto_url is not None:
         usuario.foto_url = datos.foto_url
     if datos.tema_oscuro is not None:
