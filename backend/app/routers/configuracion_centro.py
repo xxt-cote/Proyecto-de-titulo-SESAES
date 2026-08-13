@@ -6,12 +6,18 @@ from app.models.configuracion_centro import ConfiguracionCentro
 from app.models.usuario import Usuario
 from app.schemas import ConfiguracionCentroOut, ConfiguracionCentroUpdate
 from app.security import verify_password, hash_password
+from app.auth_dependencies import get_current_user, verificar_rol
 
 router = APIRouter(prefix="/configuracion-centro", tags=["configuracion-centro"])
 
 
 @router.get("", response_model=ConfiguracionCentroOut)
-def get_configuracion_centro(db: Session = Depends(get_db)):
+def get_configuracion_centro(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    # Datos de contacto del centro de salud: cualquier usuario logueado
+    # (estudiante, profesional o admin) puede consultarlos.
     config = db.query(ConfiguracionCentro).first()
     if not config:
         config = ConfiguracionCentro()
@@ -24,8 +30,10 @@ def get_configuracion_centro(db: Session = Depends(get_db)):
 @router.patch("", response_model=ConfiguracionCentroOut)
 def actualizar_configuracion_centro(
     datos: ConfiguracionCentroUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
+    verificar_rol(current_user, roles_permitidos=["admin"])
     config = db.query(ConfiguracionCentro).first()
     if not config:
         config = ConfiguracionCentro()
@@ -50,8 +58,13 @@ def actualizar_configuracion_centro(
 
 
 @router.patch("/cambiar-password")
-def cambiar_password_admin(body: dict, db: Session = Depends(get_db)):
+def cambiar_password_admin(
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     """Endpoint separado para cambiar la contraseña del administrador."""
+    verificar_rol(current_user, roles_permitidos=["admin"])
     contrasena_actual = body.get("contrasena_actual")
     contrasena_nueva  = body.get("contrasena_nueva")
 

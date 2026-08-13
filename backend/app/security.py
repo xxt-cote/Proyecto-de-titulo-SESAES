@@ -1,6 +1,42 @@
 import bcrypt
+import os
+from datetime import datetime, timedelta, timezone
+from jose import jwt, JWTError
 
 _HASH_PREFIXES = ("$2a$", "$2b$", "$2y$")
+
+# ══════════════════════════════════════════════════════════
+# JWT
+# ══════════════════════════════════════════════════════════
+# La clave se lee desde la variable de entorno JWT_SECRET_KEY.
+# En producción (Render) esta variable DEBE estar configurada con un
+# valor largo y aleatorio propio; el valor por defecto de acá abajo
+# solo existe para que el proyecto no truene en desarrollo local si
+# alguien olvidó definirla, y nunca debe usarse en producción.
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dev-only-inseguro-cambiar-en-produccion")
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "720"))  # 12 horas
+
+
+def create_access_token(data: dict) -> str:
+    """
+    Genera un JWT firmado con los datos mínimos necesarios para identificar
+    al usuario en cada petición (id, rol, correo). No incluir datos sensibles
+    acá: el payload de un JWT es legible por cualquiera (no está cifrado,
+    solo firmado), solo garantiza que no fue alterado.
+    """
+    to_encode = data.copy()
+    expira = datetime.now(timezone.utc) + timedelta(minutes=JWT_EXPIRE_MINUTES)
+    to_encode.update({"exp": expira})
+    return jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+
+
+def decode_access_token(token: str) -> dict:
+    """
+    Valida la firma y expiración del token y devuelve su payload.
+    Lanza jose.JWTError si el token es inválido, fue alterado, o expiró.
+    """
+    return jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
 
 
 def hash_password(password: str) -> str:

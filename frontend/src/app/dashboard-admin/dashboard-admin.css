@@ -695,6 +695,7 @@ body {
 .dia-nombre { font-size: 10px; font-weight: 600; color: #94a3b8; text-transform: uppercase; }
 .dia-num    { font-size: 15px; font-weight: 700; color: #1e293b; }
 .dia-header.hoy .dia-num { color: #4f8ef7; }
+.dia-header.feriado.hoy .dia-num { color: #ea580c; }
 
 .bloque-celda { height: 48px; border-bottom: 1px solid #f8fafc; cursor: pointer; transition: background .1s; position: relative; display: flex; align-items: center; padding: 0 6px; }
 .bloque-celda:hover           { background: #f8fafc; }
@@ -997,9 +998,12 @@ body {
 .dashboard.tema-oscuro .semana-titulo { color: #e6edf3; }
 .dashboard.tema-oscuro .dia-num { color: #e6edf3; }
 .dashboard.tema-oscuro .dia-header.hoy .dia-num { color: #60a5fa; }
+.dashboard.tema-oscuro .dia-header.feriado.hoy .dia-num { color: #fb923c; }
 .dashboard.tema-oscuro .hora-celda { color: #8b96a8; border-color: #3a4a63; }
 .dashboard.tema-oscuro .dia-col { border-color: #3a4a63; }
 .dashboard.tema-oscuro .dia-header { border-color: #3a4a63; }
+.dashboard.tema-oscuro .dia-header.feriado { background: rgba(234,88,12,0.12); }
+.dashboard.tema-oscuro .dia-header.feriado .dia-num { color: #fb923c; }
 .dashboard.tema-oscuro .semana-header { border-color: #3a4a63; }
 .dashboard.tema-oscuro .bloque-celda { border-color: #3a4a63; }
 .dashboard.tema-oscuro .bloque-celda:hover { background: #2d3b52; }
@@ -1022,6 +1026,8 @@ body {
 .dashboard.tema-oscuro .cal-grid-dias-nombre-admin span { color: #56637a; }
 .dashboard.tema-oscuro .cal-celda-admin span { color: #c9d1d9; }
 .dashboard.tema-oscuro .cal-celda-admin span.hoy { background: linear-gradient(135deg, #f39c12, #d97e0a); color: #1c2534; }
+.dashboard.tema-oscuro .cal-celda-admin span.feriado { background: rgba(234,88,12,0.15); color: #fb923c; }
+.dashboard.tema-oscuro .cal-celda-admin span.feriado.hoy { background: linear-gradient(135deg, #f39c12, #d97e0a); color: #1c2534; }
 .dashboard.tema-oscuro .disponibilidad-item { background: #2d3b52; }
 .dashboard.tema-oscuro .disp-nombre { color: #e6edf3; }
 .dashboard.tema-oscuro .blob-blue   { background: #4f8ef7; opacity: 0.04; }

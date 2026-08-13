@@ -21,8 +21,20 @@ from app.schemas import (
     ProfesionalCreate, ProfesionalUpdate, ProfesionalOut,
     ConfiguracionOut, ConfiguracionUpdate, CitaCreate
 )
+from app.auth_dependencies import get_current_user, verificar_rol
 
-router = APIRouter(prefix="/admin", tags=["administrador"])
+
+def solo_admin(current_user: dict = Depends(get_current_user)) -> dict:
+    """
+    Dependencia a nivel de router: TODO lo que cuelga de /admin/* es
+    exclusivo del rol admin. Se aplica una sola vez acá abajo en vez de
+    repetirla en cada uno de los ~25 endpoints de este archivo.
+    """
+    verificar_rol(current_user, roles_permitidos=["admin"])
+    return current_user
+
+
+router = APIRouter(prefix="/admin", tags=["administrador"], dependencies=[Depends(solo_admin)])
 
 RUTS_EXCLUIDOS_CGR = {"16.458.880-7", "19.741.131-7"}
 

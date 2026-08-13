@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.correo_log import CorreoLog
+from app.auth_dependencies import get_current_user, verificar_rol
 
 router = APIRouter(prefix="/correos", tags=["correos"])
 
@@ -31,8 +32,12 @@ def simular_envio_correo(
 
 
 @router.get("")
-def get_correos(db: Session = Depends(get_db)):
+def get_correos(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     """Lista los últimos 100 correos simulados — visible en el dashboard del admin."""
+    verificar_rol(current_user, roles_permitidos=["admin"])
     correos = db.query(CorreoLog).order_by(CorreoLog.fecha.desc()).limit(100).all()
     return [
         {

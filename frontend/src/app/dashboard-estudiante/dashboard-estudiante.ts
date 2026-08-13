@@ -531,6 +531,22 @@ get subtituloSeccionEst(): string {
   historialCompleto: any[] = [];
   historialMostrado: any[] = [];
 
+  // -- Modal de detalle de atención (medicamento, observaciones, motivo) --
+  detalleAtencionAbierto = false;
+  atencionSeleccionada: any = null;
+
+  verDetalleAtencion(h: any): void {
+    this.atencionSeleccionada = h;
+    this.detalleAtencionAbierto = true;
+    this.cdr.detectChanges();
+  }
+
+  cerrarDetalleAtencion(): void {
+    this.detalleAtencionAbierto = false;
+    this.atencionSeleccionada = null;
+    this.cdr.detectChanges();
+  }
+
   historialResumen() {
     return this.historialCompleto.slice(0, 3);
   }

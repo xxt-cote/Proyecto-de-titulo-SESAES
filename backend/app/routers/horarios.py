@@ -5,6 +5,7 @@ from datetime import datetime, date, timedelta, time
 from app.database import get_db
 from app.models.profesional import Profesional
 from app.models.cita import Cita
+from app.auth_dependencies import get_current_user
 
 router = APIRouter(tags=["horarios"])
 
@@ -36,10 +37,20 @@ def _parsear_hora_24h(hora_str: str):
 
 
 @router.get("/disponibilidad/{profesional_id}")
-def get_disponibilidad(profesional_id: int, fecha: str, db: Session = Depends(get_db)):
+def get_disponibilidad(
+    profesional_id: int,
+    fecha: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     """
     Devuelve las horas disponibles para un profesional en una fecha específica.
     fecha: string en formato YYYY-MM-DD
+
+    No es un endpoint "sensible" (no expone datos de ningún paciente puntual,
+    solo qué horas están libres), así que cualquier usuario autenticado
+    (estudiante, profesional o admin) puede consultarlo — es lo que necesita
+    el estudiante para agendar.
     """
     try:
         fecha_obj = datetime.strptime(fecha, "%Y-%m-%d").date()

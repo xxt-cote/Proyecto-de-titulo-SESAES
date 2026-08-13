@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 from app.database import get_db
 from app.models.usuario import Usuario
-from app.security import verify_password, hash_password, is_legacy_plaintext
+from app.security import verify_password, hash_password, is_legacy_plaintext, create_access_token
 
 router = APIRouter()
 
@@ -34,8 +34,16 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
     if user.activo is False:
         raise HTTPException(status_code=403, detail="Esta cuenta ha sido desactivada. Contacta al administrador.")
 
+    token = create_access_token({
+        "id":     user.id,
+        "rol":    user.rol,
+        "correo": user.correo,
+    })
+
     return {
         "message": "Login correcto",
+        "access_token": token,
+        "token_type": "bearer",
         "rol":     user.rol,
         "id":      user.id,
         "nombre":  user.nombre,

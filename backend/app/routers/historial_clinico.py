@@ -8,6 +8,7 @@ from app.models.profesional import Profesional
 from app.models.usuario import Usuario
 from app.models.historial_plantilla_pregunta import HistorialPlantillaPregunta
 from app.models.historial_paciente import HistorialPaciente
+from app.auth_dependencies import get_current_user, verificar_acceso_profesional
 
 router = APIRouter(prefix="/historial-clinico", tags=["historial-clinico"])
 
@@ -72,7 +73,12 @@ def _asegurar_plantilla_base(especialidad: str, db: Session) -> None:
 # Plantilla de preguntas (por especialidad)
 # ══════════════════════════════════════
 @router.get("/plantilla/{profesional_id}")
-def obtener_plantilla(profesional_id: int, db: Session = Depends(get_db)):
+def obtener_plantilla(
+    profesional_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    verificar_acceso_profesional(current_user, profesional_id, db)
     prof = _get_profesional_o_404(profesional_id, db)
     _asegurar_plantilla_base(prof.especialidad, db)
 
@@ -91,12 +97,18 @@ def obtener_plantilla(profesional_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/plantilla/{profesional_id}")
-def actualizar_plantilla(profesional_id: int, datos: PlantillaUpdateIn, db: Session = Depends(get_db)):
+def actualizar_plantilla(
+    profesional_id: int,
+    datos: PlantillaUpdateIn,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     """
     Reemplaza el set de preguntas activas de la especialidad de este profesional.
     Las preguntas que ya no vienen en la lista se desactivan (no se borran, para no
     perder las respuestas ya guardadas por pacientes anteriores con esa pregunta).
     """
+    verificar_acceso_profesional(current_user, profesional_id, db)
     prof = _get_profesional_o_404(profesional_id, db)
 
     existentes = db.query(HistorialPlantillaPregunta).filter(
@@ -130,7 +142,13 @@ def actualizar_plantilla(profesional_id: int, datos: PlantillaUpdateIn, db: Sess
 # Ficha del paciente (por profesional + estudiante)
 # ══════════════════════════════════════
 @router.get("/{profesional_id}/{estudiante_id}")
-def obtener_historial(profesional_id: int, estudiante_id: int, db: Session = Depends(get_db)):
+def obtener_historial(
+    profesional_id: int,
+    estudiante_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    verificar_acceso_profesional(current_user, profesional_id, db)
     prof = _get_profesional_o_404(profesional_id, db)
     estudiante = db.query(Usuario).filter(Usuario.id == estudiante_id).first()
     if not estudiante:
@@ -161,7 +179,14 @@ def obtener_historial(profesional_id: int, estudiante_id: int, db: Session = Dep
 
 
 @router.put("/{profesional_id}/{estudiante_id}")
-def guardar_historial(profesional_id: int, estudiante_id: int, datos: HistorialGuardarIn, db: Session = Depends(get_db)):
+def guardar_historial(
+    profesional_id: int,
+    estudiante_id: int,
+    datos: HistorialGuardarIn,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    verificar_acceso_profesional(current_user, profesional_id, db)
     prof = _get_profesional_o_404(profesional_id, db)
     estudiante = db.query(Usuario).filter(Usuario.id == estudiante_id).first()
     if not estudiante:
@@ -185,11 +210,16 @@ def guardar_historial(profesional_id: int, estudiante_id: int, datos: HistorialG
 
 
 @router.get("/{profesional_id}/pacientes")
-def listar_pacientes_atendidos(profesional_id: int, db: Session = Depends(get_db)):
+def listar_pacientes_atendidos(
+    profesional_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     """
     Lista los estudiantes que este profesional ha atendido (según sus citas),
     junto con si ya tienen ficha de antecedentes creada o no.
     """
+    verificar_acceso_profesional(current_user, profesional_id, db)
     from app.models.cita import Cita
 
     estudiantes_ids = db.query(Cita.estudiante_id).filter(

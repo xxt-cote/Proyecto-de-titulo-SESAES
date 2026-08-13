@@ -11,6 +11,7 @@ from app.models.notificacion import Notificacion
 from app.models.auditoria import Auditoria
 from app.models.historial_estado_profesional import HistorialEstadoProfesional
 from app.routers.correos import simular_envio_correo
+from app.auth_dependencies import get_current_user, verificar_acceso_profesional
 
 router = APIRouter(tags=["profesionales"])
 
@@ -24,7 +25,7 @@ def registrar_auditoria(db, accion, detalle=None, entidad=None, entidad_id=None)
 # ══════════════════════════════════════
 
 @router.get("/profesionales")
-def get_profesionales(db: Session = Depends(get_db)):
+def get_profesionales(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     return [
         {
             "id":           p.id,
@@ -47,7 +48,13 @@ def get_profesionales(db: Session = Depends(get_db)):
 # ══════════════════════════════════════
 
 @router.get("/profesional/buscar-por-usuario/{usuario_id}")
-def buscar_profesional_por_usuario(usuario_id: int, db: Session = Depends(get_db)):
+def buscar_profesional_por_usuario(
+    usuario_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    if current_user["rol"] != "admin" and current_user["id"] != usuario_id:
+        raise HTTPException(status_code=403, detail="No tienes permiso para acceder a este recurso.")
     prof = db.query(Profesional).filter(Profesional.usuario_id == usuario_id).first()
     if not prof:
         raise HTTPException(status_code=404, detail="Profesional no encontrado")
@@ -63,7 +70,12 @@ def buscar_profesional_por_usuario(usuario_id: int, db: Session = Depends(get_db
 # PERFIL DEL PROFESIONAL
 # ══════════════════════════════════════
 @router.get("/profesional/{prof_id}/perfil")
-def get_perfil(prof_id: int, db: Session = Depends(get_db)):
+def get_perfil(
+    prof_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    verificar_acceso_profesional(current_user, prof_id, db)
     prof = db.query(Profesional).filter(Profesional.id == prof_id).first()
     if not prof:
         raise HTTPException(status_code=404, detail="Profesional no encontrado")
@@ -88,7 +100,13 @@ def get_perfil(prof_id: int, db: Session = Depends(get_db)):
     }
 
 @router.patch("/profesional/{prof_id}/perfil")
-def actualizar_perfil(prof_id: int, body: dict, db: Session = Depends(get_db)):
+def actualizar_perfil(
+    prof_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    verificar_acceso_profesional(current_user, prof_id, db)
     prof = db.query(Profesional).filter(Profesional.id == prof_id).first()
     if not prof:
         raise HTTPException(status_code=404, detail="Profesional no encontrado")
@@ -109,7 +127,13 @@ def actualizar_perfil(prof_id: int, body: dict, db: Session = Depends(get_db)):
     return {"message": "Perfil actualizado correctamente"}
 
 @router.patch("/profesional/{prof_id}/cambiar-password")
-def cambiar_password(prof_id: int, body: dict, db: Session = Depends(get_db)):
+def cambiar_password(
+    prof_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    verificar_acceso_profesional(current_user, prof_id, db)
     prof = db.query(Profesional).filter(Profesional.id == prof_id).first()
     if not prof:
         raise HTTPException(status_code=404, detail="Profesional no encontrado")
@@ -128,7 +152,12 @@ def cambiar_password(prof_id: int, body: dict, db: Session = Depends(get_db)):
 # ══════════════════════════════════════
 
 @router.get("/profesional/{prof_id}/estadisticas-dia")
-def get_estadisticas_dia(prof_id: int, db: Session = Depends(get_db)):
+def get_estadisticas_dia(
+    prof_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    verificar_acceso_profesional(current_user, prof_id, db)
     hoy = date.today().isoformat()
     citas_hoy = db.query(Cita).filter(Cita.profesional_id == prof_id, Cita.fecha == hoy).all()
     return {
@@ -144,7 +173,14 @@ def get_estadisticas_dia(prof_id: int, db: Session = Depends(get_db)):
 # ══════════════════════════════════════
 
 @router.get("/profesional/{prof_id}/citas")
-def get_citas_profesional(prof_id: int, fecha: str = None, estado: str = None, db: Session = Depends(get_db)):
+def get_citas_profesional(
+    prof_id: int,
+    fecha: str = None,
+    estado: str = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    verificar_acceso_profesional(current_user, prof_id, db)
     query = db.query(Cita).filter(Cita.profesional_id == prof_id)
     if fecha:  query = query.filter(Cita.fecha == fecha)
     if estado: query = query.filter(Cita.estado == estado)
@@ -174,7 +210,14 @@ def get_citas_profesional(prof_id: int, fecha: str = None, estado: str = None, d
 # ══════════════════════════════════════
 
 @router.patch("/profesional/{prof_id}/citas/{cita_id}/completar")
-def completar_cita(prof_id: int, cita_id: int, body: dict, db: Session = Depends(get_db)):
+def completar_cita(
+    prof_id: int,
+    cita_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    verificar_acceso_profesional(current_user, prof_id, db)
     cita = db.query(Cita).filter(Cita.id == cita_id, Cita.profesional_id == prof_id).first()
     if not cita:
         raise HTTPException(status_code=404, detail="Cita no encontrada")
@@ -196,7 +239,13 @@ def completar_cita(prof_id: int, cita_id: int, body: dict, db: Session = Depends
 # ══════════════════════════════════════
 
 @router.patch("/profesional/{prof_id}/citas/{cita_id}/inasistencia")
-def marcar_inasistencia(prof_id: int, cita_id: int, db: Session = Depends(get_db)):
+def marcar_inasistencia(
+    prof_id: int,
+    cita_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    verificar_acceso_profesional(current_user, prof_id, db)
     cita = db.query(Cita).filter(Cita.id == cita_id, Cita.profesional_id == prof_id).first()
     if not cita:
         raise HTTPException(status_code=404, detail="Cita no encontrada")
@@ -243,7 +292,13 @@ def _hora_a_minutos(hora_str: str) -> int:
 
 
 @router.post("/profesional/{prof_id}/reportar-ausencia")
-def reportar_ausencia(prof_id: int, body: dict, db: Session = Depends(get_db)):
+def reportar_ausencia(
+    prof_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    verificar_acceso_profesional(current_user, prof_id, db)
     prof = db.query(Profesional).filter(Profesional.id == prof_id).first()
     if not prof:
         raise HTTPException(status_code=404, detail="Profesional no encontrado")
@@ -336,7 +391,12 @@ def reportar_ausencia(prof_id: int, body: dict, db: Session = Depends(get_db)):
 # ══════════════════════════════════════
 
 @router.get("/profesional/{prof_id}/notificaciones")
-def get_notificaciones_profesional(prof_id: int, db: Session = Depends(get_db)):
+def get_notificaciones_profesional(
+    prof_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    verificar_acceso_profesional(current_user, prof_id, db)
     prof = db.query(Profesional).filter(Profesional.id == prof_id).first()
     if not prof or not prof.usuario_id:
         return []

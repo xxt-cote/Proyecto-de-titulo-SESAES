@@ -9,6 +9,7 @@ from app.database import get_db
 from app.models.cita import Cita
 from app.models.profesional import Profesional
 from app.schemas import CitaCreate
+from app.auth_dependencies import get_current_user, verificar_acceso, verificar_rol
 
 router = APIRouter(tags=["citas"])
 
@@ -18,8 +19,36 @@ def _cita_a_datetime(cita: Cita) -> datetime:
     return datetime.strptime(f"{cita.fecha} {cita.hora}", "%Y-%m-%d %I:%M %p")
 
 
+def _verificar_acceso_a_cita(cita: Cita, current_user: dict, db: Session) -> None:
+    """
+    Un recurso 'cita' puede ser accedido por: el estudiante dueño de la cita,
+    el profesional que la atiende, o un admin. Cualquier otro caso -> 403.
+
+    OJO: Cita.profesional_id apunta a Profesional.id, que es una PK distinta
+    de Usuario.id (el id que va en el JWT). Por eso hay que resolver primero
+    el Profesional y comparar su usuario_id, no comparar directo contra
+    cita.profesional_id.
+    """
+    rol = current_user["rol"]
+    uid = current_user["id"]
+    if rol == "admin":
+        return
+    if rol == "estudiante" and cita.estudiante_id == uid:
+        return
+    if rol == "profesional":
+        prof = db.query(Profesional).filter(Profesional.id == cita.profesional_id).first()
+        if prof and prof.usuario_id == uid:
+            return
+    raise HTTPException(status_code=403, detail="No tienes permiso para acceder a esta cita.")
+
+
 @router.get("/citas/estudiante/{estudiante_id}")
-def get_citas_estudiante(estudiante_id: int, db: Session = Depends(get_db)):
+def get_citas_estudiante(
+    estudiante_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    verificar_acceso(current_user, id_esperado=estudiante_id, roles_permitidos=["estudiante", "admin"])
     citas = db.query(Cita).filter(
         Cita.estudiante_id == estudiante_id,
         Cita.estado == "pendiente"
@@ -42,7 +71,12 @@ def get_citas_estudiante(estudiante_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/historial/estudiante/{estudiante_id}")
-def get_historial(estudiante_id: int, db: Session = Depends(get_db)):
+def get_historial(
+    estudiante_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    verificar_acceso(current_user, id_esperado=estudiante_id, roles_permitidos=["estudiante", "admin"])
     # Solo estados ya resueltos: completada, cancelada, inasistencia
     citas = db.query(Cita).filter(
         Cita.estudiante_id == estudiante_id,
@@ -52,21 +86,33 @@ def get_historial(estudiante_id: int, db: Session = Depends(get_db)):
     for c in citas:
         prof = db.query(Profesional).filter(Profesional.id == c.profesional_id).first()
         result.append({
-            "id":           c.id,
-            "fechaRaw":     c.fecha,
-            "fecha":        c.fecha,
-            "hora":         c.hora,
-            "profesional":  prof.nombre       if prof else "",
-            "iniciales":    prof.iniciales    if prof else "??",
-            "especialidad": prof.especialidad if prof else "",
-            "estado":       c.estado,
-            "tiene_pdf":    c.estado == "completada"
+            "id":                     c.id,
+            "fechaRaw":               c.fecha,
+            "fecha":                  c.fecha,
+            "hora":                   c.hora,
+            "profesional":            prof.nombre       if prof else "",
+            "iniciales":              prof.iniciales    if prof else "??",
+            "especialidad":           prof.especialidad if prof else "",
+            "estado":                 c.estado,
+            "tiene_pdf":              c.estado == "completada",
+            "motivo_consulta":        c.observaciones,
+            "medicamento":            c.medicamento            if c.estado == "completada" else None,
+            "observaciones_atencion": c.observaciones_atencion if c.estado == "completada" else None,
+            "motivo_cancelacion":     c.motivo_cancelacion,
         })
     return result
 
 
 @router.post("/citas")
-def crear_cita(cita: CitaCreate, db: Session = Depends(get_db)):
+def crear_cita(
+    cita: CitaCreate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    # Un estudiante solo puede agendar para sí mismo; un admin puede agendar
+    # a nombre de cualquier estudiante (ej. citas urgentes desde recepción).
+    verificar_acceso(current_user, id_esperado=cita.estudiante_id, roles_permitidos=["estudiante", "admin"])
+
     prof = db.query(Profesional).filter(Profesional.id == cita.profesional_id).first()
 
     if prof:
@@ -109,10 +155,16 @@ def crear_cita(cita: CitaCreate, db: Session = Depends(get_db)):
 
 
 @router.delete("/citas/{cita_id}")
-def cancelar_cita(cita_id: int, db: Session = Depends(get_db)):
+def cancelar_cita(
+    cita_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     cita = db.query(Cita).filter(Cita.id == cita_id).first()
     if not cita:
         raise HTTPException(status_code=404, detail="Cita no encontrada")
+
+    _verificar_acceso_a_cita(cita, current_user, db)
 
     if cita.estado != "pendiente":
         raise HTTPException(status_code=400, detail="Esta cita no se puede cancelar")
@@ -122,7 +174,9 @@ def cancelar_cita(cita_id: int, db: Session = Depends(get_db)):
     except ValueError:
         fecha_hora_cita = None
 
-    if fecha_hora_cita:
+    # Un admin puede cancelar sin la restricción de las 5 horas (ej. por
+    # ausencia del profesional o motivos operativos).
+    if fecha_hora_cita and current_user["rol"] != "admin":
         horas_restantes = (fecha_hora_cita - datetime.now()).total_seconds() / 3600
         if horas_restantes < 5:
             raise HTTPException(
@@ -136,15 +190,28 @@ def cancelar_cita(cita_id: int, db: Session = Depends(get_db)):
 
 
 @router.patch("/citas/{cita_id}/completar")
-def completar_cita_prueba(cita_id: int, db: Session = Depends(get_db)):
+def completar_cita_prueba(
+    cita_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     """
     Endpoint TEMPORAL de prueba — simula la acción del profesional
-    de marcar una cita como atendida. Se debe reemplazar cuando
-    exista el Dashboard de Profesional real.
+    de marcar una cita como atendida. El flujo real (que además guarda
+    medicamento/observaciones) ya existe en profesionales.py; este debería
+    eliminarse cuando se confirme que ya no se usa desde ningún lado.
     """
+    verificar_rol(current_user, roles_permitidos=["profesional", "admin"])
+
     cita = db.query(Cita).filter(Cita.id == cita_id).first()
     if not cita:
         raise HTTPException(status_code=404, detail="Cita no encontrada")
+
+    if current_user["rol"] == "profesional":
+        prof = db.query(Profesional).filter(Profesional.id == cita.profesional_id).first()
+        if not prof or prof.usuario_id != current_user["id"]:
+            raise HTTPException(status_code=403, detail="No tienes permiso para completar esta cita.")
+
     if cita.estado != "pendiente":
         raise HTTPException(status_code=400, detail="Solo se puede completar una cita pendiente")
 
@@ -154,10 +221,17 @@ def completar_cita_prueba(cita_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/citas/{cita_id}/pdf")
-def descargar_pdf_cita(cita_id: int, db: Session = Depends(get_db)):
+def descargar_pdf_cita(
+    cita_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     cita = db.query(Cita).filter(Cita.id == cita_id).first()
     if not cita:
         raise HTTPException(status_code=404, detail="Cita no encontrada")
+
+    _verificar_acceso_a_cita(cita, current_user, db)
+
     if cita.estado != "completada":
         raise HTTPException(status_code=400, detail="Solo se puede descargar el resumen de una cita completada")
 

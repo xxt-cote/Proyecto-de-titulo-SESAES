@@ -393,6 +393,7 @@
             <td><span class="estado-badge" [ngClass]="h.estado">{{ h.estado }}</span></td>
             <td>
               <span class="doc-link" *ngIf="h.estado === 'cancelada'" (click)="reagendarCita(h)">↻ Reagendar</span>
+              <span class="doc-link" *ngIf="h.estado === 'completada'" (click)="verDetalleAtencion(h)">🩺 Ver detalle</span>
               <span class="doc-link" *ngIf="h.estado === 'completada' && h.tiene_pdf" (click)="descargarPdf(h.id)">⬇ PDF</span>
             </td>
           </tr>
@@ -432,8 +433,9 @@
             <td><span class="estado-badge" [ngClass]="h.estado">{{ h.estado }}</span></td>
             <td>
               <span class="doc-link" *ngIf="h.estado === 'cancelada'" (click)="reagendarCita(h)">↻ Reagendar</span>
+              <span class="doc-link" *ngIf="h.estado === 'completada'" (click)="verDetalleAtencion(h)">🩺 Ver detalle</span>
               <span class="doc-link" *ngIf="h.estado === 'completada' && h.tiene_pdf" (click)="descargarPdf(h.id)">⬇ PDF</span>
-              <span *ngIf="h.estado !== 'cancelada' && !(h.estado === 'completada' && h.tiene_pdf)" style="color:#94a3b8;font-size:12px;">No aplica</span>
+              <span *ngIf="h.estado !== 'cancelada' && h.estado !== 'completada'" style="color:#94a3b8;font-size:12px;">No aplica</span>
             </td>
           </tr>
         </tbody>
@@ -550,6 +552,47 @@
           </div>
         </div>
 
+      </div>
+    </div>
+
+    <!-- ══ MODAL: DETALLE DE ATENCIÓN (medicamento, observaciones, motivo) ══ -->
+    <div class="modal-overlay-est" *ngIf="detalleAtencionAbierto" (click)="cerrarDetalleAtencion()">
+      <div class="modal-est" (click)="$event.stopPropagation()">
+        <div class="modal-header-est">
+          <h3>Detalle de la atención</h3>
+          <button class="modal-cerrar-est" (click)="cerrarDetalleAtencion()">✕</button>
+        </div>
+
+        <div class="detalle-atencion-body" *ngIf="atencionSeleccionada as h">
+          <div class="detalle-atencion-fila">
+            <span class="detalle-atencion-label">Profesional</span>
+            <span class="detalle-atencion-valor">{{ h.profesional }} <small>({{ h.especialidad }})</small></span>
+          </div>
+          <div class="detalle-atencion-fila">
+            <span class="detalle-atencion-label">Fecha y hora</span>
+            <span class="detalle-atencion-valor">{{ h.fecha }} — {{ h.hora }}</span>
+          </div>
+          <div class="detalle-atencion-fila">
+            <span class="detalle-atencion-label">Motivo de consulta</span>
+            <span class="detalle-atencion-valor">{{ h.motivo_consulta || 'No especificado' }}</span>
+          </div>
+
+          <div class="detalle-atencion-separador"></div>
+
+          <div class="detalle-atencion-fila">
+            <span class="detalle-atencion-label">Medicamento suministrado</span>
+            <span class="detalle-atencion-valor">{{ h.medicamento || 'No se suministró medicamento.' }}</span>
+          </div>
+          <div class="detalle-atencion-fila">
+            <span class="detalle-atencion-label">Observaciones e indicaciones</span>
+            <span class="detalle-atencion-valor">{{ h.observaciones_atencion || 'Sin observaciones adicionales.' }}</span>
+          </div>
+        </div>
+
+        <div class="modal-footer-est">
+          <button class="btn-cerrar-modal-est" (click)="cerrarDetalleAtencion()">Cerrar</button>
+          <button class="btn-descargar-modal-est" *ngIf="atencionSeleccionada?.tiene_pdf" (click)="descargarPdf(atencionSeleccionada.id)">⬇ Descargar PDF</button>
+        </div>
       </div>
     </div>
 

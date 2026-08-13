@@ -4,12 +4,18 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.usuario import Usuario
 from app.schemas import EstudianteOut, EstudianteUpdate
+from app.auth_dependencies import get_current_user, verificar_acceso
 
 router = APIRouter(prefix="/estudiante", tags=["Estudiante"])
 
 
 @router.get("/{estudiante_id}", response_model=EstudianteOut)
-def obtener_estudiante(estudiante_id: int, db: Session = Depends(get_db)):
+def obtener_estudiante(
+    estudiante_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    verificar_acceso(current_user, id_esperado=estudiante_id, roles_permitidos=["estudiante", "admin"])
     usuario = db.query(Usuario).filter(
         Usuario.id == estudiante_id,
         Usuario.rol == "estudiante"
@@ -20,7 +26,13 @@ def obtener_estudiante(estudiante_id: int, db: Session = Depends(get_db)):
 
 
 @router.patch("/{estudiante_id}", response_model=EstudianteOut)
-def actualizar_estudiante(estudiante_id: int, datos: EstudianteUpdate, db: Session = Depends(get_db)):
+def actualizar_estudiante(
+    estudiante_id: int,
+    datos: EstudianteUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    verificar_acceso(current_user, id_esperado=estudiante_id, roles_permitidos=["estudiante", "admin"])
     usuario = db.query(Usuario).filter(
         Usuario.id == estudiante_id,
         Usuario.rol == "estudiante"
