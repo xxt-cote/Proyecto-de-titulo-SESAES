@@ -8,3 +8,4 @@ from app.models.auditoria import Auditoria
 from app.models.configuracion_centro import ConfiguracionCentro
 from app.models.historial_estado_profesional import HistorialEstadoProfesional
 from app.models.correo_log import CorreoLog
+from app.models.dia_cerrado import DiaCerrado

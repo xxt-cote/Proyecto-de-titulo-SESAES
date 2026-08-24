@@ -11,6 +11,7 @@ class CorreoLog(Base):
     asunto         = Column(String)
     cuerpo         = Column(String)
     enviado        = Column(Boolean, default=False)
+    error_envio    = Column(String, nullable=True)   # detalle del error SMTP, si falló
     fecha          = Column(DateTime, server_default=func.now())
     tipo           = Column(String, nullable=True)   # cancelacion, reagenda, urgente
     referencia_id  = Column(Integer, nullable=True)  # id de la cita relacionada

@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from datetime import datetime, date, timedelta
 import io
 
@@ -16,6 +17,7 @@ from app.models.configuracion import ConfiguracionSistema
 from app.models.auditoria import Auditoria
 from app.models.historial_estado_profesional import HistorialEstadoProfesional
 from app.models.correo_log import CorreoLog
+from app.models.dia_cerrado import DiaCerrado
 from app.routers.correos import simular_envio_correo
 from app.schemas import (
     ProfesionalCreate, ProfesionalUpdate, ProfesionalOut,
@@ -342,13 +344,30 @@ def get_historial_estados(prof_id: int, db: Session = Depends(get_db)):
 
 @router.post("/citas/urgente")
 def crear_cita_urgente(cita: CitaCreate, db: Session = Depends(get_db)):
+    if db.query(DiaCerrado).filter(DiaCerrado.fecha == cita.fecha).first():
+        raise HTTPException(status_code=400, detail="El centro permanece cerrado ese día. Elige otra fecha.")
+
     prof = db.query(Profesional).filter(Profesional.id == cita.profesional_id).first()
     if not prof: raise HTTPException(status_code=404, detail="Profesional no encontrado")
     est = db.query(Usuario).filter(Usuario.id == cita.estudiante_id).first()
+    if not est or est.rol != "estudiante":
+        raise HTTPException(
+            status_code=400,
+            detail="El paciente seleccionado no corresponde a una cuenta de estudiante."
+        )
     nueva = Cita(estudiante_id=cita.estudiante_id, profesional_id=cita.profesional_id,
                  fecha=cita.fecha, hora=cita.hora, observaciones=cita.observaciones,
                  estado="pendiente", urgente=True)
-    db.add(nueva); db.commit(); db.refresh(nueva)
+    db.add(nueva)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Esa hora acaba de ser reservada por otra persona. Por favor elige otra."
+        )
+    db.refresh(nueva)
     simular_envio_correo(db, destinatario=est.correo if est else "—",
         asunto="SESAES — Cita urgente agendada",
         cuerpo=f"Se agendó una cita URGENTE para el {cita.fecha} a las {cita.hora} con {prof.nombre}.",
@@ -381,6 +400,130 @@ def cancelar_cita_admin(cita_id: int, body: dict, db: Session = Depends(get_db))
                         "cita", cita_id)
     db.commit()
     return {"message": "Cita cancelada y estudiante notificado"}
+
+
+# ══════════════════════════════════════
+# DÍAS CERRADOS — el centro completo no atiende ese día
+# ══════════════════════════════════════
+# A diferencia de un feriado "normal" (que solo se marca visualmente, sin
+# bloquear el agendamiento), un día cerrado SÍ bloquea por completo el
+# agendamiento para cualquier profesional, y cancela + notifica
+# automáticamente cualquier cita que ya existiera para esa fecha.
+
+@router.get("/dias-cerrados")
+def listar_dias_cerrados(db: Session = Depends(get_db)):
+    dias = db.query(DiaCerrado).order_by(DiaCerrado.fecha).all()
+    return [
+        {"id": d.id, "fecha": d.fecha, "motivo": d.motivo, "fecha_creacion": d.fecha_creacion}
+        for d in dias
+    ]
+
+
+@router.post("/dias-cerrados")
+def crear_dia_cerrado(body: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    fecha  = body.get("fecha")
+    motivo = body.get("motivo") or "El centro permanecerá cerrado este día."
+    if not fecha:
+        raise HTTPException(status_code=400, detail="Debes indicar la fecha a cerrar.")
+
+    ya_existe = db.query(DiaCerrado).filter(DiaCerrado.fecha == fecha).first()
+    if ya_existe:
+        raise HTTPException(status_code=400, detail="Ese día ya está marcado como cerrado.")
+
+    dia = DiaCerrado(fecha=fecha, motivo=motivo, creado_por=current_user["id"])
+    db.add(dia)
+
+    # Cancelar y notificar TODAS las citas pendientes de ese día,
+    # sin importar el profesional.
+    citas_afectadas = db.query(Cita).filter(Cita.fecha == fecha, Cita.estado == "pendiente").all()
+    detalle_citas_canceladas = []
+    for cita in citas_afectadas:
+        cita.estado = "cancelada"
+        cita.cancelada_por_admin = True
+        cita.motivo_cancelacion = f"El centro permanecerá cerrado el {fecha}. {motivo}"
+
+        est = db.query(Usuario).filter(Usuario.id == cita.estudiante_id).first()
+        prof = db.query(Profesional).filter(Profesional.id == cita.profesional_id).first()
+
+        detalle_citas_canceladas.append({
+            "cita_id": cita.id,
+            "estudiante": est.nombre if est else "—",
+            "rut": est.rut if est else "—",
+            "correo": est.correo if est else "—",
+            "profesional": prof.nombre if prof else "—",
+            "especialidad": prof.especialidad if prof else "—",
+            "hora": cita.hora,
+        })
+
+        db.add(Notificacion(
+            usuario_id=cita.estudiante_id,
+            mensaje=f"Tu cita del {fecha} fue cancelada: el centro permanecerá cerrado ese día. "
+                    f"Puedes reagendar cuando quieras desde tu dashboard.",
+            tipo="cancelacion"
+        ))
+        simular_envio_correo(db,
+            destinatario=est.correo if est else "—",
+            asunto="SESAES — Tu cita fue cancelada (centro cerrado)",
+            cuerpo=f"Tu cita del {fecha} a las {cita.hora} con {prof.nombre if prof else ''} fue cancelada "
+                   f"porque el centro permanecerá cerrado ese día. Motivo: {motivo}. "
+                   f"Puedes reagendar cuando quieras desde tu dashboard.",
+            tipo="cancelacion", referencia_id=cita.id
+        )
+
+    registrar_auditoria(db, "Cerró el centro un día completo",
+                        f"{fecha} — {motivo} ({len(citas_afectadas)} citas canceladas y notificadas)",
+                        "dia_cerrado", None)
+    db.commit()
+    db.refresh(dia)
+    return {
+        "message": f"Día {fecha} cerrado correctamente.",
+        "id": dia.id,
+        "citas_canceladas": len(citas_afectadas),
+        "detalle_citas_canceladas": detalle_citas_canceladas
+    }
+
+
+@router.get("/dias-cerrados/{dia_id}/citas")
+def citas_canceladas_por_dia_cerrado(dia_id: int, db: Session = Depends(get_db)):
+    """
+    Detalle de las citas que se cancelaron cuando se cerró este día —
+    para que el admin lo tenga a mano si el estudiante llama a preguntar
+    o pedir que le reagenden.
+    """
+    dia = db.query(DiaCerrado).filter(DiaCerrado.id == dia_id).first()
+    if not dia:
+        raise HTTPException(status_code=404, detail="Día cerrado no encontrado")
+
+    citas = db.query(Cita).filter(
+        Cita.fecha == dia.fecha,
+        Cita.cancelada_por_admin == True  # noqa: E712
+    ).all()
+
+    resultado = []
+    for cita in citas:
+        est = db.query(Usuario).filter(Usuario.id == cita.estudiante_id).first()
+        prof = db.query(Profesional).filter(Profesional.id == cita.profesional_id).first()
+        resultado.append({
+            "cita_id": cita.id,
+            "estudiante": est.nombre if est else "—",
+            "rut": est.rut if est else "—",
+            "correo": est.correo if est else "—",
+            "profesional": prof.nombre if prof else "—",
+            "especialidad": prof.especialidad if prof else "—",
+            "hora": cita.hora,
+        })
+    return resultado
+
+
+@router.delete("/dias-cerrados/{dia_id}")
+def eliminar_dia_cerrado(dia_id: int, db: Session = Depends(get_db)):
+    dia = db.query(DiaCerrado).filter(DiaCerrado.id == dia_id).first()
+    if not dia:
+        raise HTTPException(status_code=404, detail="Día cerrado no encontrado")
+    registrar_auditoria(db, "Reabrió un día previamente cerrado", dia.fecha, "dia_cerrado", dia_id)
+    db.delete(dia)
+    db.commit()
+    return {"message": "Día reabierto correctamente. Las citas ya canceladas no se restauran automáticamente."}
 
 
 # ══════════════════════════════════════

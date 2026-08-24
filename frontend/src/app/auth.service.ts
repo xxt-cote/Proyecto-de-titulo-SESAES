@@ -10,6 +10,7 @@ export interface LoginResponse {
   id: number;
   nombre: string;
   foto_url: string | null;
+  debe_cambiar_password: boolean;
 }
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -32,6 +33,7 @@ export class AuthService {
     localStorage.setItem('usuario_id', String(data.id));
     localStorage.setItem('nombre', data.nombre ?? '');
     localStorage.setItem('foto_url', data.foto_url ?? '');
+    localStorage.setItem('debe_cambiar_password', String(!!data.debe_cambiar_password));
   }
 
   getToken(): string | null {

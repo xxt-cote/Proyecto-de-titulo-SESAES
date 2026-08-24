@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from datetime import datetime
 import io
 import os
@@ -8,6 +9,9 @@ import os
 from app.database import get_db
 from app.models.cita import Cita
 from app.models.profesional import Profesional
+from app.models.usuario import Usuario
+from app.models.historial_paciente import HistorialPaciente
+from app.models.notificacion import Notificacion
 from app.schemas import CitaCreate
 from app.auth_dependencies import get_current_user, verificar_acceso, verificar_rol
 
@@ -113,6 +117,24 @@ def crear_cita(
     # a nombre de cualquier estudiante (ej. citas urgentes desde recepción).
     verificar_acceso(current_user, id_esperado=cita.estudiante_id, roles_permitidos=["estudiante", "admin"])
 
+    # Un día marcado como "cerrado" (centro completo sin atención) bloquea
+    # el agendamiento sin excepción, incluso para el admin — ningún
+    # profesional trabaja ese día, así que no existe sobrecupo posible ahí.
+    from app.models.dia_cerrado import DiaCerrado
+    if db.query(DiaCerrado).filter(DiaCerrado.fecha == cita.fecha).first():
+        raise HTTPException(status_code=400, detail="El centro permanece cerrado ese día. Elige otra fecha.")
+
+    # El "paciente" de una cita SIEMPRE debe ser una cuenta con rol estudiante.
+    # Sin este chequeo, un admin podría —por error, ej. escribiendo mal un
+    # RUT o reutilizando un id— crear una cita donde el "estudiante" en
+    # realidad sea la cuenta de un profesional o del propio admin.
+    paciente = db.query(Usuario).filter(Usuario.id == cita.estudiante_id).first()
+    if not paciente or paciente.rol != "estudiante":
+        raise HTTPException(
+            status_code=400,
+            detail="El paciente seleccionado no corresponde a una cuenta de estudiante."
+        )
+
     prof = db.query(Profesional).filter(Profesional.id == cita.profesional_id).first()
 
     if prof:
@@ -135,11 +157,41 @@ def crear_cita(
         fecha          = cita.fecha,
         hora           = cita.hora,
         observaciones  = cita.observaciones,
+        urgente        = cita.urgente or False,
+        # sobrecupo solo puede activarlo un admin, sin importar lo que
+        # mande el body — así un estudiante no puede autoasignarse la marca.
+        sobrecupo      = bool(cita.sobrecupo) if current_user["rol"] == "admin" else False,
         estado         = "pendiente"
     )
     db.add(nueva)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Otra persona reservó exactamente esta misma hora una fracción de
+        # segundo antes (dos peticiones simultáneas) — lo atrapa el índice
+        # único de la base de datos, no solo la validación de arriba.
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Esa hora acaba de ser reservada por otra persona. Por favor elige otra."
+        )
     db.refresh(nueva)
+
+    # Si es la primera vez que este estudiante agenda con este profesional
+    # (todavía no existe su ficha de antecedentes), se le notifica para que
+    # complete el cuestionario de primera atención antes de la cita.
+    if prof:
+        ya_tiene_ficha = db.query(HistorialPaciente).filter(
+            HistorialPaciente.profesional_id == prof.id,
+            HistorialPaciente.estudiante_id  == cita.estudiante_id
+        ).first()
+        if not ya_tiene_ficha:
+            db.add(Notificacion(
+                usuario_id=cita.estudiante_id,
+                mensaje=f"Antes de tu cita con {prof.nombre}, completa tu cuestionario de antecedentes.",
+                tipo="cuestionario_pendiente"
+            ))
+            db.commit()
 
     return {
         "id":           nueva.id,

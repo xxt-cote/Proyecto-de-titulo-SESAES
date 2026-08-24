@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, ForeignKey, DateTime, JSON
+from sqlalchemy import Column, Integer, ForeignKey, DateTime, JSON, String, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
@@ -18,6 +18,9 @@ class HistorialPaciente(Base):
 
     # { "<pregunta_id>": "<respuesta>" }
     respuestas = Column(JSON, default=dict)
+
+    completado_por           = Column(String, nullable=True)      # "estudiante" | "profesional"
+    revisado_por_profesional = Column(Boolean, default=False, nullable=False)
 
     fecha_creacion    = Column(DateTime(timezone=True), server_default=func.now())
     fecha_modificacion = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

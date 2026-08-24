@@ -1,5 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.requests import Request
+from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
+from app.rate_limiter import limiter
 from app.init_db import init_db
 from app.routers.auth import router as auth_router
 from app.routers.profesionales import router as profesionales_router
@@ -16,6 +20,22 @@ from app.routers.historial_clinico import router as historial_clinico_router
 import os
 
 app = FastAPI()
+
+# Rate limiting — protege endpoints sensibles (login) de intentos masivos
+# de fuerza bruta. El límite específico se define en cada endpoint con el
+# decorador @limiter.limit(...) (ver auth.py). La instancia 'limiter' vive
+# en app/rate_limiter.py para evitar imports circulares con los routers.
+app.state.limiter = limiter
+
+
+@app.exception_handler(RateLimitExceeded)
+def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    # Mismo formato {"detail": "..."} que usa el resto de la API (FastAPI's
+    # HTTPException), para que el frontend no necesite un caso especial.
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Demasiados intentos. Espera un minuto e inténtalo de nuevo."}
+    )
 
 origins_env = os.getenv("CORS_ORIGINS", "http://localhost:4200")
 origins = [o.strip() for o in origins_env.split(",")]

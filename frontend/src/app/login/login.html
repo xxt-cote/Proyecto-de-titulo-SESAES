@@ -27,7 +27,8 @@
             type="email"
             placeholder="ejemplo@utem.cl"
             [(ngModel)]="correo"
-            (blur)="validarCorreo()">
+            (blur)="validarCorreo()"
+            (keyup.enter)="onLogin()">
         </div>
         <span class="field-error" *ngIf="errorCorreo">Ingresa un correo @utem.cl válido</span>
       </div>
@@ -39,7 +40,8 @@
             <input
               [type]="mostrarPassword ? 'text' : 'password'"
               placeholder="••••••••"
-              [(ngModel)]="password">
+              [(ngModel)]="password"
+              (keyup.enter)="onLogin()">
             <span class="toggle" (click)="togglePassword()">
               <svg *ngIf="mostrarPassword" xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />

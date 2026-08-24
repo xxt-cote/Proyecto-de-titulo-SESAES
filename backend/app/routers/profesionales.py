@@ -169,6 +169,39 @@ def get_estadisticas_dia(
 
 
 # ══════════════════════════════════════
+# CITAS SIN CERRAR (fecha ya pasó y siguen "pendiente" — nadie las marcó
+# como completada ni como inasistencia). El profesional ve un aviso al
+# entrar para que las cierre, en vez de quedar colgadas para siempre.
+# ══════════════════════════════════════
+
+@router.get("/profesional/{prof_id}/citas-sin-cerrar")
+def get_citas_sin_cerrar(
+    prof_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    verificar_acceso_profesional(current_user, prof_id, db)
+    hoy = date.today().isoformat()
+    citas = db.query(Cita).filter(
+        Cita.profesional_id == prof_id,
+        Cita.estado == "pendiente",
+        Cita.fecha < hoy
+    ).order_by(Cita.fecha.desc()).all()
+
+    resultado = []
+    for c in citas:
+        est = db.query(Usuario).filter(Usuario.id == c.estudiante_id).first()
+        resultado.append({
+            "id":          c.id,
+            "estudiante":  est.nombre if est else "—",
+            "rut":         est.rut if est else "—",
+            "fecha":       c.fecha,
+            "hora":        c.hora,
+        })
+    return resultado
+
+
+# ══════════════════════════════════════
 # CITAS DEL PROFESIONAL
 # ══════════════════════════════════════
 
@@ -191,13 +224,16 @@ def get_citas_profesional(
         result.append({
             "id":                     c.id,
             "estudiante":             est.nombre  if est else "—",
+            "estudiante_id":          c.estudiante_id,
             "rut":                    est.rut     if est else "—",
             "carrera":                est.carrera if est else "—",
             "correo_est":             est.correo  if est else "—",
+            "foto_url":               est.foto_url if est else None,
             "fecha":                  c.fecha,
             "hora":                   c.hora,
             "estado":                 c.estado,
             "urgente":                c.urgente or False,
+            "sobrecupo":              c.sobrecupo or False,
             "observaciones":          c.observaciones,
             "medicamento":            c.medicamento,
             "observaciones_atencion": c.observaciones_atencion

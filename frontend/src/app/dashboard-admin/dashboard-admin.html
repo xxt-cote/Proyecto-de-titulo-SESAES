@@ -140,8 +140,6 @@
       </div>
     </div>
 
-    <div class="mensaje-exito" *ngIf="mensajeExito">✓ {{ mensajeExito }}</div>
-    <div class="mensaje-error" *ngIf="mensajeError">✕ {{ mensajeError }}</div>
 
     <main class="main-content">
 
@@ -266,10 +264,16 @@
               <span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span>
             </div>
             <div class="cal-grid-admin">
-              <div *ngFor="let dia of calDiasMes" class="cal-celda-admin" [class.vacia]="!dia">
+              <div *ngFor="let dia of calDiasMes" class="cal-celda-admin" [class.vacia]="!dia" [class.clickeable]="dia" (click)="seleccionarDiaInfo(dia)">
                 <span *ngIf="dia" [class.hoy]="dia.esHoy" [class.feriado]="esFeriado(dia.fecha)" [title]="nombreFeriado(dia.fecha)">{{ dia.num }}</span>
               </div>
             </div>
+            <div class="info-dia-admin" *ngIf="diaSeleccionadoInfo && infoDelDia(diaSeleccionadoInfo).length > 0">
+              <span class="info-dia-admin-item" *ngFor="let info of infoDelDia(diaSeleccionadoInfo)">{{ info }}</span>
+            </div>
+            <p class="info-dia-admin-vacio" *ngIf="diaSeleccionadoInfo && infoDelDia(diaSeleccionadoInfo).length === 0">
+              Nada especial que celebrar este día.
+            </p>
           </div>
         </div>
 
@@ -388,7 +392,10 @@
           <span class="leyenda-item">🟢 Hora disponible</span>
           <span class="leyenda-item">🔵 Cita habitual</span>
           <span class="leyenda-item">🔴 Cita urgente</span>
+          <span class="leyenda-item">🟣 Sobrecupo</span>
+          <span class="leyenda-item">⚪ Fuera de horario</span>
           <span class="leyenda-item">⚫ Bloqueado</span>
+          <span class="leyenda-item">🟥 Centro cerrado</span>
           <span class="leyenda-item">🟠 Feriado</span>
         </div>
 
@@ -418,7 +425,12 @@
                      [class.disponible]="getBloqueEstado(dia.fecha, h) === 'disponible'"
                      [class.ocupado]="getBloqueEstado(dia.fecha, h) === 'ocupado'"
                      [class.urgente-bloque]="getBloqueEstado(dia.fecha, h) === 'urgente'"
+                     [class.sobrecupo-bloque]="getBloqueEstado(dia.fecha, h) === 'sobrecupo'"
+                     [class.colacion-bloque]="getBloqueEstado(dia.fecha, h) === 'colacion'"
+                     [class.fuera-horario-bloque]="getBloqueEstado(dia.fecha, h) === 'fuera-horario'"
                      [class.bloqueado]="getBloqueEstado(dia.fecha, h) === 'bloqueado'"
+                     [class.cerrado-centro-bloque]="getBloqueEstado(dia.fecha, h) === 'cerrado-centro'"
+                     [title]="getBloqueEstado(dia.fecha, h) === 'cerrado-centro' ? 'El centro no atiende este día' : (getBloqueEstado(dia.fecha, h) === 'fuera-horario' ? 'Fuera del horario habitual — clic para forzar sobrecupo' : (getBloqueEstado(dia.fecha, h) === 'colacion' ? 'Hora de colación — clic para forzar sobrecupo' : ''))"
                      (click)="clickBloque(dia.fecha, h)">
                   <span *ngIf="getBloqueInfo(dia.fecha, h) as info" class="bloque-info">{{ info }}</span>
                 </div>
@@ -714,6 +726,51 @@
             </div>
           </div>
 
+          <!-- D: Días cerrados -->
+          <div class="card config-card">
+            <div class="card-header">
+              <h3 class="card-title">Días en que el centro no atiende</h3>
+            </div>
+            <p class="card-desc">
+              A diferencia de un feriado normal (que solo se marca visualmente), un día cerrado
+              bloquea por completo el agendamiento para cualquier profesional. Las citas que ya
+              existieran ese día se cancelan y se notifica automáticamente a los estudiantes.
+            </p>
+
+            <div class="form-grid">
+              <div class="campo-grupo">
+                <label>Fecha a cerrar</label>
+                <input type="date" [(ngModel)]="nuevoDiaCerrado.fecha" [min]="hoyISO" />
+              </div>
+              <div class="campo-grupo" style="grid-column: 1 / -1">
+                <label>Motivo</label>
+                <input type="text" [(ngModel)]="nuevoDiaCerrado.motivo" placeholder="Ej: Feriado irrenunciable, aniversario UTEM…" />
+              </div>
+            </div>
+            <div class="perfil-acciones-edicion">
+              <button class="btn-guardar-config" [disabled]="!nuevoDiaCerrado.fecha || !nuevoDiaCerrado.motivo || creandoDiaCerrado" (click)="crearDiaCerrado()">
+                {{ creandoDiaCerrado ? 'Cerrando día...' : '🔒 Cerrar este día' }}
+              </button>
+            </div>
+
+            <table class="admin-tabla" style="margin-top: 18px;" *ngIf="diasCerrados.length > 0">
+              <thead>
+                <tr><th>Fecha</th><th>Motivo</th><th></th></tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let d of diasCerrados">
+                  <td><strong>{{ d.fecha }}</strong></td>
+                  <td>{{ d.motivo }}</td>
+                  <td style="text-align: right; white-space: nowrap;">
+                    <button class="btn-editar-perfil" style="padding: 5px 12px; font-size: 12px;" (click)="verCitasDiaCerrado(d)">Ver citas canceladas</button>
+                    <button class="btn-eliminar-todo-auditoria" style="padding: 5px 12px; font-size: 12px; margin-left: 6px;" (click)="reabrirDiaCerrado(d)">Reabrir</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="tabla-vacia" *ngIf="diasCerrados.length === 0">No hay días cerrados programados.</p>
+          </div>
+
           <!-- C: Auditoría -->
           <div class="card config-card auditoria-card">
             <div class="card-header">
@@ -934,9 +991,12 @@
   <div class="modal-overlay" *ngIf="modalCitaAbierto" (click)="cerrarModalCita()">
     <div class="modal" (click)="$event.stopPropagation()">
       <div class="modal-header">
-        <h3>Nueva Cita{{ nuevaCita.urgente ? ' — URGENTE' : '' }}</h3>
+        <h3>Nueva Cita{{ nuevaCita.urgente ? ' — URGENTE' : '' }}{{ nuevaCita.sobrecupo ? ' — SOBRECUPO' : '' }}</h3>
         <button class="modal-cerrar" (click)="cerrarModalCita()">✕</button>
       </div>
+      <p class="aviso-sobrecupo-modal" *ngIf="nuevaCita.sobrecupo">
+        🟣 Estás agendando fuera del horario habitual del profesional. Esta cita quedará marcada como <strong>sobrecupo</strong>.
+      </p>
       <div class="campo-grupo" style="margin-bottom:12px; position:relative">
         <label>Buscar estudiante (nombre o RUT) *</label>
         <input [(ngModel)]="busquedaEstudiante" placeholder="Escribe 3 caracteres o más..."
@@ -965,6 +1025,57 @@
         <button class="btn-cancelar-modal" (click)="cerrarModalCita()">Cancelar</button>
         <button class="btn-guardar-modal" [disabled]="creandoCita" (click)="crearCitaDesdeHorario()">{{ creandoCita ? 'Creando…' : 'Confirmar Cita' }}</button>
       </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CONFIRMAR SOBRECUPO -->
+  <div class="modal-overlay" *ngIf="sobrecupoConfirmAbierto" (click)="cancelarSobrecupo()">
+    <div class="modal" (click)="$event.stopPropagation()" style="max-width: 420px;">
+      <div class="modal-header">
+        <h3>🟣 Confirmar sobrecupo</h3>
+        <button class="modal-cerrar" (click)="cancelarSobrecupo()">✕</button>
+      </div>
+      <p style="font-size: 13.5px; color: #475569; line-height: 1.5; margin: 0 0 20px 0;">
+        Estás agendando a las <strong>{{ sobrecupoPendiente?.hora }}</strong> del
+        <strong>{{ diaSeleccionado ? formatearFecha(diaSeleccionado) : '' }}</strong>,
+        fuera de {{ sobrecupoPendiente?.motivoTexto }} {{ profesionalActual?.nombre }}.
+        Esta cita quedará marcada como <strong>sobrecupo</strong>. ¿Confirmas?
+      </p>
+      <div class="modal-footer">
+        <button class="btn-cancelar-modal" (click)="cancelarSobrecupo()">Cancelar</button>
+        <button class="btn-guardar-modal" (click)="confirmarSobrecupo()">Sí, continuar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CITAS CANCELADAS POR UN DÍA CERRADO -->
+  <div class="modal-overlay" *ngIf="modalCitasDiaCerradoAbierto" (click)="modalCitasDiaCerradoAbierto = false">
+    <div class="modal" (click)="$event.stopPropagation()" style="max-width: 560px;">
+      <div class="modal-header">
+        <h3>Citas canceladas — {{ diaCerradoSeleccionado?.fecha }}</h3>
+        <button class="modal-cerrar" (click)="modalCitasDiaCerradoAbierto = false">✕</button>
+      </div>
+      <p class="modal-desc">
+        Estas son las citas que se cancelaron automáticamente al cerrar este día.
+        Si un estudiante llama para reagendar, aquí tienes su información y la del profesional.
+      </p>
+      <div *ngIf="cargandoCitasDiaCerrado" class="tabla-vacia">Cargando...</div>
+      <table class="admin-tabla" *ngIf="!cargandoCitasDiaCerrado && citasDiaCerradoSeleccionado.length > 0">
+        <thead>
+          <tr><th>Hora</th><th>Estudiante</th><th>RUT</th><th>Profesional</th></tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let c of citasDiaCerradoSeleccionado">
+            <td>{{ c.hora }}</td>
+            <td>{{ c.estudiante }}<br><small class="texto-gris">{{ c.correo }}</small></td>
+            <td>{{ c.rut }}</td>
+            <td>{{ c.profesional }}<br><small class="texto-gris">{{ c.especialidad }}</small></td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="tabla-vacia" *ngIf="!cargandoCitasDiaCerrado && citasDiaCerradoSeleccionado.length === 0">
+        No había citas pendientes ese día.
+      </p>
     </div>
   </div>
 

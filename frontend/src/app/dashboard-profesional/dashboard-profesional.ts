@@ -2,11 +2,13 @@ import { Component, OnInit, ViewEncapsulation, ChangeDetectorRef } from '@angula
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { environment } from '../config';
 import { PhotoCropperComponent } from '../shared/photo-cropper/photo-cropper';
 import { PhotoViewerComponent } from '../shared/photo-viewer/photo-viewer';
 import { obtenerFeriado } from '../shared/feriados-chile';
+import { obtenerDiasInternacionales } from '../shared/dias-internacionales';
+import { ToastService } from '../shared/toast/toast.service';
 
 const API = environment.apiUrl;
 
@@ -27,8 +29,14 @@ toggleSidebarMovil(): void {
   this.sidebarMovilAbierto = !this.sidebarMovilAbierto;
 }
   temaOscuro    = false;
-  mensajeExito  = '';
-  mensajeError  = '';
+
+  private _mensajeExito = '';
+  set mensajeExito(valor: string) { this._mensajeExito = valor; if (valor) this.toast.success(valor); }
+  get mensajeExito(): string { return this._mensajeExito; }
+
+  private _mensajeError = '';
+  set mensajeError(valor: string) { this._mensajeError = valor; if (valor) this.toast.error(valor); }
+  get mensajeError(): string { return this._mensajeError; }
 
   // prof_db_id: id en tabla profesional (guardado en localStorage al hacer login)
   get profDbId(): number {
@@ -56,13 +64,26 @@ toggleSidebarMovil(): void {
   constructor(
     private router: Router,
     private http: HttpClient,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private toast: ToastService
   ) {}
 
   ngOnInit(): void {
     const temaGuardado = localStorage.getItem('prof_tema_oscuro');
     if (temaGuardado === 'true') this.temaOscuro = true;
     this.cargarDatos();
+    this.cargarCitasSinCerrar();
+  }
+
+  // ══════════════════════════════════════
+  // CITAS SIN CERRAR (fecha ya pasó, siguen "pendiente")
+  // ══════════════════════════════════════
+  citasSinCerrar: any[] = [];
+  cargarCitasSinCerrar(): void {
+    this.http.get<any[]>(`${API}/profesional/${this.profDbId}/citas-sin-cerrar`).subscribe({
+      next: (data) => { this.citasSinCerrar = data ?? []; this.cdr.detectChanges(); },
+      error: () => {}
+    });
   }
 
   cargarDatos(): void {
@@ -74,6 +95,7 @@ toggleSidebarMovil(): void {
     this.generarSemanaActual();
     this.generarCalendarioInicio();
     this.cargarSolicitudesHorario();
+    this.cargarDiasCerrados();
   }
 
   navegarA(seccion: string): void {
@@ -357,6 +379,20 @@ eliminarSeleccionadas(): void {
     this.generarCalendarioInicio();
   }
 
+  diaSeleccionadoInfo: string | null = null;
+  seleccionarDiaInfo(dia: any): void {
+    if (!dia) return;
+    this.diaSeleccionadoInfo = this.diaSeleccionadoInfo === dia.fecha ? null : dia.fecha;
+  }
+  infoDelDia(fecha: string | undefined): string[] {
+    if (!fecha) return [];
+    const info: string[] = [];
+    const feriado = obtenerFeriado(fecha);
+    if (feriado) info.push(`🇨🇱 Feriado: ${feriado.nombre}`);
+    for (const d of obtenerDiasInternacionales(fecha)) info.push(`🌍 ${d.nombre}`);
+    return info;
+  }
+
   // ══════════════════════════════════════
   // MODAL AUSENCIA / REPORTAR AUSENCIA
   // ══════════════════════════════════════
@@ -537,7 +573,17 @@ private convertirA24h(hora: string): string {
     if (period === 'AM' && h === 12) h = 0;
     return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
   }
-getBloqueEstado(fecha: string, hora: string): string {
+  diasCerrados: any[] = [];
+  cargarDiasCerrados(): void {
+    this.http.get<any[]>(`${API}/dias-cerrados`).subscribe({
+      next: (data) => { this.diasCerrados = data ?? []; this.cdr.detectChanges(); },
+      error: () => {}
+    });
+  }
+  esDiaCerrado(fecha: string): boolean { return this.diasCerrados.some(d => d.fecha === fecha); }
+
+  getBloqueEstado(fecha: string, hora: string): string {
+    if (this.esDiaCerrado(fecha)) return 'cerrado-centro';
     if (this.esHoraDeColacion(hora)) return 'bloqueado';
     const cita = this.citasSemana.find(c => c.fecha === fecha && this.convertirA24h(c.hora) === hora.substring(0,5));
     if (!cita) return 'libre';
@@ -545,6 +591,7 @@ getBloqueEstado(fecha: string, hora: string): string {
   }
 
   getBloqueInfo(fecha: string, hora: string): string {
+    if (this.esDiaCerrado(fecha)) return '';
     if (this.esHoraDeColacion(hora)) return 'Colación';
     const cita = this.citasSemana.find(c => c.fecha === fecha && this.convertirA24h(c.hora) === hora.substring(0,5));
     return cita ? cita.estudiante : '';
@@ -556,6 +603,17 @@ getBloqueEstado(fecha: string, hora: string): string {
   }
 
   clickBloque(fecha: string, hora: string): void { this.diaSeleccionado = fecha; }
+
+  // Desde la Agenda: al hacer clic en una cita del panel del día, te lleva
+  // directo a "Mis Atenciones" y abre la ficha completa de ese paciente
+  // (con su historial de atenciones: cuántas veces vino, cada cuánto,
+  // fecha, hora, motivo y medicamento — todo lo que ya muestra la ficha).
+  irAFichaDesdeAgenda(cita: any): void {
+    if (!cita.estudiante_id) return;
+    this.seccionActiva = 'atenciones';
+    this.cargarAtenciones();
+    this.abrirFichaPaciente({ estudiante_id: cita.estudiante_id, nombre: cita.estudiante });
+  }
 
   // ══════════════════════════════════════
   // MIS ATENCIONES
@@ -617,6 +675,7 @@ limpiarFiltrosAtenciones(): void {
         this.cargarAtenciones();
         this.cargarEstadisticasDia();
         this.cargarCitasHoy();
+        this.cargarCitasSinCerrar();
         this.mensajeExito = 'Atención completada correctamente.';
         this.cdr.detectChanges();
         setTimeout(() => { this.mensajeExito = ''; this.cdr.detectChanges(); }, 3000);
@@ -637,6 +696,7 @@ limpiarFiltrosAtenciones(): void {
         this.cargarAtenciones();
         this.cargarEstadisticasDia();
         this.cargarCitasHoy();
+        this.cargarCitasSinCerrar();
         this.mensajeExito = 'Inasistencia registrada.';
         this.cdr.detectChanges();
         setTimeout(() => { this.mensajeExito = ''; this.cdr.detectChanges(); }, 3000);
@@ -912,6 +972,8 @@ eliminarSolicitudesSeleccionadas(): void {
 
   pacientesHistorial: any[] = [];
   busquedaPaciente = '';
+  filtroAnioHistorial = '';
+  filtroCarreraHistorial = '';
   cargandoPacientesHistorial = false;
 
   pacienteSeleccionado: any = null;   // { estudiante_id, nombre, ... }
@@ -920,38 +982,84 @@ eliminarSolicitudesSeleccionadas(): void {
   fichaExiste = false;
   fichaEnEdicion = false;
   fichaFechaModificacion: string | null = null;
+  fichaCompletadoPor: string | null = null;
+  fichaRevisada = true;
   guardandoFicha = false;
+
+  // Datos del estudiante + su historial de citas con este profesional
+  // (para la vista "ver todas sus atenciones" al hacer clic en el paciente)
+  fichaEstudianteRut = '';
+  fichaEstudianteCarrera = '';
+  fichaEstudianteCorreo = '';
+  fichaEstudianteFotoUrl: string | null = null;
+  fichaFotoError = false;
+  fichaCitas: any[] = [];
+  fichaTotalAtenciones = 0;
+  fichaUltimaVisita: string | null = null;
+  fichaDiasDesdeUltimaVisita: number | null = null;
+  fichaMostrandoCitas = false;   // toggle entre "ver ficha" y "ver citas"
 
   gestionarPlantillaAbierto = false;
   plantillaPreguntasEdit: any[] = [];
   guardandoPlantilla = false;
 
+  get aniosHistorialDisponibles(): number[] {
+    const actual = new Date().getFullYear();
+    return [actual, actual - 1, actual - 2, actual - 3];
+  }
+
   get pacientesHistorialFiltrados(): any[] {
     const q = this.busquedaPaciente.trim().toLowerCase();
     if (!q) return this.pacientesHistorial;
     return this.pacientesHistorial.filter(p =>
-      (p.nombre || '').toLowerCase().includes(q) || (p.correo || '').toLowerCase().includes(q)
+      (p.nombre || '').toLowerCase().includes(q) ||
+      (p.rut || '').toLowerCase().includes(q) ||
+      (p.correo || '').toLowerCase().includes(q)
     );
   }
 
   cargarPacientesHistorial(): void {
     this.cargandoPacientesHistorial = true;
-    this.http.get<any[]>(`${API}/historial-clinico/${this.profDbId}/pacientes`).subscribe({
+    let params = new HttpParams();
+    if (this.filtroAnioHistorial)   params = params.set('anio', this.filtroAnioHistorial);
+    if (this.filtroCarreraHistorial) params = params.set('carrera', this.filtroCarreraHistorial);
+    this.http.get<any[]>(`${API}/historial-clinico/${this.profDbId}/pacientes`, { params }).subscribe({
       next: (data) => { this.pacientesHistorial = data; this.cargandoPacientesHistorial = false; this.cdr.detectChanges(); },
       error: () => { this.pacientesHistorial = []; this.cargandoPacientesHistorial = false; this.cdr.detectChanges(); }
     });
   }
 
+  limpiarFiltrosHistorial(): void {
+    this.busquedaPaciente = '';
+    this.filtroAnioHistorial = '';
+    this.filtroCarreraHistorial = '';
+    this.cargarPacientesHistorial();
+  }
+
   abrirFichaPaciente(paciente: any): void {
     this.pacienteSeleccionado = paciente;
     this.fichaEnEdicion = false;
+    this.fichaMostrandoCitas = false;
+    this.fichaFotoError = false;
     this.http.get<any>(`${API}/historial-clinico/${this.profDbId}/${paciente.estudiante_id}`).subscribe({
       next: (data) => {
         this.fichaPreguntas   = data.preguntas;
         this.fichaRespuestas  = { ...data.respuestas };
         this.fichaExiste      = data.existe;
         this.fichaFechaModificacion = data.fecha_modificacion;
+        this.fichaCompletadoPor     = data.completado_por;
+        this.fichaRevisada          = data.revisado_por_profesional ?? true;
         this.fichaEnEdicion   = !data.existe; // primera vez → entra directo en modo edición
+
+        this.fichaEstudianteRut     = data.estudiante_rut || '';
+        this.fichaEstudianteCarrera = data.estudiante_carrera || '';
+        this.fichaEstudianteCorreo  = data.estudiante_correo || '';
+        this.fichaEstudianteFotoUrl = data.estudiante_foto_url || null;
+        this.fichaCitas             = data.citas || [];
+        this.fichaTotalAtenciones   = data.total_atenciones || 0;
+        this.fichaUltimaVisita      = data.ultima_visita;
+        this.fichaDiasDesdeUltimaVisita = data.dias_desde_ultima_visita;
+
         this.cdr.detectChanges();
       },
       error: () => {
@@ -966,6 +1074,12 @@ eliminarSolicitudesSeleccionadas(): void {
     this.pacienteSeleccionado = null;
     this.fichaPreguntas  = [];
     this.fichaRespuestas = {};
+    this.fichaCitas = [];
+    this.fichaMostrandoCitas = false;
+  }
+
+  toggleVistaFicha(mostrarCitas: boolean): void {
+    this.fichaMostrandoCitas = mostrarCitas;
   }
 
   habilitarEdicionFicha(): void { this.fichaEnEdicion = true; }
@@ -984,6 +1098,7 @@ eliminarSolicitudesSeleccionadas(): void {
       next: () => {
         this.fichaExiste = true;
         this.fichaEnEdicion = false;
+        this.fichaRevisada = true;   // el profesional acaba de revisar/confirmar
         this.guardandoFicha = false;
         this.mensajeExito = 'Ficha guardada correctamente.';
         this.cargarPacientesHistorial();

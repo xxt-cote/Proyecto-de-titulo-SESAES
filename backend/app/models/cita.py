@@ -18,5 +18,11 @@ class Cita(Base):
     medicamento           = Column(String, nullable=True)
     observaciones_atencion = Column(String, nullable=True)
 
+    # Cita creada por el admin fuera del horario habitual del profesional
+    # (fuera de horario declarado, o incluso en su hora de colación),
+    # forzada manualmente como excepción. Se usa para diferenciarla
+    # visualmente y en reportes de las citas normales.
+    sobrecupo             = Column(Boolean, default=False)
+
     profesional = relationship("Profesional", back_populates="citas")
     estudiante  = relationship("Usuario", foreign_keys=[estudiante_id])

@@ -207,32 +207,9 @@ body {
 }
 
 /* ══════════════════════════════════════ */
-/* MENSAJES DE ÉXITO / ERROR             */
-/* ══════════════════════════════════════ */
-
-.mensaje-exito {
-  background: #f0fdf9;
-  color: #0d9488;
-  border: 1.5px solid #6ee7b7;
-  border-radius: 8px;
-  padding: 10px 24px;
-  font-size: 13px;
-  font-weight: 600;
-  margin: 0 32px;
-  margin-top: 12px;
-}
-
-.mensaje-error {
-  background: #fef2f2;
-  color: #ef4444;
-  border: 1.5px solid #fca5a5;
-  border-radius: 8px;
-  padding: 10px 24px;
-  font-size: 13px;
-  font-weight: 600;
-  margin: 0 32px;
-  margin-top: 12px;
-}
+/* Mensajes de éxito/error: ahora usan el sistema de toast global
+   (frontend/src/app/shared/toast/), montado una vez en app.html.
+   Ya no hay banners inline propios de este dashboard. */
 
 /* ══════════════════════════════════════ */
 /* PANEL NOTIFICACIONES                  */
@@ -476,6 +453,7 @@ body {
 .cal-celda-admin span.hoy { background: linear-gradient(135deg, #0d9488, #0f766e); color: white; font-weight: 700; }
 .cal-celda-admin span.feriado { background: #fff7ed; color: #ea580c; font-weight: 600; }
 .cal-celda-admin span.feriado.hoy { background: linear-gradient(135deg, #0d9488, #0f766e); color: white; }
+.dashboard.tema-oscuro .cal-celda-admin span.feriado { background: rgba(234,88,12,0.15); color: #fb923c; }
 .btn-ver-agenda { font-size: 12px; color: #0d9488; background: none; border: none; cursor: pointer; font-weight: 500; }
 .actividad-lista { display: flex; flex-direction: column; gap: 14px; }
 .actividad-item  { display: flex; gap: 10px; align-items: flex-start; }
@@ -695,7 +673,6 @@ body {
 .dia-nombre { font-size: 10px; font-weight: 600; color: #94a3b8; text-transform: uppercase; }
 .dia-num    { font-size: 15px; font-weight: 700; color: #1e293b; }
 .dia-header.hoy .dia-num { color: #4f8ef7; }
-.dia-header.feriado.hoy .dia-num { color: #ea580c; }
 
 .bloque-celda { height: 48px; border-bottom: 1px solid #f8fafc; cursor: pointer; transition: background .1s; position: relative; display: flex; align-items: center; padding: 0 6px; }
 .bloque-celda:hover           { background: #f8fafc; }
@@ -938,18 +915,57 @@ body {
 }
 .bloque-celda.bloqueado:hover { background: repeating-linear-gradient(45deg, #cbd5e1, #cbd5e1 6px, #94a3b8 6px, #94a3b8 12px); }
 
+/* Fuera del horario declarado por el profesional — gris claro, agendable
+   por el admin como sobrecupo (a diferencia de "bloqueado" que no lo es) */
+.bloque-celda.fuera-horario-bloque { background: #f1f5f9; }
+.bloque-celda.fuera-horario-bloque:hover { background: #e2e8f0; }
+
+/* Hora de colación — gris más oscuro/con patrón, también forzable pero
+   con la advertencia extra que ya da el modal de confirmación */
+.bloque-celda.colacion-bloque {
+  background: repeating-linear-gradient(45deg, #e2e8f0, #e2e8f0 5px, #cbd5e1 5px, #cbd5e1 10px);
+}
+.bloque-celda.colacion-bloque:hover {
+  background: repeating-linear-gradient(45deg, #cbd5e1, #cbd5e1 5px, #94a3b8 5px, #94a3b8 10px);
+}
+
+/* Cita forzada por el admin fuera de horario */
+.bloque-celda.sobrecupo-bloque { background: #f5f3ff; border-left: 2px solid #7c3aed; }
+
+/* Día completo cerrado (centro sin atención) — distinto de "bloqueado"
+   (que es solo un profesional inactivo puntual). Se usa un gris carbón
+   con acento rojo en vez de rojo puro, para no confundirse con "urgente"
+   (que sí es rojo claro sólido, sin patrón). */
+.bloque-celda.cerrado-centro-bloque {
+  background: repeating-linear-gradient(45deg, #1e2530, #1e2530 6px, #2d3748 6px, #2d3748 12px);
+  border-left: 2px solid #dc2626;
+  cursor: not-allowed;
+}
+.bloque-celda.cerrado-centro-bloque:hover {
+  background: repeating-linear-gradient(45deg, #1e2530, #1e2530 6px, #2d3748 6px, #2d3748 12px);
+}
+
+.aviso-sobrecupo-modal {
+  background: #f5f3ff; border: 1.5px solid #7c3aed; color: #4c1d95;
+  border-radius: 8px; padding: 10px 14px; font-size: 12.5px; line-height: 1.4;
+  margin: 0 0 16px 0;
+}
+
 /* ══════════════════════════════════════ */
 /* TEMA OSCURO                           */
 /* ══════════════════════════════════════ */
 
 .dashboard.tema-oscuro { background: #111827; }
+/* El navegador dibuja el ícono del selector de fecha en negro por
+   defecto — invisible sobre fondo oscuro. Esto le avisa que use la
+   paleta clara para esos controles nativos. */
+.dashboard.tema-oscuro input[type="date"] { color-scheme: dark; }
 .dashboard.tema-oscuro .sidebar { background: #1c2534; border-color: #3a4a63; }
 .dashboard.tema-oscuro .sidebar-logo-title { color: #4f8ef7; }
 .dashboard.tema-oscuro .sidebar-logo-divider { background: #3a4a63; }
 .dashboard.tema-oscuro .sidebar-logo-sub { color: #8b96a8; }
 .dashboard.tema-oscuro .nav-item { color: #8b96a8; }
 .dashboard.tema-oscuro .nav-item:hover { background: #2d3b52; color: #c9d1d9; }
-.dashboard.tema-oscuro .nav-item.active { background: linear-gradient(135deg, rgba(79,142,247,0.15), rgba(124,77,255,0.10)); color: #4f8ef7; border-left: 3px solid #4f8ef7; }
 .dashboard.tema-oscuro .sidebar-footer { border-color: #3a4a63; }
 .dashboard.tema-oscuro .logout-btn { background: #242f42; border-color: #3a4a63; color: #f85149; }
 .dashboard.tema-oscuro .profile-name { color: #e6edf3; }
@@ -998,12 +1014,9 @@ body {
 .dashboard.tema-oscuro .semana-titulo { color: #e6edf3; }
 .dashboard.tema-oscuro .dia-num { color: #e6edf3; }
 .dashboard.tema-oscuro .dia-header.hoy .dia-num { color: #60a5fa; }
-.dashboard.tema-oscuro .dia-header.feriado.hoy .dia-num { color: #fb923c; }
 .dashboard.tema-oscuro .hora-celda { color: #8b96a8; border-color: #3a4a63; }
 .dashboard.tema-oscuro .dia-col { border-color: #3a4a63; }
 .dashboard.tema-oscuro .dia-header { border-color: #3a4a63; }
-.dashboard.tema-oscuro .dia-header.feriado { background: rgba(234,88,12,0.12); }
-.dashboard.tema-oscuro .dia-header.feriado .dia-num { color: #fb923c; }
 .dashboard.tema-oscuro .semana-header { border-color: #3a4a63; }
 .dashboard.tema-oscuro .bloque-celda { border-color: #3a4a63; }
 .dashboard.tema-oscuro .bloque-celda:hover { background: #2d3b52; }
@@ -1025,9 +1038,7 @@ body {
 .dashboard.tema-oscuro .cal-grid-dias-nombre-admin { border-color: #3a4a63; }
 .dashboard.tema-oscuro .cal-grid-dias-nombre-admin span { color: #56637a; }
 .dashboard.tema-oscuro .cal-celda-admin span { color: #c9d1d9; }
-.dashboard.tema-oscuro .cal-celda-admin span.hoy { background: linear-gradient(135deg, #f39c12, #d97e0a); color: #1c2534; }
-.dashboard.tema-oscuro .cal-celda-admin span.feriado { background: rgba(234,88,12,0.15); color: #fb923c; }
-.dashboard.tema-oscuro .cal-celda-admin span.feriado.hoy { background: linear-gradient(135deg, #f39c12, #d97e0a); color: #1c2534; }
+.dashboard.tema-oscuro .cal-celda-admin span.hoy { background: linear-gradient(135deg, #0d9488, #0f766e); color: #fff; }
 .dashboard.tema-oscuro .disponibilidad-item { background: #2d3b52; }
 .dashboard.tema-oscuro .disp-nombre { color: #e6edf3; }
 .dashboard.tema-oscuro .blob-blue   { background: #4f8ef7; opacity: 0.04; }
@@ -1044,11 +1055,11 @@ body {
 .dashboard.tema-oscuro .est-stats-titulo { color: #4f8ef7; }
 .dashboard.tema-oscuro .est-stat-label { color: #8b96a8; }
 .dashboard.tema-oscuro .cgr-panel { background: rgba(243,156,18,0.10); border-color: rgba(243,156,18,0.35); }
-.dashboard.tema-oscuro .cgr-titulo { color: #f5a623; }
+.dashboard.tema-oscuro .cgr-titulo { color: #2dd4bf; }
 .dashboard.tema-oscuro .cgr-desc   { color: #d99a2b; }
-.dashboard.tema-oscuro .cgr-campo label { color: #f5a623; }
+.dashboard.tema-oscuro .cgr-campo label { color: #2dd4bf; }
 .dashboard.tema-oscuro .cgr-campo select, .dashboard.tema-oscuro .cgr-campo input { background: #2d3b52; border-color: rgba(243,156,18,0.35); color: #e6edf3; }
-.dashboard.tema-oscuro .btn-cgr.secondary { background: #2d3b52; color: #f5a623; border-color: #f39c12; }
+.dashboard.tema-oscuro .btn-cgr.secondary { background: #2d3b52; color: #2dd4bf; border-color: #0d9488; }
 .dashboard.tema-oscuro .btn-ojo { color: #8b96a8; }
 .dashboard.tema-oscuro .btn-ojo:hover { color: #4f8ef7; }
 .dashboard.tema-oscuro .perfil-foto-preview { border-color: #3a4a63; }
@@ -1066,13 +1077,12 @@ body {
 .dashboard.tema-oscuro .estudiante-opcion:hover { background: #1a2236; }
 .dashboard.tema-oscuro .estudiante-opcion strong { color: #c9d1d9; }
 .dashboard.tema-oscuro .horario-leyenda .leyenda-item { color: #8b96a8; }
-.dashboard.tema-oscuro .mensaje-exito { background: rgba(13,148,136,0.1); border-color: rgba(13,148,136,0.3); }
-.dashboard.tema-oscuro .mensaje-error { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.3); }
+
 
 .dashboard.tema-oscuro .notif-checkbox-master input,
 .dashboard.tema-oscuro .notif-checkbox input,
 .dashboard.tema-oscuro .th-checkbox input,
-.dashboard.tema-oscuro .td-checkbox input { accent-color: #f39c12; }
+.dashboard.tema-oscuro .td-checkbox input { accent-color: #0d9488; }
 .dashboard.tema-oscuro .notif-item.seleccionada { background: rgba(243,156,18,0.10); }
 .dashboard.tema-oscuro .admin-tabla tr.fila-seleccionada { background: rgba(243,156,18,0.08); }
 .dashboard.tema-oscuro .admin-tabla tr.fila-seleccionada td { color: #e6edf3; }
@@ -1084,29 +1094,22 @@ body {
   background: repeating-linear-gradient(45deg, #111827, #111827 6px, #3a4a63 6px, #3a4a63 12px);
 }
 
-/* ── Botones principales en modo oscuro → naranjo institucional miUTEM ── */
-.dashboard.tema-oscuro .btn-nueva-cita-top,
-.dashboard.tema-oscuro .btn-nueva-cita,
-.dashboard.tema-oscuro .btn-agregar,
-.dashboard.tema-oscuro .btn-guardar-config,
-.dashboard.tema-oscuro .btn-guardar-modal,
-.dashboard.tema-oscuro .btn-filtrar {
-  background: linear-gradient(135deg, #f39c12, #d97e0a);
+.dashboard.tema-oscuro .bloque-celda.fuera-horario-bloque { background: #1e293b; }
+.dashboard.tema-oscuro .bloque-celda.fuera-horario-bloque:hover { background: #263449; }
+.dashboard.tema-oscuro .bloque-celda.colacion-bloque {
+  background: repeating-linear-gradient(45deg, #1e293b, #1e293b 5px, #111827 5px, #111827 10px);
 }
-.dashboard.tema-oscuro .btn-pag.active {
-  background: linear-gradient(135deg, #f39c12, #d97e0a);
-  border-color: transparent;
-}
+.dashboard.tema-oscuro .bloque-celda.sobrecupo-bloque { background: rgba(124,58,237,0.22); border-left: 2px solid #a78bfa; }
+.dashboard.tema-oscuro .aviso-sobrecupo-modal { background: rgba(124,58,237,0.15); border-color: #a78bfa; color: #ddd6fe; }
+
+/* ── Botones principales y navegación activa en modo oscuro ──
+   Mismo verde institucional que estudiante y profesional (#0d9488),
+   sin override propio — así los 3 dashboards quedan idénticos en
+   ambos modos, tal como ya funciona en los otros dos. */
 .dashboard.tema-oscuro .nav-item.active {
   background: rgba(13,148,136,0.15);
   color: #0d9488;
   border-left: 3px solid #0d9488;
-}
-.dashboard.tema-oscuro .mini-avatar,
-.dashboard.tema-oscuro .avatar-lg,
-.dashboard.tema-oscuro .profile-avatar,
-.dashboard.tema-oscuro .perfil-foto-placeholder {
-  background: linear-gradient(135deg, #f39c12, #d97e0a);
 }
 /* ══════════════════════════════════════ */
 /* RESPONSIVE — TABLET Y MÓVIL           */
@@ -1264,3 +1267,23 @@ body {
     overflow-x: auto;
   }
 }
+.dashboard.tema-oscuro .bloque-celda.cerrado-centro-bloque {
+  background: repeating-linear-gradient(45deg, #0f1420, #0f1420 6px, #1a2233 6px, #1a2233 12px);
+  border-left: 2px solid #dc2626;
+}
+
+/* ══════════════════════════════════════ */
+/* INFO DEL DÍA (mini-calendario admin)   */
+/* ══════════════════════════════════════ */
+.cal-celda-admin.clickeable { cursor: pointer; }
+.info-dia-admin {
+  margin-top: 10px; padding: 10px 12px; background: #f8fafc; border: 1px solid #e2e8f0;
+  border-radius: 10px; display: flex; flex-direction: column; gap: 4px;
+}
+.info-dia-admin-item { font-size: 12px; color: #334155; line-height: 1.4; }
+.info-dia-admin-vacio { margin: 10px 0 0 0; font-size: 12px; color: #94a3b8; text-align: center; }
+
+.dashboard.tema-oscuro .info-dia-admin { background: #1a2333; border-color: #3a4a63; }
+.dashboard.tema-oscuro .info-dia-admin-item { color: #c9d1d9; }
+.dashboard.tema-oscuro .info-dia-admin-vacio { color: #56637a; }
+

@@ -144,10 +144,24 @@
       </div>
     </div>
 
-    <div class="mensaje-exito" *ngIf="mensajeExito">✓ {{ mensajeExito }}</div>
-    <div class="mensaje-error" *ngIf="mensajeError">✕ {{ mensajeError }}</div>
 
     <main class="main-content-prof">
+
+      <!-- ══ AVISO: CITAS SIN CERRAR (fecha ya pasó, siguen "pendiente") ══ -->
+      <div class="banner-citas-sin-cerrar-prof" *ngIf="citasSinCerrar.length > 0">
+        <div class="banner-csc-icono-prof">⚠️</div>
+        <div class="banner-csc-texto-prof">
+          <strong>Tienes {{ citasSinCerrar.length }} atención{{ citasSinCerrar.length === 1 ? '' : 'es' }} sin cerrar</strong>
+          <span>La fecha ya pasó y sigue marcada como pendiente. Ciérrala como completada o inasistencia.</span>
+        </div>
+        <div class="banner-csc-lista-prof">
+          <div class="banner-csc-item-prof" *ngFor="let c of citasSinCerrar">
+            <span>{{ c.estudiante }} <small>({{ c.fecha }})</small></span>
+            <button class="banner-csc-btn-prof completar" (click)="abrirModalCompletar(c)">✓ Completar</button>
+            <button class="banner-csc-btn-prof inasistencia" (click)="marcarInasistencia(c)">✕ Inasistencia</button>
+          </div>
+        </div>
+      </div>
 
       <!-- ══ INICIO ══ -->
       <div *ngIf="seccionActiva==='inicio'">
@@ -231,10 +245,16 @@
               <span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span>
             </div>
             <div class="cal-grid-prof">
-              <div *ngFor="let dia of calDiasMes" class="cal-celda-prof" [class.vacia]="!dia">
+              <div *ngFor="let dia of calDiasMes" class="cal-celda-prof" [class.vacia]="!dia" [class.clickeable]="dia" (click)="seleccionarDiaInfo(dia)">
                 <span *ngIf="dia" [class.hoy]="dia.esHoy" [class.feriado]="esFeriado(dia.fecha)" [title]="nombreFeriado(dia.fecha)">{{ dia.num }}</span>
               </div>
             </div>
+            <div class="info-dia-prof" *ngIf="diaSeleccionadoInfo && infoDelDia(diaSeleccionadoInfo).length > 0">
+              <span class="info-dia-prof-item" *ngFor="let info of infoDelDia(diaSeleccionadoInfo)">{{ info }}</span>
+            </div>
+            <p class="info-dia-prof-vacio" *ngIf="diaSeleccionadoInfo && infoDelDia(diaSeleccionadoInfo).length === 0">
+              Nada especial que celebrar este día.
+            </p>
           </div>
 
         </div>
@@ -274,6 +294,8 @@
                      [class.ocupado]="getBloqueEstado(dia.fecha, h) === 'ocupado'"
                      [class.urgente-bloque]="getBloqueEstado(dia.fecha, h) === 'urgente'"
                      [class.bloqueado-bloque]="getBloqueEstado(dia.fecha, h) === 'bloqueado'"
+                     [class.cerrado-centro-bloque-prof]="getBloqueEstado(dia.fecha, h) === 'cerrado-centro'"
+                     [title]="getBloqueEstado(dia.fecha, h) === 'cerrado-centro' ? 'El centro no atiende este día' : ''"
                      (click)="clickBloque(dia.fecha, h)">
                   <span *ngIf="getBloqueInfo(dia.fecha, h) as info" class="bloque-info-prof">{{ info }}</span>
                 </div>
@@ -288,7 +310,7 @@
               <button class="detalle-cerrar-prof" (click)="diaSeleccionado=null">✕</button>
             </div>
             <div *ngIf="citasDiaSeleccionado.length === 0" class="tabla-vacia-prof">Sin citas este día</div>
-            <div *ngFor="let cita of citasDiaSeleccionado" class="detalle-cita-prof" [class.urgente]="cita.urgente">
+            <div *ngFor="let cita of citasDiaSeleccionado" class="detalle-cita-prof detalle-cita-clickeable-prof" [class.urgente]="cita.urgente" (click)="irAFichaDesdeAgenda(cita)" title="Ver historial completo de este paciente">
               <span class="detalle-hora-prof">{{ cita.hora }}</span>
               <div class="detalle-info-prof">
                 <strong>{{ cita.estudiante }}</strong>
@@ -324,7 +346,7 @@
             <tbody>
               <tr *ngFor="let a of atencionesPaginadas">
                 <td>
-                  <div class="tabla-usuario-prof">
+                  <div class="tabla-usuario-prof tabla-usuario-clickeable-prof" (click)="abrirFichaPaciente({estudiante_id: a.estudiante_id, nombre: a.estudiante})" title="Ver historial completo de este paciente">
                     <div class="mini-avatar-prof">{{ a.estudiante | slice:0:2 }}</div>
                     <div>
                       <strong>{{ a.estudiante }}</strong>
@@ -488,26 +510,45 @@
           </div>
           <p class="modal-desc">Selecciona un paciente para ver o completar su ficha de antecedentes. Cada profesional mantiene su propia ficha, independiente de los demás.</p>
 
-          <input class="search-input-prof" style="margin-bottom: 14px; width: 100%;"
-                 type="text" placeholder="Buscar paciente por nombre o correo…"
-                 [(ngModel)]="busquedaPaciente" />
+          <div class="filtros-historial-prof">
+            <input class="search-input-prof" type="text" placeholder="Buscar por nombre o RUT…"
+                   [(ngModel)]="busquedaPaciente" />
+            <select class="search-input-prof" [(ngModel)]="filtroAnioHistorial" (change)="cargarPacientesHistorial()">
+              <option value="">Todos los años</option>
+              <option *ngFor="let a of aniosHistorialDisponibles" [value]="a">{{ a }}</option>
+            </select>
+            <input class="search-input-prof" type="text" placeholder="Carrera…"
+                   [(ngModel)]="filtroCarreraHistorial" (keyup.enter)="cargarPacientesHistorial()" />
+            <button class="btn-editar-perfil" (click)="cargarPacientesHistorial()">Filtrar</button>
+            <button class="btn-cancelar-modal" (click)="limpiarFiltrosHistorial()">Limpiar</button>
+          </div>
 
           <table class="tabla-prof" *ngIf="pacientesHistorialFiltrados.length > 0">
             <thead>
-              <tr><th>Paciente</th><th>Carrera</th><th>Ficha</th><th></th></tr>
+              <tr><th>Paciente</th><th>Carrera</th><th>Última visita</th><th>Ficha</th><th></th></tr>
             </thead>
             <tbody>
               <tr *ngFor="let p of pacientesHistorialFiltrados">
                 <td>
                   <div class="tabla-usuario-prof">
                     <div class="mini-avatar-prof">{{ p.nombre?.charAt(0) }}</div>
-                    <div><strong>{{ p.nombre }}</strong><span>{{ p.correo }}</span></div>
+                    <div><strong>{{ p.nombre }}</strong><span>{{ p.rut }} · {{ p.correo }}</span></div>
                   </div>
                 </td>
                 <td>{{ p.carrera || '—' }}</td>
                 <td>
+                  <span *ngIf="p.dias_desde_ultima_visita === 0">Hoy</span>
+                  <span *ngIf="p.dias_desde_ultima_visita === 1">Hace 1 día</span>
+                  <span *ngIf="p.dias_desde_ultima_visita > 1">Hace {{ p.dias_desde_ultima_visita }} días</span>
+                  <span *ngIf="p.dias_desde_ultima_visita === null">—</span>
+                  <br><small class="texto-gris">{{ p.total_atenciones }} atención{{ p.total_atenciones === 1 ? '' : 'es' }} en total</small>
+                </td>
+                <td>
                   <span class="estado-badge-prof" [ngClass]="p.tiene_ficha ? 'completada' : 'pendiente'">
                     {{ p.tiene_ficha ? 'Completada' : 'Sin completar' }}
+                  </span>
+                  <span class="estado-badge-prof pendiente" style="margin-left: 6px;" *ngIf="p.pendiente_revision">
+                    🩺 Por revisar
                   </span>
                 </td>
                 <td><button class="btn-guardar-prof" style="width:auto; padding:6px 14px;" (click)="abrirFichaPaciente(p)">Ver ficha</button></td>
@@ -524,39 +565,97 @@
       <!-- ══ MODAL: FICHA DEL PACIENTE ══ -->
       <div class="modal-overlay-prof" *ngIf="pacienteSeleccionado" (click)="cerrarFichaPaciente()">
         <div class="modal-prof" (click)="$event.stopPropagation()" style="width: 560px;">
-          <div class="modal-header-prof">
-            <h3>Ficha de {{ pacienteSeleccionado.nombre }}</h3>
+          <div class="modal-header-prof modal-header-ficha-prof">
+            <div class="ficha-avatar-nombre-prof">
+              <img *ngIf="fichaEstudianteFotoUrl && !fichaFotoError" [src]="fichaEstudianteFotoUrl" class="ficha-avatar-prof" alt="Foto del estudiante" (error)="fichaFotoError = true" />
+              <div *ngIf="!fichaEstudianteFotoUrl || fichaFotoError" class="ficha-avatar-prof ficha-avatar-iniciales-prof">
+                {{ pacienteSeleccionado.nombre | slice:0:2 }}
+              </div>
+              <h3>{{ pacienteSeleccionado.nombre }}</h3>
+            </div>
             <button class="modal-cerrar-prof" (click)="cerrarFichaPaciente()">✕</button>
           </div>
-          <p class="modal-desc" *ngIf="fichaFechaModificacion">Última modificación: {{ fichaFechaModificacion | date:'dd/MM/yyyy HH:mm' }}</p>
 
-          <div *ngFor="let p of fichaPreguntas" class="campo-grupo-prof">
-            <label>{{ p.etiqueta }}</label>
+          <p class="modal-desc" *ngIf="fichaEstudianteRut || fichaEstudianteCarrera">
+            {{ fichaEstudianteRut || '—' }} · {{ fichaEstudianteCarrera || '—' }} · {{ fichaEstudianteCorreo }}
+          </p>
 
-            <input *ngIf="p.tipo === 'texto'" type="text"
-                   [(ngModel)]="fichaRespuestas[p.id]" [disabled]="!fichaEnEdicion" />
-
-            <input *ngIf="p.tipo === 'numero'" type="number"
-                   [(ngModel)]="fichaRespuestas[p.id]" [disabled]="!fichaEnEdicion" />
-
-            <textarea *ngIf="p.tipo === 'textarea'" class="textarea-descripcion" rows="2"
-                      [(ngModel)]="fichaRespuestas[p.id]" [disabled]="!fichaEnEdicion"></textarea>
-
-            <select *ngIf="p.tipo === 'si_no'"
-                    [(ngModel)]="fichaRespuestas[p.id]" [disabled]="!fichaEnEdicion">
-              <option value="">Sin responder</option>
-              <option value="Sí">Sí</option>
-              <option value="No">No</option>
-            </select>
+          <div class="ficha-stats-prof">
+            <div class="ficha-stat-item-prof">
+              <strong>{{ fichaTotalAtenciones }}</strong>
+              <span>atención{{ fichaTotalAtenciones === 1 ? '' : 'es' }} en total</span>
+            </div>
+            <div class="ficha-stat-item-prof">
+              <strong>
+                <ng-container *ngIf="fichaDiasDesdeUltimaVisita === 0">Hoy</ng-container>
+                <ng-container *ngIf="fichaDiasDesdeUltimaVisita === 1">Hace 1 día</ng-container>
+                <ng-container *ngIf="fichaDiasDesdeUltimaVisita !== null && fichaDiasDesdeUltimaVisita > 1">Hace {{ fichaDiasDesdeUltimaVisita }} días</ng-container>
+                <ng-container *ngIf="fichaDiasDesdeUltimaVisita === null">Sin visitas</ng-container>
+              </strong>
+              <span>última visita</span>
+            </div>
           </div>
 
-          <div class="modal-footer-prof" *ngIf="!fichaEnEdicion">
-            <button class="btn-guardar-modal-prof" (click)="habilitarEdicionFicha()">✎ Editar ficha</button>
+          <div class="ficha-tabs-prof">
+            <button [class.activo]="!fichaMostrandoCitas" (click)="toggleVistaFicha(false)">📋 Ficha de antecedentes</button>
+            <button [class.activo]="fichaMostrandoCitas" (click)="toggleVistaFicha(true)">🗓️ Historial de atenciones ({{ fichaCitas.length }})</button>
           </div>
-          <div class="modal-footer-prof" *ngIf="fichaEnEdicion">
-            <button class="btn-cancelar-modal-prof" (click)="cancelarEdicionFicha()">Cancelar</button>
-            <button class="btn-guardar-modal-prof" [disabled]="guardandoFicha" (click)="guardarFicha()">{{ guardandoFicha ? 'Guardando…' : 'Guardar ficha' }}</button>
-          </div>
+
+          <!-- ── VISTA: FICHA DE ANTECEDENTES ── -->
+          <ng-container *ngIf="!fichaMostrandoCitas">
+            <p class="modal-desc" *ngIf="fichaFechaModificacion">Última modificación: {{ fichaFechaModificacion | date:'dd/MM/yyyy HH:mm' }}</p>
+            <p class="cuestionario-aviso-prof" *ngIf="fichaCompletadoPor === 'estudiante' && !fichaRevisada">
+              🩺 Este cuestionario lo respondió el estudiante antes de su atención. Revísalo y guarda para confirmarlo.
+            </p>
+
+            <div *ngFor="let p of fichaPreguntas" class="campo-grupo-prof">
+              <label>{{ p.etiqueta }}</label>
+
+              <input *ngIf="p.tipo === 'texto'" type="text"
+                     [(ngModel)]="fichaRespuestas[p.id]" [disabled]="!fichaEnEdicion" />
+
+              <input *ngIf="p.tipo === 'numero'" type="number"
+                     [(ngModel)]="fichaRespuestas[p.id]" [disabled]="!fichaEnEdicion" />
+
+              <textarea *ngIf="p.tipo === 'textarea'" class="textarea-descripcion" rows="2"
+                        [(ngModel)]="fichaRespuestas[p.id]" [disabled]="!fichaEnEdicion"></textarea>
+
+              <select *ngIf="p.tipo === 'si_no'"
+                      [(ngModel)]="fichaRespuestas[p.id]" [disabled]="!fichaEnEdicion">
+                <option value="">Sin responder</option>
+                <option value="Sí">Sí</option>
+                <option value="No">No</option>
+              </select>
+            </div>
+
+            <div class="modal-footer-prof" *ngIf="!fichaEnEdicion">
+              <button class="btn-guardar-modal-prof" (click)="habilitarEdicionFicha()">✎ Editar ficha</button>
+            </div>
+            <div class="modal-footer-prof" *ngIf="fichaEnEdicion">
+              <button class="btn-cancelar-modal-prof" (click)="cancelarEdicionFicha()">Cancelar</button>
+              <button class="btn-guardar-modal-prof" [disabled]="guardandoFicha" (click)="guardarFicha()">{{ guardandoFicha ? 'Guardando…' : 'Guardar ficha' }}</button>
+            </div>
+          </ng-container>
+
+          <!-- ── VISTA: HISTORIAL DE ATENCIONES ── -->
+          <ng-container *ngIf="fichaMostrandoCitas">
+            <div class="ficha-citas-lista-prof" *ngIf="fichaCitas.length > 0">
+              <div class="ficha-cita-item-prof" *ngFor="let c of fichaCitas">
+                <div class="ficha-cita-fecha-prof">
+                  <strong>{{ c.fecha }}</strong>
+                  <span>{{ c.hora }}</span>
+                </div>
+                <div class="ficha-cita-detalle-prof">
+                  <span class="estado-badge-prof" [ngClass]="c.estado">{{ c.estado }}</span>
+                  <p *ngIf="c.motivo_consulta"><strong>Motivo:</strong> {{ c.motivo_consulta }}</p>
+                  <p *ngIf="c.medicamento"><strong>Medicamento:</strong> {{ c.medicamento }}</p>
+                  <p *ngIf="c.observaciones_atencion"><strong>Observaciones:</strong> {{ c.observaciones_atencion }}</p>
+                  <p *ngIf="c.motivo_cancelacion"><strong>Motivo cancelación:</strong> {{ c.motivo_cancelacion }}</p>
+                </div>
+              </div>
+            </div>
+            <p class="tabla-vacia-prof" *ngIf="fichaCitas.length === 0">Sin atenciones registradas todavía.</p>
+          </ng-container>
         </div>
       </div>
 

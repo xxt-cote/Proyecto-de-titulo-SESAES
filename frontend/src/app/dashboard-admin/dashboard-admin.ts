@@ -8,6 +8,8 @@ import { environment } from '../config';
 import { PhotoCropperComponent } from '../shared/photo-cropper/photo-cropper';
 import { PhotoViewerComponent } from '../shared/photo-viewer/photo-viewer';
 import { obtenerFeriado } from '../shared/feriados-chile';
+import { obtenerDiasInternacionales } from '../shared/dias-internacionales';
+import { ToastService } from '../shared/toast/toast.service';
 Chart.register(...registerables);
 
 
@@ -29,8 +31,18 @@ toggleSidebarMovil(): void {
 }
   seccionActiva = 'inicio';
   temaOscuro    = false;
-  mensajeExito  = '';
-  mensajeError  = '';
+
+  // mensajeExito / mensajeError quedan como getters/setters por compatibilidad
+  // con el resto del código (decenas de lugares hacen "this.mensajeExito = '...'").
+  // Al asignarles un valor, disparan automaticamente un toast -- asi no hubo
+  // que reescribir cada uno de esos lugares uno por uno.
+  private _mensajeExito = '';
+  set mensajeExito(valor: string) { this._mensajeExito = valor; if (valor) this.toast.success(valor); }
+  get mensajeExito(): string { return this._mensajeExito; }
+
+  private _mensajeError = '';
+  set mensajeError(valor: string) { this._mensajeError = valor; if (valor) this.toast.error(valor); }
+  get mensajeError(): string { return this._mensajeError; }
 
   get tituloSeccion(): string {
     const map: Record<string, string> = {
@@ -55,7 +67,8 @@ toggleSidebarMovil(): void {
   constructor(
     private router: Router,
     private http: HttpClient,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private toast: ToastService
   ) {}
 
   ngOnInit(): void {
@@ -78,6 +91,7 @@ toggleSidebarMovil(): void {
     this.cargarActividadReciente();
     this.cargarConfiguracionCentro();
     this.cargarSolicitudesHorarioAdmin();
+    this.cargarDiasCerrados();
   }
 
   navegarA(seccion: string): void {
@@ -86,7 +100,7 @@ toggleSidebarMovil(): void {
   this.mensajeError  = '';
   this.notifPanelAbierto = false;
   this.sidebarMovilAbierta = false;   
-  if (seccion === 'configuracion') { this.cargarAuditoria(); this.cargarConfiguracionCentro(); }
+  if (seccion === 'configuracion') { this.cargarAuditoria(); this.cargarConfiguracionCentro(); this.cargarDiasCerrados(); }
   if (seccion === 'inicio') {
     setTimeout(() => this.crearGraficos(), 0);
   }
@@ -209,7 +223,7 @@ toggleSidebarMovil(): void {
           this.notificaciones = this.notificaciones.filter(x => x.id !== n.id);
           this.cdr.detectChanges();
         },
-        error: () => { this.mensajeError = 'No se pudo eliminar una de las notificaciones.'; setTimeout(() => this.mensajeError = '', 3000); }
+        error: (err) => { this.mensajeError = err?.error?.detail || 'No se pudo eliminar una de las notificaciones.'; setTimeout(() => this.mensajeError = '', 3000); }
       });
     });
   }
@@ -490,13 +504,19 @@ private crearGraficos(): void {
   semanaLabel                    = '';
   modalCitaAbierto               = false;
 
+  // Horario general de atención del centro — la grilla siempre muestra el
+  // día completo, sin importar el horario particular de cada profesional.
+  // Las horas fuera del horario propio del profesional se muestran en gris
+  // (ver getBloqueEstado) pero el admin puede forzar una cita ahí igual,
+  // quedando marcada como "sobrecupo".
+  private readonly CENTRO_HORA_INICIO = '08:00';
+  private readonly CENTRO_HORA_FIN    = '18:00';
+
   get horasGrilla(): string[] {
     const prof = this.profesionales.find(p => String(p.id) === String(this.filtroProfesionalId));
     const duracion = prof?.duracion_min || 60;
-    const inicioStr = prof?.horario_inicio || '08:00';
-    const finStr    = prof?.horario_fin    || '18:00';
-    const [hIni, mIni] = inicioStr.split(':').map(Number);
-    const [hFin, mFin] = finStr.split(':').map(Number);
+    const [hIni, mIni] = this.CENTRO_HORA_INICIO.split(':').map(Number);
+    const [hFin, mFin] = this.CENTRO_HORA_FIN.split(':').map(Number);
     const horas: string[] = [];
     let minutos = hIni * 60 + mIni;
     const finMin = hFin * 60 + mFin;
@@ -584,6 +604,22 @@ private crearGraficos(): void {
     this.generarCalendarioInicio();
   }
 
+  // Info del día al hacer clic en el mini-calendario (feriado chileno +
+  // días internacionales ONU) — puramente informativo, no bloquea nada.
+  diaSeleccionadoInfo: string | null = null;
+  seleccionarDiaInfo(dia: any): void {
+    if (!dia) return;
+    this.diaSeleccionadoInfo = this.diaSeleccionadoInfo === dia.fecha ? null : dia.fecha;
+  }
+  infoDelDia(fecha: string | undefined): string[] {
+    if (!fecha) return [];
+    const info: string[] = [];
+    const feriado = obtenerFeriado(fecha);
+    if (feriado) info.push(`🇨🇱 Feriado: ${feriado.nombre}`);
+    for (const d of obtenerDiasInternacionales(fecha)) info.push(`🌍 ${d.nombre}`);
+    return info;
+  }
+
   generarSemanaActual(): void {
     const hoy = new Date();
     const lunes = new Date(hoy);
@@ -636,27 +672,52 @@ private crearGraficos(): void {
     return h >= prof.hora_almuerzo_inicio && h < prof.hora_almuerzo_fin;
   }
 
-  getBloqueEstado(fecha: string, hora: string): string {
-    if (this.profesionalActualBloqueado) return 'bloqueado';
-    if (this.esHoraDeAlmuerzo(hora)) return 'bloqueado';
-    const cita = this.citasHorario.find(c => {
+  // ¿La hora indicada cae fuera del horario declarado por el profesional?
+  // (pero SÍ dentro del horario general del centro, por eso igual aparece
+  // en la grilla — solo que en gris, y solo agendable por el admin como sobrecupo)
+  private esFueraDeHorarioProfesional(hora: string): boolean {
+    const prof = this.profesionalActual;
+    if (!prof) return false;
+    const inicio = prof.horario_inicio || this.CENTRO_HORA_INICIO;
+    const fin    = prof.horario_fin    || this.CENTRO_HORA_FIN;
+    const h = hora.substring(0, 5);
+    return h < inicio || h >= fin;
+  }
+
+  private buscarCitaEnBloque(fecha: string, hora: string): any {
+    return this.citasHorario.find(c => {
       if (c.fecha !== fecha) return false;
       if (c.estado === 'cancelada' || c.estado === 'inasistencia') return false;
       return this.convertirA24h(c.hora) === hora.substring(0,5);
     });
-    if (!cita) return 'disponible';
-    if (cita.urgente) return 'urgente';
-    return 'ocupado';
+  }
+
+  esDiaCerrado(fecha: string): boolean {
+    return this.diasCerrados.some(d => d.fecha === fecha);
+  }
+
+  getBloqueEstado(fecha: string, hora: string): string {
+    if (this.profesionalActualBloqueado) return 'bloqueado';
+    if (this.esDiaCerrado(fecha)) return 'cerrado-centro';
+
+    const cita = this.buscarCitaEnBloque(fecha, hora);
+    if (cita) {
+      if (cita.urgente)   return 'urgente';
+      if (cita.sobrecupo) return 'sobrecupo';
+      return 'ocupado';
+    }
+
+    if (this.esHoraDeAlmuerzo(hora))          return 'colacion';
+    if (this.esFueraDeHorarioProfesional(hora)) return 'fuera-horario';
+    return 'disponible';
   }
 
   getBloqueInfo(fecha: string, hora: string): string {
+    if (this.esDiaCerrado(fecha)) return '';
+    const cita = this.buscarCitaEnBloque(fecha, hora);
+    if (cita) return cita.sobrecupo ? `${cita.estudiante} (Sobrecupo)` : cita.estudiante;
     if (this.esHoraDeAlmuerzo(hora)) return 'Colación';
-    const cita = this.citasHorario.find(c => {
-      if (c.fecha !== fecha) return false;
-      if (c.estado === 'cancelada' || c.estado === 'inasistencia') return false;
-      return this.convertirA24h(c.hora) === hora.substring(0,5);
-    });
-    return cita ? cita.estudiante : '';
+    return '';
   }
 
   get citasDiaSeleccionado(): any[] {
@@ -664,20 +725,52 @@ private crearGraficos(): void {
     return this.citasHorario.filter(c => c.fecha === this.diaSeleccionado);
   }
 
+  // ══════════════════════════════════════
+  // SOBRECUPO — forzar una cita fuera del horario habitual del profesional
+  // ══════════════════════════════════════
+  sobrecupoConfirmAbierto = false;
+  sobrecupoPendiente: { fecha: string; hora: string; motivoTexto: string } | null = null;
+
   clickBloque(fecha: string, hora: string): void {
     const estado = this.getBloqueEstado(fecha, hora);
-    if (estado === 'bloqueado') return;
+    if (estado === 'bloqueado' || estado === 'cerrado-centro') return;
+
     this.diaSeleccionado = fecha;
+
     if (estado === 'disponible') {
-      this.abrirModalNuevaCitaConFechaHora(fecha, hora);
+      this.abrirModalNuevaCitaConFechaHora(fecha, hora, false);
+    } else if (estado === 'colacion' || estado === 'fuera-horario') {
+      this.sobrecupoPendiente = {
+        fecha, hora,
+        motivoTexto: estado === 'colacion'
+          ? 'la hora de colación de'
+          : 'el horario habitual de'
+      };
+      this.sobrecupoConfirmAbierto = true;
     }
   }
 
-  abrirModalNuevaCita(): void { this.abrirModalNuevaCitaConFechaHora(this.diaSeleccionado ?? '', ''); }
+  cancelarSobrecupo(): void {
+    this.sobrecupoConfirmAbierto = false;
+    this.sobrecupoPendiente = null;
+  }
 
-  abrirModalNuevaCitaConFechaHora(fecha: string, hora: string): void {
+  confirmarSobrecupo(): void {
+    if (!this.sobrecupoPendiente) return;
+    const { fecha, hora } = this.sobrecupoPendiente;
+    this.sobrecupoConfirmAbierto = false;
+    this.sobrecupoPendiente = null;
+    this.abrirModalNuevaCitaConFechaHora(fecha, hora, true);
+  }
+
+  abrirModalNuevaCita(): void { this.abrirModalNuevaCitaConFechaHora(this.diaSeleccionado ?? '', '', false); }
+
+  abrirModalNuevaCitaConFechaHora(fecha: string, hora: string, esSobrecupo: boolean = false): void {
     if (this.profesionalActualBloqueado) return;
-    this.nuevaCita = { fecha, hora, estudiante_id: null, profesional_id: Number(this.filtroProfesionalId), observaciones: '', urgente: false };
+    this.nuevaCita = {
+      fecha, hora, estudiante_id: null, profesional_id: Number(this.filtroProfesionalId),
+      observaciones: '', urgente: false, sobrecupo: esSobrecupo
+    };
     this.busquedaEstudiante     = '';
     this.resultadosEstudiante   = [];
     this.estudianteSeleccionado = null;
@@ -691,7 +784,7 @@ private crearGraficos(): void {
     this.estudianteSeleccionado = null;
   }
 
-  nuevaCita: any = { fecha: '', hora: '', estudiante_id: null, profesional_id: null, observaciones: '', urgente: false };
+  nuevaCita: any = { fecha: '', hora: '', estudiante_id: null, profesional_id: null, observaciones: '', urgente: false, sobrecupo: false };
 
   buscarEstudiante(): void {
     const q = this.busquedaEstudiante.trim();
@@ -727,7 +820,8 @@ private crearGraficos(): void {
     this.http.post<any>(endpoint, {
       estudiante_id: this.nuevaCita.estudiante_id, profesional_id: this.nuevaCita.profesional_id,
       fecha: this.nuevaCita.fecha, hora: this.nuevaCita.hora,
-      observaciones: this.nuevaCita.observaciones, urgente: this.nuevaCita.urgente
+      observaciones: this.nuevaCita.observaciones, urgente: this.nuevaCita.urgente,
+      sobrecupo: this.nuevaCita.sobrecupo || false
     }).subscribe({
       next: () => {
         this.cerrarModalCita(); this.cargarHorarioProfesional();
@@ -740,6 +834,12 @@ private crearGraficos(): void {
         this.mensajeError = err?.error?.detail || 'No se pudo crear la cita.';
         setTimeout(() => this.mensajeError = '', 3000);
         this.creandoCita = false;
+        // Si alguien más tomó esa hora justo antes, refrescamos la grilla
+        // para que la celda ya no aparezca como disponible.
+        if (err?.status === 409) {
+          this.cerrarModalCita();
+          this.cargarHorarioProfesional();
+        }
         this.cdr.detectChanges();
       }
     });
@@ -1229,6 +1329,79 @@ private crearGraficos(): void {
   auditFiltroDesde  = '';
   auditFiltroHasta  = '';
   cargandoAuditoria = false;
+
+  // ══════════════════════════════════════
+  // DÍAS CERRADOS (centro sin atención)
+  // ══════════════════════════════════════
+  diasCerrados: any[] = [];
+  nuevoDiaCerrado: { fecha: string; motivo: string } = { fecha: '', motivo: '' };
+  creandoDiaCerrado = false;
+  modalCitasDiaCerradoAbierto = false;
+  diaCerradoSeleccionado: any = null;
+  citasDiaCerradoSeleccionado: any[] = [];
+  cargandoCitasDiaCerrado = false;
+
+  get hoyISO(): string { return new Date().toISOString().split('T')[0]; }
+
+  cargarDiasCerrados(): void {
+    this.http.get<any[]>(`${API}/admin/dias-cerrados`).subscribe({
+      next: (data) => { this.diasCerrados = data ?? []; this.cdr.detectChanges(); },
+      error: () => { this.diasCerrados = []; this.cdr.detectChanges(); }
+    });
+  }
+
+  crearDiaCerrado(): void {
+    if (!this.nuevoDiaCerrado.fecha || !this.nuevoDiaCerrado.motivo || this.creandoDiaCerrado) return;
+    this.creandoDiaCerrado = true;
+    this.http.post<any>(`${API}/admin/dias-cerrados`, this.nuevoDiaCerrado).subscribe({
+      next: (res) => {
+        this.creandoDiaCerrado = false;
+        this.nuevoDiaCerrado = { fecha: '', motivo: '' };
+        this.mensajeExito = `Día cerrado correctamente. ${res.citas_canceladas} cita(s) cancelada(s) y notificada(s).`;
+        setTimeout(() => this.mensajeExito = '', 5000);
+        this.cargarDiasCerrados();
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.creandoDiaCerrado = false;
+        this.mensajeError = err?.error?.detail || 'No se pudo cerrar el día.';
+        setTimeout(() => this.mensajeError = '', 4000);
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  verCitasDiaCerrado(dia: any): void {
+    this.diaCerradoSeleccionado = dia;
+    this.modalCitasDiaCerradoAbierto = true;
+    this.cargandoCitasDiaCerrado = true;
+    this.citasDiaCerradoSeleccionado = [];
+    this.http.get<any[]>(`${API}/admin/dias-cerrados/${dia.id}/citas`).subscribe({
+      next: (data) => {
+        this.citasDiaCerradoSeleccionado = data ?? [];
+        this.cargandoCitasDiaCerrado = false;
+        this.cdr.detectChanges();
+      },
+      error: () => { this.cargandoCitasDiaCerrado = false; this.cdr.detectChanges(); }
+    });
+  }
+
+  reabrirDiaCerrado(dia: any): void {
+    if (!confirm(`¿Reabrir el ${dia.fecha}? Las citas que ya se cancelaron NO se restauran automáticamente.`)) return;
+    this.http.delete(`${API}/admin/dias-cerrados/${dia.id}`).subscribe({
+      next: () => {
+        this.mensajeExito = 'Día reabierto correctamente.';
+        setTimeout(() => this.mensajeExito = '', 3000);
+        this.cargarDiasCerrados();
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.mensajeError = err?.error?.detail || 'No se pudo reabrir el día.';
+        setTimeout(() => this.mensajeError = '', 3000);
+        this.cdr.detectChanges();
+      }
+    });
+  }
 
   cargarAuditoria(): void {
     this.cargandoAuditoria = true;

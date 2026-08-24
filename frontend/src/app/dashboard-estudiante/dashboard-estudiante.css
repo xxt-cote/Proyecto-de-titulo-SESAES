@@ -845,6 +845,29 @@ body {
   color: white !important;
 }
 
+/* Día cerrado (centro sin atención) — distinto de feriado normal:
+   no es solo informativo, bloquea la selección por completo. */
+.cal-celda.cerrado {
+  cursor: not-allowed;
+}
+.cal-celda.cerrado span {
+  background: #fef2f2;
+  color: #dc2626;
+  opacity: 0.7;
+  text-decoration: line-through;
+}
+.cal-celda.cerrado::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #dc2626;
+}
+
 .horas-panel {
   background: white;
   border-radius: 20px;
@@ -1999,6 +2022,7 @@ body.tema-oscuro .btn-editar-perfil:hover { background: rgba(13,148,136,0.15); }
 body.tema-oscuro {
   background: #111827;
 }
+body.tema-oscuro input[type="date"] { color-scheme: dark; }
 
 /* ── Blobs ── */
 body.tema-oscuro .blob-green  { background: #0d9488; opacity: 0.06; }
@@ -2114,8 +2138,8 @@ body.tema-oscuro .cal-celda:not(.deshabilitada):not(.vacia):hover span {
   color: #0d9488;
 }
 
-body.tema-oscuro .cal-celda.hoy span                { color: #f39c12; }
-body.tema-oscuro .cal-celda.hoy::after              { background: #f39c12; }
+body.tema-oscuro .cal-celda.hoy span                { color: #2dd4bf; }
+body.tema-oscuro .cal-celda.hoy::after              { background: #2dd4bf; }
 body.tema-oscuro .cal-celda.hoy.deshabilitada span  { color: #56637a !important; }
 body.tema-oscuro .cal-celda.hoy.deshabilitada::after { background: #56637a; }
 body.tema-oscuro .cal-celda.feriado span { background: rgba(234,88,12,0.12); color: #fb923c; }
@@ -2275,3 +2299,76 @@ body.tema-oscuro .detalle-atencion-valor small { color: #8b96a8; }
 body.tema-oscuro .detalle-atencion-separador { border-color: #3a4a63; }
 body.tema-oscuro .btn-cerrar-modal-est { background: #2d3b52; border-color: #3a4a63; color: #8b96a8; }
 body.tema-oscuro .btn-cerrar-modal-est:hover { background: #364560; }
+
+/* ══════════════════════════════════════ */
+/* BANNER: CUESTIONARIOS PENDIENTES        */
+/* ══════════════════════════════════════ */
+.banner-cuestionarios-est {
+  display: flex; align-items: flex-start; gap: 14px;
+  background: linear-gradient(135deg, #ecfdf5, #f0fdfa);
+  border: 1.5px solid #0d9488; border-radius: 14px;
+  padding: 16px 20px; margin: 0 0 20px 0;
+}
+.banner-cuestionarios-icono-est { font-size: 24px; line-height: 1; }
+.banner-cuestionarios-texto-est { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 200px; }
+.banner-cuestionarios-texto-est strong { font-size: 14px; color: #0f172a; }
+.banner-cuestionarios-texto-est span { font-size: 12.5px; color: #475569; }
+.banner-cuestionarios-lista-est { display: flex; flex-wrap: wrap; gap: 8px; }
+.banner-cuestionario-item-est {
+  background: white; border: 1.5px solid #0d9488; color: #0d9488;
+  border-radius: 8px; padding: 7px 14px; font-size: 12.5px; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+}
+.banner-cuestionario-item-est:hover { background: #0d9488; color: white; }
+.banner-cuestionario-item-est small { font-weight: 400; opacity: 0.85; }
+
+@media (max-width: 640px) {
+  .banner-cuestionarios-est { flex-direction: column; }
+}
+
+/* ══════════════════════════════════════ */
+/* MODAL: RESPONDER CUESTIONARIO           */
+/* ══════════════════════════════════════ */
+.cuestionario-intro-est { font-size: 13px; color: #475569; line-height: 1.5; margin: 0 0 18px 0; }
+.cuestionario-form-est { display: flex; flex-direction: column; gap: 16px; max-height: 50vh; overflow-y: auto; padding-right: 4px; }
+.cuestionario-campo-est { display: flex; flex-direction: column; gap: 6px; }
+.cuestionario-campo-est label { font-size: 13px; font-weight: 600; color: #1e293b; }
+.cuestionario-campo-est input,
+.cuestionario-campo-est select,
+.cuestionario-campo-est textarea {
+  border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 9px 12px;
+  font-size: 13.5px; font-family: inherit; color: #1e293b; background: white;
+  resize: vertical;
+}
+.cuestionario-campo-est input:focus,
+.cuestionario-campo-est select:focus,
+.cuestionario-campo-est textarea:focus { outline: none; border-color: #0d9488; }
+.cuestionario-error-est { color: #dc2626; font-size: 12.5px; margin: 14px 0 0 0; }
+
+/* -- Tema oscuro -- */
+body.tema-oscuro .banner-cuestionarios-est { background: linear-gradient(135deg, #1a2e2b, #16302e); border-color: #0d9488; }
+body.tema-oscuro .banner-cuestionarios-texto-est strong { color: #e6edf3; }
+body.tema-oscuro .banner-cuestionarios-texto-est span { color: #9fb0c3; }
+body.tema-oscuro .banner-cuestionario-item-est { background: #242f42; }
+body.tema-oscuro .cuestionario-intro-est { color: #9fb0c3; }
+body.tema-oscuro .cuestionario-campo-est label { color: #e6edf3; }
+body.tema-oscuro .cuestionario-campo-est input,
+body.tema-oscuro .cuestionario-campo-est select,
+body.tema-oscuro .cuestionario-campo-est textarea { background: #1a2333; border-color: #3a4a63; color: #e6edf3; }
+
+body.tema-oscuro .cal-celda.cerrado span { background: rgba(220,38,38,0.12); color: #f87171; }
+body.tema-oscuro .cal-celda.cerrado::before { background: #f87171; }
+
+/* ══════════════════════════════════════ */
+/* INFO DEL DÍA (feriados + días internacionales) */
+/* ══════════════════════════════════════ */
+.info-dia-est {
+  background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px;
+  padding: 12px 16px; margin: 0 0 16px 0; display: flex; flex-direction: column; gap: 6px;
+}
+.info-dia-est-titulo { margin: 0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: #94a3b8; }
+.info-dia-est-item { font-size: 13px; color: #334155; line-height: 1.4; }
+
+body.tema-oscuro .info-dia-est { background: #1a2333; border-color: #3a4a63; }
+body.tema-oscuro .info-dia-est-titulo { color: #56637a; }
+body.tema-oscuro .info-dia-est-item { color: #c9d1d9; }

@@ -5,14 +5,24 @@ from datetime import datetime, date, timedelta, time
 from app.database import get_db
 from app.models.profesional import Profesional
 from app.models.cita import Cita
+from app.models.dia_cerrado import DiaCerrado
 from app.auth_dependencies import get_current_user
 
 router = APIRouter(tags=["horarios"])
 
-# ... (todo el resto igual, sin la clase Profesional al final)
-
 HORA_INICIO = time(8, 0)
 HORA_FIN    = time(18, 0)
+
+
+@router.get("/dias-cerrados")
+def listar_dias_cerrados_publico(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    """
+    Versión de solo-lectura, accesible para cualquier usuario logueado
+    (no solo admin) — la usan estudiante y profesional para bloquear/marcar
+    esas fechas en sus propios calendarios.
+    """
+    dias = db.query(DiaCerrado).filter(DiaCerrado.fecha >= date.today().isoformat()).order_by(DiaCerrado.fecha).all()
+    return [{"fecha": d.fecha, "motivo": d.motivo} for d in dias]
 
 
 def _generar_bloques(duracion_min: int) -> list:
@@ -63,6 +73,10 @@ def get_disponibilidad(
     # Fuera de la ventana válida (pasado, muy futuro, o fin de semana)
     if fecha_obj < hoy or fecha_obj > ventana_maxima or fecha_obj.weekday() >= 5:
         return {"horas": [], "mensaje": "Sin horas disponibles"}
+
+    dia_cerrado = db.query(DiaCerrado).filter(DiaCerrado.fecha == fecha).first()
+    if dia_cerrado:
+        return {"horas": [], "mensaje": f"El centro permanece cerrado este día. {dia_cerrado.motivo or ''}".strip()}
 
     prof = db.query(Profesional).filter(Profesional.id == profesional_id).first()
     if not prof:

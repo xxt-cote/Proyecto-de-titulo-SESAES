@@ -143,6 +143,62 @@
   </div>
 </div>
 
+    <!-- ══ BANNER: CUESTIONARIOS PENDIENTES ══ -->
+    <div class="banner-cuestionarios-est" *ngIf="cuestionariosPendientes.length > 0">
+      <div class="banner-cuestionarios-icono-est">🩺</div>
+      <div class="banner-cuestionarios-texto-est">
+        <strong>Tienes {{ cuestionariosPendientes.length }} cuestionario{{ cuestionariosPendientes.length === 1 ? '' : 's' }} de antecedentes pendiente{{ cuestionariosPendientes.length === 1 ? '' : 's' }}</strong>
+        <span>Complétalo(s) antes de tu próxima atención para que tu profesional llegue con tu información.</span>
+      </div>
+      <div class="banner-cuestionarios-lista-est">
+        <button class="banner-cuestionario-item-est" *ngFor="let item of cuestionariosPendientes" (click)="abrirCuestionario(item)">
+          {{ item.profesional_nombre }} <small>({{ item.especialidad }})</small> →
+        </button>
+      </div>
+    </div>
+
+    <!-- ══ MODAL: RESPONDER CUESTIONARIO DE ANTECEDENTES ══ -->
+    <div class="modal-overlay-est" *ngIf="cuestionarioModalAbierto" (click)="cerrarCuestionario()">
+      <div class="modal-est" (click)="$event.stopPropagation()">
+        <div class="modal-header-est">
+          <h3>Cuestionario de antecedentes — {{ cuestionarioActual?.profesional_nombre }}</h3>
+          <button class="modal-cerrar-est" (click)="cerrarCuestionario()">✕</button>
+        </div>
+
+        <p class="cuestionario-intro-est">
+          Estas preguntas las revisará <strong>{{ cuestionarioActual?.profesional_nombre }}</strong>
+          ({{ cuestionarioActual?.especialidad }}) antes de tu primera atención. Responde con la mayor precisión posible.
+        </p>
+
+        <div class="cuestionario-form-est" *ngIf="cuestionarioActual">
+          <div class="cuestionario-campo-est" *ngFor="let p of cuestionarioActual.preguntas">
+            <label>{{ p.etiqueta }}</label>
+
+            <select *ngIf="p.tipo === 'si_no'" [(ngModel)]="respuestasCuestionario[p.id]">
+              <option value="" disabled selected>Selecciona una opción</option>
+              <option value="Sí">Sí</option>
+              <option value="No">No</option>
+            </select>
+
+            <input *ngIf="p.tipo === 'numero'" type="number" [(ngModel)]="respuestasCuestionario[p.id]" placeholder="Escribe un número">
+
+            <input *ngIf="p.tipo === 'texto'" type="text" [(ngModel)]="respuestasCuestionario[p.id]" placeholder="Tu respuesta">
+
+            <textarea *ngIf="p.tipo === 'textarea'" rows="3" [(ngModel)]="respuestasCuestionario[p.id]" placeholder="Tu respuesta"></textarea>
+          </div>
+        </div>
+
+        <p class="cuestionario-error-est" *ngIf="errorCuestionario">{{ errorCuestionario }}</p>
+
+        <div class="modal-footer-est">
+          <button class="btn-cerrar-modal-est" (click)="cerrarCuestionario()" [disabled]="enviandoCuestionario">Responder después</button>
+          <button class="btn-descargar-modal-est" (click)="enviarCuestionario()" [disabled]="enviandoCuestionario">
+            {{ enviandoCuestionario ? 'Enviando...' : 'Enviar respuestas' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- ══ AGENDAR HORA ══ -->
     <div class="section" *ngIf="seccionActiva === 'agendar'">
   
@@ -261,12 +317,19 @@
                    [class.hoy]="dia?.esHoy"
                    [class.seleccionada]="dia?.fecha === fechaSeleccionada"
                    [class.feriado]="esFeriado(dia?.fecha)"
-                   [title]="nombreFeriado(dia?.fecha)"
+                   [class.cerrado]="dia?.esCerrado"
+                   [title]="dia?.esCerrado ? ('El centro no atiende este día. ' + dia.motivoCerrado) : nombreFeriado(dia?.fecha)"
                    (click)="seleccionarDia(dia)">
                 <span *ngIf="dia">{{ dia.num }}</span>
               </div>
             </div>
           </div>
+        </div>
+
+        <!-- Qué se celebra el día seleccionado (informativo, no bloquea nada) -->
+        <div class="info-dia-est" *ngIf="fechaSeleccionada && infoDelDia(fechaSeleccionada).length > 0">
+          <p class="info-dia-est-titulo">{{ getFechaDisplay() }}</p>
+          <span class="info-dia-est-item" *ngFor="let info of infoDelDia(fechaSeleccionada)">{{ info }}</span>
         </div>
 
         <!-- Panel de horas -->
@@ -336,8 +399,6 @@
             <textarea [(ngModel)]="observaciones" placeholder="Describe brevemente el motivo de tu consulta..." rows="3"></textarea>
           </div>
 
-          <div *ngIf="mensajeError" style="color:#ef4444;font-size:13px;margin-bottom:10px;">{{ mensajeError }}</div>
-
           <div class="paso-acciones">
             <button class="btn-volver" (click)="pasoAgendar = 2">← Volver</button>
             <button class="btn-confirmar" [disabled]="enviandoCita" (click)="confirmarCita()">{{ enviandoCita ? 'Agendando…' : 'Confirmar Cita' }}</button>
@@ -350,10 +411,6 @@
 
     <!-- ══ MIS CITAS ══ -->
     <div class="section" *ngIf="seccionActiva === 'citas'">
-      <div *ngIf="mensajeExito" style="background:#f0fdf9;border:1px solid #99f6e4;border-radius:8px;padding:12px 16px;color:#0d9488;font-size:14px;font-weight:600;margin-bottom:20px;">
-        {{ mensajeExito }}
-      </div>
-
       <h3 class="subsection-title">Próximas citas</h3>
       <div class="citas-lista">
         <div class="cita-card" *ngFor="let cita of proximasCitas; let i = index">
@@ -453,10 +510,6 @@
     <!-- ══ CONFIGURACIÓN ══ -->
     <div class="section" *ngIf="seccionActiva === 'configuracion'">
       
-      <div *ngIf="mensajeExito" style="background:#f0fdf9;border:1px solid #99f6e4;border-radius:8px;padding:12px 16px;color:#0d9488;font-size:14px;font-weight:600;margin-bottom:20px;">
-        {{ mensajeExito }}
-      </div>
-
       <div class="config-grid">
 
         <!-- Perfil -->
@@ -606,3 +659,38 @@
       [imagenSrc]="fotoPerfilUrl"
       (cerrar)="verFotoAmpliada = false">
     </app-photo-viewer>
+
+    <!-- ══ MODAL BLOQUEANTE: PRIMER ACCESO (contraseña temporal) ══ -->
+    <div class="modal-overlay-est modal-overlay-bloqueante-est" *ngIf="modalPrimerAccesoAbierto">
+      <div class="modal-est">
+        <div class="modal-header-est">
+          <h3>👋 ¡Bienvenido a SESAES!</h3>
+        </div>
+        <p class="cuestionario-intro-est">
+          Tu cuenta se creó con una contraseña temporal. Puedes elegir una nueva contraseña ahora,
+          o mantener la temporal y seguir usando el sistema con normalidad.
+        </p>
+
+        <div class="cuestionario-form-est">
+          <div class="cuestionario-campo-est">
+            <label>Nueva contraseña (opcional)</label>
+            <input type="password" [(ngModel)]="nuevaPasswordPrimerAcceso" placeholder="Mínimo 6 caracteres" />
+          </div>
+          <div class="cuestionario-campo-est" *ngIf="nuevaPasswordPrimerAcceso">
+            <label>Confirma la nueva contraseña</label>
+            <input type="password" [(ngModel)]="confirmarPasswordPrimerAcceso" placeholder="Repite la contraseña" />
+          </div>
+        </div>
+
+        <p class="cuestionario-error-est" *ngIf="errorPrimerAcceso">{{ errorPrimerAcceso }}</p>
+
+        <div class="modal-footer-est">
+          <button class="btn-cerrar-modal-est" [disabled]="procesandoPrimerAcceso" (click)="mantenerPasswordActual()">
+            Mantener contraseña actual
+          </button>
+          <button class="btn-descargar-modal-est" [disabled]="procesandoPrimerAcceso || !nuevaPasswordPrimerAcceso" (click)="cambiarPasswordPrimerAcceso()">
+            {{ procesandoPrimerAcceso ? 'Guardando...' : 'Cambiar contraseña' }}
+          </button>
+        </div>
+      </div>
+    </div>

@@ -9,6 +9,8 @@ import { environment } from '../config';
 import { PhotoCropperComponent } from '../shared/photo-cropper/photo-cropper';
 import { PhotoViewerComponent } from '../shared/photo-viewer/photo-viewer';
 import { obtenerFeriado } from '../shared/feriados-chile';
+import { obtenerDiasInternacionales } from '../shared/dias-internacionales';
+import { ToastService } from '../shared/toast/toast.service';
 const API = environment.apiUrl;
 
 @Component({
@@ -36,8 +38,14 @@ export class DashboardEstudianteComponent implements OnInit {
   filtroFecha        = '';
   profesionalSeleccionado: any = null;
   cargando       = false;
-  mensajeExito   = '';
-  mensajeError   = '';
+
+  private _mensajeExito = '';
+  set mensajeExito(valor: string) { this._mensajeExito = valor; if (valor) this.toast.success(valor); }
+  get mensajeExito(): string { return this._mensajeExito; }
+
+  private _mensajeError = '';
+  set mensajeError(valor: string) { this._mensajeError = valor; if (valor) this.toast.error(valor); }
+  get mensajeError(): string { return this._mensajeError; }
 
   // Paginación de profesionales
   pagProf       = 0;
@@ -80,7 +88,8 @@ get subtituloSeccionEst(): string {
     private router: Router,
     private http: HttpClient,
     private cdr: ChangeDetectorRef,
-    private sanitizer: DomSanitizer
+    private sanitizer: DomSanitizer,
+    private toast: ToastService
   ) {}
 
   ngOnInit(): void {
@@ -88,6 +97,136 @@ get subtituloSeccionEst(): string {
     this.cargarDatosEstudiante();
     this.cargarNotificaciones();
     this.cargarInfoCentro();
+    this.cargarCuestionariosPendientes();
+    this.cargarDiasCerrados();
+
+    // Cuenta creada con contraseña temporal (ej. carga masiva) — se le
+    // pide cambiarla o mantenerla antes de dejarlo usar el resto del sistema.
+    if (localStorage.getItem('debe_cambiar_password') === 'true') {
+      this.modalPrimerAccesoAbierto = true;
+    }
+  }
+
+  // ══════════════════════════════════════
+  // PRIMER ACCESO (contraseña temporal)
+  // ══════════════════════════════════════
+  modalPrimerAccesoAbierto = false;
+  nuevaPasswordPrimerAcceso = '';
+  confirmarPasswordPrimerAcceso = '';
+  errorPrimerAcceso = '';
+  procesandoPrimerAcceso = false;
+
+  private resolverPrimerAcceso(nuevaPassword: string | null): void {
+    if (this.procesandoPrimerAcceso) return;
+    this.procesandoPrimerAcceso = true;
+    this.errorPrimerAcceso = '';
+
+    this.http.patch(`${API}/estudiante/${this.estudianteId}/primer-acceso`, {
+      nueva_password: nuevaPassword
+    }).subscribe({
+      next: () => {
+        localStorage.setItem('debe_cambiar_password', 'false');
+        this.modalPrimerAccesoAbierto = false;
+        this.procesandoPrimerAcceso = false;
+        this.mensajeExito = 'Listo, ya puedes usar SESAES con normalidad.';
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.procesandoPrimerAcceso = false;
+        this.errorPrimerAcceso = err?.error?.detail || 'No se pudo procesar tu solicitud.';
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  mantenerPasswordActual(): void {
+    this.resolverPrimerAcceso(null);
+  }
+
+  cambiarPasswordPrimerAcceso(): void {
+    const nueva = this.nuevaPasswordPrimerAcceso.trim();
+    if (nueva.length < 6) {
+      this.errorPrimerAcceso = 'La contraseña debe tener al menos 6 caracteres.';
+      return;
+    }
+    if (nueva !== this.confirmarPasswordPrimerAcceso.trim()) {
+      this.errorPrimerAcceso = 'Las contraseñas no coinciden.';
+      return;
+    }
+    this.resolverPrimerAcceso(nueva);
+  }
+
+  // ══════════════════════════════════════
+  // CUESTIONARIO DE ANTECEDENTES (primera atención con un profesional)
+  // ══════════════════════════════════════
+  cuestionariosPendientes: any[] = [];
+  cuestionarioModalAbierto = false;
+  cuestionarioActual: any = null;          // { profesional_id, profesional_nombre, especialidad, preguntas }
+  respuestasCuestionario: Record<string, string> = {};
+  enviandoCuestionario = false;
+  errorCuestionario = '';
+
+  cargarCuestionariosPendientes(): void {
+    this.http.get<any[]>(`${API}/historial-clinico/cuestionarios-pendientes/${this.estudianteId}`).subscribe({
+      next: (data) => {
+        this.cuestionariosPendientes = data ?? [];
+        this.cdr.detectChanges();
+      },
+      error: () => {}
+    });
+  }
+
+  abrirCuestionario(item: any): void {
+    this.errorCuestionario = '';
+    this.http.get<any>(`${API}/historial-clinico/cuestionario-estudiante/${item.profesional_id}`).subscribe({
+      next: (data) => {
+        this.cuestionarioActual = { profesional_id: item.profesional_id, ...data };
+        this.respuestasCuestionario = {};
+        this.cuestionarioModalAbierto = true;
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.mensajeError = err?.error?.detail || 'No se pudo cargar el cuestionario.';
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  cerrarCuestionario(): void {
+    this.cuestionarioModalAbierto = false;
+    this.cuestionarioActual = null;
+    this.respuestasCuestionario = {};
+    this.errorCuestionario = '';
+  }
+
+  enviarCuestionario(): void {
+    if (!this.cuestionarioActual) return;
+
+    const faltantes = (this.cuestionarioActual.preguntas || [])
+      .filter((p: any) => !this.respuestasCuestionario[p.id]?.toString().trim());
+    if (faltantes.length > 0) {
+      this.errorCuestionario = 'Por favor responde todas las preguntas antes de enviar.';
+      return;
+    }
+
+    this.enviandoCuestionario = true;
+    this.http.post(`${API}/historial-clinico/cuestionario-estudiante/${this.cuestionarioActual.profesional_id}`, {
+      respuestas: this.respuestasCuestionario
+    }).subscribe({
+      next: () => {
+        this.enviandoCuestionario = false;
+        this.cerrarCuestionario();
+        this.mensajeExito = 'Cuestionario enviado correctamente.';
+        this.cargarCuestionariosPendientes();
+        this.cdr.detectChanges();
+        setTimeout(() => { this.mensajeExito = ''; this.cdr.detectChanges(); }, 4000);
+      },
+      error: (err) => {
+        this.enviandoCuestionario = false;
+        this.errorCuestionario = err?.error?.detail || 'No se pudo enviar el cuestionario.';
+        this.cdr.detectChanges();
+      }
+    });
   }
 
   // ══════════════════════════════════════
@@ -209,7 +348,8 @@ get subtituloSeccionEst(): string {
           this.notificaciones = this.notificaciones.filter(x => x.id !== id);
           if (n && !n.leida) this.notifNoLeidas = Math.max(0, this.notifNoLeidas - 1);
           this.cdr.detectChanges();
-        }
+        },
+        error: (err) => { this.mensajeError = err?.error?.detail || 'No se pudo eliminar una de las notificaciones.'; }
       });
     });
     this.notifSeleccionadas.clear();
@@ -366,9 +506,23 @@ get subtituloSeccionEst(): string {
       const diaSemana = fecha.getDay();
       const esFinde   = diaSemana === 0 || diaSemana === 6;
       const esPasado  = fechaStr < hoyStr;
-      celdas.push({ num: dia, fecha: fechaStr, esFinde, esPasado, esHoy: fechaStr === hoyStr, deshabilitado: esFinde || esPasado });
+      const diaCerradoInfo = this.diasCerrados.find(d => d.fecha === fechaStr);
+      celdas.push({
+        num: dia, fecha: fechaStr, esFinde, esPasado, esHoy: fechaStr === hoyStr,
+        esCerrado: !!diaCerradoInfo,
+        motivoCerrado: diaCerradoInfo?.motivo || '',
+        deshabilitado: esFinde || esPasado || !!diaCerradoInfo
+      });
     }
     this.diasMes = celdas;
+  }
+
+  diasCerrados: any[] = [];
+  cargarDiasCerrados(): void {
+    this.http.get<any[]>(`${API}/dias-cerrados`).subscribe({
+      next: (data) => { this.diasCerrados = data ?? []; this.generarCalendario(); this.cdr.detectChanges(); },
+      error: () => {}
+    });
   }
 
   mesAnterior(): void {
@@ -463,6 +617,12 @@ get subtituloSeccionEst(): string {
       error: (err) => {
         this.mensajeError = err?.error?.detail || 'No se pudo agendar la cita.';
         this.enviandoCita = false;
+        // Si perdió la hora por una reserva simultánea de otra persona,
+        // refrescamos la lista para que vea de inmediato que ya no está libre.
+        if (err?.status === 409) {
+          this.horaSeleccionada = '';
+          this.cargarDisponibilidad();
+        }
         this.cdr.detectChanges();
       }
     });
@@ -518,9 +678,30 @@ get subtituloSeccionEst(): string {
   }
 
   reagendarCita(cita: any): void {
-    const prof = this.profesionales.find(p => p.nombre === cita.profesional);
-    if (prof) { this.seccionActiva = 'agendar'; this.seleccionarProfesional(prof); }
-    else { this.seccionActiva = 'agendar'; this.pasoAgendar = 1; }
+    const irAAgendar = () => {
+      const prof = this.profesionales.find(p => p.nombre === cita.profesional);
+      if (prof) { this.seccionActiva = 'agendar'; this.seleccionarProfesional(prof); }
+      else { this.seccionActiva = 'agendar'; this.pasoAgendar = 1; }
+    };
+
+    // Si la cita todavía está pendiente (viene de "Próximas citas"), hay
+    // que cancelarla primero: si no, el backend rechaza la nueva hora
+    // porque ya existe una cita pendiente en esa misma especialidad.
+    // Si ya está cancelada (viene del historial), no hace falta cancelar
+    // de nuevo — se va directo al flujo de agendar.
+    if (cita.estado === 'pendiente' && cita.id) {
+      if (!confirm('Para reagendar, esta hora se cancelará y podrás elegir una nueva. ¿Continuar?')) return;
+      this.http.delete(`${API}/citas/${cita.id}`).subscribe({
+        next: () => {
+          this.cargarProximasCitas();
+          this.cargarHistorial();
+          irAAgendar();
+        },
+        error: (err) => { alert(err?.error?.detail || 'No se pudo cancelar la cita para reagendar.'); }
+      });
+    } else {
+      irAAgendar();
+    }
   }
 
   descargarPdf(citaId: number): void { window.open(`${API}/citas/${citaId}/pdf`, '_blank'); }
@@ -678,6 +859,16 @@ toggleFaq(faq: any): void {
     if (!fecha) return '';
     const f = obtenerFeriado(fecha);
     return f ? `Feriado: ${f.nombre}` : '';
+  }
+
+  /** Lo que se celebra ese día: feriado chileno + días internacionales ONU (informativo, no bloquea nada). */
+  infoDelDia(fecha: string | undefined): string[] {
+    if (!fecha) return [];
+    const info: string[] = [];
+    const feriado = obtenerFeriado(fecha);
+    if (feriado) info.push(`🇨🇱 Feriado: ${feriado.nombre}`);
+    for (const d of obtenerDiasInternacionales(fecha)) info.push(`🌍 ${d.nombre}`);
+    return info;
   }
 
   toggleTema(oscuro: boolean): void {

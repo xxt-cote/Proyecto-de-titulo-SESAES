@@ -17,3 +17,7 @@ class Usuario(Base):
     carrera     = Column(String, nullable=True)
     rut         = Column(String, nullable=True)
     activo      = Column(Boolean, default=True)
+    # True para cuentas creadas con contraseña temporal (ej. carga masiva
+    # por CSV) — al iniciar sesión por primera vez, se le pide cambiarla
+    # o mantenerla explícitamente, antes de dejarlo usar el resto del sistema.
+    debe_cambiar_password = Column(Boolean, default=False)

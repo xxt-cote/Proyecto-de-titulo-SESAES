@@ -15,6 +15,7 @@ class CitaCreate(BaseModel):
     hora:           str            # HH:MM AM/PM
     observaciones:  Optional[str] = None
     urgente:        Optional[bool] = False
+    sobrecupo:      Optional[bool] = False   # solo admin puede marcarla; se ignora si la manda cualquier otro rol
 
 
 # ══════════════════════════════════════
