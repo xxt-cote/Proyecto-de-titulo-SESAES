@@ -13,7 +13,7 @@ from app.models.usuario import Usuario
 from app.models.historial_paciente import HistorialPaciente
 from app.models.notificacion import Notificacion
 from app.schemas import CitaCreate
-from app.auth_dependencies import get_current_user, verificar_acceso, verificar_rol
+from app.auth_dependencies import get_current_user, verificar_acceso
 
 router = APIRouter(tags=["citas"])
 
@@ -138,15 +138,29 @@ def crear_cita(
     prof = db.query(Profesional).filter(Profesional.id == cita.profesional_id).first()
 
     if prof:
-        duplicada = (
+        # Una cita "pendiente" solo debe bloquear un nuevo agendamiento si
+        # todavía está por venir. Si quedó "pendiente" con fecha ya pasada
+        # (el profesional nunca la cerró como completada/inasistencia), no
+        # debe impedir que el estudiante agende una hora nueva.
+        candidatas = (
             db.query(Cita)
             .join(Profesional, Cita.profesional_id == Profesional.id)
             .filter(
                 Cita.estudiante_id == cita.estudiante_id,
                 Profesional.especialidad == prof.especialidad,
                 Cita.estado == "pendiente"
-            ).first()
+            ).all()
         )
+        ahora = datetime.now()
+        duplicada = None
+        for c in candidatas:
+            try:
+                fh = _cita_a_datetime(c)
+            except ValueError:
+                fh = None
+            if fh is None or fh >= ahora:
+                duplicada = c
+                break
         if duplicada:
             raise HTTPException(status_code=400,
                 detail="Ya tienes una cita pendiente en esta especialidad")
@@ -230,7 +244,12 @@ def cancelar_cita(
     # ausencia del profesional o motivos operativos).
     if fecha_hora_cita and current_user["rol"] != "admin":
         horas_restantes = (fecha_hora_cita - datetime.now()).total_seconds() / 3600
-        if horas_restantes < 5:
+        # La restricción de "mínimo 5 horas antes" solo tiene sentido si la
+        # cita todavía está por venir. Si ya pasó la fecha/hora (horas_restantes
+        # negativo) y el profesional nunca la cerró, el estudiante debe poder
+        # cancelarla igual — de lo contrario queda atrapado sin poder ni
+        # cancelar ni agendar una hora nueva en esa especialidad.
+        if 0 <= horas_restantes < 5:
             raise HTTPException(
                 status_code=400,
                 detail="No se puede cancelar: faltan menos de 5 horas para la cita"
@@ -239,37 +258,6 @@ def cancelar_cita(
     cita.estado = "cancelada"
     db.commit()
     return {"message": "Cita cancelada correctamente"}
-
-
-@router.patch("/citas/{cita_id}/completar")
-def completar_cita_prueba(
-    cita_id: int,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """
-    Endpoint TEMPORAL de prueba — simula la acción del profesional
-    de marcar una cita como atendida. El flujo real (que además guarda
-    medicamento/observaciones) ya existe en profesionales.py; este debería
-    eliminarse cuando se confirme que ya no se usa desde ningún lado.
-    """
-    verificar_rol(current_user, roles_permitidos=["profesional", "admin"])
-
-    cita = db.query(Cita).filter(Cita.id == cita_id).first()
-    if not cita:
-        raise HTTPException(status_code=404, detail="Cita no encontrada")
-
-    if current_user["rol"] == "profesional":
-        prof = db.query(Profesional).filter(Profesional.id == cita.profesional_id).first()
-        if not prof or prof.usuario_id != current_user["id"]:
-            raise HTTPException(status_code=403, detail="No tienes permiso para completar esta cita.")
-
-    if cita.estado != "pendiente":
-        raise HTTPException(status_code=400, detail="Solo se puede completar una cita pendiente")
-
-    cita.estado = "completada"
-    db.commit()
-    return {"message": "Cita marcada como completada (modo prueba)", "estado": cita.estado}
 
 
 @router.get("/citas/{cita_id}/pdf")

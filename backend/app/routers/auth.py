@@ -20,11 +20,14 @@ class LoginRequest(BaseModel):
 def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(Usuario).filter(Usuario.correo == data.correo).first()
 
-    if not user:
-        raise HTTPException(status_code=401, detail="Usuario no existe")
+    # Mismo mensaje genérico tanto si el correo no existe como si la
+    # contraseña es incorrecta. Devolver mensajes distintos permite a
+    # cualquiera comprobar qué correos están registrados en el sistema
+    # (enumeración de usuarios) con solo probar login.
+    credenciales_invalidas = HTTPException(status_code=401, detail="Correo o contraseña incorrectos.")
 
-    if not verify_password(data.password, user.password):
-        raise HTTPException(status_code=401, detail="Contraseña incorrecta")
+    if not user or not verify_password(data.password, user.password):
+        raise credenciales_invalidas
 
     # Migración transparente: si la contraseña seguía en texto plano
     # (usuarios creados antes de esta actualización), se re-hashea ahora

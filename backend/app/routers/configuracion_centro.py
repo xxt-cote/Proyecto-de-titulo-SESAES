@@ -71,8 +71,11 @@ def cambiar_password_admin(
     if not contrasena_actual or not contrasena_nueva:
         raise HTTPException(status_code=400, detail="Debes ingresar la contraseña actual y la nueva")
 
-    # Buscar al usuario admin
-    admin = db.query(Usuario).filter(Usuario.rol == "admin").first()
+    # Se busca al admin por current_user["id"] (la cuenta que hizo la
+    # petición), NUNCA "el primer admin que exista" — si llegara a haber
+    # más de una cuenta admin, buscar por rol cambiaría la contraseña de
+    # otra cuenta admin distinta a la que inició sesión.
+    admin = db.query(Usuario).filter(Usuario.id == current_user["id"]).first()
     if not admin:
         raise HTTPException(status_code=404, detail="Usuario administrador no encontrado")
 

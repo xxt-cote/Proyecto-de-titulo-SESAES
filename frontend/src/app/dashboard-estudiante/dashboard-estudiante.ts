@@ -23,7 +23,7 @@ const API = environment.apiUrl;
 })
 export class DashboardEstudianteComponent implements OnInit {
 
-  seccionActiva  = 'agendar';
+  seccionActiva  = 'inicio';
   sidebarMovilAbierto = false;
   toggleSidebarMovil(): void {  
   this.sidebarMovilAbierto = !this.sidebarMovilAbierto;
@@ -51,8 +51,12 @@ export class DashboardEstudianteComponent implements OnInit {
   pagProf       = 0;
   profPorPagina = 6;
 
+  // OJO: sin fallback a un id fijo. Si no hay 'usuario_id' en sessionStorage
+  // (sesión corrupta o inexistente), se devuelve 0 -- un id inválido que el
+  // backend rechazará -- en vez de caer silenciosamente en los datos de otro
+  // estudiante real. El authGuard ya debería impedir llegar aquí sin sesión.
   get estudianteId(): number {
-    return Number(localStorage.getItem('usuario_id')) || 1;
+    return Number(sessionStorage.getItem('usuario_id')) || 0;
   }
   get estudianteNombre(): string {
     return this.estudianteData?.nombre || 'Estudiante';
@@ -99,10 +103,12 @@ get subtituloSeccionEst(): string {
     this.cargarInfoCentro();
     this.cargarCuestionariosPendientes();
     this.cargarDiasCerrados();
+    this.cargarProximasCitas();
+    this.cargarHistorial();
 
     // Cuenta creada con contraseña temporal (ej. carga masiva) — se le
     // pide cambiarla o mantenerla antes de dejarlo usar el resto del sistema.
-    if (localStorage.getItem('debe_cambiar_password') === 'true') {
+    if (sessionStorage.getItem('debe_cambiar_password') === 'true') {
       this.modalPrimerAccesoAbierto = true;
     }
   }
@@ -125,7 +131,7 @@ get subtituloSeccionEst(): string {
       nueva_password: nuevaPassword
     }).subscribe({
       next: () => {
-        localStorage.setItem('debe_cambiar_password', 'false');
+        sessionStorage.setItem('debe_cambiar_password', 'false');
         this.modalPrimerAccesoAbierto = false;
         this.procesandoPrimerAcceso = false;
         this.mensajeExito = 'Listo, ya puedes usar SESAES con normalidad.';
@@ -418,7 +424,7 @@ get subtituloSeccionEst(): string {
   }
 
   cerrarSesion(): void {
-    localStorage.clear();
+    sessionStorage.clear();
     window.location.href = '/login';
   }
 
@@ -652,13 +658,25 @@ get subtituloSeccionEst(): string {
   puedeCancelar(cita: any): boolean {
     const diff = this.diffHorasParaCancelar(cita);
     if (diff === null) return true;
-    return diff > 5;
+    // Igual que el backend: la restricción de "mínimo 5 horas antes" solo
+    // aplica si la cita todavía está por venir. Si ya pasó (diff negativo)
+    // y sigue "pendiente" porque el profesional no la cerró, el estudiante
+    // debe poder cancelarla o reagendar sin quedar atrapado.
+    return diff < 0 || diff > 5;
+  }
+
+  // true si la cita ya pasó su fecha/hora pero el profesional todavía no
+  // la marcó como completada/inasistencia/cancelada — para mostrar un
+  // aviso claro en vez de dejarla ahí como si nada, dando a entender que
+  // "no asistió" cuando en realidad solo falta que el profesional la cierre.
+  citaPendienteVencida(cita: any): boolean {
+    const diff = this.diffHorasParaCancelar(cita);
+    return diff !== null && diff <= 0;
   }
 
   avisoCancelacion(cita: any): string {
     const diff = this.diffHorasParaCancelar(cita);
-    if (diff === null) return '';
-    if (diff <= 0) return 'Esta cita ya pasó';
+    if (diff === null || diff <= 0) return '';
     const horas = Math.floor(diff); const minutos = Math.round((diff - horas) * 60);
     if (horas === 0) return `Faltan ${minutos} min, no se puede cancelar`;
     if (minutos === 0) return `Faltan ${horas}h, no se puede cancelar`;
@@ -690,7 +708,7 @@ get subtituloSeccionEst(): string {
     // Si ya está cancelada (viene del historial), no hace falta cancelar
     // de nuevo — se va directo al flujo de agendar.
     if (cita.estado === 'pendiente' && cita.id) {
-      if (!confirm('Para reagendar, esta hora se cancelará y podrás elegir una nueva. ¿Continuar?')) return;
+      if (!confirm(`¿Deseas reagendar con ${cita.profesional}? Se cancelará esta hora y podrás elegir una nueva.`)) return;
       this.http.delete(`${API}/citas/${cita.id}`).subscribe({
         next: () => {
           this.cargarProximasCitas();
@@ -793,11 +811,12 @@ toggleFaq(faq: any): void {
   }
 
   cargarDatosEstudiante(): void {
-    const id = Number(localStorage.getItem('usuario_id')) || 1;
+    const id = this.estudianteId;
+    if (!id) { this.cerrarSesion(); return; }
     this.http.get<any>(`${API}/estudiante/${id}`).subscribe({
       next: (data) => {
         this.estudianteData  = data;
-        if (data.id) localStorage.setItem('usuario_id', String(data.id));
+        if (data.id) sessionStorage.setItem('usuario_id', String(data.id));
         this.celularOriginal = this.extraerDigitosCelular(data.telefono);
         this.celularEditable = this.celularOriginal;
         this.correoSecundarioOriginal = data.correo_secundario || '';

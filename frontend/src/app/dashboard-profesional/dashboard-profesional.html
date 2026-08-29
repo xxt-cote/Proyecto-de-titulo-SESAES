@@ -171,6 +171,24 @@
           ⚠️ Tu estado actual es <strong>{{ perfil.estado }}</strong>. El administrador fue notificado.
         </div>
 
+        <!-- Pulso del día: línea de tiempo visual de tus citas de hoy -->
+        <div class="card-prof pulso-dia-prof">
+          <div class="pulso-dia-label">Pulso de hoy</div>
+          <div class="pulso-dia-track">
+            <div class="pulso-dia-linea"></div>
+            <div class="pulso-dia-marca"
+                 *ngFor="let cita of citasHoy"
+                 [class.urgente]="cita.urgente"
+                 [class.completada]="cita.estado==='completada'"
+                 [style.left.%]="horaAPosicionPct(cita.hora)"
+                 [title]="cita.hora + ' · ' + cita.estudiante"></div>
+          </div>
+          <div class="pulso-dia-nota">
+            <span *ngIf="citasHoy.length > 0"><strong>{{ citasHoy.length }}</strong> cita{{ citasHoy.length === 1 ? '' : 's' }} hoy</span>
+            <span *ngIf="citasHoy.length === 0">Sin citas agendadas para hoy</span>
+          </div>
+        </div>
+
         <div class="inicio-layout-prof">
           <div class="inicio-principal-prof">
 
@@ -213,6 +231,19 @@
                   <button class="btn-completar" (click)="abrirModalCompletar(cita)">✓ Completar</button>
                   <button class="btn-inasistencia" (click)="marcarInasistencia(cita)">✗ Inasistencia</button>
                 </div>
+              </div>
+            </div>
+
+            <!-- Acciones rápidas -->
+            <div class="card-prof">
+              <div class="card-header-prof">
+                <h3 class="card-title-prof">Acciones rápidas</h3>
+              </div>
+              <div class="acciones-rapidas-prof">
+                <button (click)="navegarA('atenciones')">✚ Ver mis atenciones</button>
+                <button (click)="navegarA('historial-clinico')">🔍 Buscar paciente</button>
+                <button (click)="abrirModalAusencia()">📅 Reportar ausencia</button>
+                <button (click)="navegarA('horario')">🕐 Revisar mi horario</button>
               </div>
             </div>
 

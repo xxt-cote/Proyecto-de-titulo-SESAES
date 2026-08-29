@@ -26,31 +26,35 @@ export class AuthService {
     });
   }
 
+  // Se usa sessionStorage (no localStorage) a propósito: sessionStorage es
+  // aislado por pestaña, lo que permite tener sesiones distintas abiertas
+  // en pestañas distintas del mismo navegador (ej. estudiante en una,
+  // profesional en otra) sin que una pise los datos de la otra.
   guardarSesion(data: LoginResponse): void {
-    localStorage.setItem('access_token', data.access_token);
-    localStorage.setItem('rol', data.rol);
-    localStorage.setItem('id', String(data.id));
-    localStorage.setItem('usuario_id', String(data.id));
-    localStorage.setItem('nombre', data.nombre ?? '');
-    localStorage.setItem('foto_url', data.foto_url ?? '');
-    localStorage.setItem('debe_cambiar_password', String(!!data.debe_cambiar_password));
+    sessionStorage.setItem('access_token', data.access_token);
+    sessionStorage.setItem('rol', data.rol);
+    sessionStorage.setItem('id', String(data.id));
+    sessionStorage.setItem('usuario_id', String(data.id));
+    sessionStorage.setItem('nombre', data.nombre ?? '');
+    sessionStorage.setItem('foto_url', data.foto_url ?? '');
+    sessionStorage.setItem('debe_cambiar_password', String(!!data.debe_cambiar_password));
   }
 
   getToken(): string | null {
-    return localStorage.getItem('access_token');
+    return sessionStorage.getItem('access_token');
   }
 
   getRol(): string | null {
-    return localStorage.getItem('rol');
+    return sessionStorage.getItem('rol');
   }
 
   logout(): void {
-    localStorage.clear();
+    sessionStorage.clear();
   }
 
   isLoggedIn(): boolean {
     const token = this.getToken();
-    if (!token || !localStorage.getItem('rol')) return false;
+    if (!token || !this.getRol()) return false;
     return !this.tokenExpirado(token);
   }
 

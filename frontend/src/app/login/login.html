@@ -1,45 +1,67 @@
 <div class="container">
-  <div class="blob-yellow"></div>
-  <div class="blob-mint"></div>
+  <div class="blob-a"></div>
+  <div class="blob-b"></div>
 
-  <div class="card">
+  <div class="card" [class.card-in]="true">
 
-    <!-- LOGO -->
-    <div class="brand">
-      <div class="brand-logo">
-        <img class="logo-img" src="temporal.jpg">
-        <div class="brand-divider"></div>
-        <div class="brand-text">
-          <span class="brand-title">SESAES</span>
-          <span class="brand-sub">Servicio de Salud Estudiantil</span>
-        </div>
+    <!-- PANEL IZQUIERDO -->
+    <div class="side">
+      <div class="side-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#0d4a42" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z" />
+          <path d="M6 12v5c0 1 3 3 6 3s6-2 6-3v-5" />
+        </svg>
+        <svg class="side-icon-badge" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#0d4a42">
+          <path d="M12 21s-6.5-4.35-9.3-8.4C.6 9.2 2.1 5.3 5.6 4.6c2-.4 3.9.5 5 2.1a1 1 0 001.6 0c1.1-1.6 3-2.5 5-2.1 3.5.7 5 4.6 2.9 7.9C18.5 16.65 12 21 12 21z"/>
+        </svg>
       </div>
-      <p class="welcome">Inicia sesión para continuar</p>
+      <div class="side-text">
+        <h1>Bienvenido<br>a SESAES</h1>
+        <p>Plataforma de salud y servicios estudiantiles.</p>
+      </div>
+      <div class="side-footer">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M15 9h.01M9 13h.01M15 13h.01M9 17h.01M15 17h.01" />
+        </svg>
+        <span>Universidad Tecnológica<br>Metropolitana</span>
+      </div>
     </div>
 
     <!-- FORMULARIO -->
-    <div class="form">
+    <div class="form-panel">
+      <h2 class="form-title">Iniciar sesión</h2>
+      <p class="form-sub">Accede con tu correo institucional</p>
 
-      <div class="field">
-        <div class="input-box" [class.error-border]="errorCorreo">
-          <span class="input-label">Correo Institucional</span>
-          <input
-            type="email"
-            placeholder="ejemplo@utem.cl"
-            [(ngModel)]="correo"
-            (blur)="validarCorreo()"
-            (keyup.enter)="onLogin()">
+      <div class="form">
+
+        <div class="field">
+          <span class="input-label">Correo institucional</span>
+          <div class="input-box" [class.error-border]="errorCorreo">
+            <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#7fae9f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 4h16v16H4z" opacity="0"/>
+              <rect x="3" y="5" width="18" height="14" rx="2" />
+              <path d="M3 7l9 6 9-6" />
+            </svg>
+            <input
+              type="email"
+              placeholder="nombre@utem.cl"
+              [(ngModel)]="correo"
+              (blur)="validarCorreo()"
+              (keyup.enter)="onLogin()">
+          </div>
+          <span class="field-error" *ngIf="errorCorreo">Ingresa un correo @utem.cl válido</span>
         </div>
-        <span class="field-error" *ngIf="errorCorreo">Ingresa un correo @utem.cl válido</span>
-      </div>
 
-      <div class="field">
-        <div class="input-box">
+        <div class="field">
           <span class="input-label">Contraseña</span>
-          <div class="input-password">
+          <div class="input-box">
+            <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#7fae9f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="4" y="10" width="16" height="10" rx="2" />
+              <path d="M8 10V7a4 4 0 018 0v3" />
+            </svg>
             <input
               [type]="mostrarPassword ? 'text' : 'password'"
-              placeholder="••••••••"
+              placeholder="Ingresa tu contraseña"
               [(ngModel)]="password"
               (keyup.enter)="onLogin()">
             <span class="toggle" (click)="togglePassword()">
@@ -53,37 +75,45 @@
             </span>
           </div>
         </div>
+
+        <div class="extras">
+          <label class="remember">
+            <input type="checkbox" [(ngModel)]="recordarme"> Recordarme
+          </label>
+          <span class="forgot">¿Olvidaste tu contraseña?</span>
+        </div>
+
+        <div class="error-msg" *ngIf="error" [class.shake]="error">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#e53935" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span>{{ error }}</span>
+        </div>
+
+        <button (click)="onLogin()" [disabled]="cargando || !correo || !password" [class.is-loading]="cargando">
+          <span *ngIf="!cargando" class="btn-content">
+            Iniciar sesión
+            <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+          </span>
+          <span *ngIf="cargando" class="spinner-text">
+            <span class="spinner"></span>
+            Verificando...
+          </span>
+        </button>
+
+        <p *ngIf="cargandoLento" class="aviso-carga-lenta">
+          El servidor estaba inactivo y está despertando, esto puede tardar unos segundos…
+        </p>
+
+        <p class="soporte">¿Necesitas ayuda técnica? <span>Soporte SIAC</span></p>
+
       </div>
-
-      <div class="extras">
-        <label class="remember">
-          <input type="checkbox" [(ngModel)]="recordarme"> Recordarme
-        </label>
-        <span class="forgot">¿Olvidaste tu contraseña?</span>
-      </div>
-
-      <div class="error-msg" *ngIf="error">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#e53935" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <span>{{ error }}</span>
-      </div>
-
-      <button (click)="onLogin()" [disabled]="cargando || !correo || !password">
-        <span *ngIf="!cargando">Ingresar →</span>
-        <span *ngIf="cargando" class="spinner-text">Verificando...</span>
-      </button>
-      <p *ngIf="cargandoLento" class="aviso-carga-lenta">
-        El servidor estaba inactivo y está despertando, esto puede tardar unos segundos…
-      </p>
-
-      <p class="soporte">¿Necesitas ayuda técnica? <span>Soporte SIAC</span></p>
-
     </div>
 
   </div>
 
-  <!-- FOOTER -->
   <div class="footer">
     <p>© 2026 SESAES - Universidad Tecnológica Metropolitana (UTEM). Todos los derechos reservados.</p>
   </div>

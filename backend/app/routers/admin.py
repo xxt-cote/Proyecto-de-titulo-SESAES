@@ -153,6 +153,100 @@ def buscar_estudiantes(q: str = "", db: Session = Depends(get_db)):
     ]
 
 
+@router.get("/estudiantes/listado")
+def listar_estudiantes(
+    q: str = "", carrera: str = "", pagina: int = 1, por_pagina: int = 20,
+    db: Session = Depends(get_db)
+):
+    """
+    Listado completo de estudiantes (con paginación), a diferencia de
+    /estudiantes que solo sirve para autocompletar una búsqueda puntual.
+    Incluye el conteo de citas totales y atendidas de cada estudiante,
+    calculado con una sola consulta agregada para no golpear la base
+    de datos una vez por estudiante.
+    """
+    query = db.query(Usuario).filter(Usuario.rol == "estudiante")
+    if q:
+        query = query.filter(
+            (Usuario.nombre.ilike(f"%{q}%")) | (Usuario.rut.ilike(f"%{q}%"))
+        )
+    if carrera:
+        query = query.filter(Usuario.carrera.ilike(f"%{carrera}%"))
+
+    total = query.count()
+    estudiantes = (
+        query.order_by(Usuario.nombre)
+        .offset((pagina - 1) * por_pagina)
+        .limit(por_pagina)
+        .all()
+    )
+
+    ids = [e.id for e in estudiantes]
+    conteos = dict(
+        db.query(Cita.estudiante_id, func.count(Cita.id))
+        .filter(Cita.estudiante_id.in_(ids))
+        .group_by(Cita.estudiante_id)
+        .all()
+    ) if ids else {}
+    atendidas = dict(
+        db.query(Cita.estudiante_id, func.count(Cita.id))
+        .filter(Cita.estudiante_id.in_(ids), Cita.estado == "completada")
+        .group_by(Cita.estudiante_id)
+        .all()
+    ) if ids else {}
+
+    return {
+        "total": total,
+        "pagina": pagina,
+        "por_pagina": por_pagina,
+        "estudiantes": [
+            {
+                "id": e.id, "nombre": e.nombre or "—", "rut": e.rut or "—",
+                "carrera": e.carrera or "—", "correo": e.correo,
+                "citas_totales": conteos.get(e.id, 0),
+                "citas_atendidas": atendidas.get(e.id, 0),
+            }
+            for e in estudiantes
+        ],
+    }
+
+
+@router.get("/estudiantes/{estudiante_id}/perfil")
+def perfil_estudiante_admin(estudiante_id: int, db: Session = Depends(get_db)):
+    """Ficha de un estudiante puntual: sus datos + sus últimas atenciones."""
+    est = db.query(Usuario).filter(Usuario.id == estudiante_id, Usuario.rol == "estudiante").first()
+    if not est:
+        raise HTTPException(status_code=404, detail="Estudiante no encontrado")
+
+    citas = (
+        db.query(Cita)
+        .filter(Cita.estudiante_id == estudiante_id)
+        .order_by(Cita.fecha.desc())
+        .limit(10)
+        .all()
+    )
+    ultimas = []
+    for c in citas:
+        prof = db.query(Profesional).filter(Profesional.id == c.profesional_id).first()
+        ultimas.append({
+            "id": c.id, "fecha": c.fecha, "hora": c.hora, "estado": c.estado,
+            "especialidad": prof.especialidad if prof else "—",
+            "profesional": prof.nombre if prof else "—",
+        })
+
+    total = db.query(func.count(Cita.id)).filter(Cita.estudiante_id == estudiante_id).scalar()
+    atendidas = db.query(func.count(Cita.id)).filter(
+        Cita.estudiante_id == estudiante_id, Cita.estado == "completada"
+    ).scalar()
+
+    return {
+        "id": est.id, "nombre": est.nombre or "—", "rut": est.rut or "—",
+        "carrera": est.carrera or "—", "correo": est.correo,
+        "citas_totales": total, "citas_atendidas": atendidas,
+        "ultimas_atenciones": ultimas,
+    }
+
+
 # ══════════════════════════════════════
 # GRÁFICOS
 # ══════════════════════════════════════
@@ -400,6 +494,45 @@ def cancelar_cita_admin(cita_id: int, body: dict, db: Session = Depends(get_db))
                         "cita", cita_id)
     db.commit()
     return {"message": "Cita cancelada y estudiante notificado"}
+
+
+@router.patch("/citas/{cita_id}/prioridad")
+def cambiar_prioridad_cita(cita_id: int, body: dict, db: Session = Depends(get_db)):
+    """
+    A diferencia de POST /citas/urgente (que crea una cita NUEVA ya marcada
+    urgente), este endpoint toma una cita EXISTENTE — pendiente o confirmada —
+    y le cambia la prioridad. Solo el administrador puede hacerlo; el
+    estudiante no puede autoasignarse prioridad urgente.
+    body: {"urgente": true} o {"urgente": false}
+    """
+    cita = db.query(Cita).filter(Cita.id == cita_id).first()
+    if not cita:
+        raise HTTPException(status_code=404, detail="Cita no encontrada")
+    if cita.estado in ("cancelada", "completada"):
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede cambiar la prioridad de una cita cancelada o ya completada."
+        )
+
+    nuevo_valor = bool(body.get("urgente", False))
+    cita.urgente = nuevo_valor
+
+    est  = db.query(Usuario).filter(Usuario.id == cita.estudiante_id).first()
+    prof = db.query(Profesional).filter(Profesional.id == cita.profesional_id).first()
+
+    if nuevo_valor:
+        db.add(Notificacion(usuario_id=cita.estudiante_id,
+            mensaje=f"Tu cita del {cita.fecha} a las {cita.hora} fue marcada como urgente por administración.",
+            tipo="urgente"))
+
+    registrar_auditoria(
+        db,
+        "Marcó cita como urgente" if nuevo_valor else "Quitó prioridad urgente a cita",
+        f"Estudiante: {est.nombre if est else '—'} — {prof.nombre if prof else '—'} — {cita.fecha} {cita.hora}",
+        "cita", cita_id
+    )
+    db.commit()
+    return {"id": cita.id, "urgente": cita.urgente, "estado": cita.estado}
 
 
 # ══════════════════════════════════════

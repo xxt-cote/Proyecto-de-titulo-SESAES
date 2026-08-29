@@ -12,7 +12,7 @@ class CitaCreate(BaseModel):
     estudiante_id:  int
     profesional_id: int
     fecha:          str            # YYYY-MM-DD
-    hora:           str            # HH:MM AM/PM
+    hora:           str            # HH:MM 24h (lo que entrega /disponibilidad). También se acepta "HH:MM AM/PM" por compatibilidad — ver citas.py:_cita_a_datetime
     observaciones:  Optional[str] = None
     urgente:        Optional[bool] = False
     sobrecupo:      Optional[bool] = False   # solo admin puede marcarla; se ignora si la manda cualquier otro rol
@@ -70,7 +70,7 @@ class ProfesionalCreate(BaseModel):
     duracion_min: Optional[int] = 45
     correo:       Optional[str] = None
     rut:          Optional[str] = None
-    password:     Optional[str] = "prof123"  # contraseña por defecto
+    password:     Optional[str] = None  # None = el backend genera una contraseña temporal aleatoria
 
 
 class ProfesionalUpdate(BaseModel):

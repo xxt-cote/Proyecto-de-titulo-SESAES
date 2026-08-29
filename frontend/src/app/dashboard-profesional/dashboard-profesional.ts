@@ -259,7 +259,7 @@ eliminarSeleccionadas(): void {
         this.generarHorasGrilla();
         this.cdr.detectChanges();
       },
-      error: () => {}
+      error: (err) => { console.error('[cargarPerfil] Error al cargar el perfil del profesional:', err); }
     });
 }
 
@@ -282,6 +282,23 @@ eliminarSeleccionadas(): void {
   // ══════════════════════════════════════
 
   estadisticasDia = { total_hoy: 0, completadas: 0, pendientes: 0, inasistencias: 0 };
+
+  // ══ Donut chart de composición del día (reemplaza al "pulso del día") ══
+  // Tres getters puros que devuelven los ángulos de corte del conic-gradient,
+  // calculados a partir de estadisticasDia. El color de cada tramo se define
+  // en el CSS (claro y oscuro), aquí solo se calculan los grados.
+  private anguloAcumulado(hastaCampo: 'completadas' | 'pendientes' | 'inasistencias'): number {
+    const { total_hoy, completadas, pendientes, inasistencias } = this.estadisticasDia;
+    if (!total_hoy) return 0;
+    let acumulado = completadas;
+    if (hastaCampo === 'pendientes') acumulado += pendientes;
+    if (hastaCampo === 'inasistencias') acumulado += pendientes + inasistencias;
+    return Math.min((acumulado / total_hoy) * 360, 360);
+  }
+  get donutC1(): string { return `${this.anguloAcumulado('completadas')}deg`; }
+  get donutC2(): string { return `${this.anguloAcumulado('pendientes')}deg`; }
+  get donutC3(): string { return `${this.anguloAcumulado('inasistencias')}deg`; }
+
   citasHoy: any[] = [];
 
   cargarEstadisticasDia(): void {
@@ -485,10 +502,26 @@ get ausenciaTipoActual() {
 
   // Genera la grilla de horas según la duración de atención configurada por el profesional
   // (antes estaba fijo a pasos de 60 min, por lo que las citas de 45 min no calzaban con ninguna fila)
- private horaAMinutos(hora: string, fallback: number): number {
+  private horaAMinutos(hora: string, fallback: number): number {
     if (!hora) return fallback;
     const [h, m] = hora.split(':').map(Number);
     return h * 60 + m;
+  }
+
+  // Posición horizontal (%) de una cita dentro de la línea "Pulso de hoy",
+  // según la jornada laboral aprobada del profesional (horario_inicio–horario_fin).
+  // NO puede ser private: el template la llama directamente con
+  // [style.left.%]="horaAPosicionPct(cita.hora)".
+  horaAPosicionPct(hora: string): number {
+    const inicioMin = this.horaAMinutos(this.perfil.horario_inicio, 8 * 60);
+    const finMin    = this.horaAMinutos(this.perfil.horario_fin, 18 * 60);
+    const horaMin   = this.horaAMinutos(hora, inicioMin);
+
+    const rango = finMin - inicioMin;
+    if (rango <= 0) return 0;
+
+    const pct = ((horaMin - inicioMin) / rango) * 100;
+    return Math.min(100, Math.max(0, pct)); // clamp 0–100
   }
 
   generarHorasGrilla(): void {

@@ -47,7 +47,8 @@ toggleSidebarMovil(): void {
   get tituloSeccion(): string {
     const map: Record<string, string> = {
       inicio: 'Panel Administrativo SESAES', horario: 'Gestión de Agenda Semanal',
-      profesional: 'Gestión de Profesionales', historial: 'Historial de Citas',
+      citas: 'Gestión de Citas', profesional: 'Gestión de Profesionales',
+      estudiantes: 'Estudiantes', historial: 'Historial de Citas',
       configuracion: 'Configuración del Sistema'
     };
     return map[this.seccionActiva] ?? 'SESAES';
@@ -57,7 +58,9 @@ toggleSidebarMovil(): void {
     const map: Record<string, string> = {
       inicio: 'Gestiona profesionales, horarios y reservas de bienestar estudiantil.',
       horario: 'Visualiza y administra la agenda semanal de cada profesional.',
+      citas: 'Revisa, prioriza y cancela las citas agendadas en el centro.',
       profesional: 'Administra el personal médico, psicólogos y especialistas del centro de salud.',
+      estudiantes: 'Busca estudiantes y revisa su historial de atenciones.',
       historial: 'Consulta el registro histórico de todas las atenciones y servicios realizados.',
       configuracion: 'Configuración del perfil, información del centro y auditoría.'
     };
@@ -101,6 +104,8 @@ toggleSidebarMovil(): void {
   this.notifPanelAbierto = false;
   this.sidebarMovilAbierta = false;   
   if (seccion === 'configuracion') { this.cargarAuditoria(); this.cargarConfiguracionCentro(); this.cargarDiasCerrados(); }
+  if (seccion === 'citas') { this.cargarCitas(); }
+  if (seccion === 'estudiantes') { this.cargarEstudiantes(); }
   if (seccion === 'inicio') {
     setTimeout(() => this.crearGraficos(), 0);
   }
@@ -1077,6 +1082,134 @@ private crearGraficos(): void {
   // ══════════════════════════════════════
   // HISTORIAL
   // ══════════════════════════════════════
+
+  // ═══ CITAS (gestión del día a día: prioridad + cancelación) ═══
+  // A diferencia de Historial (consulta/exportación read-only), esta
+  // sección es accionable: marcar/quitar urgencia y cancelar citas.
+  citasAdmin:          any[] = [];
+  pagCitas                   = 1;
+  citasFiltroEstudiante      = '';
+  citasFiltroRango           = 'todas';   // 'todas' | 'hoy' | 'semana'
+  citasFiltroEstado          = '';
+  citasFiltroPrioridad       = '';        // '' | 'urgente' | 'normal'
+  citasCargando               = false;
+
+  cargarCitas(): void {
+    this.citasCargando = true;
+    let url = `${API}/admin/historial?`;
+    if (this.citasFiltroEstudiante) url += `estudiante=${encodeURIComponent(this.citasFiltroEstudiante)}&`;
+    if (this.citasFiltroEstado)     url += `estado=${this.citasFiltroEstado}&`;
+
+    if (this.citasFiltroRango === 'hoy') {
+      const hoy = new Date().toISOString().slice(0, 10);
+      url += `fecha_inicio=${hoy}&fecha_fin=${hoy}&`;
+    } else if (this.citasFiltroRango === 'semana') {
+      const hoy = new Date();
+      const fin = new Date(hoy); fin.setDate(hoy.getDate() + 7);
+      url += `fecha_inicio=${hoy.toISOString().slice(0,10)}&fecha_fin=${fin.toISOString().slice(0,10)}&`;
+    }
+
+    this.http.get<any[]>(url).subscribe({
+      next: (data) => {
+        this.citasAdmin = data ?? []; this.pagCitas = 1; this.citasCargando = false;
+        this.cdr.detectChanges();
+      },
+      error: () => { this.citasCargando = false; }
+    });
+  }
+
+  get citasFiltradas(): any[] {
+    if (!this.citasFiltroPrioridad) return this.citasAdmin;
+    const quiereUrgente = this.citasFiltroPrioridad === 'urgente';
+    return this.citasAdmin.filter(c => !!c.urgente === quiereUrgente);
+  }
+
+  get citasPaginadas(): any[] {
+    return this.citasFiltradas.slice((this.pagCitas - 1) * 8, this.pagCitas * 8);
+  }
+
+  getPaginasCitas(): number[] {
+    const total = Math.ceil(this.citasFiltradas.length / 8);
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+
+  limpiarFiltrosCitas(): void {
+    this.citasFiltroEstudiante = ''; this.citasFiltroRango = 'todas';
+    this.citasFiltroEstado = ''; this.citasFiltroPrioridad = '';
+    this.cargarCitas();
+  }
+
+  marcarPrioridadCita(cita: any, urgente: boolean): void {
+    this.http.patch<any>(`${API}/admin/citas/${cita.id}/prioridad`, { urgente }).subscribe({
+      next: (res) => {
+        cita.urgente = res.urgente;
+        this.toast.success(urgente ? 'Cita marcada como urgente' : 'Se quitó la prioridad urgente');
+        this.cdr.detectChanges();
+      },
+      error: () => this.toast.error('No se pudo cambiar la prioridad de la cita')
+    });
+  }
+
+  // ═══ ESTUDIANTES (listado + ficha con historial) ═══
+  estudiantesAdmin:      any[] = [];
+  estudiantesTotal             = 0;
+  estudiantesPagina            = 1;
+  estudiantesPorPagina          = 20;
+  estudiantesFiltroQ           = '';
+  estudiantesFiltroCarrera     = '';
+  estudiantesCargando           = false;
+
+  modalPerfilEstudianteAbierto  = false;
+  perfilEstudianteCargando      = false;
+  fichaEstudianteSeleccionado: any   = null;
+
+  cargarEstudiantes(): void {
+    this.estudiantesCargando = true;
+    let url = `${API}/admin/estudiantes/listado?pagina=${this.estudiantesPagina}&por_pagina=${this.estudiantesPorPagina}&`;
+    if (this.estudiantesFiltroQ)       url += `q=${encodeURIComponent(this.estudiantesFiltroQ)}&`;
+    if (this.estudiantesFiltroCarrera) url += `carrera=${encodeURIComponent(this.estudiantesFiltroCarrera)}&`;
+    this.http.get<any>(url).subscribe({
+      next: (res) => {
+        this.estudiantesAdmin = res?.estudiantes ?? [];
+        this.estudiantesTotal = res?.total ?? 0;
+        this.estudiantesCargando = false;
+        this.cdr.detectChanges();
+      },
+      error: () => { this.estudiantesCargando = false; }
+    });
+  }
+
+  buscarEstudiantesAdmin(): void { this.estudiantesPagina = 1; this.cargarEstudiantes(); }
+
+  limpiarFiltrosEstudiantes(): void {
+    this.estudiantesFiltroQ = ''; this.estudiantesFiltroCarrera = ''; this.estudiantesPagina = 1;
+    this.cargarEstudiantes();
+  }
+
+  getPaginasEstudiantes(): number[] {
+    const total = Math.ceil(this.estudiantesTotal / this.estudiantesPorPagina);
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+
+  irAPaginaEstudiantes(pagina: number): void {
+    this.estudiantesPagina = pagina;
+    this.cargarEstudiantes();
+  }
+
+  verPerfilEstudianteAdmin(est: any): void {
+    this.modalPerfilEstudianteAbierto = true;
+    this.perfilEstudianteCargando = true;
+    this.fichaEstudianteSeleccionado = null;
+    this.http.get<any>(`${API}/admin/estudiantes/${est.id}/perfil`).subscribe({
+      next: (data) => { this.fichaEstudianteSeleccionado = data; this.perfilEstudianteCargando = false; this.cdr.detectChanges(); },
+      error: () => { this.perfilEstudianteCargando = false; this.toast.error('No se pudo cargar la ficha del estudiante'); }
+    });
+  }
+
+  cerrarModalPerfilEstudiante(): void {
+    this.modalPerfilEstudianteAbierto = false;
+    this.fichaEstudianteSeleccionado = null;
+  }
 
   historialAdmin:      any[] = [];
   pagHist                    = 1;
