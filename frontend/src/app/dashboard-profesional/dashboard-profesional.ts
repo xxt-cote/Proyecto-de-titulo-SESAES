@@ -52,13 +52,22 @@ toggleSidebarMovil(): void {
 
   get tituloSeccion(): string {
     const map: Record<string, string> = {
-      inicio:     'Bienvenido/a',
-      agenda:     'Mi Agenda',
-      atenciones: 'Mis Atenciones',
-      horario:    'Mi Horario',
-      perfil:     'Perfil y Configuración'
+      inicio:            'Bienvenido/a',
+      horario:            'Mi Horario',
+      pacientes:          'Mis Pacientes',
+      'historial-clinico': 'Historial Clínico',
+      solicitudes:        'Solicitudes',
+      perfil:             'Configuración',
+      ayuda:              'Ayuda'
     };
     return map[this.seccionActiva] ?? 'SESAES';
+  }
+
+  // Sub-pestaña dentro de "Mi Horario": agenda semanal o configuración de jornada/colación
+  horarioTab: 'agenda' | 'configuracion' = 'agenda';
+  cambiarHorarioTab(tab: 'agenda' | 'configuracion'): void {
+    this.horarioTab = tab;
+    if (tab === 'agenda') this.cargarCitasSemana();
   }
 
   constructor(
@@ -96,6 +105,9 @@ toggleSidebarMovil(): void {
     this.generarCalendarioInicio();
     this.cargarSolicitudesHorario();
     this.cargarDiasCerrados();
+    this.cargarCitasPendientes();
+    this.cargarAtenciones();
+    this.cargarPacientesHistorial();
   }
 
   navegarA(seccion: string): void {
@@ -103,11 +115,17 @@ toggleSidebarMovil(): void {
   this.mensajeExito      = '';
   this.mensajeError      = '';
   this.notifPanelAbierto = false;
-  this.sidebarMovilAbierto = false; 
-  if (seccion === 'agenda')     this.cargarCitasSemana();
-  if (seccion === 'atenciones') this.cargarAtenciones();
-  if (seccion === 'horario')    this.cargarSolicitudesHorario();
+  this.sidebarMovilAbierto = false;
+  if (seccion === 'horario') {
+    this.horarioTab = 'agenda';
+    this.cargarCitasSemana();
+  }
+  if (seccion === 'pacientes') this.cargarAtenciones();
   if (seccion === 'historial-clinico') this.cargarPacientesHistorial();
+  if (seccion === 'solicitudes') {
+    this.cargarCitasPendientes();
+    this.cargarSolicitudesHorario();
+  }
 }
   cerrarSesion(): void { localStorage.clear(); window.location.href = '/login'; }
 
@@ -282,6 +300,102 @@ eliminarSeleccionadas(): void {
   // ══════════════════════════════════════
 
   estadisticasDia = { total_hoy: 0, completadas: 0, pendientes: 0, inasistencias: 0 };
+
+  get saludoHorario(): string {
+    const h = new Date().getHours();
+    if (h < 12) return 'Buenos días';
+    if (h < 20) return 'Buenas tardes';
+    return 'Buenas noches';
+  }
+
+  // ── Tarjetas resumen del dashboard ──
+  get pacientesActivosCount(): number { return this.pacientesHistorial.length; }
+
+  get solicitudesPendientesTotal(): number {
+    return this.citasPendientes.length + this.solicitudesHorario.filter(s => s.estado === 'pendiente').length;
+  }
+
+  get atencionesDelMes(): any[] {
+    const hoy = new Date();
+    const anioMes = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+    return this.atenciones.filter(a => (a.fecha || '').startsWith(anioMes));
+  }
+  get atencionesMesTotal(): number { return this.atencionesDelMes.length; }
+  get atencionesMesCompletadas(): number { return this.atencionesDelMes.filter(a => a.estado === 'completada').length; }
+  get atencionesMesPct(): number {
+    const total = this.atencionesMesTotal;
+    return total > 0 ? Math.round((this.atencionesMesCompletadas / total) * 100) : 0;
+  }
+
+  // Mezcla las citas pendientes de confirmar con las solicitudes de horario pendientes,
+  // para el widget "Solicitudes pendientes" del Inicio (máx. 3 ítems)
+  get solicitudesRecientes(): { tipo: string; nombre: string; sub: string }[] {
+    const items: { tipo: string; nombre: string; sub: string }[] = [];
+    this.citasPendientes.forEach(c => items.push({
+      tipo: 'Solicitud de hora', nombre: c.estudiante, sub: `${c.fecha} · ${c.hora}`
+    }));
+    this.solicitudesHorario.filter(s => s.estado === 'pendiente').forEach(s => items.push({
+      tipo: s.tipo === 'colacion' ? 'Solicitud de colación' : 'Solicitud de jornada',
+      nombre: `${s.hora_inicio} – ${s.hora_fin}`,
+      sub: 'Esperando aprobación del administrador'
+    }));
+    return items.slice(0, 3);
+  }
+
+  get proximaCitaGeneral(): any {
+    const hoyPendientes = this.citasHoy.filter(c => c.estado === 'pendiente');
+    if (hoyPendientes.length > 0) return hoyPendientes[0];
+    return this.proximasSemana[0] || null;
+  }
+
+  // ── Datos para el nuevo orden del Inicio (agenda+calendario, alertas, pacientes recientes, actividad) ──
+
+  get atencionesMesPendientes(): number { return this.atencionesDelMes.filter(a => a.estado === 'pendiente').length; }
+  get atencionesMesCanceladas(): number { return this.atencionesDelMes.filter(a => a.estado === 'cancelada').length; }
+
+  get fichasSinCompletarCount(): number { return this.pacientesHistorial.filter(p => !p.tiene_ficha).length; }
+  get registrosPorRevisarCount(): number { return this.pacientesHistorial.filter(p => p.pendiente_revision).length; }
+
+  get pacientesRecientes(): any[] {
+    return [...this.pacientesHistorial]
+      .sort((a, b) => (a.dias_desde_ultima_visita ?? Infinity) - (b.dias_desde_ultima_visita ?? Infinity))
+      .slice(0, 4);
+  }
+
+  get actividadSemanalDias(): { label: string; count: number }[] {
+    return (this.semanaActual || []).map((dia: any) => ({
+      label: dia.nombre,
+      count: this.atenciones.filter(a => a.fecha === dia.fecha).length
+    }));
+  }
+  get actividadSemanalMax(): number {
+    return Math.max(1, ...this.actividadSemanalDias.map(d => d.count));
+  }
+
+  irAFichaPacienteReciente(p: any): void {
+    this.seccionActiva = 'historial-clinico';
+    this.abrirFichaPaciente(p);
+  }
+
+  irAFichasSinCompletar(): void {
+    this.navegarA('historial-clinico');
+    this.filtroEstadoHistorial = 'sin_completar';
+  }
+
+  irARevisarDocumentacion(): void {
+    this.navegarA('historial-clinico');
+    this.filtroEstadoHistorial = 'por_revisar';
+  }
+
+  // Botón "+ Nueva atención": intenta completar la próxima cita pendiente que ya
+  // corresponde atender; si no hay ninguna disponible, lleva a Solicitudes.
+  accionNuevaAtencion(): void {
+    const pendienteHoy = this.citasHoy.find(c => c.estado === 'pendiente' && this.puedeGestionarCita(c));
+    if (pendienteHoy) { this.abrirModalCompletar(pendienteHoy); return; }
+    const pendienteGeneral = this.citasPendientes.find(c => this.puedeGestionarCita(c));
+    if (pendienteGeneral) { this.abrirModalCompletar(pendienteGeneral); return; }
+    this.navegarA('solicitudes');
+  }
 
   // ══ Donut chart de composición del día (reemplaza al "pulso del día") ══
   // Tres getters puros que devuelven los ángulos de corte del conic-gradient,
@@ -475,7 +589,7 @@ get ausenciaTipoActual() {
         this.cargarPerfil();
         this.cargarCitasHoy();
         this.cargarEstadisticasDia();
-        if (this.seccionActiva === 'agenda') this.cargarCitasSemana();
+        if (this.seccionActiva === 'horario' && this.horarioTab === 'agenda') this.cargarCitasSemana();
         this.mensajeExito = 'Ausencia reportada. Se notificó a los estudiantes afectados.';
         this.enviandoAusencia = false;
         this.cdr.detectChanges();
@@ -637,15 +751,40 @@ private convertirA24h(hora: string): string {
 
   clickBloque(fecha: string, hora: string): void { this.diaSeleccionado = fecha; }
 
-  // Desde la Agenda: al hacer clic en una cita del panel del día, te lleva
-  // directo a "Mis Atenciones" y abre la ficha completa de ese paciente
-  // (con su historial de atenciones: cuántas veces vino, cada cuánto,
-  // fecha, hora, motivo y medicamento — todo lo que ya muestra la ficha).
+  // Desde la Agenda (u otras vistas): te lleva directo al Historial Clínico
+  // y abre la ficha completa de ese paciente (con su historial de atenciones:
+  // cuántas veces vino, cada cuánto, fecha, hora, motivo y medicamento).
   irAFichaDesdeAgenda(cita: any): void {
     if (!cita.estudiante_id) return;
-    this.seccionActiva = 'atenciones';
-    this.cargarAtenciones();
+    this.seccionActiva = 'historial-clinico';
+    this.cargarPacientesHistorial();
     this.abrirFichaPaciente({ estudiante_id: cita.estudiante_id, nombre: cita.estudiante });
+  }
+
+  // Desde "Mis Pacientes": ir directo al Historial Clínico de ese paciente
+  verHistorialPaciente(p: any): void {
+    this.seccionActiva = 'historial-clinico';
+    this.cargarPacientesHistorial();
+    this.abrirFichaPaciente({ estudiante_id: p.estudiante_id, nombre: p.estudiante });
+  }
+
+  // ══════════════════════════════════════
+  // SOLICITUDES — citas pendientes de confirmar (además de las
+  // solicitudes de horario, que se cargan en cargarSolicitudesHorario)
+  // ══════════════════════════════════════
+
+  citasPendientes: any[] = [];
+
+  cargarCitasPendientes(): void {
+    this.http.get<any[]>(`${API}/profesional/${this.profDbId}/citas?estado=pendiente`).subscribe({
+      next: (data) => { this.citasPendientes = data ?? []; this.cdr.detectChanges(); },
+      error: () => { this.citasPendientes = []; this.cdr.detectChanges(); }
+    });
+  }
+
+  // Tras completar/marcar inasistencia desde Solicitudes, refresca esta lista también
+  private refrescarCitasPendientesSiCorresponde(): void {
+    if (this.seccionActiva === 'solicitudes') this.cargarCitasPendientes();
   }
 
   // ══════════════════════════════════════
@@ -709,6 +848,7 @@ limpiarFiltrosAtenciones(): void {
         this.cargarEstadisticasDia();
         this.cargarCitasHoy();
         this.cargarCitasSinCerrar();
+        this.refrescarCitasPendientesSiCorresponde();
         this.mensajeExito = 'Atención completada correctamente.';
         this.cdr.detectChanges();
         setTimeout(() => { this.mensajeExito = ''; this.cdr.detectChanges(); }, 3000);
@@ -730,6 +870,7 @@ limpiarFiltrosAtenciones(): void {
         this.cargarEstadisticasDia();
         this.cargarCitasHoy();
         this.cargarCitasSinCerrar();
+        this.refrescarCitasPendientesSiCorresponde();
         this.mensajeExito = 'Inasistencia registrada.';
         this.cdr.detectChanges();
         setTimeout(() => { this.mensajeExito = ''; this.cdr.detectChanges(); }, 3000);
@@ -1007,6 +1148,7 @@ eliminarSolicitudesSeleccionadas(): void {
   busquedaPaciente = '';
   filtroAnioHistorial = '';
   filtroCarreraHistorial = '';
+  filtroEstadoHistorial: '' | 'completa' | 'sin_completar' | 'por_revisar' = '';
   cargandoPacientesHistorial = false;
 
   pacienteSeleccionado: any = null;   // { estudiante_id, nombre, ... }
@@ -1030,9 +1172,10 @@ eliminarSolicitudesSeleccionadas(): void {
   fichaTotalAtenciones = 0;
   fichaUltimaVisita: string | null = null;
   fichaDiasDesdeUltimaVisita: number | null = null;
-  fichaMostrandoCitas = false;   // toggle entre "ver ficha" y "ver citas"
+  fichaTab: 'timeline' | 'resumen' | 'ficha' | 'citas' = 'timeline';
 
   gestionarPlantillaAbierto = false;
+  ayudaBannerCerrado = false;
   plantillaPreguntasEdit: any[] = [];
   guardandoPlantilla = false;
 
@@ -1043,12 +1186,36 @@ eliminarSolicitudesSeleccionadas(): void {
 
   get pacientesHistorialFiltrados(): any[] {
     const q = this.busquedaPaciente.trim().toLowerCase();
-    if (!q) return this.pacientesHistorial;
-    return this.pacientesHistorial.filter(p =>
-      (p.nombre || '').toLowerCase().includes(q) ||
-      (p.rut || '').toLowerCase().includes(q) ||
-      (p.correo || '').toLowerCase().includes(q)
-    );
+    let lista = this.pacientesHistorial;
+    if (q) {
+      lista = lista.filter(p =>
+        (p.nombre || '').toLowerCase().includes(q) ||
+        (p.rut || '').toLowerCase().includes(q) ||
+        (p.correo || '').toLowerCase().includes(q)
+      );
+    }
+    if (this.filtroEstadoHistorial === 'completa')      lista = lista.filter(p => p.tiene_ficha);
+    if (this.filtroEstadoHistorial === 'sin_completar') lista = lista.filter(p => !p.tiene_ficha);
+    if (this.filtroEstadoHistorial === 'por_revisar')   lista = lista.filter(p => p.pendiente_revision);
+    return lista;
+  }
+
+  get carrerasHistorialDisponibles(): string[] {
+    const set = new Set<string>();
+    this.pacientesHistorial.forEach(p => { if (p.carrera) set.add(p.carrera); });
+    return Array.from(set).sort();
+  }
+
+  // ── Tarjetas resumen de Historial Clínico (datos reales, sin cifras inventadas) ──
+  get consultasTotalesHistorial(): number {
+    return this.pacientesHistorial.reduce((sum, p) => sum + (p.total_atenciones || 0), 0);
+  }
+
+  get fichasCompletadasPctHistorial(): number {
+    const total = this.pacientesHistorial.length;
+    if (total === 0) return 0;
+    const completas = this.pacientesHistorial.filter(p => p.tiene_ficha).length;
+    return Math.round((completas / total) * 100);
   }
 
   cargarPacientesHistorial(): void {
@@ -1066,13 +1233,14 @@ eliminarSolicitudesSeleccionadas(): void {
     this.busquedaPaciente = '';
     this.filtroAnioHistorial = '';
     this.filtroCarreraHistorial = '';
+    this.filtroEstadoHistorial = '';
     this.cargarPacientesHistorial();
   }
 
   abrirFichaPaciente(paciente: any): void {
     this.pacienteSeleccionado = paciente;
     this.fichaEnEdicion = false;
-    this.fichaMostrandoCitas = false;
+    this.fichaTab = 'timeline';
     this.fichaFotoError = false;
     this.http.get<any>(`${API}/historial-clinico/${this.profDbId}/${paciente.estudiante_id}`).subscribe({
       next: (data) => {
@@ -1108,11 +1276,48 @@ eliminarSolicitudesSeleccionadas(): void {
     this.fichaPreguntas  = [];
     this.fichaRespuestas = {};
     this.fichaCitas = [];
-    this.fichaMostrandoCitas = false;
+    this.fichaTab = 'timeline';
   }
 
-  toggleVistaFicha(mostrarCitas: boolean): void {
-    this.fichaMostrandoCitas = mostrarCitas;
+  // ── Datos derivados para la vista de ficha estilo "Historial clínico" ──
+
+  get fichaCitasCompletadas(): any[] {
+    return this.fichaCitas.filter(c => c.estado === 'completada');
+  }
+
+  get fichaUltimaAtencion(): any {
+    return this.fichaCitasCompletadas[0] || null; // fichaCitas viene ordenado desc por fecha/hora
+  }
+
+  get fichaProximaCita(): any {
+    const hoy = new Date().toISOString().slice(0, 10);
+    const futuras = this.fichaCitas.filter(c => c.estado === 'pendiente' && c.fecha >= hoy);
+    if (futuras.length === 0) return null;
+    return futuras.reduce((min, c) => ((c.fecha + c.hora) < (min.fecha + min.hora) ? c : min));
+  }
+
+  get fichaCitaPendienteActual(): any {
+    return this.fichaCitas.find(c => c.estado === 'pendiente') || null;
+  }
+
+  // Heurística: la cita más antigua de este paciente con este profesional es "Primera consulta"
+  tipoAtencionCita(cita: any): string {
+    if (this.fichaCitas.length === 0) return 'Consulta';
+    const masAntigua = [...this.fichaCitas].sort((a, b) => (a.fecha + a.hora).localeCompare(b.fecha + b.hora))[0];
+    return masAntigua === cita ? 'Primera consulta' : 'Seguimiento psicológico';
+  }
+
+  registrarNuevaAtencionDesdeFicha(): void {
+    const pendiente = this.fichaCitaPendienteActual;
+    if (pendiente && this.puedeGestionarCita(pendiente)) {
+      this.abrirModalCompletar(pendiente);
+    } else {
+      this.mensajeError = 'No hay una cita pendiente lista para registrar. El estudiante debe agendar una hora primero.';
+    }
+  }
+
+  imprimirHistorial(): void {
+    window.print();
   }
 
   habilitarEdicionFicha(): void { this.fichaEnEdicion = true; }

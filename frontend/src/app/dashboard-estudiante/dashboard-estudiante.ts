@@ -62,21 +62,38 @@ export class DashboardEstudianteComponent implements OnInit {
     return this.estudianteData?.nombre || 'Estudiante';
   }
   get tituloSeccionEst(): string {
+  if (this.seccionActiva === 'citas') {
+    const map: Record<string, string> = {
+      proximas:  'Mis Citas',
+      solicitar: 'Solicitar Nueva Cita',
+      historial: 'Historial de Citas'
+    };
+    return map[this.citasTab] ?? 'Mis Citas';
+  }
   const map: Record<string, string> = {
-    agendar:       'Agendar Nueva Hora',
-    citas:         'Mis Citas',
-    historial:     'Historial de Citas',
-    configuracion: 'Configuración de Cuenta'
+    servicios:     'Servicios',
+    documentos:    'Mis Documentos',
+    configuracion: 'Mi Perfil',
+    ayuda:         'Ayuda'
   };
   return map[this.seccionActiva] ?? 'SESAES';
 }
 
 get subtituloSeccionEst(): string {
+  if (this.seccionActiva === 'citas') {
+    const map: Record<string, string> = {
+      proximas:  'Gestiona tus próximas atenciones médicas.',
+      solicitar: 'Sigue los pasos para confirmar tu atención médica.',
+      historial: 'Consulta el registro de todas tus atenciones médicas.'
+    };
+    return map[this.citasTab] ?? '';
+  }
   const map: Record<string, string> = {
-    agendar:       'Sigue los pasos para confirmar tu atención médica.',
-    citas:         'Gestiona tus próximas atenciones médicas.',
-    historial:     'Consulta el registro de todas tus atenciones médicas.',
-    configuracion: 'Gestiona tu información personal y preferencias del portal.'
+    inicio:        'Gestiona tus atenciones y tu bienestar.',
+    servicios:     'Explora las áreas de atención disponibles en SESAES.',
+    documentos:    'Certificados, indicaciones y documentos compartidos contigo.',
+    configuracion: 'Gestiona tu información personal y preferencias del portal.',
+    ayuda:         'Mapa de SESAES, preguntas frecuentes y contacto.'
   };
   return map[this.seccionActiva] ?? '';
 }
@@ -363,7 +380,8 @@ get subtituloSeccionEst(): string {
 
   reagendarDesdeCancelacion(n: any): void {
     this.notifPanelAbierto = false;
-    this.seccionActiva     = 'agendar';
+    this.seccionActiva     = 'citas';
+    this.citasTab          = 'solicitar';
     this.pasoAgendar       = 1;
     this.marcarNotifLeida(n);
   }
@@ -415,8 +433,13 @@ get subtituloSeccionEst(): string {
     });
   }
 
-  navegarA(seccion: string): void {
+  citasTab: 'proximas' | 'solicitar' | 'historial' = 'proximas';
+
+  navegarA(seccion: string, subTab?: string): void {
     this.seccionActiva     = seccion;
+    if (seccion === 'citas') {
+      this.citasTab = (subTab as any) || 'proximas';
+    }
     this.mensajeExito      = '';
     this.mensajeError      = '';
     this.notifPanelAbierto = false;
@@ -484,13 +507,28 @@ get subtituloSeccionEst(): string {
     return `${h.getFullYear()}-${String(h.getMonth()+1).padStart(2,'0')}-${String(h.getDate()).padStart(2,'0')}`;
   }
 
+  // Desde el catálogo de "Servicios": salta directo al paso 2 (Profesional)
+  // de "Solicitar nueva cita", con la especialidad ya preseleccionada.
+  irAServicioSolicitar(especialidad: string): void {
+    this.seccionActiva = 'citas';
+    this.citasTab = 'solicitar';
+    this.seleccionarEspecialidad(especialidad);
+  }
+
+  // PASO 1 — Servicio: elegir la especialidad antes de ver profesionales.
+  seleccionarEspecialidad(especialidad: string): void {
+    this.filtroArea = especialidad;
+    this.pagProf = 0;
+    this.pasoAgendar = 2;
+  }
+
   seleccionarProfesional(p: any, event?: Event): void {
     if (event) event.stopPropagation();
     this.profesionalSeleccionado = p;
     this.horaSeleccionada = ''; this.fechaSeleccionada = null;
     this.horasDisponibles = []; this.mensajeDisponibilidad = null;
     this.calendarioAbierto = false; this._ultimaFechaPedida = null;
-    this.pasoAgendar = 2;
+    this.pasoAgendar = 3;
     const hoy = new Date();
     this.mesVisible  = hoy.getMonth();
     this.anioVisible = hoy.getFullYear();
@@ -639,6 +677,7 @@ get subtituloSeccionEst(): string {
     this.horaSeleccionada = ''; this.fechaSeleccionada = null;
     this.horasDisponibles = []; this.observaciones = '';
     this.calendarioAbierto = false; this._ultimaFechaPedida = null;
+    this.filtroArea = '';
   }
 
   // ══════════════════════════════════════
@@ -683,8 +722,26 @@ get subtituloSeccionEst(): string {
     return `Faltan ${horas}h ${minutos}min, no se puede cancelar`;
   }
 
+  // ══════════════════════════════════════
+  // MODAL: CANCELAR CITA (con opción de reagendar)
+  // ══════════════════════════════════════
+  modalCancelarAbierto = false;
+  citaParaCancelar: { cita: any; index: number } | null = null;
+
   cancelarCita(index: number, cita: any): void {
-    if (!confirm('¿Estás seguro de que deseas cancelar esta cita?')) return;
+    this.citaParaCancelar = { cita, index };
+    this.modalCancelarAbierto = true;
+  }
+
+  cerrarModalCancelar(): void {
+    this.modalCancelarAbierto = false;
+    this.citaParaCancelar = null;
+  }
+
+  confirmarSoloCancelar(): void {
+    if (!this.citaParaCancelar) return;
+    const { cita, index } = this.citaParaCancelar;
+    this.cerrarModalCancelar();
     this.http.delete(`${API}/citas/${cita.id}`).subscribe({
       next: () => {
         this.proximasCitas.splice(index, 1);
@@ -695,13 +752,30 @@ get subtituloSeccionEst(): string {
     });
   }
 
-  reagendarCita(cita: any): void {
-    const irAAgendar = () => {
-      const prof = this.profesionales.find(p => p.nombre === cita.profesional);
-      if (prof) { this.seccionActiva = 'agendar'; this.seleccionarProfesional(prof); }
-      else { this.seccionActiva = 'agendar'; this.pasoAgendar = 1; }
-    };
+  confirmarCancelarYReagendar(): void {
+    if (!this.citaParaCancelar) return;
+    const { cita, index } = this.citaParaCancelar;
+    this.cerrarModalCancelar();
+    this.http.delete(`${API}/citas/${cita.id}`).subscribe({
+      next: () => {
+        this.proximasCitas.splice(index, 1);
+        this.cargarHistorial();
+        this.irAAgendarConProfesional(cita);
+        this.cdr.detectChanges();
+      },
+      error: (err) => { alert(err?.error?.detail || 'No se pudo cancelar la cita para reagendar.'); }
+    });
+  }
 
+  private irAAgendarConProfesional(cita: any): void {
+    const prof = this.profesionales.find(p => p.nombre === cita.profesional);
+    this.seccionActiva = 'citas';
+    this.citasTab = 'solicitar';
+    if (prof) { this.seleccionarProfesional(prof); }
+    else { this.pasoAgendar = 1; }
+  }
+
+  reagendarCita(cita: any): void {
     // Si la cita todavía está pendiente (viene de "Próximas citas"), hay
     // que cancelarla primero: si no, el backend rechaza la nueva hora
     // porque ya existe una cita pendiente en esa misma especialidad.
@@ -713,12 +787,12 @@ get subtituloSeccionEst(): string {
         next: () => {
           this.cargarProximasCitas();
           this.cargarHistorial();
-          irAAgendar();
+          this.irAAgendarConProfesional(cita);
         },
         error: (err) => { alert(err?.error?.detail || 'No se pudo cancelar la cita para reagendar.'); }
       });
     } else {
-      irAAgendar();
+      this.irAAgendarConProfesional(cita);
     }
   }
 
@@ -771,6 +845,18 @@ get subtituloSeccionEst(): string {
   get totalCitas()       { return this.historialCompleto.length; }
   get citasCompletadas() { return this.historialCompleto.filter(h => h.estado === 'completada').length; }
   get citasCanceladas()  { return this.historialCompleto.filter(h => h.estado === 'cancelada').length; }
+  get serviciosUtilizados(): number {
+    const especialidades = new Set(
+      this.historialCompleto.filter(h => h.estado === 'completada').map(h => h.especialidad)
+    );
+    return especialidades.size;
+  }
+
+  // "¿Cómo estás hoy?" — placeholder de bienestar, aún sin persistencia en backend.
+  animoHoy: 'bien' | 'regular' | 'mal' | 'orientacion' | null = null;
+  registrarAnimo(estado: 'bien' | 'regular' | 'mal' | 'orientacion'): void {
+    this.animoHoy = estado;
+  }
 
   // ══════════════════════════════════════
   // CONFIGURACIÓN
@@ -799,6 +885,11 @@ faqs = [
 toggleFaq(faq: any): void {
   faq.abierta = !faq.abierta;
 }
+
+  // ══════════════════════════════════════
+  // AYUDA (Mapa de SESAES + Preguntas Frecuentes)
+  // ══════════════════════════════════════
+  tabAyuda: 'faq' | 'mapa' | 'contacto' | 'soporte' = 'faq';
   get perfilModificado(): boolean {
     return this.celularEditable !== this.celularOriginal
         || this.correoSecundarioEditable !== this.correoSecundarioOriginal
@@ -888,6 +979,11 @@ toggleFaq(faq: any): void {
     if (feriado) info.push(`🇨🇱 Feriado: ${feriado.nombre}`);
     for (const d of obtenerDiasInternacionales(fecha)) info.push(`🌍 ${d.nombre}`);
     return info;
+  }
+
+  // Placeholders de funciones aún sin backend (cambiar contraseña, sesiones, etc.)
+  mostrarProximamente(mensaje: string): void {
+    alert(mensaje);
   }
 
   toggleTema(oscuro: boolean): void {

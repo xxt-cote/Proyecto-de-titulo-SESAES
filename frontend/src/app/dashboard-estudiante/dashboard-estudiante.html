@@ -19,32 +19,41 @@
         </svg>
         Inicio
       </button>
-      <button class="nav-item" [class.active]="seccionActiva === 'agendar'" (click)="navegarA('agendar')">
+      <button class="nav-item" [class.active]="seccionActiva === 'citas'" (click)="navegarA('citas', citasTab)">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
-        Agendar Hora
-      </button>
-      <button class="nav-item" [class.active]="seccionActiva === 'citas'" (click)="navegarA('citas')">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-        </svg>
         Mis Citas
       </button>
-      <button class="nav-item" [class.active]="seccionActiva === 'historial'" (click)="navegarA('historial')">
+      <button class="nav-item" [class.active]="seccionActiva === 'servicios'" (click)="navegarA('servicios')">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
         </svg>
-        Historial
+        Servicios
+      </button>
+      <button class="nav-item" [class.active]="seccionActiva === 'documentos'" (click)="navegarA('documentos')">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        Mis Documentos
       </button>
       <button class="nav-item" [class.active]="seccionActiva === 'configuracion'" (click)="navegarA('configuracion')">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
           <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
-        Configuración
+        Mi Perfil
       </button>
     </nav>
+
+    <div class="sidebar-nav-ayuda">
+      <button class="nav-item" [class.active]="seccionActiva === 'ayuda'" (click)="navegarA('ayuda')">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        Ayuda
+      </button>
+    </div>
 
     <div class="sidebar-footer">
   <button class="logout-btn" (click)="cerrarSesion()">
@@ -74,8 +83,8 @@
       <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
     </svg>
   </button>
-  <h1 class="topbar-title-est" *ngIf="seccionActiva === 'agendar'">Hola, {{ estudianteNombre }} 👋</h1>
-    <h1 class="topbar-title-est" *ngIf="seccionActiva !== 'agendar'">{{ tituloSeccionEst }}</h1>
+  <h1 class="topbar-title-est" *ngIf="seccionActiva === 'inicio'">Hola, {{ estudianteNombre }} 👋</h1>
+    <h1 class="topbar-title-est" *ngIf="seccionActiva !== 'inicio'">{{ tituloSeccionEst }}</h1>
     <span class="topbar-sub-est">{{ subtituloSeccionEst }}</span>
   </div>
   <div class="topbar-actions-est">
@@ -149,8 +158,8 @@
   </div>
 </div>
 
-    <!-- ══ BANNER: CUESTIONARIOS PENDIENTES (no se muestra en "Agendar", ya que ahí el estudiante ya está enfocado en reservar la hora) ══ -->
-    <div class="banner-cuestionarios-est" *ngIf="cuestionariosPendientes.length > 0 && seccionActiva !== 'agendar'">
+    <!-- ══ BANNER: CUESTIONARIOS PENDIENTES (solo en Inicio, para no repetirlo en cada sección) ══ -->
+    <div class="banner-cuestionarios-est" *ngIf="cuestionariosPendientes.length > 0 && seccionActiva === 'inicio'">
       <div class="banner-cuestionarios-icono-est">🩺</div>
       <div class="banner-cuestionarios-texto-est">
         <strong>Tienes {{ cuestionariosPendientes.length }} cuestionario{{ cuestionariosPendientes.length === 1 ? '' : 's' }} de antecedentes pendiente{{ cuestionariosPendientes.length === 1 ? '' : 's' }}</strong>
@@ -214,17 +223,56 @@
           <p class="hero-proxima-cita-nombre">{{ proximasCitas[0].profesional }} · {{ proximasCitas[0].especialidad }}</p>
           <span class="hero-proxima-cita-fecha">{{ proximasCitas[0].fecha }} · {{ proximasCitas[0].hora }}</span>
         </div>
-        <button class="btn-hero-ver" (click)="navegarA('citas')">Ver detalle</button>
+        <button class="btn-hero-ver" (click)="navegarA('citas','proximas')">Ver detalle</button>
       </div>
       <div class="inicio-sin-citas" *ngIf="proximasCitas.length === 0">
         <p>Aún no tienes citas agendadas.</p>
-        <button class="btn-hero-ver-alt" (click)="navegarA('agendar')">Agendar mi primera hora</button>
+        <button class="btn-hero-ver-alt" (click)="navegarA('citas','solicitar')">Agendar mi primera hora</button>
+      </div>
+
+      <!-- Resumen de actividad -->
+      <div class="historial-stats resumen-actividad-inicio">
+        <div class="stat-card"><span class="stat-label">Citas realizadas</span><span class="stat-num completadas">{{ citasCompletadas }}</span></div>
+        <div class="stat-card"><span class="stat-label">Servicios utilizados</span><span class="stat-num">{{ serviciosUtilizados }}</span></div>
+        <div class="stat-card"><span class="stat-label">Documentos disponibles</span><span class="stat-num">0</span></div>
+        <div class="stat-card"><span class="stat-label">Solicitudes pendientes</span><span class="stat-num">{{ cuestionariosPendientes.length }}</span></div>
+      </div>
+
+      <!-- Acciones rápidas -->
+      <h2 class="inicio-subtitulo">Acciones rápidas</h2>
+      <div class="quick-row">
+        <button class="quick-btn" (click)="navegarA('citas','solicitar')">➕ Solicitar cita</button>
+        <button class="quick-btn" (click)="navegarA('servicios')">🏥 Explorar servicios</button>
+        <button class="quick-btn" (click)="navegarA('documentos')">📄 Ver documentos</button>
+        <button class="quick-btn" (click)="navegarA('ayuda')">❓ Consultar ayuda</button>
+        <button class="quick-btn" (click)="navegarA('configuracion')">✎ Actualizar mis datos</button>
+      </div>
+
+      <div class="config-grid" style="margin-top:20px;">
+        <!-- Pendientes -->
+        <div class="config-card">
+          <h3 class="config-card-title">📌 Pendientes</h3>
+          <div class="pendiente-item" *ngFor="let c of cuestionariosPendientes">
+            <span>Completar cuestionario · {{ c.especialidad }}</span>
+            <button class="doc-link" (click)="abrirCuestionario(c)">Completar</button>
+          </div>
+          <p *ngIf="cuestionariosPendientes.length === 0" style="color:#94a3b8;font-size:13px;">No tienes pendientes por ahora. 🎉</p>
+        </div>
+
+        <!-- Actividad reciente (notificaciones) -->
+        <div class="config-card">
+          <h3 class="config-card-title">🔔 Actividad reciente</h3>
+          <div class="pendiente-item" *ngFor="let n of notificaciones.slice(0,4)">
+            <span>{{ n.mensaje || n.titulo }}</span>
+          </div>
+          <p *ngIf="notificaciones.length === 0" style="color:#94a3b8;font-size:13px;">Sin actividad reciente.</p>
+        </div>
       </div>
 
       <div class="inicio-historial" *ngIf="historialMostrado.length > 0">
         <div class="inicio-historial-header">
-          <h2 class="inicio-subtitulo" style="margin:0;">Historial reciente</h2>
-          <span class="doc-link" (click)="navegarA('historial')">Ver todo</span>
+          <h2 class="inicio-subtitulo" style="margin:0;">Atenciones recientes</h2>
+          <span class="doc-link" (click)="navegarA('citas','historial')">Ver todo</span>
         </div>
         <div class="inicio-historial-item" *ngFor="let h of historialMostrado.slice(0,3)">
           <div class="mini-avatar">{{ h.iniciales }}</div>
@@ -236,10 +284,37 @@
           <span class="estado-badge" [ngClass]="h.estado">{{ h.estado }}</span>
         </div>
       </div>
+
+      <!-- ¿Cómo estás hoy? — placeholder, sin persistencia en backend aún -->
+      <div class="config-card" style="margin-top:20px;">
+        <h3 class="config-card-title">💚 ¿Cómo estás hoy?</h3>
+        <div class="mood-row">
+          <button class="mood-btn" [class.selected]="animoHoy === 'bien'" (click)="registrarAnimo('bien')">😊<span>Bien</span></button>
+          <button class="mood-btn" [class.selected]="animoHoy === 'regular'" (click)="registrarAnimo('regular')">🙂<span>Regular</span></button>
+          <button class="mood-btn" [class.selected]="animoHoy === 'mal'" (click)="registrarAnimo('mal')">😟<span>No muy bien</span></button>
+          <button class="mood-btn" [class.selected]="animoHoy === 'orientacion'" (click)="registrarAnimo('orientacion')">🧭<span>Necesito orientación</span></button>
+        </div>
+        <button class="btn-continuar" style="margin-top:12px;" *ngIf="animoHoy === 'mal' || animoHoy === 'orientacion'" (click)="navegarA('citas','solicitar')">Encontrar ayuda</button>
+      </div>
+
+      <!-- Recursos y novedades — placeholder, contenido estático -->
+      <h2 class="inicio-subtitulo">Recursos y novedades</h2>
+      <div class="quick-row">
+        <button class="quick-btn" (click)="mostrarProximamente('Próximamente: contenido sobre salud mental.')">🧠 Salud mental</button>
+        <button class="quick-btn" (click)="mostrarProximamente('Próximamente: consejos de nutrición.')">🥗 Nutrición</button>
+        <button class="quick-btn" (click)="mostrarProximamente('Próximamente: calendario de talleres y actividades.')">📰 Talleres</button>
+      </div>
     </div>
 
     <!-- ══ AGENDAR HORA ══ -->
-    <div class="section" *ngIf="seccionActiva === 'agendar'">
+    <!-- ══ MIS CITAS (pestañas: Próximas / Solicitar / Historial) ══ -->
+    <div class="tabs-ayuda" style="margin-bottom:24px;" *ngIf="seccionActiva === 'citas'">
+      <button class="tab-ayuda" [class.active]="citasTab === 'proximas'" (click)="citasTab = 'proximas'">Próximas</button>
+      <button class="tab-ayuda" [class.active]="citasTab === 'solicitar'" (click)="citasTab = 'solicitar'">Solicitar nueva cita</button>
+      <button class="tab-ayuda" [class.active]="citasTab === 'historial'" (click)="citasTab = 'historial'">Historial</button>
+    </div>
+
+    <div class="section" *ngIf="seccionActiva === 'citas' && citasTab === 'solicitar'">
 
       <!-- STEPPER -->
       <div class="stepper">
@@ -250,7 +325,7 @@
               <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <span class="step-label">Especialidad</span>
+          <span class="step-label">Servicio</span>
         </div>
         <div class="step-line" [class.active]="pasoAgendar > 1"></div>
         <div class="step" [class.active]="pasoAgendar >= 2" [class.done]="pasoAgendar > 2">
@@ -260,22 +335,47 @@
               <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <span class="step-label">Horario</span>
+          <span class="step-label">Profesional</span>
         </div>
         <div class="step-line" [class.active]="pasoAgendar > 2"></div>
-        <div class="step" [class.active]="pasoAgendar >= 3">
-          <div class="step-circle">3</div>
+        <div class="step" [class.active]="pasoAgendar >= 3" [class.done]="pasoAgendar > 3">
+          <div class="step-circle">
+            <span *ngIf="pasoAgendar <= 3">3</span>
+            <svg *ngIf="pasoAgendar > 3" xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="3">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <span class="step-label">Horario</span>
+        </div>
+        <div class="step-line" [class.active]="pasoAgendar > 3"></div>
+        <div class="step" [class.active]="pasoAgendar >= 4">
+          <div class="step-circle">4</div>
           <span class="step-label">Confirmación</span>
         </div>
       </div>
 
-      <!-- PASO 1 -->
+      <!-- PASO 1 — SERVICIO (especialidad) -->
       <div *ngIf="pasoAgendar === 1">
+        <div class="profesionales-grid">
+          <div class="profesional-card servicio-card" *ngFor="let esp of especialidadesDisponibles" (click)="seleccionarEspecialidad(esp)">
+            <div class="servicio-card-body">
+              <span class="servicio-card-nombre">{{ esp }}</span>
+              <span class="servicio-card-cta">Ver profesionales →</span>
+            </div>
+          </div>
+          <div *ngIf="especialidadesDisponibles.length === 0" style="grid-column:1/-1;text-align:center;color:#94a3b8;padding:32px;font-size:14px;">
+            Cargando especialidades...
+          </div>
+        </div>
+      </div>
+
+      <!-- PASO 2 — PROFESIONAL -->
+      <div *ngIf="pasoAgendar === 2">
         <div class="search-bar">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#94a3b8" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
-          <input type="text" placeholder="Buscar especialidad o profesional..." [(ngModel)]="busqueda" (ngModelChange)="pagProf = 0">
+          <input type="text" placeholder="Buscar profesional..." [(ngModel)]="busqueda" (ngModelChange)="pagProf = 0">
           <select [(ngModel)]="filtroArea" (ngModelChange)="pagProf = 0">
             <option value="">Todas las áreas</option>
             <option *ngFor="let e of especialidadesDisponibles" [value]="e">{{ e }}</option>
@@ -311,10 +411,15 @@
             <button class="btn-pag" [disabled]="!hayPaginaSiguiente" (click)="paginaSiguienteProf()">Siguiente ›</button>
           </div>
         </div>
+
+        <div class="paso-acciones">
+          <button class="btn-volver" (click)="pasoAgendar = 1">← Volver</button>
+          <span></span>
+        </div>
       </div>
 
-      <!-- PASO 2 -->
-      <div *ngIf="pasoAgendar === 2">
+      <!-- PASO 3 — HORARIO -->
+      <div *ngIf="pasoAgendar === 3">
         <div class="profesional-seleccionado">
           <div class="profesional-avatar-sm">{{ profesionalSeleccionado?.iniciales }}</div>
           <div>
@@ -389,13 +494,13 @@
         </div>
 
         <div class="paso-acciones">
-          <button class="btn-volver" (click)="pasoAgendar = 1; profesionalSeleccionado = null">← Volver</button>
-          <button class="btn-continuar" [disabled]="!fechaSeleccionada || !horaSeleccionada" (click)="pasoAgendar = 3">Continuar →</button>
+          <button class="btn-volver" (click)="pasoAgendar = 2; profesionalSeleccionado = null">← Volver</button>
+          <button class="btn-continuar" [disabled]="!fechaSeleccionada || !horaSeleccionada" (click)="pasoAgendar = 4">Continuar →</button>
         </div>
       </div>
 
-      <!-- PASO 3 — CONFIRMACIÓN -->
-      <div *ngIf="pasoAgendar === 3">
+      <!-- PASO 4 — CONFIRMACIÓN -->
+      <div *ngIf="pasoAgendar === 4">
         <div class="confirmacion">
           <div class="confirmacion-header">
             <h2>Confirmar Cita Médica</h2>
@@ -439,7 +544,7 @@
           </div>
 
           <div class="paso-acciones">
-            <button class="btn-volver" (click)="pasoAgendar = 2">← Volver</button>
+            <button class="btn-volver" (click)="pasoAgendar = 3">← Volver</button>
             <button class="btn-confirmar" [disabled]="enviandoCita" (click)="confirmarCita()">{{ enviandoCita ? 'Agendando…' : 'Confirmar Cita' }}</button>
           </div>
 
@@ -448,13 +553,12 @@
       </div>
     </div>
 
-    <!-- ══ MIS CITAS ══ -->
-    <div class="section" *ngIf="seccionActiva === 'citas'">
+    <div class="section" *ngIf="seccionActiva === 'citas' && citasTab === 'proximas'">
       <h3 class="subsection-title">Próximas citas</h3>
       <div class="citas-lista">
         <div class="cita-card" [class.cita-card-vencida]="citaPendienteVencida(cita)" *ngFor="let cita of proximasCitas; let i = index">
           <p class="cita-aviso-vencida" *ngIf="citaPendienteVencida(cita)">
-            ⏳ Esta hora ya pasó y tu profesional aún no la registra como atendida. No significa que no hayas asistido — puedes cancelarla o reagendar mientras se actualiza.
+            ⏳ Esta hora ya pasó y tu profesional aún no la registra como atendida. No significa que no hayas asistido — puedes cancelarla mientras se actualiza.
           </p>
           <div class="cita-card-row">
             <div class="cita-avatar">{{ cita.iniciales || cita.especialidad?.substring(0,2) }}</div>
@@ -470,40 +574,19 @@
               <span class="cita-valor">{{ cita.hora }}</span>
             </div>
             <div class="cita-acciones">
-              <button class="btn-reagendar" (click)="reagendarCita(cita)">Reagendar</button>
               <button class="btn-cancelar" [disabled]="!puedeCancelar(cita)" (click)="cancelarCita(i, cita)">Cancelar</button>
               <p class="cita-aviso-cancelacion" *ngIf="!puedeCancelar(cita)">{{ avisoCancelacion(cita) }}</p>
             </div>
           </div>
         </div>
         <div *ngIf="proximasCitas.length === 0" style="text-align:center;color:#94a3b8;padding:32px;font-size:14px;">
-          No tienes citas próximas. <button class="btn-reagendar" (click)="navegarA('agendar')">Agendar una hora</button>
+          No tienes citas próximas. <button class="btn-reagendar" (click)="navegarA('citas','solicitar')">Agendar una hora</button>
         </div>
       </div>
-
-      <h3 class="subsection-title" style="margin-top:28px">Últimas atenciones</h3>
-      <table class="historial-tabla">
-        <thead>
-          <tr><th>FECHA</th><th>PROFESIONAL</th><th>ESPECIALIDAD</th><th>ESTADO</th><th>ACCIONES</th></tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let h of historialResumen()">
-            <td><p>{{ h.fecha }}</p><small>{{ h.hora }}</small></td>
-            <td><div class="profesional-cell"><div class="mini-avatar">{{ h.iniciales }}</div><span>{{ h.profesional }}</span></div></td>
-            <td>{{ h.especialidad }}</td>
-            <td><span class="estado-badge" [ngClass]="h.estado">{{ h.estado }}</span></td>
-            <td>
-              <span class="doc-link" *ngIf="h.estado === 'cancelada'" (click)="reagendarCita(h)">↻ Reagendar</span>
-              <span class="doc-link" *ngIf="h.estado === 'completada'" (click)="verDetalleAtencion(h)">🩺 Ver detalle</span>
-              <span class="doc-link" *ngIf="h.estado === 'completada' && h.tiene_pdf" (click)="descargarPdf(h.id)">⬇ PDF</span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
     </div>
 
-    <!-- ══ HISTORIAL ══ -->
-    <div class="section" *ngIf="seccionActiva === 'historial'">
+    <!-- ══ HISTORIAL (pestaña dentro de Mis Citas) ══ -->
+    <div class="section" *ngIf="seccionActiva === 'citas' && citasTab === 'historial'">
       
       <div class="historial-stats">
         <div class="stat-card"><span class="stat-label">Total citas</span><span class="stat-num">{{ totalCitas }}</span></div>
@@ -548,6 +631,33 @@
           <button class="btn-pag" disabled>Anterior</button>
           <button class="btn-pag active" [disabled]="totalCitas <= 10">Siguiente</button>
         </div>
+      </div>
+    </div>
+
+    <!-- ══ SERVICIOS (catálogo real de especialidades desde el backend) ══ -->
+    <div class="section" *ngIf="seccionActiva === 'servicios'">
+      <div class="profesionales-grid">
+        <div class="profesional-card servicio-card" *ngFor="let esp of especialidadesDisponibles">
+          <div class="servicio-card-body">
+            <span class="servicio-card-nombre">{{ esp }}</span>
+            <p class="profesional-desc" style="text-align:center;">Atención profesional especializada, disponible para todos los estudiantes.</p>
+            <button class="btn-continuar" style="margin-top:4px;" (click)="irAServicioSolicitar(esp)">Solicitar atención</button>
+          </div>
+        </div>
+        <div *ngIf="especialidadesDisponibles.length === 0" style="grid-column:1/-1;text-align:center;color:#94a3b8;padding:32px;font-size:14px;">
+          Cargando servicios disponibles...
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ MIS DOCUMENTOS (placeholder — sección sin backend todavía) ══ -->
+    <div class="section" *ngIf="seccionActiva === 'documentos'">
+      <div class="config-card" style="text-align:center;padding:48px 24px;">
+        <div style="font-size:40px;margin-bottom:12px;">📄</div>
+        <h3 class="config-card-title" style="justify-content:center;">Próximamente</h3>
+        <p style="color:#5C6B60;font-size:13px;max-width:380px;margin:8px auto 0;line-height:1.5;">
+          Aquí podrás ver y descargar certificados, indicaciones médicas y documentos que tu profesional comparta contigo. Esta sección está en desarrollo.
+        </p>
       </div>
     </div>
 
@@ -617,38 +727,98 @@
           <p class="dato-inst"><span>Estado</span><strong>Alumno Regular</strong></p>
         </div>
 
-        <!-- Ubicación SESAES — datos dinámicos del backend -->
+        <!-- Preferencias -->
         <div class="config-card">
-          <h3 class="config-card-title">📍 Ubicación SESAES</h3>
-          <div class="mapa-wrap">
-            <iframe [src]="getMapaUrl()"
-                    width="100%" height="180" style="border:0;" loading="lazy"></iframe>
+          <h3 class="config-card-title">🔔 Preferencias</h3>
+          <div class="setting-row">
+            <span>Modo oscuro</span>
+            <button class="toggle-switch" [class.on]="temaOscuro" (click)="toggleTemaRapido()" [attr.aria-pressed]="temaOscuro"></button>
           </div>
-          <p class="ubicacion-direccion">{{ infoCentro.direccion }}</p>
-          <p class="ubicacion-direccion" *ngIf="infoCentro.telefono" style="font-size:12px;">📞 {{ infoCentro.telefono }}</p>
-          <p class="ubicacion-direccion" *ngIf="infoCentro.correo_contacto" style="font-size:12px;">✉️ {{ infoCentro.correo_contacto }}</p>
-          <p class="ubicacion-direccion" *ngIf="infoCentro.horario_atencion" style="font-size:12px;">🕐 {{ infoCentro.horario_atencion }}</p>
-          <button class="btn-cambiar" (click)="abrirComoLlegar()">Cómo llegar</button>
+          <div class="setting-row">
+            <span>Recordatorios de citas</span>
+            <button class="toggle-switch on" disabled title="Próximamente configurable"></button>
+          </div>
+          <div class="setting-row">
+            <span>Notificaciones por correo</span>
+            <button class="toggle-switch on" disabled title="Próximamente configurable"></button>
+          </div>
+          <p style="font-size:11px;color:#94a3b8;margin-top:10px;">Modo oscuro ya se guarda en tu cuenta. Los recordatorios y correos son fijos por ahora — pronto podrás desactivarlos.</p>
         </div>
 
-        <!-- Preguntas Frecuentes -->
-        <div class="config-card faq-card">
-          <h3 class="config-card-title">❓ Preguntas Frecuentes</h3>
-          <div class="faq-lista">
-            <div class="faq-item" *ngFor="let faq of faqs" [class.abierta]="faq.abierta">
-              <button class="faq-pregunta" (click)="toggleFaq(faq)">
-                <span>{{ faq.pregunta }}</span>
-                <svg class="faq-chevron" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#64748b" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              <div class="faq-respuesta" *ngIf="faq.abierta">
-                <p>{{ faq.respuesta }}</p>
-              </div>
+        <!-- Seguridad -->
+        <div class="config-card">
+          <h3 class="config-card-title">🔒 Seguridad</h3>
+          <div class="setting-row">
+            <span>Contraseña</span>
+            <button class="btn-cambiar" (click)="mostrarProximamente('Próximamente podrás cambiar tu contraseña desde aquí.')">Cambiar</button>
+          </div>
+          <div class="setting-row">
+            <span>Sesiones activas</span>
+            <button class="btn-cambiar" (click)="mostrarProximamente('Próximamente podrás ver y cerrar tus sesiones activas en otros dispositivos.')">Ver</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ══ AYUDA ══ -->
+    <div class="section" *ngIf="seccionActiva === 'ayuda'">
+      <div class="tabs-ayuda">
+        <button class="tab-ayuda" [class.active]="tabAyuda === 'faq'" (click)="tabAyuda = 'faq'">Preguntas frecuentes</button>
+        <button class="tab-ayuda" [class.active]="tabAyuda === 'mapa'" (click)="tabAyuda = 'mapa'">Mapa de SESAES</button>
+        <button class="tab-ayuda" [class.active]="tabAyuda === 'contacto'" (click)="tabAyuda = 'contacto'">Contacto</button>
+        <button class="tab-ayuda" [class.active]="tabAyuda === 'soporte'" (click)="tabAyuda = 'soporte'">Soporte</button>
+      </div>
+
+      <!-- Preguntas Frecuentes -->
+      <div class="config-card faq-card" *ngIf="tabAyuda === 'faq'">
+        <h3 class="config-card-title">❓ Preguntas Frecuentes</h3>
+        <div class="faq-lista">
+          <div class="faq-item" *ngFor="let faq of faqs" [class.abierta]="faq.abierta">
+            <button class="faq-pregunta" (click)="toggleFaq(faq)">
+              <span>{{ faq.pregunta }}</span>
+              <svg class="faq-chevron" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#64748b" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            <div class="faq-respuesta" *ngIf="faq.abierta">
+              <p>{{ faq.respuesta }}</p>
             </div>
           </div>
         </div>
+      </div>
 
+      <!-- Mapa de SESAES — datos dinámicos del backend -->
+      <div class="config-card" *ngIf="tabAyuda === 'mapa'">
+        <h3 class="config-card-title">📍 Ubicación SESAES</h3>
+        <div class="mapa-wrap">
+          <iframe [src]="getMapaUrl()"
+                  width="100%" height="220" style="border:0;" loading="lazy"></iframe>
+        </div>
+        <p class="ubicacion-direccion">{{ infoCentro.direccion }}</p>
+        <p class="ubicacion-direccion" *ngIf="infoCentro.telefono" style="font-size:12px;">📞 {{ infoCentro.telefono }}</p>
+        <p class="ubicacion-direccion" *ngIf="infoCentro.correo_contacto" style="font-size:12px;">✉️ {{ infoCentro.correo_contacto }}</p>
+        <p class="ubicacion-direccion" *ngIf="infoCentro.horario_atencion" style="font-size:12px;">🕐 {{ infoCentro.horario_atencion }}</p>
+        <button class="btn-cambiar" (click)="abrirComoLlegar()">Cómo llegar</button>
+      </div>
+
+      <!-- Contacto — reutiliza los mismos datos reales del backend -->
+      <div class="config-card" *ngIf="tabAyuda === 'contacto'">
+        <h3 class="config-card-title">☎️ Contacto</h3>
+        <p class="dato-inst" *ngIf="infoCentro.correo_contacto"><span>Correo</span><strong>{{ infoCentro.correo_contacto }}</strong></p>
+        <p class="dato-inst" *ngIf="infoCentro.telefono"><span>Teléfono</span><strong>{{ infoCentro.telefono }}</strong></p>
+        <p class="dato-inst"><span>Ubicación</span><strong>{{ infoCentro.direccion }}</strong></p>
+        <a class="btn-cambiar" style="display:inline-block;text-decoration:none;margin-top:8px;" *ngIf="infoCentro.correo_contacto" [href]="'mailto:' + infoCentro.correo_contacto">Escribir un correo</a>
+      </div>
+
+      <!-- Soporte / Guías — placeholder, sin backend todavía -->
+      <div class="config-card" *ngIf="tabAyuda === 'soporte'" style="text-align:center;padding:40px 24px;">
+        <div style="font-size:36px;margin-bottom:10px;">🛟</div>
+        <h3 class="config-card-title" style="justify-content:center;">Soporte y guías</h3>
+        <p style="color:#5C6B60;font-size:13px;max-width:380px;margin:8px auto 0;line-height:1.5;">
+          Próximamente encontrarás guías paso a paso sobre cómo usar SESAES. Mientras tanto, si tienes un problema con la plataforma, escríbenos
+          <span *ngIf="infoCentro.correo_contacto">a <strong>{{ infoCentro.correo_contacto }}</strong></span> y te ayudamos.
+        </p>
       </div>
     </div>
 
@@ -689,6 +859,32 @@
         <div class="modal-footer-est">
           <button class="btn-cerrar-modal-est" (click)="cerrarDetalleAtencion()">Cerrar</button>
           <button class="btn-descargar-modal-est" *ngIf="atencionSeleccionada?.tiene_pdf" (click)="descargarPdf(atencionSeleccionada.id)">⬇ Descargar PDF</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ MODAL: CANCELAR CITA (con opción de reagendar) ══ -->
+    <div class="modal-overlay-est" *ngIf="modalCancelarAbierto" (click)="cerrarModalCancelar()">
+      <div class="modal-est" (click)="$event.stopPropagation()">
+        <div class="modal-header-est">
+          <h3>¿Qué deseas hacer con tu cita?</h3>
+          <button class="modal-cerrar-est" (click)="cerrarModalCancelar()">✕</button>
+        </div>
+
+        <div class="detalle-atencion-body" *ngIf="citaParaCancelar as pc">
+          <div class="detalle-atencion-fila">
+            <span class="detalle-atencion-label">Profesional</span>
+            <span class="detalle-atencion-valor">{{ pc.cita.profesional }} <small>({{ pc.cita.especialidad }})</small></span>
+          </div>
+          <div class="detalle-atencion-fila">
+            <span class="detalle-atencion-label">Fecha y hora</span>
+            <span class="detalle-atencion-valor">{{ pc.cita.fecha }} — {{ pc.cita.hora }}</span>
+          </div>
+        </div>
+
+        <div class="modal-footer-est">
+          <button class="btn-cerrar-modal-est" (click)="confirmarCancelarYReagendar()">↻ Cancelar y reagendar</button>
+          <button class="btn-peligro-modal-est" (click)="confirmarSoloCancelar()">Sí, solo cancelar</button>
         </div>
       </div>
     </div>

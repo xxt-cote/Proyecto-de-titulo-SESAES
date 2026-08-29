@@ -159,6 +159,13 @@ body {
   flex-shrink: 0;
 }
 
+.sidebar-nav-ayuda {
+  padding: 8px 12px 16px;
+  border-top: 1px solid #F7F4EC;
+  display: flex;
+  flex-direction: column;
+}
+
 .sidebar-footer {
   padding: 16px 14px;
   border-top: 1px solid #F7F4EC;
@@ -166,6 +173,132 @@ body {
   flex-direction: column;
   gap: 12px;
 }
+
+/* ── Sección Ayuda: pestañas FAQ / Mapa ── */
+.tabs-ayuda {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid #E8E4D8;
+  margin-bottom: 20px;
+}
+
+.tab-ayuda {
+  padding: 10px 4px;
+  margin-right: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #8b9690;
+  background: none;
+  border: none;
+  cursor: pointer;
+  position: relative;
+}
+
+.tab-ayuda.active {
+  color: #1E2B23;
+}
+
+.tab-ayuda.active::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  height: 2px;
+  background: #2C5A45;
+  border-radius: 2px;
+}
+
+/* ── Mi Perfil: Preferencias / Seguridad ── */
+.setting-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 11px 0;
+  border-bottom: 1px solid #F0EDE2;
+  font-size: 13px;
+  color: #1E2B23;
+}
+.setting-row:last-of-type { border-bottom: none; }
+
+.toggle-switch {
+  width: 38px;
+  height: 22px;
+  border-radius: 100px;
+  background: #E0DCCC;
+  position: relative;
+  cursor: pointer;
+  border: none;
+  flex: none;
+  padding: 0;
+}
+.toggle-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 2px rgba(0,0,0,.2);
+  transition: left .15s;
+}
+.toggle-switch.on { background: #2C5A45; }
+.toggle-switch.on::after { left: 18px; }
+.toggle-switch:disabled { cursor: default; opacity: .7; }
+
+/* ── Inicio: acciones rápidas, pendientes, ánimo del día ── */
+.quick-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+.quick-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid #E6E0D2;
+  background: white;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1E2B23;
+}
+.quick-btn:hover { border-color: #2C5A45; color: #2C5A45; }
+
+.pendiente-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #F0EDE2;
+  font-size: 13px;
+  color: #1E2B23;
+}
+.pendiente-item:last-child { border-bottom: none; }
+
+.mood-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.mood-btn {
+  flex: 1;
+  min-width: 90px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 8px;
+  border-radius: 12px;
+  border: 1.5px solid #E6E0D2;
+  background: white;
+  cursor: pointer;
+  font-size: 20px;
+}
+.mood-btn span { font-size: 11px; font-weight: 600; color: #5C6B60; }
+.mood-btn:hover { border-color: #2C5A45; }
+.mood-btn.selected { border-color: #2C5A45; background: #E6F0E7; }
 
 .sidebar-profile {
   display: flex;
@@ -568,6 +701,27 @@ body.tema-oscuro .inicio-historial-fecha { color: #c9d1d9; }
   color: #5C6B60;
   padding: 8px 12px;
   line-height: 11.5px;
+}
+
+.servicio-card-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 32px 20px;
+  text-align: center;
+}
+
+.servicio-card-nombre {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1E2B23;
+}
+
+.servicio-card-cta {
+  font-size: 12px;
+  font-weight: 600;
+  color: #2C5A45;
 }
 
 .btn-agendar {
@@ -1314,6 +1468,8 @@ body.tema-oscuro .cita-aviso-vencida { background: #2a1e0c; color: #fb923c; }
   margin-bottom: 24px;
 }
 
+.resumen-actividad-inicio { grid-template-columns: repeat(4, 1fr); }
+
 .stat-card {
   background: white;
   border-radius: 12px;
@@ -2026,6 +2182,7 @@ body.tema-oscuro .btn-editar-perfil:hover { background: rgba(13,148,136,0.15); }
   .profesionales-grid  { grid-template-columns: repeat(2, 1fr); }
   .config-grid         { grid-template-columns: 1fr; }
   .horas-grid           { grid-template-columns: repeat(3, 1fr); }
+  .resumen-actividad-inicio { grid-template-columns: repeat(2, 1fr); }
 
   .calendario-mes { width: 320px; }
 }
@@ -2057,6 +2214,7 @@ body.tema-oscuro .btn-editar-perfil:hover { background: rgba(13,148,136,0.15); }
 
   .profesionales-grid { grid-template-columns: 1fr; }
   .historial-stats     { grid-template-columns: 1fr; }
+  .resumen-actividad-inicio { grid-template-columns: 1fr; }
   .horas-grid           { grid-template-columns: repeat(2, 1fr); }
 
   .search-bar { flex-wrap: wrap; }
@@ -2117,9 +2275,25 @@ body.tema-oscuro .sidebar-logo-title   { color: #4f8ef7; }
 body.tema-oscuro .sidebar-logo-sub     { color: #8b96a8; }
 body.tema-oscuro .sidebar-logo-divider { background: #3a4a63; }
 body.tema-oscuro .sidebar-footer       { border-color: #3a4a63; }
+body.tema-oscuro .sidebar-nav-ayuda    { border-color: #3a4a63; }
 
 body.tema-oscuro .nav-item        { color: #8b96a8; }
 body.tema-oscuro .nav-item:hover  { background: #2d3b52; color: #c9d1d9; }
+
+body.tema-oscuro .tabs-ayuda      { border-color: #3a4a63; }
+body.tema-oscuro .tab-ayuda       { color: #8b96a8; }
+body.tema-oscuro .tab-ayuda.active { color: #c9d1d9; }
+body.tema-oscuro .tab-ayuda.active::after { background: #4f8ef7; }
+
+body.tema-oscuro .setting-row    { color: #e6edf3; border-color: #3a4a63; }
+body.tema-oscuro .toggle-switch  { background: #3a4a63; }
+body.tema-oscuro .toggle-switch.on { background: #4f8ef7; }
+
+body.tema-oscuro .quick-btn        { background: #242f42; border-color: #3a4a63; color: #e6edf3; }
+body.tema-oscuro .quick-btn:hover  { border-color: #4f8ef7; color: #4f8ef7; }
+body.tema-oscuro .pendiente-item   { color: #e6edf3; border-color: #3a4a63; }
+body.tema-oscuro .mood-btn         { background: #242f42; border-color: #3a4a63; }
+body.tema-oscuro .mood-btn.selected { border-color: #4f8ef7; background: rgba(79,142,247,0.12); }
 body.tema-oscuro .nav-item.active {
   background: rgba(13,148,136,0.15);
   color: #0d9488;
@@ -2179,7 +2353,8 @@ body.tema-oscuro .fecha-selector-btn span,
 body.tema-oscuro .horas-panel-titulo,
 body.tema-oscuro .subsection-title,
 body.tema-oscuro .cita-valor,
-body.tema-oscuro .profesional-nombre {
+body.tema-oscuro .profesional-nombre,
+body.tema-oscuro .servicio-card-nombre {
   color: #e6edf3;
 }
 
@@ -2361,6 +2536,9 @@ body.tema-oscuro .notif-item-acciones-est button:hover { color: #2dd4bf; }
 .btn-cerrar-modal-est:hover { background: #F7F4EC; }
 .btn-descargar-modal-est { padding: 9px 20px; border: none; border-radius: 8px; background: #2C5A45; color: white; font-size: 13px; font-weight: 600; cursor: pointer; }
 .btn-descargar-modal-est:hover { background: #0b7a70; }
+
+.btn-peligro-modal-est { padding: 9px 20px; border: none; border-radius: 8px; background: #c0362c; color: white; font-size: 13px; font-weight: 600; cursor: pointer; }
+.btn-peligro-modal-est:hover { background: #a02a22; }
 
 @media (max-width: 640px) {
   .modal-est { padding: 20px; width: 100%; }
