@@ -71,7 +71,6 @@ export class DashboardEstudianteComponent implements OnInit {
     return map[this.citasTab] ?? 'Mis Citas';
   }
   const map: Record<string, string> = {
-    servicios:     'Servicios',
     documentos:    'Mis Documentos',
     configuracion: 'Mi Perfil',
     ayuda:         'Ayuda'
@@ -90,7 +89,6 @@ get subtituloSeccionEst(): string {
   }
   const map: Record<string, string> = {
     inicio:        'Gestiona tus atenciones y tu bienestar.',
-    servicios:     'Explora las áreas de atención disponibles en SESAES.',
     documentos:    'Certificados, indicaciones y documentos compartidos contigo.',
     configuracion: 'Gestiona tu información personal y preferencias del portal.',
     ayuda:         'Mapa de SESAES, preguntas frecuentes y contacto.'
@@ -507,28 +505,13 @@ get subtituloSeccionEst(): string {
     return `${h.getFullYear()}-${String(h.getMonth()+1).padStart(2,'0')}-${String(h.getDate()).padStart(2,'0')}`;
   }
 
-  // Desde el catálogo de "Servicios": salta directo al paso 2 (Profesional)
-  // de "Solicitar nueva cita", con la especialidad ya preseleccionada.
-  irAServicioSolicitar(especialidad: string): void {
-    this.seccionActiva = 'citas';
-    this.citasTab = 'solicitar';
-    this.seleccionarEspecialidad(especialidad);
-  }
-
-  // PASO 1 — Servicio: elegir la especialidad antes de ver profesionales.
-  seleccionarEspecialidad(especialidad: string): void {
-    this.filtroArea = especialidad;
-    this.pagProf = 0;
-    this.pasoAgendar = 2;
-  }
-
   seleccionarProfesional(p: any, event?: Event): void {
     if (event) event.stopPropagation();
     this.profesionalSeleccionado = p;
     this.horaSeleccionada = ''; this.fechaSeleccionada = null;
     this.horasDisponibles = []; this.mensajeDisponibilidad = null;
     this.calendarioAbierto = false; this._ultimaFechaPedida = null;
-    this.pasoAgendar = 3;
+    this.pasoAgendar = 2;
     const hoy = new Date();
     this.mesVisible  = hoy.getMonth();
     this.anioVisible = hoy.getFullYear();
@@ -845,17 +828,29 @@ get subtituloSeccionEst(): string {
   get totalCitas()       { return this.historialCompleto.length; }
   get citasCompletadas() { return this.historialCompleto.filter(h => h.estado === 'completada').length; }
   get citasCanceladas()  { return this.historialCompleto.filter(h => h.estado === 'cancelada').length; }
-  get serviciosUtilizados(): number {
-    const especialidades = new Set(
-      this.historialCompleto.filter(h => h.estado === 'completada').map(h => h.especialidad)
-    );
-    return especialidades.size;
-  }
 
-  // "¿Cómo estás hoy?" — placeholder de bienestar, aún sin persistencia en backend.
+  // "¿Cómo estás hoy?" — cada opción dispara una acción real.
   animoHoy: 'bien' | 'regular' | 'mal' | 'orientacion' | null = null;
   registrarAnimo(estado: 'bien' | 'regular' | 'mal' | 'orientacion'): void {
     this.animoHoy = estado;
+    switch (estado) {
+      case 'bien':
+        this.mensajeExito = '¡Qué bueno! Sigue cuidándote 💚';
+        break;
+      case 'regular':
+        this.navegarA('ayuda');
+        this.mensajeExito = 'Gracias por contarnos. Aquí tienes recursos que pueden ayudarte.';
+        break;
+      case 'mal':
+        this.navegarA('citas', 'solicitar');
+        this.mensajeExito = 'Vamos a ayudarte a agendar una hora cuanto antes.';
+        break;
+      case 'orientacion':
+        this.navegarA('ayuda');
+        this.tabAyuda = 'contacto';
+        this.mensajeExito = 'Te dejamos el contacto y las preguntas frecuentes de SESAES.';
+        break;
+    }
   }
 
   // ══════════════════════════════════════

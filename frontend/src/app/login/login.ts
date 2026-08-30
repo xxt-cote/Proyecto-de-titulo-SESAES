@@ -27,12 +27,21 @@ export class LoginComponent {
   mostrarPassword = false;
   errorCorreo = false;
 
+  // Estado visual del formulario: controla qué vista se muestra
+  // (inicial / cargando / error / exito), en línea con el diseño aprobado.
+  estado: 'inicial' | 'cargando' | 'error' | 'exito' = 'inicial';
+
   constructor(private auth: AuthService, private router: Router, private http: HttpClient, private cdr: ChangeDetectorRef) {}
 
   togglePassword(): void { this.mostrarPassword = !this.mostrarPassword; }
 
   validarCorreo(): void {
     this.errorCorreo = this.correo.length > 0 && !this.correo.endsWith('@utem.cl');
+  }
+
+  reintentar(): void {
+    this.estado = 'inicial';
+    this.error = '';
   }
 
   onLogin(): void {
@@ -44,6 +53,7 @@ export class LoginComponent {
     this.error         = '';
     this.cargando       = true;
     this.cargandoLento  = false;
+    this.estado         = 'cargando';
 
     // Si la respuesta tarda (ej. el backend en Render estaba "dormido"),
     // avisamos para que no parezca que la app quedó pegada.
@@ -62,25 +72,33 @@ export class LoginComponent {
             next: (prof) => {
               localStorage.setItem('prof_db_id', String(prof.id));
               this.finalizarCarga();
-              this.redirigir(res.rol);
+              this.mostrarExitoYRedirigir(res.rol);
             },
             error: () => {
               this.finalizarCarga();
+              this.estado = 'error';
               this.error = 'Tu cuenta de profesional no está vinculada correctamente. Contacta al administrador.';
               this.cdr.detectChanges();
             }
           });
         } else {
           this.finalizarCarga();
-          this.redirigir(res.rol);
+          this.mostrarExitoYRedirigir(res.rol);
         }
       },
       error: (err) => {
         this.error = err?.error?.detail || 'Correo o contraseña incorrectos.';
+        this.estado = 'error';
         this.finalizarCarga();
         this.cdr.detectChanges();
       }
     });
+  }
+
+  private mostrarExitoYRedirigir(rol: string): void {
+    this.estado = 'exito';
+    this.cdr.detectChanges();
+    setTimeout(() => this.redirigir(rol), 900);
   }
 
   private finalizarCarga(): void {

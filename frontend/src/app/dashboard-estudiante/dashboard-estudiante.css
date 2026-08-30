@@ -266,16 +266,41 @@ body {
 }
 .quick-btn:hover { border-color: #2C5A45; color: #2C5A45; }
 
-.pendiente-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 0;
-  border-bottom: 1px solid #F0EDE2;
-  font-size: 13px;
-  color: #1E2B23;
+.quick-btn-primary {
+  background: #2C5A45;
+  border-color: #2C5A45;
+  color: white;
 }
-.pendiente-item:last-child { border-bottom: none; }
+.quick-btn-primary:hover { background: #234a38; color: white; }
+
+.tarea-pendiente-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 12px 0;
+  border-bottom: 1px solid #F0EDE2;
+}
+.tarea-pendiente-item:last-of-type { border-bottom: none; }
+.tarea-pendiente-titulo { font-size: 13px; font-weight: 600; color: #1E2B23; }
+.tarea-pendiente-sub { font-size: 12px; color: #5C6B60; }
+
+.resumen-mini-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid #F0EDE2;
+}
+.resumen-mini-row:last-child { border-bottom: none; }
+.resumen-mini-row strong { font-size: 20px; font-family: 'Manrope', 'Inter', sans-serif; color: #2C5A45; }
+.resumen-mini-row span { font-size: 13px; color: #5C6B60; }
+
+.mood-subtitulo {
+  font-size: 12px;
+  color: #5C6B60;
+  margin: -4px 0 14px;
+}
 
 .mood-row {
   display: flex;
@@ -701,27 +726,6 @@ body.tema-oscuro .inicio-historial-fecha { color: #c9d1d9; }
   color: #5C6B60;
   padding: 8px 12px;
   line-height: 11.5px;
-}
-
-.servicio-card-body {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 32px 20px;
-  text-align: center;
-}
-
-.servicio-card-nombre {
-  font-size: 16px;
-  font-weight: 700;
-  color: #1E2B23;
-}
-
-.servicio-card-cta {
-  font-size: 12px;
-  font-weight: 600;
-  color: #2C5A45;
 }
 
 .btn-agendar {
@@ -1468,7 +1472,6 @@ body.tema-oscuro .cita-aviso-vencida { background: #2a1e0c; color: #fb923c; }
   margin-bottom: 24px;
 }
 
-.resumen-actividad-inicio { grid-template-columns: repeat(4, 1fr); }
 
 .stat-card {
   background: white;
@@ -2182,7 +2185,6 @@ body.tema-oscuro .btn-editar-perfil:hover { background: rgba(13,148,136,0.15); }
   .profesionales-grid  { grid-template-columns: repeat(2, 1fr); }
   .config-grid         { grid-template-columns: 1fr; }
   .horas-grid           { grid-template-columns: repeat(3, 1fr); }
-  .resumen-actividad-inicio { grid-template-columns: repeat(2, 1fr); }
 
   .calendario-mes { width: 320px; }
 }
@@ -2214,7 +2216,6 @@ body.tema-oscuro .btn-editar-perfil:hover { background: rgba(13,148,136,0.15); }
 
   .profesionales-grid { grid-template-columns: 1fr; }
   .historial-stats     { grid-template-columns: 1fr; }
-  .resumen-actividad-inicio { grid-template-columns: 1fr; }
   .horas-grid           { grid-template-columns: repeat(2, 1fr); }
 
   .search-bar { flex-wrap: wrap; }
@@ -2291,7 +2292,15 @@ body.tema-oscuro .toggle-switch.on { background: #4f8ef7; }
 
 body.tema-oscuro .quick-btn        { background: #242f42; border-color: #3a4a63; color: #e6edf3; }
 body.tema-oscuro .quick-btn:hover  { border-color: #4f8ef7; color: #4f8ef7; }
-body.tema-oscuro .pendiente-item   { color: #e6edf3; border-color: #3a4a63; }
+body.tema-oscuro .quick-btn-primary { background: #2f6f5f; border-color: #2f6f5f; color: white; }
+body.tema-oscuro .quick-btn-primary:hover { background: #26594c; color: white; }
+body.tema-oscuro .tarea-pendiente-item { border-color: #3a4a63; }
+body.tema-oscuro .tarea-pendiente-titulo { color: #e6edf3; }
+body.tema-oscuro .tarea-pendiente-sub { color: #9db0aa; }
+body.tema-oscuro .resumen-mini-row { border-color: #3a4a63; }
+body.tema-oscuro .resumen-mini-row span { color: #9db0aa; }
+body.tema-oscuro .resumen-mini-row strong { color: #4f8ef7; }
+body.tema-oscuro .mood-subtitulo   { color: #9db0aa; }
 body.tema-oscuro .mood-btn         { background: #242f42; border-color: #3a4a63; }
 body.tema-oscuro .mood-btn.selected { border-color: #4f8ef7; background: rgba(79,142,247,0.12); }
 body.tema-oscuro .nav-item.active {
@@ -2353,8 +2362,7 @@ body.tema-oscuro .fecha-selector-btn span,
 body.tema-oscuro .horas-panel-titulo,
 body.tema-oscuro .subsection-title,
 body.tema-oscuro .cita-valor,
-body.tema-oscuro .profesional-nombre,
-body.tema-oscuro .servicio-card-nombre {
+body.tema-oscuro .profesional-nombre {
   color: #e6edf3;
 }
 
