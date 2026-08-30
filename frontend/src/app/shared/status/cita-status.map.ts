@@ -3,7 +3,7 @@
  *
  * Valores reales verificados en backend/app/models/cita.py
  * (`estado = Column(String, default="pendiente")`) y en su uso en
- * frontend/src/app/dashboard-*/*.ts (`cita.estado === '...'`).
+ * frontend/src/app/dashboard-.../*.ts (`cita.estado === '...'`).
  */
 import {
   LucideClock3,
