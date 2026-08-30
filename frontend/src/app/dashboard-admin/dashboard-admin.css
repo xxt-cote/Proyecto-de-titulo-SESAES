@@ -145,6 +145,35 @@ body {
 .topbar-sub { font-size: 12px; color: #87919a; }
 .topbar-actions { display: flex; align-items: center; gap: 10px; }
 
+/* ═══ Buscador global (topbar) ═══ */
+.topbar-buscador { position: relative; display: flex; align-items: center; gap: 8px; padding: 7px 12px; border: 1.5px solid #e7ebef; border-radius: 10px; color: #87919a; min-width: 260px; }
+.topbar-buscador input { border: none; outline: none; font-size: 13px; color: #17202a; background: transparent; width: 100%; }
+.buscador-dropdown { position: absolute; top: calc(100% + 6px); left: 0; right: 0; background: #fff; border: 1.5px solid #e7ebef; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.08); max-height: 320px; overflow-y: auto; z-index: 40; }
+.buscador-grupo-titulo { font-size: 10.5px; font-weight: 700; text-transform: uppercase; color: #97a2ac; padding: 8px 14px 4px; }
+.buscador-opcion { display: flex; flex-direction: column; gap: 1px; padding: 8px 14px; cursor: pointer; }
+.buscador-opcion:hover { background: #f4f7fa; }
+.buscador-opcion strong { font-size: 13px; color: #17202a; }
+.buscador-opcion span { font-size: 11.5px; color: #87919a; }
+.buscador-cargando, .buscador-vacio { padding: 12px 14px; font-size: 12.5px; color: #87919a; }
+.dashboard.tema-oscuro .buscador-dropdown { background: #1c2530; border-color: #2c3846; }
+.dashboard.tema-oscuro .buscador-opcion:hover { background: #232f3d; }
+
+/* ═══ Tabs de Configuración ═══ */
+.config-tabs { display: flex; gap: 6px; margin-bottom: 18px; flex-wrap: wrap; border-bottom: 1.5px solid #e7ebef; padding-bottom: 0; }
+.config-tab { padding: 9px 16px; border: none; background: transparent; font-size: 13px; font-weight: 600; color: #66727e; cursor: pointer; border-bottom: 2.5px solid transparent; }
+.config-tab.active { color: #0d9488; border-bottom-color: #0d9488; }
+.config-tab:hover { color: #17202a; }
+
+/* ═══ Barras de reporte (citas por especialidad) ═══ */
+.reporte-barra-fila { display: flex; align-items: center; gap: 10px; }
+.reporte-barra-label { font-size: 12.5px; color: #66727e; width: 130px; flex-shrink: 0; }
+.reporte-barra-track { flex: 1; height: 10px; background: #eef1f4; border-radius: 6px; overflow: hidden; }
+.reporte-barra-fill { height: 100%; background: #0d9488; border-radius: 6px; }
+.reporte-barra-pct { font-size: 12px; font-weight: 600; color: #17202a; width: 40px; text-align: right; }
+
+/* ═══ Fila de cita urgente en tablas ═══ */
+tr.fila-urgente { background: #fff6f5; }
+
 .topbar-icon-btn {
   position: relative;
   width: 36px;

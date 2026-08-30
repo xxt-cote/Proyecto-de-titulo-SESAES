@@ -88,7 +88,7 @@ get subtituloSeccionEst(): string {
     return map[this.citasTab] ?? '';
   }
   const map: Record<string, string> = {
-    inicio:        'Gestiona tus atenciones y tu bienestar.',
+    inicio:        'Gestiona tus atenciones en SESAES.',
     documentos:    'Certificados, indicaciones y documentos compartidos contigo.',
     configuracion: 'Gestiona tu información personal y preferencias del portal.',
     ayuda:         'Mapa de SESAES, preguntas frecuentes y contacto.'
@@ -787,6 +787,22 @@ get subtituloSeccionEst(): string {
   historialCompleto: any[] = [];
   historialMostrado: any[] = [];
 
+  // Ícono representativo por especialidad — con fallback genérico para
+  // cualquier especialidad nueva que se agregue desde el backend.
+  private readonly iconosEspecialidad: Record<string, string> = {
+    'nutrición': '🥗',
+    'odontología': '🦷',
+    'kinesiología': '🦴',
+    'medicina general': '🩺',
+    'oftalmología': '👁️',
+    'rayos x': '🩻',
+    'psicología': '🧠',
+    'enfermería': '❤️',
+  };
+  iconoEspecialidad(especialidad: string): string {
+    return this.iconosEspecialidad[(especialidad || '').toLowerCase()] || '🩺';
+  }
+
   // -- Modal de detalle de atención (medicamento, observaciones, motivo) --
   detalleAtencionAbierto = false;
   atencionSeleccionada: any = null;
@@ -835,11 +851,12 @@ get subtituloSeccionEst(): string {
     this.animoHoy = estado;
     switch (estado) {
       case 'bien':
-        this.mensajeExito = '¡Qué bueno! Sigue cuidándote 💚';
+        this.mensajeExito = '¡Qué bueno! Aquí tienes recursos preventivos para ti 💚';
+        this.irARecursos();
         break;
       case 'regular':
-        this.navegarA('ayuda');
-        this.mensajeExito = 'Gracias por contarnos. Aquí tienes recursos que pueden ayudarte.';
+        this.mensajeExito = 'Gracias por contarnos. Aquí tienes recursos y servicios que pueden ayudarte.';
+        this.irARecursos();
         break;
       case 'mal':
         this.navegarA('citas', 'solicitar');
@@ -851,6 +868,12 @@ get subtituloSeccionEst(): string {
         this.mensajeExito = 'Te dejamos el contacto y las preguntas frecuentes de SESAES.';
         break;
     }
+  }
+
+  // Bien / Regular se quedan en Inicio y desplazan la vista hasta
+  // "Recursos para ti", en vez de sacar al estudiante de la pantalla.
+  private irARecursos(): void {
+    document.getElementById('recursos-para-ti')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   // ══════════════════════════════════════

@@ -211,46 +211,31 @@
     <!-- ══ INICIO ══ -->
     <div class="section" *ngIf="seccionActiva === 'inicio'">
 
-      <div class="hero-proxima-cita" *ngIf="proximasCitas.length > 0">
-        <div>
-          <span class="hero-proxima-cita-label">Tu próxima cita</span>
-          <p class="hero-proxima-cita-nombre">{{ proximasCitas[0].profesional }} · {{ proximasCitas[0].especialidad }}</p>
-          <span class="hero-proxima-cita-fecha">{{ proximasCitas[0].fecha }} · {{ proximasCitas[0].hora }}</span>
-        </div>
-        <button class="btn-hero-ver" (click)="navegarA('citas','proximas')">Ver detalle</button>
-      </div>
-      <div class="inicio-sin-citas" *ngIf="proximasCitas.length === 0">
-        <p>Aún no tienes citas agendadas.</p>
-        <button class="btn-hero-ver-alt" (click)="navegarA('citas','solicitar')">Agendar mi primera hora</button>
-      </div>
-
-      <!-- Acciones rápidas -->
-      <h2 class="inicio-subtitulo">Acciones rápidas</h2>
-      <div class="quick-row">
-        <button class="quick-btn quick-btn-primary" (click)="navegarA('citas','solicitar')">➕ Solicitar cita</button>
-        <button class="quick-btn" (click)="navegarA('citas','solicitar')">🏥 Explorar servicios</button>
-        <button class="quick-btn" (click)="navegarA('documentos')">📄 Documentos</button>
-        <button class="quick-btn" (click)="navegarA('ayuda')">❓ Ayuda</button>
-      </div>
-
-      <div class="config-grid" style="margin-top:4px;">
-        <!-- Tareas pendientes (fusiona Pendientes + Actividad reciente) -->
-        <div class="config-card">
-          <h3 class="config-card-title">📌 Tareas pendientes</h3>
-          <div class="tarea-pendiente-item" *ngFor="let c of cuestionariosPendientes">
-            <span class="tarea-pendiente-titulo">Cuestionario de antecedentes</span>
-            <span class="tarea-pendiente-sub">{{ c.especialidad }} · {{ c.profesional_nombre }}</span>
-            <button class="doc-link" (click)="abrirCuestionario(c)">Completar →</button>
+      <!-- Próxima cita + Acciones rápidas, lado a lado -->
+      <div class="inicio-top-grid">
+        <div class="hero-proxima-cita" *ngIf="proximasCitas.length > 0">
+          <div>
+            <span class="hero-proxima-cita-label">Tu próxima cita</span>
+            <p class="hero-proxima-cita-especialidad">{{ iconoEspecialidad(proximasCitas[0].especialidad) }} {{ proximasCitas[0].especialidad }}</p>
+            <span class="hero-proxima-cita-fecha">{{ proximasCitas[0].fecha }} · {{ proximasCitas[0].hora }}</span>
+            <span class="hero-proxima-cita-con">Con {{ proximasCitas[0].profesional }}</span>
           </div>
-          <p *ngIf="cuestionariosPendientes.length === 0" style="color:#94a3b8;font-size:13px;">No tienes pendientes por ahora. 🎉</p>
+          <button class="btn-hero-ver" (click)="navegarA('citas','proximas')">Ver detalle →</button>
+        </div>
+        <div class="inicio-sin-citas" *ngIf="proximasCitas.length === 0">
+          <p>Aún no tienes citas agendadas.</p>
+          <button class="btn-hero-ver-alt" (click)="navegarA('citas','solicitar')">Agendar mi primera hora</button>
         </div>
 
-        <!-- Resumen (compacto, sin tarjetas grandes) -->
-        <div class="config-card">
-          <h3 class="config-card-title">📊 Resumen</h3>
-          <div class="resumen-mini-row"><strong>{{ citasCompletadas }}</strong><span>Citas realizadas</span></div>
-          <div class="resumen-mini-row"><strong>{{ cuestionariosPendientes.length }}</strong><span>Solicitudes pendientes</span></div>
-          <div class="resumen-mini-row"><strong>0</strong><span>Documentos disponibles</span></div>
+        <div class="acciones-rapidas-card">
+          <h2 class="inicio-subtitulo" style="margin-top:0;">Acciones rápidas</h2>
+          <div class="quick-col">
+            <button class="quick-btn quick-btn-primary" (click)="navegarA('citas','solicitar')">➕ Solicitar cita</button>
+            <button class="quick-btn" (click)="navegarA('citas','proximas')">📅 Mis citas</button>
+            <button class="quick-btn" (click)="navegarA('citas','solicitar')">🏥 Servicios</button>
+            <button class="quick-btn" (click)="navegarA('documentos')">📄 Documentos</button>
+            <button class="quick-btn" (click)="navegarA('ayuda')">❓ Ayuda</button>
+          </div>
         </div>
       </div>
 
@@ -267,27 +252,59 @@
           </div>
           <span class="inicio-historial-fecha">{{ h.fecha }}</span>
           <span class="estado-badge" [ngClass]="h.estado">{{ h.estado }}</span>
+          <div class="inicio-historial-acciones">
+            <span class="doc-link" *ngIf="h.estado === 'completada'" (click)="verDetalleAtencion(h)">Ver atención</span>
+            <ng-container *ngIf="h.estado === 'cancelada'">
+              <span class="doc-link" (click)="navegarA('citas','historial')">Ver detalle</span>
+              <span class="doc-link-sep">·</span>
+              <span class="doc-link" (click)="reagendarCita(h)">Solicitar nuevamente</span>
+            </ng-container>
+          </div>
         </div>
       </div>
 
       <!-- ¿Cómo te sientes hoy? -->
       <div class="config-card" style="margin-top:20px;">
         <h3 class="config-card-title">💚 ¿Cómo te sientes hoy?</h3>
-        <p class="mood-subtitulo">Cuéntanos cómo te sientes para ayudarte a encontrar el apoyo adecuado.</p>
-        <div class="mood-row">
-          <button class="mood-btn" [class.selected]="animoHoy === 'bien'" (click)="registrarAnimo('bien')">😊<span>Me siento bien</span></button>
-          <button class="mood-btn" [class.selected]="animoHoy === 'regular'" (click)="registrarAnimo('regular')">🙂<span>Me siento regular</span></button>
-          <button class="mood-btn" [class.selected]="animoHoy === 'mal'" (click)="registrarAnimo('mal')">😟<span>No me siento bien</span></button>
-          <button class="mood-btn" [class.selected]="animoHoy === 'orientacion'" (click)="registrarAnimo('orientacion')">🧭<span>Necesito orientación</span></button>
+        <p class="mood-subtitulo">Podemos orientarte según cómo te sientes.</p>
+        <div class="mood-row-inline">
+          <button class="mood-chip" [class.selected]="animoHoy === 'bien'" (click)="registrarAnimo('bien')">😊 Bien</button>
+          <button class="mood-chip" [class.selected]="animoHoy === 'regular'" (click)="registrarAnimo('regular')">🙂 Regular</button>
+          <button class="mood-chip" [class.selected]="animoHoy === 'mal'" (click)="registrarAnimo('mal')">😟 No me siento bien</button>
+          <button class="mood-chip" [class.selected]="animoHoy === 'orientacion'" (click)="registrarAnimo('orientacion')">🧭 Necesito orientación</button>
         </div>
       </div>
 
-      <!-- Recursos para ti — placeholder, contenido estático -->
-      <h2 class="inicio-subtitulo">Recursos para ti</h2>
-      <div class="quick-row">
-        <button class="quick-btn" (click)="mostrarProximamente('Próximamente: contenido sobre salud mental.')">🧠 Salud mental</button>
-        <button class="quick-btn" (click)="mostrarProximamente('Próximamente: consejos de nutrición.')">🥗 Nutrición</button>
-        <button class="quick-btn" (click)="mostrarProximamente('Próximamente: calendario de talleres y actividades.')">📰 Talleres</button>
+      <!-- Recursos para ti -->
+      <h2 class="inicio-subtitulo" id="recursos-para-ti">Recursos para ti</h2>
+      <div class="recursos-grid">
+        <button class="recurso-card" (click)="mostrarProximamente('Próximamente: contenido sobre salud mental.')">
+          <span class="recurso-icono">🧠</span>
+          <span class="recurso-titulo">Salud mental</span>
+          <span class="recurso-sub">Consejos y orientación</span>
+        </button>
+        <button class="recurso-card" (click)="mostrarProximamente('Próximamente: consejos de nutrición.')">
+          <span class="recurso-icono">🥗</span>
+          <span class="recurso-titulo">Nutrición</span>
+          <span class="recurso-sub">Hábitos saludables</span>
+        </button>
+        <button class="recurso-card" (click)="mostrarProximamente('Próximamente: calendario de talleres y actividades.')">
+          <span class="recurso-icono">📰</span>
+          <span class="recurso-titulo">Talleres</span>
+          <span class="recurso-sub">Actividades de Salud Estudiantil</span>
+        </button>
+      </div>
+
+      <!-- Tu actividad — al final, ya que es informativa, no una acción inmediata -->
+      <div class="tu-actividad-row" style="margin-top:22px;margin-bottom:0;">
+        <span class="tu-actividad-titulo">Tu actividad</span>
+        <div class="tu-actividad-inline">
+          <span><strong>{{ citasCompletadas }}</strong> atenciones realizadas</span>
+          <span class="sep">·</span>
+          <span><strong>{{ cuestionariosPendientes.length }}</strong> solicitudes pendientes</span>
+          <span class="sep">·</span>
+          <span><strong>0</strong> documentos</span>
+        </div>
       </div>
     </div>
 

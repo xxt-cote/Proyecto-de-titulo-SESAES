@@ -53,8 +53,8 @@ toggleSidebarMovil(): void {
   get tituloSeccion(): string {
     const map: Record<string, string> = {
       inicio:            'Bienvenido/a',
-      horario:            'Mi Horario',
-      pacientes:          'Mis Pacientes',
+      horario:            'Agenda',
+      pacientes:          'Pacientes',
       'historial-clinico': 'Historial Clínico',
       solicitudes:        'Solicitudes',
       perfil:             'Configuración',
@@ -108,6 +108,7 @@ toggleSidebarMovil(): void {
     this.cargarCitasPendientes();
     this.cargarAtenciones();
     this.cargarPacientesHistorial();
+    this.cargarCitasSemana();
   }
 
   navegarA(seccion: string): void {
@@ -348,6 +349,45 @@ eliminarSeleccionadas(): void {
     return this.proximasSemana[0] || null;
   }
 
+  // ── Agenda de hoy: bloques horarios reales (disponible / ocupado / colación / cerrado) ──
+  // Reutiliza la misma lógica de la grilla semanal de "Mi Horario" (getBloqueEstado/Info),
+  // por lo que requiere que citasSemana esté cargado (se pide también en cargarDatos()).
+
+  get fechaHoyStr(): string {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  get centroCerradoHoy(): boolean { return this.esDiaCerrado(this.fechaHoyStr); }
+
+  get agendaHoyBloques(): { hora: string; estado: string; cita: any }[] {
+    const hoy = this.fechaHoyStr;
+    return this.horasGrilla
+      .map(hora => ({
+        hora,
+        estado: this.getBloqueEstado(hoy, hora),
+        cita: this.citasHoy.find(c => this.convertirA24h(c.hora) === hora) || null
+      }))
+      .filter(b => b.estado !== 'cerrado-centro');
+  }
+
+  // Citas de hoy cuya hora no calza con ningún bloque de la grilla (sobrecupos)
+  get sobrecuposHoy(): any[] {
+    const horasValidas = new Set(this.horasGrilla);
+    return this.citasHoy.filter(c => !horasValidas.has(this.convertirA24h(c.hora)));
+  }
+
+  // Heurística de tipo de atención usando el historial completo de citas del profesional
+  // (no solo las de la ficha de un paciente): la primera cita histórica del estudiante
+  // se etiqueta "Primera consulta", el resto "Seguimiento".
+  tipoAtencionGlobal(cita: any): string {
+    if (!cita || !cita.estudiante_id) return 'Consulta';
+    const mismoPaciente = this.atenciones.filter(a => a.estudiante_id === cita.estudiante_id);
+    if (mismoPaciente.length === 0) return 'Consulta';
+    const masAntigua = [...mismoPaciente].sort((a, b) => (a.fecha + a.hora).localeCompare(b.fecha + b.hora))[0];
+    return (masAntigua.fecha === cita.fecha && masAntigua.hora === cita.hora) ? 'Primera consulta' : 'Seguimiento';
+  }
+
   // ── Datos para el nuevo orden del Inicio (agenda+calendario, alertas, pacientes recientes, actividad) ──
 
   get atencionesMesPendientes(): number { return this.atencionesDelMes.filter(a => a.estado === 'pendiente').length; }
@@ -375,6 +415,16 @@ eliminarSeleccionadas(): void {
   irAFichaPacienteReciente(p: any): void {
     this.seccionActiva = 'historial-clinico';
     this.abrirFichaPaciente(p);
+  }
+
+  // Buscador global del topbar → filtra en "Mis Pacientes" por nombre, RUT o carrera
+  busquedaGlobal = '';
+  buscarGlobal(): void {
+    const termino = this.busquedaGlobal.trim();
+    if (!termino) return;
+    this.filtroBusquedaAt = termino;
+    this.busquedaGlobal = '';
+    this.navegarA('pacientes');
   }
 
   irAFichasSinCompletar(): void {
@@ -711,7 +761,7 @@ private esHoraDeColacion(hora: string): boolean {
     const h = hora.substring(0, 5);
     return h >= inicio && h < fin;
   }
-private convertirA24h(hora: string): string {
+convertirA24h(hora: string): string {
     if (!hora) return '';
     if (!hora.includes('AM') && !hora.includes('PM')) return hora.substring(0,5);
     const [time, period] = hora.trim().split(' ');
@@ -818,7 +868,11 @@ limpiarFiltrosAtenciones(): void {
 }
   get atencionesFiltradas(): any[] {
     const q = this.filtroBusquedaAt.toLowerCase();
-    return !q ? this.atenciones : this.atenciones.filter(a => a.estudiante.toLowerCase().includes(q) || (a.rut || '').includes(q));
+    return !q ? this.atenciones : this.atenciones.filter(a =>
+      a.estudiante.toLowerCase().includes(q) ||
+      (a.rut || '').toLowerCase().includes(q) ||
+      (a.carrera || '').toLowerCase().includes(q)
+    );
   }
 
   get atencionesPaginadas(): any[] { return this.atencionesFiltradas.slice((this.pagAtenciones-1)*8, this.pagAtenciones*8); }
@@ -1218,6 +1272,10 @@ eliminarSolicitudesSeleccionadas(): void {
     return Math.round((completas / total) * 100);
   }
 
+  get pacientesConFichaCount(): number {
+    return this.pacientesHistorial.filter(p => p.tiene_ficha).length;
+  }
+
   cargarPacientesHistorial(): void {
     this.cargandoPacientesHistorial = true;
     let params = new HttpParams();
@@ -1240,7 +1298,7 @@ eliminarSolicitudesSeleccionadas(): void {
   abrirFichaPaciente(paciente: any): void {
     this.pacienteSeleccionado = paciente;
     this.fichaEnEdicion = false;
-    this.fichaTab = 'timeline';
+    this.fichaTab = 'resumen';
     this.fichaFotoError = false;
     this.http.get<any>(`${API}/historial-clinico/${this.profDbId}/${paciente.estudiante_id}`).subscribe({
       next: (data) => {
@@ -1276,7 +1334,7 @@ eliminarSolicitudesSeleccionadas(): void {
     this.fichaPreguntas  = [];
     this.fichaRespuestas = {};
     this.fichaCitas = [];
-    this.fichaTab = 'timeline';
+    this.fichaTab = 'resumen';
   }
 
   // ── Datos derivados para la vista de ficha estilo "Historial clínico" ──
@@ -1305,6 +1363,38 @@ eliminarSolicitudesSeleccionadas(): void {
     if (this.fichaCitas.length === 0) return 'Consulta';
     const masAntigua = [...this.fichaCitas].sort((a, b) => (a.fecha + a.hora).localeCompare(b.fecha + b.hora))[0];
     return masAntigua === cita ? 'Primera consulta' : 'Seguimiento psicológico';
+  }
+
+  // Color del punto en la línea de tiempo, según el tipo de atención
+  colorTipoAtencion(cita: any): string {
+    const tipo = this.tipoAtencionCita(cita);
+    if (tipo === 'Primera consulta') return 'morado';
+    if (tipo === 'Seguimiento psicológico') return 'azul';
+    return 'verde';
+  }
+
+  // Atenciones completadas del paciente, agrupadas por año (para la línea de tiempo)
+  get fichaCitasCompletadasPorAnio(): { anio: string; atenciones: any[] }[] {
+    const grupos: Record<string, any[]> = {};
+    this.fichaCitasCompletadas.forEach(c => {
+      const anio = (c.fecha || '').slice(0, 4) || 'Sin fecha';
+      if (!grupos[anio]) grupos[anio] = [];
+      grupos[anio].push(c);
+    });
+    return Object.keys(grupos)
+      .sort((a, b) => b.localeCompare(a))
+      .map(anio => ({ anio, atenciones: grupos[anio] }));
+  }
+
+  // % de preguntas de la ficha de antecedentes que ya tienen respuesta guardada
+  get fichaCompletitudPct(): number {
+    const total = this.fichaPreguntas.length;
+    if (total === 0) return 0;
+    const respondidas = this.fichaPreguntas.filter(p => {
+      const v = this.fichaRespuestas[p.id];
+      return v !== undefined && v !== null && String(v).trim() !== '';
+    }).length;
+    return Math.round((respondidas / total) * 100);
   }
 
   registrarNuevaAtencionDesdeFicha(): void {

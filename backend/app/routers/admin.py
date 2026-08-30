@@ -807,14 +807,21 @@ def eliminar_toda_auditoria(db: Session = Depends(get_db)):
 @router.get("/configuracion", response_model=ConfiguracionOut)
 def get_configuracion(db: Session = Depends(get_db)):
     config = db.query(ConfiguracionSistema).first()
-    if not config: raise HTTPException(status_code=404, detail="Configuración no encontrada")
+    if not config:
+        # La tabla nunca se siembra en init_db.py — se crea con los
+        # valores por defecto del modelo la primera vez que se consulta,
+        # en vez de forzar al admin a chocar con un 404 en su primera visita.
+        config = ConfiguracionSistema()
+        db.add(config); db.commit(); db.refresh(config)
     return config
 
 
 @router.patch("/configuracion", response_model=ConfiguracionOut)
 def actualizar_configuracion(datos: ConfiguracionUpdate, db: Session = Depends(get_db)):
     config = db.query(ConfiguracionSistema).first()
-    if not config: raise HTTPException(status_code=404, detail="Configuración no encontrada")
+    if not config:
+        config = ConfiguracionSistema()
+        db.add(config); db.commit(); db.refresh(config)
     if datos.duracion_turno_min         is not None: config.duracion_turno_min         = datos.duracion_turno_min
     if datos.agendamiento_por_pacientes is not None: config.agendamiento_por_pacientes = datos.agendamiento_por_pacientes
     if datos.cancelacion_instantanea    is not None: config.cancelacion_instantanea    = datos.cancelacion_instantanea

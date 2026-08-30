@@ -46,10 +46,11 @@ toggleSidebarMovil(): void {
 
   get tituloSeccion(): string {
     const map: Record<string, string> = {
-      inicio: 'Panel Administrativo SESAES', horario: 'Gestión de Agenda Semanal',
+      inicio: 'Panel Administrativo SESAES', horario: 'Agenda',
       citas: 'Gestión de Citas', profesional: 'Gestión de Profesionales',
-      estudiantes: 'Estudiantes', historial: 'Historial de Citas',
-      configuracion: 'Configuración del Sistema'
+      estudiantes: 'Estudiantes', historial: 'Historial de Atenciones',
+      reportes: 'Reportes', configuracion: 'Configuración del Sistema',
+      miperfil: 'Mi Perfil'
     };
     return map[this.seccionActiva] ?? 'SESAES';
   }
@@ -57,12 +58,14 @@ toggleSidebarMovil(): void {
   get subtituloSeccion(): string {
     const map: Record<string, string> = {
       inicio: 'Gestiona profesionales, horarios y reservas de bienestar estudiantil.',
-      horario: 'Visualiza y administra la agenda semanal de cada profesional.',
+      horario: 'Controla cuándo puede atender cada profesional: disponibilidad, bloqueos y sobrecupos.',
       citas: 'Revisa, prioriza y cancela las citas agendadas en el centro.',
       profesional: 'Administra el personal médico, psicólogos y especialistas del centro de salud.',
-      estudiantes: 'Busca estudiantes y revisa su historial de atenciones.',
-      historial: 'Consulta el registro histórico de todas las atenciones y servicios realizados.',
-      configuracion: 'Configuración del perfil, información del centro y auditoría.'
+      estudiantes: 'Consulta estudiantes por nombre, RUT o carrera y revisa su ficha.',
+      historial: 'Consulta las atenciones que ya ocurrieron y exporta reportes para la CGR.',
+      reportes: 'Analiza el funcionamiento del servicio: demanda, cancelaciones y prioridades.',
+      configuracion: 'Reglas generales del sistema: citas, horarios, usuarios y seguridad.',
+      miperfil: 'Tu información personal y credenciales de acceso.'
     };
     return map[this.seccionActiva] ?? '';
   }
@@ -102,14 +105,67 @@ toggleSidebarMovil(): void {
   this.mensajeExito  = '';
   this.mensajeError  = '';
   this.notifPanelAbierto = false;
-  this.sidebarMovilAbierta = false;   
-  if (seccion === 'configuracion') { this.cargarAuditoria(); this.cargarConfiguracionCentro(); this.cargarDiasCerrados(); }
+  this.sidebarMovilAbierta = false;
+  this.busquedaGlobal = '';
+  this.resultadosBusquedaGlobal = { profesionales: [], estudiantes: [] };
+  if (seccion === 'configuracion') {
+    this.cargarAuditoria(); this.cargarConfiguracionCentro(); this.cargarDiasCerrados();
+    this.cargarConfiguracionCitas();
+  }
   if (seccion === 'citas') { this.cargarCitas(); }
   if (seccion === 'estudiantes') { this.cargarEstudiantes(); }
+  if (seccion === 'reportes') {
+    this.cargarEstadisticas(); this.cargarGraficoEspecialidad(); this.cargarGraficoSemana();
+    this.cargarHistorial();
+  }
+  if (seccion === 'miperfil') { this.cargarConfiguracionCentro(); }
   if (seccion === 'inicio') {
     setTimeout(() => this.crearGraficos(), 0);
   }
 }
+
+  // ══════════════════════════════════════
+  // BÚSQUEDA GLOBAL (topbar)
+  // ══════════════════════════════════════
+  busquedaGlobal = '';
+  resultadosBusquedaGlobal: { profesionales: any[]; estudiantes: any[] } = { profesionales: [], estudiantes: [] };
+  buscandoGlobal = false;
+
+  get hayResultadosBusquedaGlobal(): boolean {
+    return this.resultadosBusquedaGlobal.profesionales.length > 0 || this.resultadosBusquedaGlobal.estudiantes.length > 0;
+  }
+
+  buscarGlobal(): void {
+    const q = this.busquedaGlobal.trim().toLowerCase();
+    if (q.length < 2) { this.resultadosBusquedaGlobal = { profesionales: [], estudiantes: [] }; return; }
+    const profs = this.profesionales.filter(p =>
+      p.nombre?.toLowerCase().includes(q) || p.especialidad?.toLowerCase().includes(q)
+    ).slice(0, 5);
+    this.resultadosBusquedaGlobal = { profesionales: profs, estudiantes: [] };
+    this.buscandoGlobal = true;
+    this.http.get<any[]>(`${API}/admin/estudiantes?q=${encodeURIComponent(q)}`).subscribe({
+      next: (data) => {
+        this.resultadosBusquedaGlobal = { profesionales: profs, estudiantes: (data ?? []).slice(0, 5) };
+        this.buscandoGlobal = false;
+        this.cdr.detectChanges();
+      },
+      error: () => { this.buscandoGlobal = false; }
+    });
+  }
+
+  irAProfesionalDesdeBusqueda(p: any): void {
+    this.busquedaGlobal = '';
+    this.resultadosBusquedaGlobal = { profesionales: [], estudiantes: [] };
+    this.navegarA('profesional');
+    this.busquedaProfesional = p.nombre;
+  }
+
+  irAEstudianteDesdeBusqueda(e: any): void {
+    this.busquedaGlobal = '';
+    this.resultadosBusquedaGlobal = { profesionales: [], estudiantes: [] };
+    this.navegarA('estudiantes');
+    setTimeout(() => this.verPerfilEstudianteAdmin(e), 0);
+  }
 
   cerrarSesion(): void { localStorage.clear(); window.location.href = '/login'; }
 
@@ -1278,6 +1334,14 @@ private crearGraficos(): void {
     this.estadisticasEstudiante = null; this.cargarHistorial();
   }
 
+  // ══════════════════════════════════════
+  // REPORTES (a partir de datos ya cargados: historial + estadísticas + gráficos)
+  // ══════════════════════════════════════
+  get reporteCompletadas(): number { return this.historialAdmin.filter(h => h.estado === 'completada').length; }
+  get reporteCanceladas(): number { return this.historialAdmin.filter(h => h.estado === 'cancelada').length; }
+  get reportePendientes(): number { return this.historialAdmin.filter(h => h.estado === 'pendiente').length; }
+  get reporteInasistencias(): number { return this.historialAdmin.filter(h => h.estado === 'inasistencia').length; }
+
   descargarPdf(citaId: number): void { window.open(`${API}/citas/${citaId}/pdf`, '_blank'); }
   exportarHistorialPdf(): void { alert('Exportar PDF: pendiente.'); }
 
@@ -1298,6 +1362,57 @@ private crearGraficos(): void {
     telefono: '', correo_contacto: '', horario_atencion: 'Lunes a Viernes 08:00–18:00',
     nombre_admin: 'Admin SESAES', foto_admin_url: null
   };
+
+  // ══════════════════════════════════════
+  // CONFIGURACIÓN → tabs (General / Citas / Horarios / Usuarios y roles / Seguridad)
+  // ══════════════════════════════════════
+  configTabActiva: 'general' | 'citas' | 'horarios' | 'usuarios' | 'seguridad' = 'general';
+  cambiarTabConfig(tab: 'general' | 'citas' | 'horarios' | 'usuarios' | 'seguridad'): void {
+    this.configTabActiva = tab;
+  }
+
+  // Reglas de citas (endpoint ya existente en backend: /admin/configuracion)
+  configCitas: any = {
+    duracion_turno_min: 20, agendamiento_por_pacientes: true,
+    cancelacion_instantanea: false, sobreturnos_habilitados: true, cupos_por_turno: 4
+  };
+  guardandoConfigCitas = false;
+
+  cargarConfiguracionCitas(): void {
+    this.http.get<any>(`${API}/admin/configuracion`).subscribe({
+      next: (data) => { this.configCitas = data ?? this.configCitas; this.cdr.detectChanges(); },
+      error: () => {}
+    });
+  }
+
+  guardarConfiguracionCitas(): void {
+    this.guardandoConfigCitas = true;
+    this.http.patch(`${API}/admin/configuracion`, {
+      duracion_turno_min: Number(this.configCitas.duracion_turno_min),
+      agendamiento_por_pacientes: this.configCitas.agendamiento_por_pacientes,
+      cancelacion_instantanea: this.configCitas.cancelacion_instantanea,
+      sobreturnos_habilitados: this.configCitas.sobreturnos_habilitados,
+      cupos_por_turno: Number(this.configCitas.cupos_por_turno)
+    }).subscribe({
+      next: () => {
+        this.guardandoConfigCitas = false;
+        this.mensajeExito = 'Reglas de citas guardadas.'; setTimeout(() => this.mensajeExito = '', 3000);
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.guardandoConfigCitas = false;
+        this.mensajeError = 'No se pudo guardar la configuración de citas.'; setTimeout(() => this.mensajeError = '', 3000);
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  // Usuarios y roles (informativo — lista real de profesionales + admin actual)
+  get usuariosDelSistema(): any[] {
+    const admin = [{ nombre: this.configCentro.nombre_admin || 'Admin SESAES', rol: 'Administrador', estado: 'activo' }];
+    const profs = this.profesionales.map(p => ({ nombre: p.nombre, rol: 'Profesional — ' + p.especialidad, estado: p.estado }));
+    return [...admin, ...profs];
+  }
 
   configPerfil: any = { nombre_admin: '', contrasena_actual: '', contrasena_nueva: '', contrasena_conf: '' };
   guardandoConfig         = false;

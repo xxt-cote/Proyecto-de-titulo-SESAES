@@ -24,13 +24,25 @@
         <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
         </svg>
-        Horario
+        Agenda
+      </button>
+      <button class="nav-item" [class.active]="seccionActiva==='citas'" (click)="navegarA('citas')">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+        </svg>
+        Citas
       </button>
       <button class="nav-item" [class.active]="seccionActiva==='profesional'" (click)="navegarA('profesional')">
         <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
         </svg>
-        Profesional
+        Profesionales
+      </button>
+      <button class="nav-item" [class.active]="seccionActiva==='estudiantes'" (click)="navegarA('estudiantes')">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>
+        </svg>
+        Estudiantes
       </button>
       <button class="nav-item" [class.active]="seccionActiva==='historial'" (click)="navegarA('historial')">
         <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -38,6 +50,12 @@
           <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
         </svg>
         Historial
+      </button>
+      <button class="nav-item" [class.active]="seccionActiva==='reportes'" (click)="navegarA('reportes')">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+        </svg>
+        Reportes
       </button>
       <button class="nav-item" [class.active]="seccionActiva==='configuracion'" (click)="navegarA('configuracion')">
         <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -48,6 +66,12 @@
     </nav>
 
     <div class="sidebar-footer">
+      <button class="nav-item" [class.active]="seccionActiva==='miperfil'" (click)="navegarA('miperfil')">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+        </svg>
+        Mi perfil
+      </button>
       <button class="logout-btn" (click)="cerrarSesion()">
         <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
@@ -73,6 +97,26 @@
         <span class="topbar-sub">{{ subtituloSeccion }}</span>
       </div>
       <div class="topbar-actions">
+        <div class="topbar-buscador">
+          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="text" placeholder="Buscar estudiante o profesional..." [(ngModel)]="busquedaGlobal" (input)="buscarGlobal()" autocomplete="off" />
+          <div class="buscador-dropdown" *ngIf="busquedaGlobal.trim().length >= 2">
+            <div *ngIf="buscandoGlobal" class="buscador-cargando">Buscando...</div>
+            <ng-container *ngIf="!buscandoGlobal">
+              <div *ngIf="!hayResultadosBusquedaGlobal" class="buscador-vacio">Sin resultados para "{{ busquedaGlobal }}"</div>
+              <div *ngIf="resultadosBusquedaGlobal.profesionales.length > 0" class="buscador-grupo-titulo">Profesionales</div>
+              <div *ngFor="let p of resultadosBusquedaGlobal.profesionales" class="buscador-opcion" (click)="irAProfesionalDesdeBusqueda(p)">
+                <strong>{{ p.nombre }}</strong><span>{{ p.especialidad }}</span>
+              </div>
+              <div *ngIf="resultadosBusquedaGlobal.estudiantes.length > 0" class="buscador-grupo-titulo">Estudiantes</div>
+              <div *ngFor="let e of resultadosBusquedaGlobal.estudiantes" class="buscador-opcion" (click)="irAEstudianteDesdeBusqueda(e)">
+                <strong>{{ e.nombre }}</strong><span>{{ e.rut }} · {{ e.carrera }}</span>
+              </div>
+            </ng-container>
+          </div>
+        </div>
         <button class="tema-toggle-btn" (click)="toggleTema()" [title]="temaOscuro ? 'Modo claro' : 'Modo oscuro'">
           <svg *ngIf="!temaOscuro" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
@@ -464,6 +508,90 @@
         </div>
       </div>
 
+      <!-- ══ CITAS ══ -->
+      <div *ngIf="seccionActiva==='citas'">
+        <div class="card">
+          <div class="historial-filtros-admin">
+            <div class="filtro-grupo"><label>Buscar estudiante</label><input [(ngModel)]="citasFiltroEstudiante" placeholder="Nombre o RUT..." /></div>
+            <div class="filtro-grupo">
+              <label>Rango</label>
+              <select [(ngModel)]="citasFiltroRango">
+                <option value="todas">Todas</option>
+                <option value="hoy">Hoy</option>
+                <option value="semana">Próximos 7 días</option>
+              </select>
+            </div>
+            <div class="filtro-grupo">
+              <label>Estado</label>
+              <select [(ngModel)]="citasFiltroEstado">
+                <option value="">Todos</option>
+                <option value="pendiente">Pendiente</option>
+                <option value="completada">Completada</option>
+                <option value="cancelada">Cancelada</option>
+                <option value="inasistencia">Inasistencia</option>
+              </select>
+            </div>
+            <div class="filtro-grupo">
+              <label>Prioridad</label>
+              <select [(ngModel)]="citasFiltroPrioridad">
+                <option value="">Todas</option>
+                <option value="urgente">🚨 Urgente</option>
+                <option value="normal">Normal</option>
+              </select>
+            </div>
+          </div>
+          <div class="historial-acciones">
+            <button class="btn-filtrar" (click)="cargarCitas()">Aplicar Filtros</button>
+            <button class="btn-limpiar" (click)="limpiarFiltrosCitas()">Limpiar</button>
+            <button class="btn-nueva-cita-top" (click)="navegarA('horario')">+ Agendar cita (en Agenda)</button>
+          </div>
+
+          <div *ngIf="citasCargando" class="tabla-vacia">Cargando...</div>
+          <table class="admin-tabla" *ngIf="!citasCargando">
+            <thead>
+              <tr><th>ESTUDIANTE</th><th>ESPECIALIDAD</th><th>PROFESIONAL</th><th>FECHA Y HORA</th><th>PRIORIDAD</th><th>ESTADO</th><th>ACCIONES</th></tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let c of citasPaginadas" [class.fila-urgente]="c.urgente">
+                <td>
+                  <div class="tabla-usuario">
+                    <div class="mini-avatar">{{ c.iniciales }}</div>
+                    <div><strong>{{ c.estudiante }}</strong><span>{{ c.rut }}</span></div>
+                  </div>
+                </td>
+                <td><span class="esp-badge">{{ c.especialidad }}</span></td>
+                <td>{{ c.profesional }}</td>
+                <td>{{ c.fecha }} — {{ c.hora }}</td>
+                <td>
+                  <span class="urgente-tag" *ngIf="c.urgente">🚨 URGENTE</span>
+                  <span *ngIf="!c.urgente" class="texto-gris">Normal</span>
+                </td>
+                <td><span class="estado-badge" [ngClass]="c.estado">{{ c.estado }}</span></td>
+                <td>
+                  <div class="tabla-acciones">
+                    <button class="btn-tabla ver" (click)="verDetalleCita(c)" title="Ver detalle">👁️</button>
+                    <button class="btn-tabla" *ngIf="!c.urgente && c.estado === 'pendiente'" (click)="marcarPrioridadCita(c, true)" title="Marcar como urgente">🚨</button>
+                    <button class="btn-tabla" *ngIf="c.urgente && c.estado === 'pendiente'" (click)="marcarPrioridadCita(c, false)" title="Quitar prioridad urgente">↩️</button>
+                    <button class="btn-tabla cancelar" *ngIf="c.estado === 'pendiente'" (click)="cancelarCitaAdmin(c)" title="Cancelar cita">🗑️</button>
+                  </div>
+                </td>
+              </tr>
+              <tr *ngIf="citasPaginadas.length === 0">
+                <td colspan="7" class="tabla-vacia">No hay citas con los filtros aplicados</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="paginacion" *ngIf="!citasCargando">
+            <span>Mostrando {{ citasFiltradas.length === 0 ? 0 : (pagCitas-1)*8+1 }}–{{ minVal(pagCitas*8, citasFiltradas.length) }} de {{ citasFiltradas.length }} citas</span>
+            <div class="pag-btns">
+              <button class="btn-pag" [disabled]="pagCitas===1" (click)="pagCitas=pagCitas-1">‹</button>
+              <button class="btn-pag" *ngFor="let p of getPaginasCitas()" [class.active]="p===pagCitas" (click)="pagCitas=p">{{ p }}</button>
+              <button class="btn-pag" [disabled]="pagCitas*8>=citasFiltradas.length" (click)="pagCitas=pagCitas+1">›</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- ══ PROFESIONALES ══ -->
       <div *ngIf="seccionActiva==='profesional'">
         <div class="prof-stats">
@@ -511,6 +639,168 @@
               <button class="btn-pag" *ngFor="let p of getPaginasProf()" [class.active]="p===pagProf" (click)="pagProf=p">{{ p }}</button>
               <button class="btn-pag" [disabled]="pagProf*6>=profesionalesFiltradosBusqueda.length" (click)="pagProf=pagProf+1">›</button>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ ESTUDIANTES ══ -->
+      <div *ngIf="seccionActiva==='estudiantes'">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Estudiantes</h3>
+            <div class="card-header-actions">
+              <input class="search-input" placeholder="Buscar por nombre o RUT..." [(ngModel)]="estudiantesFiltroQ" (keyup.enter)="buscarEstudiantesAdmin()" />
+              <input class="search-input" placeholder="Carrera..." [(ngModel)]="estudiantesFiltroCarrera" (keyup.enter)="buscarEstudiantesAdmin()" style="max-width:180px" />
+              <button class="btn-filtrar" (click)="buscarEstudiantesAdmin()">Buscar</button>
+              <button class="btn-limpiar" (click)="limpiarFiltrosEstudiantes()">Limpiar</button>
+            </div>
+          </div>
+          <p class="card-desc">El administrador consulta esta información; los datos clínicos permanecen protegidos.</p>
+          <div *ngIf="estudiantesCargando" class="tabla-vacia">Cargando...</div>
+          <table class="admin-tabla" *ngIf="!estudiantesCargando">
+            <thead>
+              <tr><th>NOMBRE</th><th>RUT</th><th>CARRERA</th><th>ACCIONES</th></tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let e of estudiantesAdmin">
+                <td>
+                  <div class="tabla-usuario">
+                    <div class="mini-avatar">{{ e.nombre | slice:0:2 }}</div>
+                    <div><strong>{{ e.nombre }}</strong><span>{{ e.correo }}</span></div>
+                  </div>
+                </td>
+                <td>{{ e.rut || '—' }}</td>
+                <td>{{ e.carrera || '—' }}</td>
+                <td><button class="btn-tabla-acciones" (click)="verPerfilEstudianteAdmin(e)">Ver ficha</button></td>
+              </tr>
+              <tr *ngIf="estudiantesAdmin.length === 0">
+                <td colspan="4" class="tabla-vacia">No hay estudiantes con los filtros aplicados</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="paginacion" *ngIf="!estudiantesCargando">
+            <span>Mostrando {{ estudiantesTotal === 0 ? 0 : (estudiantesPagina-1)*estudiantesPorPagina+1 }}–{{ minVal(estudiantesPagina*estudiantesPorPagina, estudiantesTotal) }} de {{ estudiantesTotal }} estudiantes</span>
+            <div class="pag-btns">
+              <button class="btn-pag" [disabled]="estudiantesPagina===1" (click)="irAPaginaEstudiantes(estudiantesPagina-1)">‹</button>
+              <button class="btn-pag" *ngFor="let p of getPaginasEstudiantes()" [class.active]="p===estudiantesPagina" (click)="irAPaginaEstudiantes(p)">{{ p }}</button>
+              <button class="btn-pag" [disabled]="estudiantesPagina*estudiantesPorPagina>=estudiantesTotal" (click)="irAPaginaEstudiantes(estudiantesPagina+1)">›</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ REPORTES ══ -->
+      <div *ngIf="seccionActiva==='reportes'">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-info"><span class="stat-label">Citas completadas</span><span class="stat-num">{{ reporteCompletadas }}</span></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-info"><span class="stat-label">Citas canceladas</span><span class="stat-num">{{ reporteCanceladas }}</span></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-info"><span class="stat-label">Citas pendientes</span><span class="stat-num">{{ reportePendientes }}</span></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-info"><span class="stat-label">Profesionales activos</span><span class="stat-num">{{ profesionalesActivos }}</span></div>
+          </div>
+        </div>
+
+        <div class="graficos-grid">
+          <div class="card grafico-card">
+            <div class="card-header">
+              <h3 class="card-title">Citas por especialidad</h3>
+              <button class="btn-exportar-small" (click)="exportarEspecialidadExcel()">↓ Excel</button>
+            </div>
+            <div class="grafico-leyenda" style="flex-direction:column; align-items:stretch; gap:8px;">
+              <div *ngFor="let item of graficoEspecialidad" class="reporte-barra-fila">
+                <span class="reporte-barra-label">{{ item.especialidad }}</span>
+                <div class="reporte-barra-track"><div class="reporte-barra-fill" [style.width.%]="item.porcentaje"></div></div>
+                <span class="reporte-barra-pct">{{ item.porcentaje }}%</span>
+              </div>
+              <span *ngIf="graficoEspecialidad.length === 0" class="tabla-vacia">Sin datos</span>
+            </div>
+          </div>
+
+          <div class="card grafico-card">
+            <div class="card-header">
+              <h3 class="card-title">Atenciones prioritarias</h3>
+            </div>
+            <div class="est-stats-grid">
+              <div class="est-stat orange"><span class="est-stat-num">{{ estadisticas.urgentes }}</span><span class="est-stat-label">Urgentes pendientes</span></div>
+              <div class="est-stat red"><span class="est-stat-num">{{ reporteCanceladas }}</span><span class="est-stat-label">Canceladas (histórico)</span></div>
+              <div class="est-stat"><span class="est-stat-num">{{ reporteInasistencias }}</span><span class="est-stat-label">Inasistencias</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Exportar reportes</h3>
+          </div>
+          <p class="card-desc">Los reportes detallados (atenciones, listado de alumnos) están disponibles en Historial → Exportación CGR.</p>
+          <div class="historial-acciones">
+            <button class="btn-filtrar" (click)="navegarA('historial')">Ir a Historial / Exportación CGR →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ MI PERFIL ══ -->
+      <div *ngIf="seccionActiva==='miperfil'">
+        <div class="card config-card" style="max-width:560px">
+          <div class="card-header">
+            <h3 class="card-title">Perfil del Administrador</h3>
+            <button class="btn-editar-perfil" *ngIf="!adminPerfilEnEdicion" (click)="habilitarEdicionPerfilAdmin()">✎ Editar</button>
+          </div>
+          <div class="perfil-foto-row">
+            <div class="perfil-foto-preview" [class.clickable]="configCentro.foto_admin_url" (click)="configCentro.foto_admin_url && (verFotoAmpliada = true)">
+              <img *ngIf="configCentro.foto_admin_url" [src]="configCentro.foto_admin_url" alt="Foto" />
+              <div *ngIf="!configCentro.foto_admin_url" class="perfil-foto-placeholder">AD</div>
+            </div>
+            <label class="btn-subir-foto" *ngIf="adminPerfilEnEdicion">
+              <input type="file" accept="image/*" (change)="onFotoSeleccionada($event)" style="display:none" />
+              📷 Cambiar foto
+            </label>
+          </div>
+          <div class="campo-grupo" style="margin-bottom:12px">
+            <label>Nombre completo</label>
+            <input [(ngModel)]="configPerfil.nombre_admin" [disabled]="!adminPerfilEnEdicion" placeholder="Nombre del administrador" />
+          </div>
+          <div class="campo-grupo" style="margin-bottom:12px">
+            <label>Correo</label>
+            <input [value]="configCentro.correo_contacto" disabled />
+          </div>
+          <div class="campo-grupo" style="margin-bottom:12px">
+            <label>Rol</label>
+            <input value="Administrador" disabled />
+          </div>
+          <p class="config-seccion-titulo">Cambiar contraseña</p>
+          <div class="form-grid">
+            <div class="campo-grupo">
+              <label>Contraseña actual</label>
+              <div class="password-wrap">
+                <input [type]="mostrarContrasenaActual ? 'text' : 'password'" [(ngModel)]="configPerfil.contrasena_actual" [disabled]="!adminPerfilEnEdicion" placeholder="••••••" />
+                <button class="btn-ojo" (click)="mostrarContrasenaActual = !mostrarContrasenaActual" type="button">👁️</button>
+              </div>
+            </div>
+            <div class="campo-grupo">
+              <label>Nueva contraseña</label>
+              <div class="password-wrap">
+                <input [type]="mostrarContrasenaaNueva ? 'text' : 'password'" [(ngModel)]="configPerfil.contrasena_nueva" [disabled]="!adminPerfilEnEdicion" placeholder="••••••" />
+                <button class="btn-ojo" (click)="mostrarContrasenaaNueva = !mostrarContrasenaaNueva" type="button">👁️</button>
+              </div>
+            </div>
+            <div class="campo-grupo">
+              <label>Confirmar nueva contraseña</label>
+              <div class="password-wrap">
+                <input [type]="mostrarContrasenaConf ? 'text' : 'password'" [(ngModel)]="configPerfil.contrasena_conf" [disabled]="!adminPerfilEnEdicion" placeholder="••••••" />
+                <button class="btn-ojo" (click)="mostrarContrasenaConf = !mostrarContrasenaConf" type="button">👁️</button>
+              </div>
+            </div>
+          </div>
+          <div class="perfil-acciones-edicion" *ngIf="adminPerfilEnEdicion">
+            <button class="btn-cancelar-modal" (click)="cancelarEdicionPerfilAdmin()">Cancelar</button>
+            <button class="btn-guardar-config" [disabled]="!perfilAdminModificado" (click)="guardarPerfilAdmin()">Guardar cambios</button>
           </div>
         </div>
       </div>
@@ -626,83 +916,17 @@
 
       <!-- ══ CONFIGURACIÓN ══ -->
       <div *ngIf="seccionActiva==='configuracion'">
-        <div class="config-nueva-layout">
 
-          <!-- A: Perfil -->
-          <div class="card config-card">
-            <div class="card-header">
-              <h3 class="card-title">Perfil del Administrador</h3>
-              <button class="btn-editar-perfil" *ngIf="!adminPerfilEnEdicion" (click)="habilitarEdicionPerfilAdmin()">✎ Editar</button>
-            </div>
-            <div class="perfil-foto-row">
-              <div class="perfil-foto-preview" [class.clickable]="configCentro.foto_admin_url" (click)="configCentro.foto_admin_url && (verFotoAmpliada = true)">
-                <img *ngIf="configCentro.foto_admin_url" [src]="configCentro.foto_admin_url" alt="Foto" />
-                <div *ngIf="!configCentro.foto_admin_url" class="perfil-foto-placeholder">AD</div>
-              </div>
-              <label class="btn-subir-foto" *ngIf="adminPerfilEnEdicion">
-                <input type="file" accept="image/*" (change)="onFotoSeleccionada($event)" style="display:none" />
-                📷 Cambiar foto
-              </label>
-            </div>
-            <div class="campo-grupo" style="margin-bottom:12px">
-              <label>Nombre completo</label>
-              <input [(ngModel)]="configPerfil.nombre_admin" [disabled]="!adminPerfilEnEdicion" placeholder="Nombre del administrador" />
-            </div>
-            <p class="config-seccion-titulo">Cambiar contraseña</p>
-            <div class="form-grid">
-              <div class="campo-grupo">
-                <label>Contraseña actual</label>
-                <div class="password-wrap">
-                  <input [type]="mostrarContrasenaActual ? 'text' : 'password'" [(ngModel)]="configPerfil.contrasena_actual" [disabled]="!adminPerfilEnEdicion" placeholder="••••••" />
-                  <button class="btn-ojo" (click)="mostrarContrasenaActual = !mostrarContrasenaActual" type="button">
-                    <svg *ngIf="mostrarContrasenaActual" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-                    </svg>
-                    <svg *ngIf="!mostrarContrasenaActual" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                      <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
-                      <line x1="1" y1="1" x2="23" y2="23"/>
-                    </svg>
-                  </button>
-                </div>
-              </div>
-              <div class="campo-grupo">
-                <label>Nueva contraseña</label>
-                <div class="password-wrap">
-                  <input [type]="mostrarContrasenaaNueva ? 'text' : 'password'" [(ngModel)]="configPerfil.contrasena_nueva" [disabled]="!adminPerfilEnEdicion" placeholder="••••••" />
-                  <button class="btn-ojo" (click)="mostrarContrasenaaNueva = !mostrarContrasenaaNueva" type="button">
-                    <svg *ngIf="mostrarContrasenaaNueva" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-                    </svg>
-                    <svg *ngIf="!mostrarContrasenaaNueva" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                      <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
-                      <line x1="1" y1="1" x2="23" y2="23"/>
-                    </svg>
-                  </button>
-                </div>
-              </div>
-              <div class="campo-grupo">
-                <label>Confirmar nueva contraseña</label>
-                <div class="password-wrap">
-                  <input [type]="mostrarContrasenaConf ? 'text' : 'password'" [(ngModel)]="configPerfil.contrasena_conf" [disabled]="!adminPerfilEnEdicion" placeholder="••••••" />
-                  <button class="btn-ojo" (click)="mostrarContrasenaConf = !mostrarContrasenaConf" type="button">
-                    <svg *ngIf="mostrarContrasenaConf" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-                    </svg>
-                    <svg *ngIf="!mostrarContrasenaConf" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                      <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
-                      <line x1="1" y1="1" x2="23" y2="23"/>
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div class="perfil-acciones-edicion" *ngIf="adminPerfilEnEdicion">
-              <button class="btn-cancelar-modal" (click)="cancelarEdicionPerfilAdmin()">Cancelar</button>
-              <button class="btn-guardar-config" [disabled]="!perfilAdminModificado" (click)="guardarPerfilAdmin()">Guardar cambios</button>
-            </div>
-          </div>
+        <div class="config-tabs">
+          <button class="config-tab" [class.active]="configTabActiva==='general'" (click)="cambiarTabConfig('general')">⚙️ General</button>
+          <button class="config-tab" [class.active]="configTabActiva==='citas'" (click)="cambiarTabConfig('citas')">📋 Citas</button>
+          <button class="config-tab" [class.active]="configTabActiva==='horarios'" (click)="cambiarTabConfig('horarios')">🕐 Horarios</button>
+          <button class="config-tab" [class.active]="configTabActiva==='usuarios'" (click)="cambiarTabConfig('usuarios')">👥 Usuarios y roles</button>
+          <button class="config-tab" [class.active]="configTabActiva==='seguridad'" (click)="cambiarTabConfig('seguridad')">🔐 Seguridad</button>
+        </div>
 
-          <!-- B: Información del Centro -->
+        <!-- TAB GENERAL -->
+        <div class="config-nueva-layout" *ngIf="configTabActiva==='general'">
           <div class="card config-card">
             <div class="card-header">
               <h3 class="card-title">Información del Centro SESAES</h3>
@@ -723,8 +947,45 @@
               </button>
             </div>
           </div>
+        </div>
 
-          <!-- D: Días cerrados -->
+        <!-- TAB CITAS -->
+        <div class="config-nueva-layout" *ngIf="configTabActiva==='citas'">
+          <div class="card config-card">
+            <div class="card-header"><h3 class="card-title">Reglas de citas</h3></div>
+            <p class="card-desc">La duración de atención se define por profesional (ver módulo Profesionales). Aquí se configuran las reglas generales del servicio.</p>
+            <div class="form-grid">
+              <div class="campo-grupo">
+                <label>Duración de turno por defecto (min)</label>
+                <input type="number" min="5" [(ngModel)]="configCitas.duracion_turno_min" />
+              </div>
+              <div class="campo-grupo">
+                <label>Cupos por turno</label>
+                <input type="number" min="1" [(ngModel)]="configCitas.cupos_por_turno" />
+              </div>
+              <div class="campo-grupo toggle-row" style="grid-column: 1 / -1">
+                <span>Permitir agendamiento por pacientes</span>
+                <div class="toggle" [class.on]="configCitas.agendamiento_por_pacientes" (click)="configCitas.agendamiento_por_pacientes = !configCitas.agendamiento_por_pacientes"></div>
+              </div>
+              <div class="campo-grupo toggle-row" style="grid-column: 1 / -1">
+                <span>Permitir cancelación instantánea</span>
+                <div class="toggle" [class.on]="configCitas.cancelacion_instantanea" (click)="configCitas.cancelacion_instantanea = !configCitas.cancelacion_instantanea"></div>
+              </div>
+              <div class="campo-grupo toggle-row" style="grid-column: 1 / -1">
+                <span>Sobrecupos habilitados</span>
+                <div class="toggle" [class.on]="configCitas.sobreturnos_habilitados" (click)="configCitas.sobreturnos_habilitados = !configCitas.sobreturnos_habilitados"></div>
+              </div>
+            </div>
+            <div class="perfil-acciones-edicion">
+              <button class="btn-guardar-config" [disabled]="guardandoConfigCitas" (click)="guardarConfiguracionCitas()">
+                {{ guardandoConfigCitas ? 'Guardando...' : 'Guardar cambios' }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB HORARIOS -->
+        <div class="config-nueva-layout" *ngIf="configTabActiva==='horarios'">
           <div class="card config-card">
             <div class="card-header">
               <h3 class="card-title">Días en que el centro no atiende</h3>
@@ -768,11 +1029,32 @@
             </table>
             <p class="tabla-vacia" *ngIf="diasCerrados.length === 0">No hay días cerrados programados.</p>
           </div>
+        </div>
 
-          <!-- C: Auditoría -->
+        <!-- TAB USUARIOS Y ROLES -->
+        <div class="config-nueva-layout" *ngIf="configTabActiva==='usuarios'">
+          <div class="card config-card">
+            <div class="card-header"><h3 class="card-title">Usuarios y roles</h3></div>
+            <p class="card-desc">Estudiante, Profesional y Administrador tienen distintos permisos. Solo el administrador puede marcar una cita como urgente.</p>
+            <table class="admin-tabla">
+              <thead><tr><th>USUARIO</th><th>ROL</th><th>ESTADO</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let u of usuariosDelSistema">
+                  <td>{{ u.nombre }}</td>
+                  <td>{{ u.rol }}</td>
+                  <td><span class="estado-badge" [ngClass]="u.estado">{{ u.estado }}</span></td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="card-desc" style="margin-top:14px">Los estudiantes se gestionan desde el módulo <strong>Estudiantes</strong> y no requieren asignación de rol manual.</p>
+          </div>
+        </div>
+
+        <!-- TAB SEGURIDAD -->
+        <div class="config-nueva-layout" *ngIf="configTabActiva==='seguridad'">
           <div class="card config-card auditoria-card">
             <div class="card-header">
-              <h3 class="card-title">Auditoría / Log de Actividad</h3>
+              <h3 class="card-title">Registro de actividad</h3>
               <div class="auditoria-filtros">
                 <input type="date" [(ngModel)]="auditFiltroDesde" />
                 <input type="date" [(ngModel)]="auditFiltroHasta" />
@@ -784,6 +1066,7 @@
                 </button>
               </div>
             </div>
+            <p class="card-desc">Quién realizó cada acción, qué hizo, cuándo y sobre qué registro. Exportable.</p>
             <div *ngIf="cargandoAuditoria" class="tabla-vacia">Cargando...</div>
             <table class="admin-tabla" *ngIf="!cargandoAuditoria">
               <thead>
@@ -808,8 +1091,8 @@
               </tbody>
             </table>
           </div>
-
         </div>
+
       </div>
 
     </main>
@@ -981,6 +1264,10 @@
       <div class="modal-footer">
         <button class="btn-cancelar-modal" (click)="cerrarModalDetalleCita()">Cerrar</button>
         <button class="btn-guardar-modal" *ngIf="citaDetalle?.tiene_pdf" (click)="descargarPdf(citaDetalle.id)">⬇ Descargar PDF</button>
+        <button class="btn-guardar-modal" *ngIf="citaDetalle?.estado === 'pendiente' && !citaDetalle?.urgente"
+                (click)="marcarPrioridadCita(citaDetalle, true)">🚨 Marcar como urgente</button>
+        <button class="btn-cancelar-modal" *ngIf="citaDetalle?.estado === 'pendiente' && citaDetalle?.urgente"
+                (click)="marcarPrioridadCita(citaDetalle, false)">↩️ Quitar prioridad urgente</button>
       </div>
     </div>
   </div>
@@ -1042,6 +1329,55 @@
       <div class="modal-footer">
         <button class="btn-cancelar-modal" (click)="cancelarSobrecupo()">Cancelar</button>
         <button class="btn-guardar-modal" (click)="confirmarSobrecupo()">Sí, continuar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: FICHA ESTUDIANTE -->
+  <div class="modal-overlay" *ngIf="modalPerfilEstudianteAbierto" (click)="cerrarModalPerfilEstudiante()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Ficha del estudiante</h3>
+        <button class="modal-cerrar" (click)="cerrarModalPerfilEstudiante()">✕</button>
+      </div>
+      <div *ngIf="perfilEstudianteCargando" class="tabla-vacia">Cargando...</div>
+      <div *ngIf="!perfilEstudianteCargando && fichaEstudianteSeleccionado">
+        <div class="prof-datos-readonly">
+          <div class="mini-avatar avatar-lg">{{ fichaEstudianteSeleccionado.nombre | slice:0:2 }}</div>
+          <div class="prof-datos-info">
+            <h4>{{ fichaEstudianteSeleccionado.nombre }}</h4>
+            <span class="esp-badge">{{ fichaEstudianteSeleccionado.carrera || 'Sin carrera' }}</span>
+          </div>
+        </div>
+        <p class="config-seccion-titulo">Datos personales</p>
+        <div class="prof-datos-grid">
+          <div class="dato-row"><span class="dato-label">RUT</span><span class="dato-val">{{ fichaEstudianteSeleccionado.rut || '—' }}</span></div>
+          <div class="dato-row"><span class="dato-label">Correo</span><span class="dato-val">{{ fichaEstudianteSeleccionado.correo || '—' }}</span></div>
+          <div class="dato-row"><span class="dato-label">Carrera</span><span class="dato-val">{{ fichaEstudianteSeleccionado.carrera || '—' }}</span></div>
+        </div>
+        <div class="modal-separador"></div>
+        <p class="config-seccion-titulo">Citas</p>
+        <div class="est-stats-grid">
+          <div class="est-stat"><span class="est-stat-num">{{ fichaEstudianteSeleccionado.citas_totales ?? 0 }}</span><span class="est-stat-label">Citas totales</span></div>
+          <div class="est-stat green"><span class="est-stat-num">{{ fichaEstudianteSeleccionado.citas_atendidas ?? 0 }}</span><span class="est-stat-label">Atendidas</span></div>
+        </div>
+        <div class="modal-separador"></div>
+        <p class="config-seccion-titulo">Últimas atenciones</p>
+        <table class="admin-tabla" *ngIf="fichaEstudianteSeleccionado.ultimas_atenciones?.length > 0">
+          <thead><tr><th>Fecha</th><th>Profesional</th><th>Especialidad</th><th>Estado</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let a of fichaEstudianteSeleccionado.ultimas_atenciones">
+              <td>{{ a.fecha }} — {{ a.hora }}</td>
+              <td>{{ a.profesional }}</td>
+              <td>{{ a.especialidad }}</td>
+              <td><span class="estado-badge" [ngClass]="a.estado">{{ a.estado }}</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="tabla-vacia" *ngIf="!fichaEstudianteSeleccionado.ultimas_atenciones?.length">Sin atenciones registradas.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancelar-modal" (click)="cerrarModalPerfilEstudiante()">Cerrar</button>
       </div>
     </div>
   </div>

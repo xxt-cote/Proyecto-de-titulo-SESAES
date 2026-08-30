@@ -165,6 +165,11 @@ body { margin: 0; font-family: 'Inter', 'Manrope', system-ui, sans-serif; backgr
 .topbar-left { display: flex; flex-direction: column; gap: 2px; }
 .topbar-title { font-size: 20px; font-weight: 700; color: #1E2B23; margin: 0; }
 .topbar-sub { font-size: 12px; color: #5C6B60; }
+
+.topbar-buscador-prof { display: flex; align-items: center; gap: 8px; background: #F7F4EC; border: 1px solid #E6E0D2; border-radius: 10px; padding: 8px 14px; flex: 1; max-width: 340px; margin: 0 20px; color: #9aa79e; }
+.topbar-buscador-prof input { border: none; background: transparent; outline: none; font-size: 12.5px; color: #1E2B23; width: 100%; }
+.topbar-buscador-prof input::placeholder { color: #9aa79e; }
+
 .topbar-actions { display: flex; align-items: center; gap: 10px; }
 
 .topbar-icon-btn { position: relative; width: 36px; height: 36px; border-radius: 8px; border: 1.5px solid #E6E0D2; background: #fff; color: #5C6B60; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .15s; }
@@ -323,7 +328,9 @@ body { margin: 0; font-family: 'Inter', 'Manrope', system-ui, sans-serif; backgr
 /* 8. INICIO                             */
 /* ══════════════════════════════════════ */
 
-.inicio-layout-prof { display: grid; grid-template-columns: 1fr 300px; gap: 20px; align-items: start; }
+.inicio-layout-prof { display: grid; grid-template-columns: 1fr 300px; gap: 20px; align-items: stretch; }
+.inicio-layout-prof > .card-prof { display: flex; flex-direction: column; }
+.inicio-layout-prof > .card-prof .tabla-vacia-prof { flex: 1; display: flex; align-items: center; justify-content: center; }
 .inicio-principal-prof { min-width: 0; }
 .inicio-calendario-prof { padding: 18px; }
 .inicio-lateral-prof { display: flex; flex-direction: column; min-width: 0; }
@@ -413,7 +420,7 @@ body { margin: 0; font-family: 'Inter', 'Manrope', system-ui, sans-serif; backgr
   .inicio-hero-acciones-prof button { flex: 1; }
 }
 
-.inicio-seccion-titulo-prof { font-size: 13px; font-weight: 700; color: #1E2B23; margin: 22px 0 12px; }
+.inicio-seccion-titulo-prof { font-size: 13px; font-weight: 700; color: #1E2B23; margin: 4px 0 12px; }
 
 /* Requiere tu atención */
 .atencion-grid-prof { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 4px; }
@@ -422,6 +429,11 @@ body { margin: 0; font-family: 'Inter', 'Manrope', system-ui, sans-serif; backgr
 .atencion-card-prof.naranjo { border-left-color: #C9822A; }
 .atencion-card-prof.rojo    { border-left-color: #C0453A; }
 .atencion-card-prof.azul    { border-left-color: #4f8ef7; }
+.atencion-card-texto-prof { display: flex; flex-direction: column; gap: 3px; }
+.atencion-card-accion-prof { font-size: 10.5px; font-weight: 700; opacity: .7; }
+.atencion-card-prof.naranjo .atencion-card-accion-prof { color: #C9822A; }
+.atencion-card-prof.rojo    .atencion-card-accion-prof { color: #C0453A; }
+.atencion-card-prof.azul    .atencion-card-accion-prof { color: #4f8ef7; }
 .atencion-num-prof { font-size: 22px; font-weight: 700; color: #1E2B23; }
 
 /* Acciones rápidas (grilla, full width) */
@@ -436,6 +448,31 @@ body { margin: 0; font-family: 'Inter', 'Manrope', system-ui, sans-serif; backgr
 .paciente-reciente-item-prof div { display: flex; flex-direction: column; gap: 2px; }
 .paciente-reciente-item-prof strong { font-size: 12.5px; color: #1E2B23; }
 .paciente-reciente-item-prof span { font-size: 11px; color: #8a968c; }
+.paciente-reciente-ultima-prof { margin-left: auto; font-size: 11px; color: #9aa79e; white-space: nowrap; flex-shrink: 0; }
+
+/* Documentación clínica: contador junto al título */
+.documentacion-contador-prof { font-size: 11.5px; color: #8a968c; font-weight: 600; }
+
+/* Agenda de hoy: estado vacío */
+.agenda-vacia-prof { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 34px 20px; gap: 8px; flex: 1; }
+.agenda-vacia-icono-prof { font-size: 30px; opacity: .5; }
+.agenda-vacia-prof p { font-size: 13px; color: #5C6B60; margin-bottom: 6px; }
+.agenda-vacia-acciones-prof { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+
+/* Agenda de hoy: bloques horarios (disponible / colación / cita) */
+.bloque-hoy-item-prof { display: flex; align-items: center; gap: 14px; padding: 11px 4px; border-bottom: 1px solid #F1EDE0; }
+.bloque-hoy-item-prof:last-child { border-bottom: none; }
+.bloque-hoy-hora-prof { width: 48px; flex-shrink: 0; font-size: 12px; font-weight: 700; color: #5C6B60; }
+.bloque-hoy-info-prof { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.bloque-hoy-info-prof > div { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.bloque-hoy-info-prof strong { font-size: 12.5px; color: #1E2B23; }
+.bloque-hoy-info-prof span { font-size: 11px; color: #8a968c; }
+.bloque-hoy-info-prof.libre span,
+.bloque-hoy-info-prof.bloqueado span { font-size: 12px; font-weight: 600; }
+.bloque-hoy-item-prof.libre .bloque-hoy-info-prof span { color: #6F9C7E; }
+.bloque-hoy-item-prof.bloqueado .bloque-hoy-info-prof span { color: #9aa79e; }
+.bloque-hoy-item-prof.urgente { background: #FDF2F0; border-radius: 8px; }
+.sobrecupo-titulo-prof { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #C9822A; margin: 14px 0 6px; }
 
 /* Actividad del mes */
 .actividad-mes-lista-prof { display: flex; flex-direction: column; }
@@ -682,6 +719,7 @@ body { margin: 0; font-family: 'Inter', 'Manrope', system-ui, sans-serif; backgr
   .topbar-title { font-size: 17px; }
   .topbar-sub { display: none; }
   .topbar-perfil-info { display: none; }
+  .topbar-buscador-prof { display: none; }
 
   .main-content-prof { padding: 16px; }
 
@@ -762,6 +800,9 @@ body { margin: 0; font-family: 'Inter', 'Manrope', system-ui, sans-serif; backgr
 /* -- Topbar  -- */
 .dashboard-prof.tema-oscuro .topbar-prof { background: rgba(8,20,33,.94); backdrop-filter: blur(12px); border-color: #29435f; }
 .dashboard-prof.tema-oscuro .topbar-title { color: #f3f7fb; }
+.dashboard-prof.tema-oscuro .topbar-buscador-prof { background: #101e2f; border-color: #29435f; color: #71869c; }
+.dashboard-prof.tema-oscuro .topbar-buscador-prof input { color: #f3f7fb; }
+.dashboard-prof.tema-oscuro .topbar-buscador-prof input::placeholder { color: #71869c; }
 .dashboard-prof.tema-oscuro .topbar-sub   { color: #8ea3b7; }
 .dashboard-prof.tema-oscuro .topbar-icon-btn { background: #13253a; border-color: #29435f; color: #8ea3b7; }
 .dashboard-prof.tema-oscuro .tema-toggle-btn { background: #13253a; border-color: #29435f; color: #8ea3b7; }
@@ -838,6 +879,17 @@ body { margin: 0; font-family: 'Inter', 'Manrope', system-ui, sans-serif; backgr
 .dashboard-prof.tema-oscuro .paciente-reciente-item-prof:hover { background: #101e2f; }
 .dashboard-prof.tema-oscuro .paciente-reciente-item-prof strong { color: #f3f7fb; }
 .dashboard-prof.tema-oscuro .paciente-reciente-item-prof span { color: #71869c; }
+.dashboard-prof.tema-oscuro .paciente-reciente-ultima-prof { color: #71869c; }
+.dashboard-prof.tema-oscuro .documentacion-contador-prof { color: #71869c; }
+.dashboard-prof.tema-oscuro .atencion-card-texto-prof span:first-child { color: #f3f7fb; }
+.dashboard-prof.tema-oscuro .agenda-vacia-prof p { color: #71869c; }
+.dashboard-prof.tema-oscuro .bloque-hoy-item-prof { border-color: #29435f; }
+.dashboard-prof.tema-oscuro .bloque-hoy-hora-prof { color: #8ea3b7; }
+.dashboard-prof.tema-oscuro .bloque-hoy-info-prof strong { color: #f3f7fb; }
+.dashboard-prof.tema-oscuro .bloque-hoy-info-prof span { color: #71869c; }
+.dashboard-prof.tema-oscuro .bloque-hoy-item-prof.libre .bloque-hoy-info-prof span { color: #39c78f; }
+.dashboard-prof.tema-oscuro .bloque-hoy-item-prof.urgente { background: rgba(239,90,85,.08); }
+.dashboard-prof.tema-oscuro .sobrecupo-titulo-prof { color: #ff8b26; }
 .dashboard-prof.tema-oscuro .actividad-mes-item-prof { border-color: #29435f; }
 .dashboard-prof.tema-oscuro .actividad-mes-item-prof strong { color: #f3f7fb; }
 .dashboard-prof.tema-oscuro .actividad-mes-item-prof span { color: #71869c; }
@@ -935,6 +987,7 @@ body.tema-oscuro .cuestionario-aviso-prof,
 .patient-photo-iniciales-prof { background: #E6F0E7; color: #2C5A45; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 800; text-transform: uppercase; }
 .patient-nombre-prof { font-size: 20px; margin-bottom: 4px; color: #1E2B23; }
 .patient-sub-prof { font-size: 12px; color: #5C6B60; }
+.patient-sub-secundario-prof { margin-top: 3px; color: #9aa79e; }
 .patient-tags-prof { display: flex; gap: 7px; margin-top: 9px; flex-wrap: wrap; }
 .tag-prof { background: #F1EDE0; color: #5C6B60; padding: 5px 9px; border-radius: 6px; font-size: 10.5px; font-weight: 600; }
 .tag-prof.green { background: #E6F0E7; color: #2C5A45; }
@@ -954,10 +1007,22 @@ body.tema-oscuro .cuestionario-aviso-prof,
 .timeline-linea-prof::before { content: ""; position: absolute; top: 3px; bottom: -24px; left: 9px; width: 1px; background: #E6E0D2; }
 .timeline-evento-prof:last-child .timeline-linea-prof::before { display: none; }
 .timeline-punto-prof { display: block; width: 18px; height: 18px; border-radius: 50%; background: #E6F0E7; border: 4px solid #fff; box-shadow: 0 0 0 1px #B9D9C0; position: relative; z-index: 2; }
+.timeline-punto-prof.morado { background: #F1EAFB; box-shadow: 0 0 0 1px #C9A9F0; }
+.timeline-punto-prof.azul   { background: #E8F0FE; box-shadow: 0 0 0 1px #A9C6F0; }
 
 .timeline-top-prof { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
 .timeline-titulo-prof { display: flex; gap: 10px; align-items: center; }
 .timeline-icono-prof { width: 32px; height: 32px; border-radius: 9px; background: #E6F0E7; color: #2C5A45; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.timeline-icono-prof.morado { background: #F1EAFB; color: #7c5fd6; }
+.timeline-icono-prof.azul   { background: #E8F0FE; color: #4f8ef7; }
+
+.timeline-anio-prof { font-size: 11px; font-weight: 700; color: #9aa79e; letter-spacing: .05em; margin: 4px 0 2px; padding-left: 4px; }
+
+.timeline-vacio-prof { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 40px 20px; gap: 6px; }
+.timeline-vacio-icono-prof { font-size: 32px; opacity: .5; margin-bottom: 6px; }
+.timeline-vacio-prof p { font-size: 12.5px; color: #5C6B60; max-width: 360px; }
+.timeline-vacio-prof p strong { font-size: 14px; color: #1E2B23; }
+.timeline-vacio-prof button { margin-top: 10px; }
 .timeline-titulo-prof strong { font-size: 12.5px; display: block; }
 .timeline-titulo-prof span { font-size: 10.5px; color: #9aa79e; }
 
@@ -1035,13 +1100,21 @@ body.tema-oscuro .cuestionario-aviso-prof,
 .dashboard-prof.tema-oscuro .patient-photo-iniciales-prof { background: rgba(13,148,136,0.15); color: #16d7c1; }
 .dashboard-prof.tema-oscuro .patient-nombre-prof { color: #f3f7fb; }
 .dashboard-prof.tema-oscuro .patient-sub-prof { color: #8ea3b7; }
+.dashboard-prof.tema-oscuro .patient-sub-secundario-prof { color: #71869c; }
 .dashboard-prof.tema-oscuro .tag-prof { background: #101e2f; color: #8ea3b7; }
 .dashboard-prof.tema-oscuro .tag-prof.green { background: rgba(13,148,136,0.15); color: #16d7c1; }
 .dashboard-prof.tema-oscuro .stat-mini-valor-prof { color: #f3f7fb; }
 .dashboard-prof.tema-oscuro .timeline-fecha-prof span { color: #71869c; }
 .dashboard-prof.tema-oscuro .timeline-linea-prof::before { background: #29435f; }
 .dashboard-prof.tema-oscuro .timeline-punto-prof { background: rgba(13,148,136,0.2); box-shadow: 0 0 0 1px #10c6b2; border-color: #13253a; }
+.dashboard-prof.tema-oscuro .timeline-punto-prof.morado { background: rgba(124,95,214,0.2); box-shadow: 0 0 0 1px #7c5fd6; }
+.dashboard-prof.tema-oscuro .timeline-punto-prof.azul   { background: rgba(79,142,247,0.2); box-shadow: 0 0 0 1px #4f8ef7; }
 .dashboard-prof.tema-oscuro .timeline-icono-prof { background: rgba(13,148,136,0.15); color: #16d7c1; }
+.dashboard-prof.tema-oscuro .timeline-icono-prof.morado { background: rgba(124,95,214,0.15); color: #a78bda; }
+.dashboard-prof.tema-oscuro .timeline-icono-prof.azul   { background: rgba(79,142,247,0.15); color: #79abff; }
+.dashboard-prof.tema-oscuro .timeline-anio-prof { color: #71869c; }
+.dashboard-prof.tema-oscuro .timeline-vacio-prof p { color: #8ea3b7; }
+.dashboard-prof.tema-oscuro .timeline-vacio-prof p strong { color: #f3f7fb; }
 .dashboard-prof.tema-oscuro .timeline-titulo-prof span { color: #71869c; }
 .dashboard-prof.tema-oscuro .timeline-body-prof { background: #101e2f; }
 .dashboard-prof.tema-oscuro .timeline-row-prof label { color: #71869c; }
