@@ -21,27 +21,49 @@
 
 import type { Role } from './role.model';
 
-export type Permission =
+/**
+ * Única fuente de verdad de los 17 permission strings (Fase 3.3).
+ * `Permission` se deriva de este array para no mantener dos listas
+ * manuales separadas, y `isPermission` permite validar en runtime un
+ * valor arbitrario (ej. route.data.permission) contra este catálogo.
+ */
+export const PERMISSION_VALUES = [
   // Administración
-  | 'usuarios.gestionar'
-  | 'profesionales.gestionar'
-  | 'agenda.gestionar'
-  | 'configuracion.gestionar'
-  | 'reportes.ver'
-  | 'reportes.cgr.exportar'
-  | 'auditoria.ver'
-  | 'roles.gestionar'
+  'usuarios.gestionar',
+  'profesionales.gestionar',
+  'agenda.gestionar',
+  'configuracion.gestionar',
+  'reportes.ver',
+  'reportes.cgr.exportar',
+  'auditoria.ver',
+  'roles.gestionar',
   // Clínico / Profesional
-  | 'atenciones.ver_asignadas'
-  | 'atenciones.registrar'
-  | 'ficha.ver_asignada'
-  | 'ficha.editar_asignada'
-  | 'agenda.ver_profesional'
-  | 'agenda.gestionar_propia'
+  'atenciones.ver_asignadas',
+  'atenciones.registrar',
+  'ficha.ver_asignada',
+  'ficha.editar_asignada',
+  'agenda.ver_profesional',
+  'agenda.gestionar_propia',
   // Estudiante / Autoservicio
-  | 'citas.gestionar_propias'
-  | 'perfil.ver_propio'
-  | 'documentos.ver_propios';
+  'citas.gestionar_propias',
+  'perfil.ver_propio',
+  'documentos.ver_propios',
+] as const;
+
+export type Permission = (typeof PERMISSION_VALUES)[number];
+
+/**
+ * Type guard en runtime para validar que un valor arbitrario (ej.
+ * route.data['permission'], potencialmente manipulado) es realmente uno
+ * de los 17 Permission conocidos. Fail-closed: cualquier valor fuera del
+ * catálogo (incluyendo undefined, '', u otro tipo) → false.
+ */
+export function isPermission(value: unknown): value is Permission {
+  return (
+    typeof value === 'string' &&
+    (PERMISSION_VALUES as readonly string[]).includes(value)
+  );
+}
 
 /**
  * Espejo exacto de ROLE_DEFAULT_PERMISSIONS (backend/app/rbac/permissions.py).
