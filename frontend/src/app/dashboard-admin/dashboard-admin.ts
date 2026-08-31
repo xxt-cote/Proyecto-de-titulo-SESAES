@@ -10,6 +10,7 @@ import { PhotoViewerComponent } from '../shared/photo-viewer/photo-viewer';
 import { obtenerFeriado } from '../shared/feriados-chile';
 import { obtenerDiasInternacionales } from '../shared/dias-internacionales';
 import { ToastService } from '../shared/toast/toast.service';
+import { AdminCitasComponent } from './admin-citas/admin-citas';
 Chart.register(...registerables);
 
 
@@ -18,7 +19,7 @@ const API = environment.apiUrl;
 @Component({
   selector: 'app-dashboard-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePipe, PhotoCropperComponent, PhotoViewerComponent],
+  imports: [CommonModule, FormsModule, DatePipe, PhotoCropperComponent, PhotoViewerComponent, AdminCitasComponent],
   templateUrl: './dashboard-admin.html',
   styleUrl: './dashboard-admin.css',
   encapsulation: ViewEncapsulation.None
@@ -112,7 +113,6 @@ toggleSidebarMovil(): void {
     this.cargarAuditoria(); this.cargarConfiguracionCentro(); this.cargarDiasCerrados();
     this.cargarConfiguracionCitas();
   }
-  if (seccion === 'citas') { this.cargarCitas(); }
   if (seccion === 'estudiantes') { this.cargarEstudiantes(); }
   if (seccion === 'reportes') {
     this.cargarEstadisticas(); this.cargarGraficoEspecialidad(); this.cargarGraficoSemana();
@@ -1139,61 +1139,11 @@ private crearGraficos(): void {
   // HISTORIAL
   // ══════════════════════════════════════
 
-  // ═══ CITAS (gestión del día a día: prioridad + cancelación) ═══
-  // A diferencia de Historial (consulta/exportación read-only), esta
-  // sección es accionable: marcar/quitar urgencia y cancelar citas.
-  citasAdmin:          any[] = [];
-  pagCitas                   = 1;
-  citasFiltroEstudiante      = '';
-  citasFiltroRango           = 'todas';   // 'todas' | 'hoy' | 'semana'
-  citasFiltroEstado          = '';
-  citasFiltroPrioridad       = '';        // '' | 'urgente' | 'normal'
-  citasCargando               = false;
-
-  cargarCitas(): void {
-    this.citasCargando = true;
-    let url = `${API}/admin/historial?`;
-    if (this.citasFiltroEstudiante) url += `estudiante=${encodeURIComponent(this.citasFiltroEstudiante)}&`;
-    if (this.citasFiltroEstado)     url += `estado=${this.citasFiltroEstado}&`;
-
-    if (this.citasFiltroRango === 'hoy') {
-      const hoy = new Date().toISOString().slice(0, 10);
-      url += `fecha_inicio=${hoy}&fecha_fin=${hoy}&`;
-    } else if (this.citasFiltroRango === 'semana') {
-      const hoy = new Date();
-      const fin = new Date(hoy); fin.setDate(hoy.getDate() + 7);
-      url += `fecha_inicio=${hoy.toISOString().slice(0,10)}&fecha_fin=${fin.toISOString().slice(0,10)}&`;
-    }
-
-    this.http.get<any[]>(url).subscribe({
-      next: (data) => {
-        this.citasAdmin = data ?? []; this.pagCitas = 1; this.citasCargando = false;
-        this.cdr.detectChanges();
-      },
-      error: () => { this.citasCargando = false; }
-    });
-  }
-
-  get citasFiltradas(): any[] {
-    if (!this.citasFiltroPrioridad) return this.citasAdmin;
-    const quiereUrgente = this.citasFiltroPrioridad === 'urgente';
-    return this.citasAdmin.filter(c => !!c.urgente === quiereUrgente);
-  }
-
-  get citasPaginadas(): any[] {
-    return this.citasFiltradas.slice((this.pagCitas - 1) * 8, this.pagCitas * 8);
-  }
-
-  getPaginasCitas(): number[] {
-    const total = Math.ceil(this.citasFiltradas.length / 8);
-    return Array.from({ length: total }, (_, i) => i + 1);
-  }
-
-  limpiarFiltrosCitas(): void {
-    this.citasFiltroEstudiante = ''; this.citasFiltroRango = 'todas';
-    this.citasFiltroEstado = ''; this.citasFiltroPrioridad = '';
-    this.cargarCitas();
-  }
+  // ═══ CITAS ═══
+  // El listado, filtros, paginación y carga de datos de esta sección viven
+  // ahora en AdminCitasComponent (Fase 3.4B). Lo que permanece aquí son las
+  // acciones compartidas con otras secciones del shell (Inicio, Horario,
+  // Historial), comunicadas por AdminCitasComponent mediante Outputs.
 
   marcarPrioridadCita(cita: any, urgente: boolean): void {
     this.http.patch<any>(`${API}/admin/citas/${cita.id}/prioridad`, { urgente }).subscribe({

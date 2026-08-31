@@ -1,0 +1,80 @@
+<div class="card">
+  <div class="historial-filtros-admin">
+    <div class="filtro-grupo"><label>Buscar estudiante</label><input [(ngModel)]="citasFiltroEstudiante" placeholder="Nombre o RUT..." /></div>
+    <div class="filtro-grupo">
+      <label>Rango</label>
+      <select [(ngModel)]="citasFiltroRango">
+        <option value="todas">Todas</option>
+        <option value="hoy">Hoy</option>
+        <option value="semana">Próximos 7 días</option>
+      </select>
+    </div>
+    <div class="filtro-grupo">
+      <label>Estado</label>
+      <select [(ngModel)]="citasFiltroEstado">
+        <option value="">Todos</option>
+        <option value="pendiente">Pendiente</option>
+        <option value="completada">Completada</option>
+        <option value="cancelada">Cancelada</option>
+        <option value="inasistencia">Inasistencia</option>
+      </select>
+    </div>
+    <div class="filtro-grupo">
+      <label>Prioridad</label>
+      <select [(ngModel)]="citasFiltroPrioridad">
+        <option value="">Todas</option>
+        <option value="urgente">🚨 Urgente</option>
+        <option value="normal">Normal</option>
+      </select>
+    </div>
+  </div>
+  <div class="historial-acciones">
+    <button class="btn-filtrar" (click)="cargarCitas()">Aplicar Filtros</button>
+    <button class="btn-limpiar" (click)="limpiarFiltrosCitas()">Limpiar</button>
+    <button class="btn-nueva-cita-top" (click)="onIrAHorario()">+ Agendar cita (en Agenda)</button>
+  </div>
+
+  <div *ngIf="citasCargando" class="tabla-vacia">Cargando...</div>
+  <table class="admin-tabla" *ngIf="!citasCargando">
+    <thead>
+      <tr><th>ESTUDIANTE</th><th>ESPECIALIDAD</th><th>PROFESIONAL</th><th>FECHA Y HORA</th><th>PRIORIDAD</th><th>ESTADO</th><th>ACCIONES</th></tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let c of citasPaginadas" [class.fila-urgente]="c.urgente">
+        <td>
+          <div class="tabla-usuario">
+            <div class="mini-avatar">{{ c.iniciales }}</div>
+            <div><strong>{{ c.estudiante }}</strong><span>{{ c.rut }}</span></div>
+          </div>
+        </td>
+        <td><span class="esp-badge">{{ c.especialidad }}</span></td>
+        <td>{{ c.profesional }}</td>
+        <td>{{ c.fecha }} — {{ c.hora }}</td>
+        <td>
+          <span class="urgente-tag" *ngIf="c.urgente">🚨 URGENTE</span>
+          <span *ngIf="!c.urgente" class="texto-gris">Normal</span>
+        </td>
+        <td><span class="estado-badge" [ngClass]="c.estado">{{ c.estado }}</span></td>
+        <td>
+          <div class="tabla-acciones">
+            <button class="btn-tabla ver" (click)="onVerDetalle(c)" title="Ver detalle">👁️</button>
+            <button class="btn-tabla" *ngIf="!c.urgente && c.estado === 'pendiente'" (click)="onMarcarPrioridad(c, true)" title="Marcar como urgente">🚨</button>
+            <button class="btn-tabla" *ngIf="c.urgente && c.estado === 'pendiente'" (click)="onMarcarPrioridad(c, false)" title="Quitar prioridad urgente">↩️</button>
+            <button class="btn-tabla cancelar" *ngIf="c.estado === 'pendiente'" (click)="onCancelarCita(c)" title="Cancelar cita">🗑️</button>
+          </div>
+        </td>
+      </tr>
+      <tr *ngIf="citasPaginadas.length === 0">
+        <td colspan="7" class="tabla-vacia">No hay citas con los filtros aplicados</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="paginacion" *ngIf="!citasCargando">
+    <span>Mostrando {{ citasFiltradas.length === 0 ? 0 : (pagCitas-1)*8+1 }}–{{ minVal(pagCitas*8, citasFiltradas.length) }} de {{ citasFiltradas.length }} citas</span>
+    <div class="pag-btns">
+      <button class="btn-pag" [disabled]="pagCitas===1" (click)="pagCitas=pagCitas-1">‹</button>
+      <button class="btn-pag" *ngFor="let p of getPaginasCitas()" [class.active]="p===pagCitas" (click)="pagCitas=p">{{ p }}</button>
+      <button class="btn-pag" [disabled]="pagCitas*8>=citasFiltradas.length" (click)="pagCitas=pagCitas+1">›</button>
+    </div>
+  </div>
+</div>
