@@ -14,6 +14,7 @@ import { AdminReportesComponent } from './reportes/admin-reportes';
 import { AdminEstudiantesComponent } from './estudiantes/admin-estudiantes';
 import { AdminInicioComponent } from './inicio/admin-inicio';
 import { AdminHorarioComponent } from './horario/admin-horario';
+import { AdminConfiguracionComponent } from './configuracion/admin-configuracion';
 
 
 const API = environment.apiUrl;
@@ -21,7 +22,7 @@ const API = environment.apiUrl;
 @Component({
   selector: 'app-dashboard-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePipe, AdminCitasComponent, AdminProfesionalesComponent, AdminPerfilComponent, AdminHistorialComponent, AdminReportesComponent, AdminEstudiantesComponent, AdminInicioComponent, AdminHorarioComponent],
+  imports: [CommonModule, FormsModule, DatePipe, AdminCitasComponent, AdminProfesionalesComponent, AdminPerfilComponent, AdminHistorialComponent, AdminReportesComponent, AdminEstudiantesComponent, AdminInicioComponent, AdminHorarioComponent, AdminConfiguracionComponent],
   templateUrl: './dashboard-admin.html',
   styleUrl: './dashboard-admin.css',
   encapsulation: ViewEncapsulation.None
