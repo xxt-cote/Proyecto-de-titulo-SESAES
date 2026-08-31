@@ -11,6 +11,7 @@ import { ToastService } from '../shared/toast/toast.service';
 import { AdminCitasComponent } from './citas/admin-citas';
 import { AdminProfesionalesComponent } from './profesionales/admin-profesionales';
 import { AdminPerfilComponent } from './perfil/admin-perfil';
+import { AdminHistorialComponent } from './historial/admin-historial';
 Chart.register(...registerables);
 
 
@@ -19,7 +20,7 @@ const API = environment.apiUrl;
 @Component({
   selector: 'app-dashboard-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePipe, AdminCitasComponent, AdminProfesionalesComponent, AdminPerfilComponent],
+  imports: [CommonModule, FormsModule, DatePipe, AdminCitasComponent, AdminProfesionalesComponent, AdminPerfilComponent, AdminHistorialComponent],
   templateUrl: './dashboard-admin.html',
   styleUrl: './dashboard-admin.css',
   encapsulation: ViewEncapsulation.None
@@ -1161,7 +1162,6 @@ private crearGraficos(): void {
   }
 
   historialAdmin:      any[] = [];
-  pagHist                    = 1;
   histFiltroEstudiante       = '';
   histFiltroDesde            = '';
   histFiltroHasta            = '';
@@ -1194,7 +1194,7 @@ private crearGraficos(): void {
     if (this.histFiltroCarrera)      url += `carrera=${encodeURIComponent(this.histFiltroCarrera)}&`;
     this.http.get<any[]>(url).subscribe({
       next: (data) => {
-        this.historialAdmin = data ?? []; this.pagHist = 1;
+        this.historialAdmin = data ?? [];
         if (this.histFiltroEstudiante.trim()) this.calcularEstadisticasEstudiante(this.historialAdmin);
         else this.estadisticasEstudiante = null;
         this.cdr.detectChanges();
@@ -1214,12 +1214,6 @@ private crearGraficos(): void {
     };
   }
 
-  get historialPaginado(): any[] { return this.historialAdmin.slice((this.pagHist-1)*8, this.pagHist*8); }
-
-  getPaginasHist(): number[] {
-    const total = Math.ceil(this.historialAdmin.length / 8);
-    return Array.from({ length: total }, (_, i) => i+1);
-  }
 
   limpiarFiltrosHistorial(): void {
     this.histFiltroEstudiante = ''; this.histFiltroDesde = ''; this.histFiltroHasta = '';
