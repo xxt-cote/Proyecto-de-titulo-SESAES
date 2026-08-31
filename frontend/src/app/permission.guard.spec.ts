@@ -92,11 +92,11 @@ describe('permissionGuard', () => {
     expect(navigateSpy).not.toHaveBeenCalled();
   });
 
-  it('4. SUPERADMIN + ficha.ver_asignada -> false -> /login (fallback temporal)', () => {
+  it('4. SUPERADMIN + ficha.ver_asignada -> false -> /dashboard/admin', () => {
     montarSesion('superadmin', jwtSintetico(3600));
     const resultado = ejecutarGuard(rutaConPermission('ficha.ver_asignada' satisfies Permission));
     expect(resultado).toBe(false);
-    expect(navigateSpy).toHaveBeenCalledWith(['/login']);
+    expect(navigateSpy).toHaveBeenCalledWith(['/dashboard/admin']);
   });
 
   it('5. PROFESIONAL + agenda.gestionar -> false -> /dashboard/profesional', () => {

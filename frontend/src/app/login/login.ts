@@ -5,6 +5,7 @@ import { AuthService } from '../auth.service';
 import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../config';
+import { rutaDashboardPorRol } from '../shared/auth/role.model';
 
 const API = environment.apiUrl;
 
@@ -91,11 +92,7 @@ export class LoginComponent {
   }
 
   private redirigir(rol: string): void {
-    const rutas: Record<string, string> = {
-      estudiante:  '/dashboard/estudiante',
-      profesional: '/dashboard/profesional',
-      admin:       '/dashboard/admin'
-    };
-    this.router.navigate([rutas[rol] ?? '/login']);
+    const ruta = rutaDashboardPorRol(rol);
+    this.router.navigate([ruta ?? '/login']);
   }
 }
