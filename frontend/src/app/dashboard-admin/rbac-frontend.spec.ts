@@ -12,11 +12,15 @@ import { AdminHistorialComponent } from './historial/admin-historial';
 import { AdminReportesComponent } from './reportes/admin-reportes';
 
 
-function crearShell(permisos: Permission[]) {
+function crearShell(
+  permisos: Permission[],
+  usuarioId: number | null = 15
+) {
   const permitidos = new Set<Permission>(permisos);
 
   const auth = {
-    hasPermission: vi.fn((permission: Permission) => permitidos.has(permission))
+    hasPermission: vi.fn((permission: Permission) => permitidos.has(permission)),
+    getUsuarioId: vi.fn(() => usuarioId)
   } as unknown as AuthService;
 
   const http = {
@@ -116,5 +120,34 @@ describe('Fase 3.5B — integración frontend RBAC', () => {
     expect(config.puedeGestionarAuditoria).toBe(false);
     expect(historial.puedeExportarCgr).toBe(false);
     expect(reportes.puedeExportarCgr).toBe(false);
+  });
+
+  it('marcar todas las notificaciones usa el Usuario.id de AuthService', () => {
+    const { component, http } = crearShell(['usuarios.gestionar'], 15);
+
+    (http.patch as any).mockReturnValue({
+      subscribe: vi.fn()
+    });
+
+    component.marcarTodasLeidas();
+
+    expect(http.patch).toHaveBeenCalledWith(
+      expect.stringContaining('/notificaciones/leer-todas/15'),
+      {}
+    );
+  });
+
+  it('sin Usuario.id válido no envía request ni usa un fallback fijo', () => {
+    localStorage.setItem('usuario_id', '11');
+
+    try {
+      const { component, http } = crearShell(['usuarios.gestionar'], null);
+
+      component.marcarTodasLeidas();
+
+      expect(http.patch).not.toHaveBeenCalled();
+    } finally {
+      localStorage.removeItem('usuario_id');
+    }
   });
 });

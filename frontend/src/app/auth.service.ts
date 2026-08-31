@@ -50,6 +50,20 @@ export class AuthService {
     return sessionStorage.getItem('rol');
   }
 
+  /**
+   * Usuario.id de la sesión activa.
+   *
+   * Nunca usa un fallback fijo ni localStorage. Si la sesión no contiene
+   * una identidad numérica positiva, falla cerrado devolviendo null.
+   */
+  getUsuarioId(): number | null {
+    const raw = sessionStorage.getItem('usuario_id');
+    if (!raw) return null;
+
+    const id = Number(raw);
+    return Number.isInteger(id) && id > 0 ? id : null;
+  }
+
   logout(): void {
     sessionStorage.clear();
   }

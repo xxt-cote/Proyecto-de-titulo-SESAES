@@ -369,8 +369,10 @@ toggleSidebarMovil(): void {
   }
 
   marcarTodasLeidas(): void {
-    const adminId = Number(localStorage.getItem('usuario_id')) || 11;
-    this.http.patch(`${API}/notificaciones/leer-todas/${adminId}`, {}).subscribe({
+    const usuarioId = this.auth.getUsuarioId();
+    if (usuarioId === null) return;
+
+    this.http.patch(`${API}/notificaciones/leer-todas/${usuarioId}`, {}).subscribe({
       next: () => {
         this.notificaciones.forEach(n => n.leida = true);
         this.notifNoLeidas = 0;
