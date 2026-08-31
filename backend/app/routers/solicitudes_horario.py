@@ -8,7 +8,9 @@ from app.models.usuario import Usuario
 from app.models.notificacion import Notificacion
 from app.models.solicitud_horario import SolicitudHorario
 from app.models.auditoria import Auditoria
-from app.auth_dependencies import get_current_user, verificar_acceso_profesional, verificar_rol
+from app.auth_dependencies import get_current_user, verificar_acceso_profesional
+from app.rbac.dependencies import require_permission
+from app.rbac.permissions import Permission
 
 router = APIRouter(tags=["solicitudes-horario"])
 
@@ -179,9 +181,8 @@ def eliminar_solicitud(
 def get_solicitudes_admin(
     estado: str = "pendiente",
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AGENDA_GESTIONAR)),
 ):
-    verificar_rol(current_user, roles_permitidos=["admin"])
     query = db.query(SolicitudHorario)
     if estado and estado != "todas":
         query = query.filter(SolicitudHorario.estado == estado)
@@ -204,9 +205,8 @@ def get_solicitudes_admin(
 def aprobar_solicitud(
     solicitud_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AGENDA_GESTIONAR)),
 ):
-    verificar_rol(current_user, roles_permitidos=["admin"])
     solicitud = db.query(SolicitudHorario).filter(SolicitudHorario.id == solicitud_id).first()
     if not solicitud:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
@@ -242,9 +242,8 @@ def rechazar_solicitud(
     solicitud_id: int,
     body: dict,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AGENDA_GESTIONAR)),
 ):
-    verificar_rol(current_user, roles_permitidos=["admin"])
     solicitud = db.query(SolicitudHorario).filter(SolicitudHorario.id == solicitud_id).first()
     if not solicitud:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
