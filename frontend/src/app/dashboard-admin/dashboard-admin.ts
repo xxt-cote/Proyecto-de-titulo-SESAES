@@ -11,6 +11,7 @@ import { obtenerFeriado } from '../shared/feriados-chile';
 import { obtenerDiasInternacionales } from '../shared/dias-internacionales';
 import { ToastService } from '../shared/toast/toast.service';
 import { AdminCitasComponent } from './admin-citas/admin-citas';
+import { AdminProfesionalesComponent } from './admin-profesionales/admin-profesionales';
 Chart.register(...registerables);
 
 
@@ -19,12 +20,16 @@ const API = environment.apiUrl;
 @Component({
   selector: 'app-dashboard-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePipe, PhotoCropperComponent, PhotoViewerComponent, AdminCitasComponent],
+  imports: [CommonModule, FormsModule, DatePipe, PhotoCropperComponent, PhotoViewerComponent, AdminCitasComponent, AdminProfesionalesComponent],
   templateUrl: './dashboard-admin.html',
   styleUrl: './dashboard-admin.css',
   encapsulation: ViewEncapsulation.None
 })
 export class DashboardAdminComponent implements OnInit, AfterViewInit, OnDestroy {
+// Referencia al hijo para cerrar sus modales tras una operación CRUD exitosa
+// (el estado de los modales vive en el hijo; el shell sigue ejecutando el HTTP).
+@ViewChild(AdminProfesionalesComponent) adminProfesionalesRef?: AdminProfesionalesComponent;
+
 sidebarMovilAbierta = false;
 
 toggleSidebarMovil(): void {
@@ -157,7 +162,11 @@ toggleSidebarMovil(): void {
     this.busquedaGlobal = '';
     this.resultadosBusquedaGlobal = { profesionales: [], estudiantes: [] };
     this.navegarA('profesional');
-    this.busquedaProfesional = p.nombre;
+    // La búsqueda local de la tabla ahora vive en AdminProfesionalesComponent;
+    // se espera al próximo tick para que el *ngIf del hijo ya lo haya creado.
+    setTimeout(() => {
+      if (this.adminProfesionalesRef) this.adminProfesionalesRef.busquedaProfesional = p.nombre;
+    }, 0);
   }
 
   irAEstudianteDesdeBusqueda(e: any): void {
@@ -971,25 +980,12 @@ private crearGraficos(): void {
   // PROFESIONALES
   // ══════════════════════════════════════
 
-  profesionales:          any[] = [];
-  busquedaProfesional           = '';
-  pagProf                       = 1;
-  modalProfAbierto              = false;
-  modalAccionesAbierto          = false;
-  profSeleccionado: any         = null;
-  modoEdicion                   = false;
-  mostrarConfirmacionProf       = false;
-  profNuevoDatos: any           = { nombre:'', especialidad:'', especialidadNueva:'', correo:'', rut:'', estado:'activo', password:'prof123' };
-  rutValido                     = true;
-  correoValido                  = true;
-  duracionNumero                = 45;
-  duracionUnidad                = 'minutos';
+  // profesionales[] sigue viviendo aquí: es la ÚNICA fuente de verdad,
+  // compartida además por Inicio, Horario y Configuración (Fase 3.4A/3.4C).
+  profesionales: any[] = [];
 
-  get duracionEnMinutos(): number {
-    return this.duracionUnidad === 'horas' ? this.duracionNumero * 60 : this.duracionNumero;
-  }
-
-  // Especialidades dinámicas desde el backend
+  // Especialidades dinámicas desde el backend (usadas también en Horario,
+  // Historial y Reportes, no exclusivas de Gestión de Profesionales).
   get especialidades(): string[] {
     const fromProfs = this.profesionales.map(p => p.especialidad).filter(Boolean);
     const base = ['Medicina General','Psicología','Kinesiología','Odontología','Nutrición','Oftalmología','Psicopedagogía'];
@@ -1009,63 +1005,18 @@ private crearGraficos(): void {
     });
   }
 
-  get profesionalesFiltradosBusqueda(): any[] {
-    const q = this.busquedaProfesional.toLowerCase();
-    return !q ? this.profesionales : this.profesionales.filter(p =>
-      p.nombre.toLowerCase().includes(q) || p.especialidad.toLowerCase().includes(q)
-    );
-  }
+  // ══════════════════════════════════════
+  // Handlers de los @Output de AdminProfesionalesComponent (Fase 3.4C).
+  // El hijo NO ejecuta HTTP: solo emite la intención. El shell sigue siendo
+  // quien llama al backend y actualiza profesionales[] (única fuente usada
+  // también por Inicio/Horario/Configuración).
+  // ══════════════════════════════════════
 
-  get profesionalesPaginados(): any[] {
-    return this.profesionalesFiltradosBusqueda.slice((this.pagProf-1)*6, this.pagProf*6);
-  }
-
-  getPaginasProf(): number[] {
-    const total = Math.ceil(this.profesionalesFiltradosBusqueda.length / 6);
-    return Array.from({ length: total }, (_, i) => i+1);
-  }
-
-  abrirModalAgregar(): void {
-    this.profNuevoDatos = { nombre:'', especialidad:'', especialidadNueva:'', correo:'', rut:'', estado:'activo', password:'prof123' };
-    this.duracionNumero = 45; this.duracionUnidad = 'minutos';
-    this.mostrarConfirmacionProf = false; this.rutValido = true; this.correoValido = true;
-    this.modalProfAbierto = true; this.modoEdicion = false;
-  }
-
-  validarRut(rut: string): boolean {
-    const rutLimpio = rut.replace(/\./g,'').replace(/-/g,'');
-    if (rutLimpio.length < 2) return false;
-    const cuerpo = rutLimpio.slice(0,-1); const dv = rutLimpio.slice(-1).toUpperCase();
-    let suma = 0, multi = 2;
-    for (let i = cuerpo.length-1; i >= 0; i--) { suma += parseInt(cuerpo[i]) * multi; multi = multi === 7 ? 2 : multi+1; }
-    const dvEsperado = 11 - (suma % 11);
-    const dvCalc = dvEsperado === 11 ? '0' : dvEsperado === 10 ? 'K' : String(dvEsperado);
-    return dv === dvCalc;
-  }
-
-  onRutChange(): void { this.rutValido = !this.profNuevoDatos.rut || this.validarRut(this.profNuevoDatos.rut); }
-  onCorreoChange(): void { this.correoValido = !this.profNuevoDatos.correo || /^[a-zA-Z0-9._%+\-]+@utem\.cl$/.test(this.profNuevoDatos.correo); }
-
-  continuarCrearProf(): void {
-    if (!this.profNuevoDatos.nombre.trim()) { this.mensajeError = 'El nombre es obligatorio.'; setTimeout(() => this.mensajeError = '', 3000); return; }
-    if (!this.profNuevoDatos.especialidad)  { this.mensajeError = 'Selecciona una especialidad.'; setTimeout(() => this.mensajeError = '', 3000); return; }
-    if (!this.profNuevoDatos.correo.trim()) { this.mensajeError = 'El correo es obligatorio.'; setTimeout(() => this.mensajeError = '', 3000); return; }
-    if (!this.correoValido) { this.mensajeError = 'El correo debe ser @utem.cl.'; setTimeout(() => this.mensajeError = '', 3000); return; }
-    if (this.profNuevoDatos.rut && !this.rutValido) { this.mensajeError = 'El RUT ingresado no es válido.'; setTimeout(() => this.mensajeError = '', 3000); return; }
-    this.mostrarConfirmacionProf = true;
-  }
-
-  volverFormProf(): void { this.mostrarConfirmacionProf = false; }
-
-  confirmarCrearProf(): void {
-    const especialidadFinal = this.profNuevoDatos.especialidad === 'otra' ? this.profNuevoDatos.especialidadNueva : this.profNuevoDatos.especialidad;
-    this.http.post(`${API}/admin/profesionales`, {
-      nombre: this.profNuevoDatos.nombre, especialidad: especialidadFinal,
-      correo: this.profNuevoDatos.correo, rut: this.profNuevoDatos.rut,
-      duracion_min: this.duracionEnMinutos, estado: 'activo', password: 'prof123'
-    }).subscribe({
+  onCrearProfesional(payload: any): void {
+    this.http.post(`${API}/admin/profesionales`, payload).subscribe({
       next: () => {
-        this.cerrarModal(); this.cargarProfesionales();
+        this.adminProfesionalesRef?.cerrarModal();
+        this.cargarProfesionales();
         this.mensajeExito = 'Profesional creado. Contraseña temporal: prof123';
         setTimeout(() => this.mensajeExito = '', 5000);
         this.cdr.detectChanges();
@@ -1074,29 +1025,16 @@ private crearGraficos(): void {
     });
   }
 
-  abrirModalAcciones(p: any): void {
-    this.profSeleccionado = { ...p, nuevoEstado: p.estado, motivoCambio: '' };
-    this.duracionNumero   = p.duracion_min <= 60 ? p.duracion_min : Math.round(p.duracion_min/60);
-    this.duracionUnidad   = p.duracion_min > 60 ? 'horas' : 'minutos';
-    this.modalAccionesAbierto = true;
-  }
-
-  cerrarModalAcciones(): void { this.modalAccionesAbierto = false; this.profSeleccionado = null; }
-
-  get estadoCambioRequiereMotivo(): boolean {
-    return this.profSeleccionado && ['licencia','inasistencia'].includes(this.profSeleccionado.nuevoEstado);
-  }
-
-  guardarEstadoProfesional(): void {
-    if (!this.profSeleccionado) return;
-    const cancelarCitas = ['licencia','inasistencia'].includes(this.profSeleccionado.nuevoEstado)
+  onCambiarEstadoProfesional(payload: { profesional: any; nuevoEstado: string; motivo: string }): void {
+    const cancelarCitas = ['licencia','inasistencia'].includes(payload.nuevoEstado)
       ? confirm('¿Cancelar las citas de hoy y notificar estudiantes?') : false;
-    this.http.patch(`${API}/admin/profesionales/${this.profSeleccionado.id}/estado`, {
-      estado: this.profSeleccionado.nuevoEstado, motivo: this.profSeleccionado.motivoCambio || '',
+    this.http.patch(`${API}/admin/profesionales/${payload.profesional.id}/estado`, {
+      estado: payload.nuevoEstado, motivo: payload.motivo || '',
       cancelar_citas: cancelarCitas
     }).subscribe({
       next: () => {
-        this.cerrarModalAcciones(); this.cargarProfesionales();
+        this.adminProfesionalesRef?.cerrarModalAcciones();
+        this.cargarProfesionales();
         this.mensajeExito = 'Estado actualizado.'; setTimeout(() => this.mensajeExito = '', 3000);
         this.cdr.detectChanges();
       },
@@ -1104,25 +1042,24 @@ private crearGraficos(): void {
     });
   }
 
-  guardarDuracionProfesional(): void {
-    if (!this.profSeleccionado) return;
-    this.http.patch(`${API}/admin/profesionales/${this.profSeleccionado.id}`, { duracion_min: this.duracionEnMinutos }).subscribe({
+  onCambiarDuracionProfesional(payload: { profesional: any; duracionMin: number }): void {
+    this.http.patch(`${API}/admin/profesionales/${payload.profesional.id}`, { duracion_min: payload.duracionMin }).subscribe({
       next: () => {
         this.cargarProfesionales();
-        this.mensajeExito = `Duración actualizada a ${this.duracionEnMinutos} min.`; setTimeout(() => this.mensajeExito = '', 3000);
+        this.mensajeExito = `Duración actualizada a ${payload.duracionMin} min.`; setTimeout(() => this.mensajeExito = '', 3000);
         this.cdr.detectChanges();
       },
       error: () => { this.mensajeError = 'No se pudo actualizar la duración.'; setTimeout(() => this.mensajeError = '', 3000); }
     });
   }
 
-  eliminarProfesionalDesdeModal(): void {
-    if (!this.profSeleccionado) return;
-    if (!confirm(`¿Eliminar a ${this.profSeleccionado.nombre}?`)) return;
+  onEliminarProfesional(p: any): void {
+    if (!confirm(`¿Eliminar a ${p.nombre}?`)) return;
     if (!confirm('Se cancelarán TODAS sus citas pendientes y se notificará a los estudiantes. ¿Confirmar?')) return;
-    this.http.delete(`${API}/admin/profesionales/${this.profSeleccionado.id}`).subscribe({
+    this.http.delete(`${API}/admin/profesionales/${p.id}`).subscribe({
       next: () => {
-        this.cerrarModalAcciones(); this.cargarProfesionales();
+        this.adminProfesionalesRef?.cerrarModalAcciones();
+        this.cargarProfesionales();
         this.mensajeExito = 'Profesional eliminado.'; setTimeout(() => this.mensajeExito = '', 3000);
         this.cdr.detectChanges();
       },
@@ -1130,10 +1067,13 @@ private crearGraficos(): void {
     });
   }
 
-  cerrarModal(): void { this.modalProfAbierto = false; this.mostrarConfirmacionProf = false; }
-  abrirModalEditar(p: any): void { this.abrirModalAcciones(p); }
-  guardarProfesional(): void {}
-  eliminarProfesional(p: any): void { this.abrirModalAcciones(p); }
+  // Restaura exactamente el feedback de validación que existía antes de la
+  // extracción (Corrección previa a aprobación, Fase 3.4C): el hijo solo
+  // valida y emite el mensaje; el shell sigue siendo dueño de mensajeError/toast.
+  onErrorValidacionProfesional(mensaje: string): void {
+    this.mensajeError = mensaje;
+    setTimeout(() => this.mensajeError = '', 3000);
+  }
 
   // ══════════════════════════════════════
   // HISTORIAL
