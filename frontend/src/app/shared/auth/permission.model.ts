@@ -1,0 +1,80 @@
+/**
+ * SESAES — RBAC frontend: catálogo de permisos (Fase 3.1)
+ *
+ * IMPORTANTE — este mapa frontend NO es una barrera de seguridad.
+ * El backend (backend/app/rbac/permissions.py) es la única autoridad
+ * real: cada endpoint protegido valida el permiso server-side vía
+ * require_permission. Este archivo solo existe para resolver UX en el
+ * cliente (ej. ocultar un botón que igualmente sería rechazado con 403
+ * si se llamara al backend), usando los DEFAULT permissions por rol
+ * porque el JWT actual solo contiene 'rol', no la lista de permisos.
+ *
+ * Los 17 permission strings y el mapeo ROLE_DEFAULT_PERMISSIONS deben
+ * coincidir EXACTAMENTE con backend/app/rbac/permissions.py. Cualquier
+ * cambio en uno debe reflejarse en el otro.
+ *
+ * Nota — autorización de recurso (no implementada todavía): los
+ * permisos con sufijo '_asignada'/'_asignadas' son solo una capacidad
+ * RBAC, no una comprobación de que el recurso concreto pertenezca al
+ * profesional. Ver la misma nota en backend/app/rbac/permissions.py.
+ */
+
+import type { Role } from './role.model';
+
+export type Permission =
+  // Administración
+  | 'usuarios.gestionar'
+  | 'profesionales.gestionar'
+  | 'agenda.gestionar'
+  | 'configuracion.gestionar'
+  | 'reportes.ver'
+  | 'reportes.cgr.exportar'
+  | 'auditoria.ver'
+  | 'roles.gestionar'
+  // Clínico / Profesional
+  | 'atenciones.ver_asignadas'
+  | 'atenciones.registrar'
+  | 'ficha.ver_asignada'
+  | 'ficha.editar_asignada'
+  | 'agenda.ver_profesional'
+  | 'agenda.gestionar_propia'
+  // Estudiante / Autoservicio
+  | 'citas.gestionar_propias'
+  | 'perfil.ver_propio'
+  | 'documentos.ver_propios';
+
+/**
+ * Espejo exacto de ROLE_DEFAULT_PERMISSIONS (backend/app/rbac/permissions.py).
+ * Mínimo privilegio; sin wildcard. SUPERADMIN no recibe permisos
+ * clínicos automáticos, igual que en el backend.
+ */
+export const ROLE_DEFAULT_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
+  superadmin: [
+    'usuarios.gestionar',
+    'profesionales.gestionar',
+    'agenda.gestionar',
+    'configuracion.gestionar',
+    'reportes.ver',
+    'reportes.cgr.exportar',
+    'auditoria.ver',
+    'roles.gestionar',
+  ],
+  admin: [
+    // Administrador operativo: solo lo esencial del día a día.
+    // 'configuracion.gestionar', 'reportes.cgr.exportar', 'auditoria.ver'
+    // y 'roles.gestionar' quedan reservados a superadmin por defecto.
+    'usuarios.gestionar',
+    'profesionales.gestionar',
+    'agenda.gestionar',
+    'reportes.ver',
+  ],
+  profesional: [
+    'atenciones.ver_asignadas',
+    'atenciones.registrar',
+    'ficha.ver_asignada',
+    'ficha.editar_asignada',
+    'agenda.ver_profesional',
+    'agenda.gestionar_propia',
+  ],
+  estudiante: ['citas.gestionar_propias', 'perfil.ver_propio', 'documentos.ver_propios'],
+};

@@ -2,6 +2,8 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from './config';
+import { normalizarRol } from './shared/auth/role.model';
+import { ROLE_DEFAULT_PERMISSIONS, Permission } from './shared/auth/permission.model';
 export interface LoginResponse {
   message: string;
   access_token: string;
@@ -56,6 +58,23 @@ export class AuthService {
     const token = this.getToken();
     if (!token || !this.getRol()) return false;
     return !this.tokenExpirado(token);
+  }
+
+  /**
+   * Resuelve si el usuario de la sesión activa tiene `permission`, según
+   * los DEFAULT permissions de su rol (ver permission.model.ts).
+   *
+   * IMPORTANTE: esto es solo UX (mostrar/ocultar acciones). El backend
+   * sigue siendo la única autoridad real de seguridad — cualquier
+   * endpoint protegido valida el permiso de nuevo server-side.
+   *
+   * Fail-closed: sin sesión, rol desconocido, o permiso no listado para
+   * ese rol → false.
+   */
+  hasPermission(permission: Permission): boolean {
+    const rol = normalizarRol(this.getRol());
+    if (!rol) return false;
+    return ROLE_DEFAULT_PERMISSIONS[rol].includes(permission);
   }
 
   /**
