@@ -1,0 +1,67 @@
+<div class="card config-card" style="max-width:560px">
+  <div class="card-header">
+    <h3 class="card-title">Perfil del Administrador</h3>
+    <button class="btn-editar-perfil" *ngIf="!adminPerfilEnEdicion" (click)="habilitarEdicionPerfilAdmin()">✎ Editar</button>
+  </div>
+  <div class="perfil-foto-row">
+    <div class="perfil-foto-preview" [class.clickable]="configCentro.foto_admin_url" (click)="configCentro.foto_admin_url && (verFotoAmpliada = true)">
+      <img *ngIf="configCentro.foto_admin_url" [src]="configCentro.foto_admin_url" alt="Foto" />
+      <div *ngIf="!configCentro.foto_admin_url" class="perfil-foto-placeholder">AD</div>
+    </div>
+    <label class="btn-subir-foto" *ngIf="adminPerfilEnEdicion">
+      <input type="file" accept="image/*" (change)="onFotoSeleccionada($event)" style="display:none" />
+      📷 Cambiar foto
+    </label>
+  </div>
+  <div class="campo-grupo" style="margin-bottom:12px">
+    <label>Nombre completo</label>
+    <input [(ngModel)]="configPerfil.nombre_admin" [disabled]="!adminPerfilEnEdicion" placeholder="Nombre del administrador" />
+  </div>
+  <div class="campo-grupo" style="margin-bottom:12px">
+    <label>Correo</label>
+    <input [value]="configCentro.correo_contacto" disabled />
+  </div>
+  <div class="campo-grupo" style="margin-bottom:12px">
+    <label>Rol</label>
+    <input value="Administrador" disabled />
+  </div>
+  <p class="config-seccion-titulo">Cambiar contraseña</p>
+  <div class="form-grid">
+    <div class="campo-grupo">
+      <label>Contraseña actual</label>
+      <div class="password-wrap">
+        <input [type]="mostrarContrasenaActual ? 'text' : 'password'" [(ngModel)]="configPerfil.contrasena_actual" [disabled]="!adminPerfilEnEdicion" placeholder="••••••" />
+        <button class="btn-ojo" (click)="mostrarContrasenaActual = !mostrarContrasenaActual" type="button">👁️</button>
+      </div>
+    </div>
+    <div class="campo-grupo">
+      <label>Nueva contraseña</label>
+      <div class="password-wrap">
+        <input [type]="mostrarContrasenaaNueva ? 'text' : 'password'" [(ngModel)]="configPerfil.contrasena_nueva" [disabled]="!adminPerfilEnEdicion" placeholder="••••••" />
+        <button class="btn-ojo" (click)="mostrarContrasenaaNueva = !mostrarContrasenaaNueva" type="button">👁️</button>
+      </div>
+    </div>
+    <div class="campo-grupo">
+      <label>Confirmar nueva contraseña</label>
+      <div class="password-wrap">
+        <input [type]="mostrarContrasenaConf ? 'text' : 'password'" [(ngModel)]="configPerfil.contrasena_conf" [disabled]="!adminPerfilEnEdicion" placeholder="••••••" />
+        <button class="btn-ojo" (click)="mostrarContrasenaConf = !mostrarContrasenaConf" type="button">👁️</button>
+      </div>
+    </div>
+  </div>
+  <div class="perfil-acciones-edicion" *ngIf="adminPerfilEnEdicion">
+    <button class="btn-cancelar-modal" (click)="cancelarEdicionPerfilAdmin()">Cancelar</button>
+    <button class="btn-guardar-config" [disabled]="!perfilAdminModificado" (click)="guardarPerfilAdmin()">Guardar cambios</button>
+  </div>
+</div>
+
+<app-photo-cropper *ngIf="imagenParaRecortar"
+  [imagenSrc]="imagenParaRecortar"
+  (recortada)="onFotoRecortada($event)"
+  (cancelado)="imagenParaRecortar = null">
+</app-photo-cropper>
+
+<app-photo-viewer *ngIf="verFotoAmpliada && configCentro.foto_admin_url"
+  [imagenSrc]="configCentro.foto_admin_url"
+  (cerrar)="verFotoAmpliada = false">
+</app-photo-viewer>

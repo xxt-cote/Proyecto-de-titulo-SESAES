@@ -5,13 +5,12 @@ import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { Chart, registerables } from 'chart.js';
 import { environment } from '../config';
-import { PhotoCropperComponent } from '../shared/photo-cropper/photo-cropper';
-import { PhotoViewerComponent } from '../shared/photo-viewer/photo-viewer';
 import { obtenerFeriado } from '../shared/feriados-chile';
 import { obtenerDiasInternacionales } from '../shared/dias-internacionales';
 import { ToastService } from '../shared/toast/toast.service';
 import { AdminCitasComponent } from './admin-citas/admin-citas';
 import { AdminProfesionalesComponent } from './admin-profesionales/admin-profesionales';
+import { AdminPerfilComponent } from './admin-perfil/admin-perfil';
 Chart.register(...registerables);
 
 
@@ -20,7 +19,7 @@ const API = environment.apiUrl;
 @Component({
   selector: 'app-dashboard-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePipe, PhotoCropperComponent, PhotoViewerComponent, AdminCitasComponent, AdminProfesionalesComponent],
+  imports: [CommonModule, FormsModule, DatePipe, AdminCitasComponent, AdminProfesionalesComponent, AdminPerfilComponent],
   templateUrl: './dashboard-admin.html',
   styleUrl: './dashboard-admin.css',
   encapsulation: ViewEncapsulation.None
@@ -29,6 +28,10 @@ export class DashboardAdminComponent implements OnInit, AfterViewInit, OnDestroy
 // Referencia al hijo para cerrar sus modales tras una operación CRUD exitosa
 // (el estado de los modales vive en el hijo; el shell sigue ejecutando el HTTP).
 @ViewChild(AdminProfesionalesComponent) adminProfesionalesRef?: AdminProfesionalesComponent;
+// Referencia al hijo Mi Perfil: el shell la usa (Fase 3.4D) para restablecer
+// el estado de edición del hijo tras un guardado exitoso, ya que ese estado
+// (adminPerfilEnEdicion, fotoAdminCambiada, contraseñas) ahora vive allí.
+@ViewChild(AdminPerfilComponent) adminPerfilRef?: AdminPerfilComponent;
 
 sidebarMovilAbierta = false;
 
@@ -1304,34 +1307,11 @@ private crearGraficos(): void {
     return [...admin, ...profs];
   }
 
-  configPerfil: any = { nombre_admin: '', contrasena_actual: '', contrasena_nueva: '', contrasena_conf: '' };
   guardandoConfig         = false;
-  mostrarContrasenaActual = false;
-  mostrarContrasenaaNueva  = false;
-  mostrarContrasenaConf   = false;
 
-  // Edición de Perfil admin / Información del Centro: campos bloqueados hasta presionar "Editar"
-  adminPerfilEnEdicion = false;
+  // Edición de Información del Centro: campos bloqueados hasta presionar "Editar"
   centroEnEdicion      = false;
-  fotoAdminCambiada    = false;
   configCentroOriginal: any = {};
-
-  habilitarEdicionPerfilAdmin(): void { this.adminPerfilEnEdicion = true; }
-
-  cancelarEdicionPerfilAdmin(): void {
-    this.adminPerfilEnEdicion = false;
-    this.configPerfil.nombre_admin      = this.configCentro.nombre_admin || '';
-    this.configPerfil.contrasena_actual = '';
-    this.configPerfil.contrasena_nueva  = '';
-    this.configPerfil.contrasena_conf   = '';
-  }
-
-  get perfilAdminModificado(): boolean {
-    return this.configPerfil.nombre_admin !== (this.configCentro.nombre_admin || '')
-        || !!this.configPerfil.contrasena_actual
-        || !!this.configPerfil.contrasena_nueva
-        || this.fotoAdminCambiada;
-  }
 
   habilitarEdicionCentro(): void { this.centroEnEdicion = true; }
 
@@ -1357,7 +1337,6 @@ private crearGraficos(): void {
     this.http.get<any>(`${API}/configuracion-centro`).subscribe({
       next: (data) => {
         this.configCentro = data ?? this.configCentro;
-        this.configPerfil.nombre_admin = data?.nombre_admin ?? '';
         this.configCentroOriginal = {
           nombre_centro: this.configCentro.nombre_centro, telefono: this.configCentro.telefono,
           direccion: this.configCentro.direccion, correo_contacto: this.configCentro.correo_contacto,
@@ -1392,61 +1371,53 @@ private crearGraficos(): void {
     });
   }
 
-  guardarPerfilAdmin(): void {
-    if (!this.perfilAdminModificado) return;
-    const payloadCentro: any = { nombre_admin: this.configPerfil.nombre_admin };
-    if (this.configCentro.foto_admin_url) payloadCentro.foto_admin_url = this.configCentro.foto_admin_url;
+  // ══════════════════════════════════════
+  // Handler del @Output de AdminPerfilComponent (Fase 3.4D).
+  // El hijo NO ejecuta HTTP: solo emite la intención. El shell sigue siendo
+  // quien llama al backend y actualiza configCentro (fuente de verdad
+  // compartida también con topbar/Inicio/Configuración → General). Tras un
+  // guardado exitoso, el shell usa @ViewChild para pedirle al hijo que
+  // restablezca su propio estado de edición (que ahora vive allí).
+  // Se preserva intencionalmente el comportamiento previo a la extracción:
+  // el PATCH de configuracion-centro se dispara sin esperar la validación
+  // de contraseña, que ocurre después.
+  // ══════════════════════════════════════
+  onGuardarPerfilAdmin(payload: {
+    nombre_admin: string;
+    foto_admin_url?: string;
+    contrasena_actual: string;
+    contrasena_nueva: string;
+    contrasena_conf: string;
+  }): void {
+    const payloadCentro: any = { nombre_admin: payload.nombre_admin };
+    if (payload.foto_admin_url) payloadCentro.foto_admin_url = payload.foto_admin_url;
     this.http.patch(`${API}/configuracion-centro`, payloadCentro).subscribe({
       next: () => {
-        this.configCentro.nombre_admin = this.configPerfil.nombre_admin;
+        this.configCentro.nombre_admin = payload.nombre_admin;
         this.cdr.detectChanges();
       },
       error: () => {}
     });
-    if (this.configPerfil.contrasena_nueva) {
-      if (this.configPerfil.contrasena_nueva !== this.configPerfil.contrasena_conf) {
+    if (payload.contrasena_nueva) {
+      if (payload.contrasena_nueva !== payload.contrasena_conf) {
         this.mensajeError = 'Las contraseñas nuevas no coinciden.'; setTimeout(() => this.mensajeError = '', 3000); return;
       }
       this.http.patch(`${API}/configuracion-centro/cambiar-password`, {
-        contrasena_actual: this.configPerfil.contrasena_actual, contrasena_nueva: this.configPerfil.contrasena_nueva
+        contrasena_actual: payload.contrasena_actual, contrasena_nueva: payload.contrasena_nueva
       }).subscribe({
         next: () => {
-  this.mensajeExito = 'Perfil y contraseña actualizados.';
-  this.configPerfil.contrasena_actual = ''; this.configPerfil.contrasena_nueva = ''; this.configPerfil.contrasena_conf = '';
-  this.adminPerfilEnEdicion = false;
-  this.fotoAdminCambiada = false;
-  setTimeout(() => this.mensajeExito = '', 3000);
-  this.cdr.detectChanges();
-},
+          this.mensajeExito = 'Perfil y contraseña actualizados.';
+          this.adminPerfilRef?.finalizarEdicion(true);
+          setTimeout(() => this.mensajeExito = '', 3000);
+          this.cdr.detectChanges();
+        },
         error: (err) => { this.mensajeError = err?.error?.detail || 'Contraseña actual incorrecta.'; setTimeout(() => this.mensajeError = '', 3000); this.cdr.detectChanges(); }
       });
-  } else {
-  this.adminPerfilEnEdicion = false;
-  this.fotoAdminCambiada = false;
-  this.mensajeExito = 'Perfil actualizado.'; setTimeout(() => this.mensajeExito = '', 3000);
-  this.cdr.detectChanges();
-}
-  }
-
-  imagenParaRecortar: string | null = null;
-  verFotoAmpliada = false;
-
-  onFotoSeleccionada(event: any): void {
-    if (!this.adminPerfilEnEdicion) return;
-    const file = event.target.files?.[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e: any) => {
-      this.imagenParaRecortar = e.target.result;
+    } else {
+      this.adminPerfilRef?.finalizarEdicion(false);
+      this.mensajeExito = 'Perfil actualizado.'; setTimeout(() => this.mensajeExito = '', 3000);
       this.cdr.detectChanges();
-    };
-    reader.readAsDataURL(file);
-  }
-
-  onFotoRecortada(dataUrl: string): void {
-    this.configCentro.foto_admin_url = dataUrl;
-    this.fotoAdminCambiada  = true;
-    this.imagenParaRecortar = null;
-    this.cdr.detectChanges();
+    }
   }
 
   esFeriado(fecha: string | undefined): boolean {
