@@ -36,6 +36,7 @@ export const PERMISSION_VALUES = [
   'reportes.ver',
   'reportes.cgr.exportar',
   'auditoria.ver',
+  'auditoria.gestionar',
   'roles.gestionar',
   // Clínico / Profesional
   'atenciones.ver_asignadas',
@@ -79,6 +80,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Readonly<Record<Role, readonly Permission
     'reportes.ver',
     'reportes.cgr.exportar',
     'auditoria.ver',
+    'auditoria.gestionar',
     'roles.gestionar',
   ],
   admin: [

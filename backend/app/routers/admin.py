@@ -23,20 +23,12 @@ from app.schemas import (
     ProfesionalCreate, ProfesionalUpdate, ProfesionalOut,
     ConfiguracionOut, ConfiguracionUpdate, CitaCreate
 )
-from app.auth_dependencies import get_current_user, verificar_rol
+from app.rbac.dependencies import require_permission
+from app.rbac.permissions import Permission
 
 
-def solo_admin(current_user: dict = Depends(get_current_user)) -> dict:
-    """
-    Dependencia a nivel de router: TODO lo que cuelga de /admin/* es
-    exclusivo del rol admin. Se aplica una sola vez acá abajo en vez de
-    repetirla en cada uno de los ~25 endpoints de este archivo.
-    """
-    verificar_rol(current_user, roles_permitidos=["admin"])
-    return current_user
 
-
-router = APIRouter(prefix="/admin", tags=["administrador"], dependencies=[Depends(solo_admin)])
+router = APIRouter(prefix="/admin", tags=["administrador"])
 
 RUTS_EXCLUIDOS_CGR = {"16.458.880-7", "19.741.131-7"}
 
@@ -66,7 +58,7 @@ def registrar_auditoria(db, accion, detalle=None, entidad=None, entidad_id=None,
 # ══════════════════════════════════════
 
 @router.get("/estadisticas")
-def get_estadisticas(db: Session = Depends(get_db)):
+def get_estadisticas(db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.REPORTES_VER))):
     hoy = date.today().isoformat()
     reservas_hoy = db.query(Cita).filter(Cita.fecha == hoy, Cita.estado == "pendiente").count()
     profesionales_activos = db.query(Profesional).filter(Profesional.estado == "activo").count()
@@ -86,7 +78,7 @@ def get_estadisticas(db: Session = Depends(get_db)):
 # ══════════════════════════════════════
 
 @router.get("/resumen-dia")
-def get_resumen_dia(db: Session = Depends(get_db)):
+def get_resumen_dia(db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.AGENDA_GESTIONAR))):
     hoy = date.today().isoformat()
     profs = db.query(Profesional).all()
     result = []
@@ -111,7 +103,7 @@ def get_resumen_dia(db: Session = Depends(get_db)):
 # ══════════════════════════════════════
 
 @router.get("/proximas-citas")
-def get_proximas_citas(db: Session = Depends(get_db)):
+def get_proximas_citas(db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.AGENDA_GESTIONAR))):
     hoy = date.today().isoformat()
     citas = db.query(Cita).filter(
         Cita.fecha >= hoy, Cita.estado == "pendiente"
@@ -140,7 +132,7 @@ def get_proximas_citas(db: Session = Depends(get_db)):
 # ══════════════════════════════════════
 
 @router.get("/estudiantes")
-def buscar_estudiantes(q: str = "", db: Session = Depends(get_db)):
+def buscar_estudiantes(q: str = "", db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.USUARIOS_GESTIONAR))):
     if len(q) < 2: return []
     estudiantes = db.query(Usuario).filter(
         Usuario.rol == "estudiante",
@@ -156,7 +148,8 @@ def buscar_estudiantes(q: str = "", db: Session = Depends(get_db)):
 @router.get("/estudiantes/listado")
 def listar_estudiantes(
     q: str = "", carrera: str = "", pagina: int = 1, por_pagina: int = 20,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(Permission.USUARIOS_GESTIONAR))
 ):
     """
     Listado completo de estudiantes (con paginación), a diferencia de
@@ -212,7 +205,7 @@ def listar_estudiantes(
 
 
 @router.get("/estudiantes/{estudiante_id}/perfil")
-def perfil_estudiante_admin(estudiante_id: int, db: Session = Depends(get_db)):
+def perfil_estudiante_admin(estudiante_id: int, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.USUARIOS_GESTIONAR))):
     """Ficha de un estudiante puntual: sus datos + sus últimas atenciones."""
     est = db.query(Usuario).filter(Usuario.id == estudiante_id, Usuario.rol == "estudiante").first()
     if not est:
@@ -255,7 +248,8 @@ def perfil_estudiante_admin(estudiante_id: int, db: Session = Depends(get_db)):
 def get_grafico_especialidad(
     mes: int = None, anio: int = None,
     profesional_id: int = None, especialidad: str = None, carrera: str = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(Permission.REPORTES_VER))
 ):
     query = db.query(Profesional.especialidad, func.count(Cita.id))\
         .join(Cita, Cita.profesional_id == Profesional.id)\
@@ -274,7 +268,7 @@ def get_grafico_especialidad(
 
 
 @router.get("/graficos/semana")
-def get_grafico_semana(db: Session = Depends(get_db)):
+def get_grafico_semana(db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.REPORTES_VER))):
     hoy = date.today()
     lunes = hoy - timedelta(days=hoy.weekday())
     dias = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"]
@@ -293,7 +287,7 @@ def get_grafico_semana(db: Session = Depends(get_db)):
 # ══════════════════════════════════════
 
 @router.get("/profesionales")
-def get_profesionales_admin(db: Session = Depends(get_db)):
+def get_profesionales_admin(db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.PROFESIONALES_GESTIONAR))):
     return [
         {
             "id": p.id, "nombre": p.nombre, "especialidad": p.especialidad,
@@ -307,7 +301,7 @@ def get_profesionales_admin(db: Session = Depends(get_db)):
 
 
 @router.post("/profesionales")
-def crear_profesional(datos: ProfesionalCreate, db: Session = Depends(get_db)):
+def crear_profesional(datos: ProfesionalCreate, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.PROFESIONALES_GESTIONAR))):
     if datos.rut and not validar_rut(datos.rut):
         raise HTTPException(status_code=400, detail="El RUT ingresado no es válido")
     iniciales = datos.iniciales
@@ -333,7 +327,7 @@ def crear_profesional(datos: ProfesionalCreate, db: Session = Depends(get_db)):
 
 
 @router.patch("/profesionales/{prof_id}")
-def actualizar_profesional(prof_id: int, datos: ProfesionalUpdate, db: Session = Depends(get_db)):
+def actualizar_profesional(prof_id: int, datos: ProfesionalUpdate, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.PROFESIONALES_GESTIONAR))):
     prof = db.query(Profesional).filter(Profesional.id == prof_id).first()
     if not prof:
         raise HTTPException(status_code=404, detail="Profesional no encontrado")
@@ -357,7 +351,7 @@ def actualizar_profesional(prof_id: int, datos: ProfesionalUpdate, db: Session =
 
 
 @router.delete("/profesionales/{prof_id}")
-def eliminar_profesional(prof_id: int, db: Session = Depends(get_db)):
+def eliminar_profesional(prof_id: int, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.PROFESIONALES_GESTIONAR))):
     prof = db.query(Profesional).filter(Profesional.id == prof_id).first()
     if not prof:
         raise HTTPException(status_code=404, detail="Profesional no encontrado")
@@ -384,7 +378,7 @@ def eliminar_profesional(prof_id: int, db: Session = Depends(get_db)):
 
 
 @router.patch("/profesionales/{prof_id}/estado")
-def cambiar_estado_profesional(prof_id: int, body: dict, db: Session = Depends(get_db)):
+def cambiar_estado_profesional(prof_id: int, body: dict, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.PROFESIONALES_GESTIONAR))):
     prof = db.query(Profesional).filter(Profesional.id == prof_id).first()
     if not prof:
         raise HTTPException(status_code=404, detail="Profesional no encontrado")
@@ -424,7 +418,7 @@ def cambiar_estado_profesional(prof_id: int, body: dict, db: Session = Depends(g
 
 
 @router.get("/profesionales/{prof_id}/historial-estados")
-def get_historial_estados(prof_id: int, db: Session = Depends(get_db)):
+def get_historial_estados(prof_id: int, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.PROFESIONALES_GESTIONAR))):
     registros = db.query(HistorialEstadoProfesional).filter(
         HistorialEstadoProfesional.profesional_id == prof_id
     ).order_by(HistorialEstadoProfesional.fecha.desc()).all()
@@ -437,7 +431,7 @@ def get_historial_estados(prof_id: int, db: Session = Depends(get_db)):
 # ══════════════════════════════════════
 
 @router.post("/citas/urgente")
-def crear_cita_urgente(cita: CitaCreate, db: Session = Depends(get_db)):
+def crear_cita_urgente(cita: CitaCreate, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.AGENDA_GESTIONAR))):
     if db.query(DiaCerrado).filter(DiaCerrado.fecha == cita.fecha).first():
         raise HTTPException(status_code=400, detail="El centro permanece cerrado ese día. Elige otra fecha.")
 
@@ -475,7 +469,7 @@ def crear_cita_urgente(cita: CitaCreate, db: Session = Depends(get_db)):
 
 
 @router.patch("/citas/{cita_id}/cancelar")
-def cancelar_cita_admin(cita_id: int, body: dict, db: Session = Depends(get_db)):
+def cancelar_cita_admin(cita_id: int, body: dict, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.AGENDA_GESTIONAR))):
     cita = db.query(Cita).filter(Cita.id == cita_id).first()
     if not cita: raise HTTPException(status_code=404, detail="Cita no encontrada")
     est  = db.query(Usuario).filter(Usuario.id == cita.estudiante_id).first()
@@ -497,7 +491,7 @@ def cancelar_cita_admin(cita_id: int, body: dict, db: Session = Depends(get_db))
 
 
 @router.patch("/citas/{cita_id}/prioridad")
-def cambiar_prioridad_cita(cita_id: int, body: dict, db: Session = Depends(get_db)):
+def cambiar_prioridad_cita(cita_id: int, body: dict, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.AGENDA_GESTIONAR))):
     """
     A diferencia de POST /citas/urgente (que crea una cita NUEVA ya marcada
     urgente), este endpoint toma una cita EXISTENTE — pendiente o confirmada —
@@ -544,7 +538,7 @@ def cambiar_prioridad_cita(cita_id: int, body: dict, db: Session = Depends(get_d
 # automáticamente cualquier cita que ya existiera para esa fecha.
 
 @router.get("/dias-cerrados")
-def listar_dias_cerrados(db: Session = Depends(get_db)):
+def listar_dias_cerrados(db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.AGENDA_GESTIONAR))):
     dias = db.query(DiaCerrado).order_by(DiaCerrado.fecha).all()
     return [
         {"id": d.id, "fecha": d.fecha, "motivo": d.motivo, "fecha_creacion": d.fecha_creacion}
@@ -553,7 +547,7 @@ def listar_dias_cerrados(db: Session = Depends(get_db)):
 
 
 @router.post("/dias-cerrados")
-def crear_dia_cerrado(body: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def crear_dia_cerrado(body: dict, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.AGENDA_GESTIONAR))):
     fecha  = body.get("fecha")
     motivo = body.get("motivo") or "El centro permanecerá cerrado este día."
     if not fecha:
@@ -617,7 +611,7 @@ def crear_dia_cerrado(body: dict, db: Session = Depends(get_db), current_user: d
 
 
 @router.get("/dias-cerrados/{dia_id}/citas")
-def citas_canceladas_por_dia_cerrado(dia_id: int, db: Session = Depends(get_db)):
+def citas_canceladas_por_dia_cerrado(dia_id: int, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.AGENDA_GESTIONAR))):
     """
     Detalle de las citas que se cancelaron cuando se cerró este día —
     para que el admin lo tenga a mano si el estudiante llama a preguntar
@@ -649,7 +643,7 @@ def citas_canceladas_por_dia_cerrado(dia_id: int, db: Session = Depends(get_db))
 
 
 @router.delete("/dias-cerrados/{dia_id}")
-def eliminar_dia_cerrado(dia_id: int, db: Session = Depends(get_db)):
+def eliminar_dia_cerrado(dia_id: int, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.AGENDA_GESTIONAR))):
     dia = db.query(DiaCerrado).filter(DiaCerrado.id == dia_id).first()
     if not dia:
         raise HTTPException(status_code=404, detail="Día cerrado no encontrado")
@@ -667,7 +661,8 @@ def eliminar_dia_cerrado(dia_id: int, db: Session = Depends(get_db)):
 def get_historial_admin(
     estudiante: str = None, fecha_inicio: str = None, fecha_fin: str = None,
     especialidad: str = None, estado: str = None, profesional_id: int = None,
-    carrera: str = None, db: Session = Depends(get_db)
+    carrera: str = None, db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(Permission.REPORTES_VER))
 ):
     query = db.query(Cita)\
         .join(Profesional, Cita.profesional_id == Profesional.id)\
@@ -693,8 +688,7 @@ def get_historial_admin(
             "profesional": prof.nombre if prof else "—",
             "iniciales": prof.iniciales if prof else "??",
             "fecha": c.fecha, "hora": c.hora, "estado": c.estado,
-            "urgente": c.urgente or False, "tiene_pdf": c.estado == "completada",
-            "medicamento": c.medicamento, "observaciones_atencion": c.observaciones_atencion
+            "urgente": c.urgente or False, "tiene_pdf": c.estado == "completada"
         })
     return result
 
@@ -704,11 +698,10 @@ def get_historial_admin(
 # ══════════════════════════════════════
 
 @router.get("/notificaciones")
-def get_notificaciones_admin(db: Session = Depends(get_db)):
-    admin = db.query(Usuario).filter(Usuario.rol == "admin").first()
-    if not admin: return []
+def get_notificaciones_admin(db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.USUARIOS_GESTIONAR))):
+    usuario_id = current_user["id"]
     notifs = db.query(Notificacion).filter(
-        Notificacion.usuario_id == admin.id
+        Notificacion.usuario_id == usuario_id
     ).order_by(Notificacion.fecha_creacion.desc()).limit(100).all()
     return [
         {"id": n.id, "mensaje": n.mensaje, "tipo": n.tipo, "leida": n.leida,
@@ -725,7 +718,7 @@ def get_notificaciones_admin(db: Session = Depends(get_db)):
 # (pendiente) que todavía no se realizan.
 
 @router.get("/exportar/cgr")
-def exportar_cgr(anio: int, fecha_fin: str = None, db: Session = Depends(get_db)):
+def exportar_cgr(anio: int, fecha_fin: str = None, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.REPORTES_CGR_EXPORTAR))):
     query = db.query(Cita)\
         .join(Profesional, Cita.profesional_id == Profesional.id)\
         .join(Usuario, Cita.estudiante_id == Usuario.id)\
@@ -752,7 +745,7 @@ def exportar_cgr(anio: int, fecha_fin: str = None, db: Session = Depends(get_db)
 
 
 @router.get("/exportar/alumnos")
-def exportar_listado_alumnos(db: Session = Depends(get_db)):
+def exportar_listado_alumnos(db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.REPORTES_CGR_EXPORTAR))):
     estudiantes = db.query(Usuario).filter(Usuario.rol == "estudiante").order_by(Usuario.nombre).all()
     filas = ["Nombre Completo\tRUT\tCarrera\tCorreo"]
     for e in estudiantes:
@@ -769,7 +762,7 @@ def exportar_listado_alumnos(db: Session = Depends(get_db)):
 # ══════════════════════════════════════
 
 @router.get("/auditoria")
-def get_auditoria(fecha_inicio: str = None, fecha_fin: str = None, db: Session = Depends(get_db)):
+def get_auditoria(fecha_inicio: str = None, fecha_fin: str = None, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.AUDITORIA_VER))):
     query = db.query(Auditoria).order_by(Auditoria.fecha.desc())
     if fecha_inicio:
         query = query.filter(Auditoria.fecha >= datetime.strptime(fecha_inicio, "%Y-%m-%d"))
@@ -785,7 +778,7 @@ def get_auditoria(fecha_inicio: str = None, fecha_fin: str = None, db: Session =
 
 
 @router.delete("/auditoria/{auditoria_id}")
-def eliminar_auditoria(auditoria_id: int, db: Session = Depends(get_db)):
+def eliminar_auditoria(auditoria_id: int, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.AUDITORIA_GESTIONAR))):
     registro = db.query(Auditoria).filter(Auditoria.id == auditoria_id).first()
     if registro:
         db.delete(registro)
@@ -794,7 +787,7 @@ def eliminar_auditoria(auditoria_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/auditoria")
-def eliminar_toda_auditoria(db: Session = Depends(get_db)):
+def eliminar_toda_auditoria(db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.AUDITORIA_GESTIONAR))):
     db.query(Auditoria).delete()
     db.commit()
     return {"message": "Toda la auditoría eliminada"}
@@ -805,7 +798,7 @@ def eliminar_toda_auditoria(db: Session = Depends(get_db)):
 # ══════════════════════════════════════
 
 @router.get("/configuracion", response_model=ConfiguracionOut)
-def get_configuracion(db: Session = Depends(get_db)):
+def get_configuracion(db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.CONFIGURACION_GESTIONAR))):
     config = db.query(ConfiguracionSistema).first()
     if not config:
         # La tabla nunca se siembra en init_db.py — se crea con los
@@ -817,7 +810,7 @@ def get_configuracion(db: Session = Depends(get_db)):
 
 
 @router.patch("/configuracion", response_model=ConfiguracionOut)
-def actualizar_configuracion(datos: ConfiguracionUpdate, db: Session = Depends(get_db)):
+def actualizar_configuracion(datos: ConfiguracionUpdate, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.CONFIGURACION_GESTIONAR))):
     config = db.query(ConfiguracionSistema).first()
     if not config:
         config = ConfiguracionSistema()
