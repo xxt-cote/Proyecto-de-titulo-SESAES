@@ -1,0 +1,133 @@
+<!-- Solicits -->
+      <div class="card" *ngIf="solicitudesHorarioAdmin.length > 0">
+          <div class="card-header">
+            <h3 class="card-title">⏳ Solicitudes de Horario Pendientes ({{ solicitudesHorarioAdmin.length }})</h3>
+          </div>
+          <table class="admin-tabla">
+            <thead>
+              <tr><th>PROFESIONAL</th><th>ESPECIALIDAD</th><th>TIPO</th><th>HORARIO SOLICITADO</th><th>SOLICITADO EL</th><th>ACCIONES</th></tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let s of solicitudesHorarioAdmin">
+                <td>{{ s.profesional_nombre }}</td>
+                <td><span class="esp-badge">{{ s.especialidad }}</span></td>
+                <td>{{ s.tipo === 'colacion' ? '🍽️ Colación' : '🕐 Jornada' }}</td>
+                <td>{{ s.hora_inicio }} – {{ s.hora_fin }}</td>
+                <td>{{ s.fecha_solicitud | date:'dd/MM/yyyy HH:mm' }}</td>
+                <td>
+                  <div class="tabla-acciones">
+                    <button class="btn-tabla ver" (click)="aprobarSolicitud.emit(s)" title="Aprobar">✓ Aprobar</button>
+                    <button class="btn-tabla cancelar" (click)="rechazarSolicitud.emit(s)" title="Rechazar">✕ Rechazar</button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="horario-filtros">
+          <div class="filtro-grupo">
+            <label>Especialidad</label>
+            <select [(ngModel)]="filtroEspecialidad" (ngModelChange)="filtroEspecialidadChange.emit($event)" (change)="filtrar.emit()">
+              <option value="">Todas</option>
+              <option *ngFor="let e of especialidades">{{ e }}</option>
+            </select>
+          </div>
+          <div class="filtro-grupo">
+            <label>Profesional</label>
+            <select [(ngModel)]="filtroProfesionalId" (ngModelChange)="filtroProfesionalIdChange.emit($event)" (change)="recargarHorario.emit()">
+              <option value="">Seleccionar...</option>
+              <option *ngFor="let p of profesionalesFiltrados" [value]="p.id">{{ p.nombre }}</option>
+            </select>
+          </div>
+          <div class="horario-acciones-top">
+            <button class="btn-nueva-cita-top" (click)="abrirNuevaCita.emit()" [disabled]="!filtroProfesionalId || profesionalActualBloqueado">
+              <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              Nueva Cita +
+            </button>
+            <button class="btn-imprimir" (click)="imprimir.emit()">
+              <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
+              </svg>
+              Imprimir Agenda
+            </button>
+          </div>
+        </div>
+
+        <div class="horario-leyenda">
+          <span class="leyenda-item">🟢 Hora disponible</span>
+          <span class="leyenda-item">🔵 Cita habitual</span>
+          <span class="leyenda-item">🔴 Cita urgente</span>
+          <span class="leyenda-item">🟣 Sobrecupo</span>
+          <span class="leyenda-item">⚪ Fuera de horario</span>
+          <span class="leyenda-item">⚫ Bloqueado</span>
+          <span class="leyenda-item">🟥 Centro cerrado</span>
+          <span class="leyenda-item">🟠 Feriado</span>
+        </div>
+
+        <div class="horario-bloqueado-aviso" *ngIf="filtroProfesionalId && profesionalActualBloqueado">
+          ⚠️ {{ profesionalActual?.nombre }} está actualmente en estado "{{ profesionalActual?.estado }}" — su agenda está bloqueada hasta que se reactive manualmente desde Profesional → Gestionar.
+        </div>
+
+        <div class="horario-layout" *ngIf="filtroProfesionalId">
+          <div class="card horario-card">
+            <div class="semana-header">
+              <button class="cal-nav-btn" (click)="anterior.emit()">‹</button>
+              <span class="semana-titulo">{{ semanaLabel }}</span>
+              <button class="cal-nav-btn" (click)="siguiente.emit()">›</button>
+              <button class="btn-hoy" (click)="hoy.emit()">Hoy</button>
+            </div>
+            <div class="semana-grilla">
+              <div class="hora-col">
+                <div class="hora-celda header"></div>
+                <div class="hora-celda" *ngFor="let h of horasGrilla">{{ h }}</div>
+              </div>
+              <div class="dia-col" *ngFor="let dia of semanaActual">
+                <div class="dia-header" [class.hoy]="dia.esHoy" [class.feriado]="esFeriadoFn(dia.fecha)" [title]="nombreFeriadoFn(dia.fecha)">
+                  <span class="dia-nombre">{{ dia.nombre }}</span>
+                  <span class="dia-num">{{ dia.num }}</span>
+                </div>
+                <div class="bloque-celda" *ngFor="let h of horasGrilla"
+                     [class.disponible]="bloqueEstadoFn(dia.fecha, h) === 'disponible'"
+                     [class.ocupado]="bloqueEstadoFn(dia.fecha, h) === 'ocupado'"
+                     [class.urgente-bloque]="bloqueEstadoFn(dia.fecha, h) === 'urgente'"
+                     [class.sobrecupo-bloque]="bloqueEstadoFn(dia.fecha, h) === 'sobrecupo'"
+                     [class.colacion-bloque]="bloqueEstadoFn(dia.fecha, h) === 'colacion'"
+                     [class.fuera-horario-bloque]="bloqueEstadoFn(dia.fecha, h) === 'fuera-horario'"
+                     [class.bloqueado]="bloqueEstadoFn(dia.fecha, h) === 'bloqueado'"
+                     [class.cerrado-centro-bloque]="bloqueEstadoFn(dia.fecha, h) === 'cerrado-centro'"
+                     [title]="bloqueEstadoFn(dia.fecha, h) === 'cerrado-centro' ? 'El centro no atiende este día' : (bloqueEstadoFn(dia.fecha, h) === 'fuera-horario' ? 'Fuera del horario habitual — clic para forzar sobrecupo' : (bloqueEstadoFn(dia.fecha, h) === 'colacion' ? 'Hora de colación — clic para forzar sobrecupo' : ''))"
+                     (click)="bloqueClick.emit({ fecha: dia.fecha, hora: h })">
+                  <span *ngIf="bloqueInfoFn(dia.fecha, h) as info" class="bloque-info">{{ info }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card detalle-dia-card" *ngIf="diaSeleccionado">
+            <div class="detalle-header">
+              <h4>{{ formatearFechaFn(diaSeleccionado) }}</h4>
+              <button class="detalle-cerrar" (click)="diaSeleccionadoChange.emit(null)">✕</button>
+            </div>
+            <div class="detalle-lista">
+              <div *ngFor="let cita of citasDiaSeleccionado" class="detalle-cita" [class.urgente]="cita.urgente">
+                <span class="detalle-hora">{{ cita.hora }}</span>
+                <div class="detalle-info">
+                  <strong>{{ cita.estudiante }}</strong>
+                  <span>{{ cita.especialidad }}</span>
+                  <span *ngIf="cita.urgente" class="urgente-tag">URGENTE</span>
+                </div>
+                <span class="estado-badge" [ngClass]="cita.estado">{{ cita.estado }}</span>
+                <div class="detalle-acciones" *ngIf="cita.estado === 'pendiente'">
+                  <button class="btn-tabla cancelar" (click)="cancelarCita.emit(cita)" title="Cancelar">✕</button>
+                </div>
+              </div>
+              <div *ngIf="citasDiaSeleccionado.length === 0" class="tabla-vacia">Sin citas este día</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="horario-vacio" *ngIf="!filtroProfesionalId">
+          <p>Selecciona un profesional para ver su agenda</p>
+        </div>

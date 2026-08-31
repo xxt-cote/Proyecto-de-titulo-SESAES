@@ -13,6 +13,7 @@ import { AdminHistorialComponent } from './historial/admin-historial';
 import { AdminReportesComponent } from './reportes/admin-reportes';
 import { AdminEstudiantesComponent } from './estudiantes/admin-estudiantes';
 import { AdminInicioComponent } from './inicio/admin-inicio';
+import { AdminHorarioComponent } from './horario/admin-horario';
 
 
 const API = environment.apiUrl;
@@ -20,7 +21,7 @@ const API = environment.apiUrl;
 @Component({
   selector: 'app-dashboard-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePipe, AdminCitasComponent, AdminProfesionalesComponent, AdminPerfilComponent, AdminHistorialComponent, AdminReportesComponent, AdminEstudiantesComponent, AdminInicioComponent],
+  imports: [CommonModule, FormsModule, DatePipe, AdminCitasComponent, AdminProfesionalesComponent, AdminPerfilComponent, AdminHistorialComponent, AdminReportesComponent, AdminEstudiantesComponent, AdminInicioComponent, AdminHorarioComponent],
   templateUrl: './dashboard-admin.html',
   styleUrl: './dashboard-admin.css',
   encapsulation: ViewEncapsulation.None
@@ -507,6 +508,20 @@ toggleSidebarMovil(): void {
   // ══════════════════════════════════════
   // HORARIO
   // ══════════════════════════════════════
+  readonly horarioBloqueEstadoFn = (fecha: string, hora: string): string =>
+    this.getBloqueEstado(fecha, hora);
+
+  readonly horarioBloqueInfoFn = (fecha: string, hora: string): string =>
+    this.getBloqueInfo(fecha, hora);
+
+  readonly horarioFormatearFechaFn = (fecha: string): string =>
+    this.formatearFecha(fecha);
+
+  readonly horarioEsFeriadoFn = (fecha: string | undefined): boolean =>
+    this.esFeriado(fecha);
+
+  readonly horarioNombreFeriadoFn = (fecha: string | undefined): string =>
+    this.nombreFeriado(fecha);
 
   semanaActual:    any[]         = [];
   diaSeleccionado: string | null = null;
