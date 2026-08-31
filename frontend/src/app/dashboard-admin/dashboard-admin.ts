@@ -12,6 +12,7 @@ import { AdminCitasComponent } from './citas/admin-citas';
 import { AdminProfesionalesComponent } from './profesionales/admin-profesionales';
 import { AdminPerfilComponent } from './perfil/admin-perfil';
 import { AdminHistorialComponent } from './historial/admin-historial';
+import { AdminReportesComponent } from './reportes/admin-reportes';
 Chart.register(...registerables);
 
 
@@ -20,7 +21,7 @@ const API = environment.apiUrl;
 @Component({
   selector: 'app-dashboard-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePipe, AdminCitasComponent, AdminProfesionalesComponent, AdminPerfilComponent, AdminHistorialComponent],
+  imports: [CommonModule, FormsModule, DatePipe, AdminCitasComponent, AdminProfesionalesComponent, AdminPerfilComponent, AdminHistorialComponent, AdminReportesComponent],
   templateUrl: './dashboard-admin.html',
   styleUrl: './dashboard-admin.css',
   encapsulation: ViewEncapsulation.None
@@ -1220,14 +1221,6 @@ private crearGraficos(): void {
     this.histFiltroEspecialidad = ''; this.histFiltroEstado = ''; this.histFiltroCarrera = '';
     this.estadisticasEstudiante = null; this.cargarHistorial();
   }
-
-  // ══════════════════════════════════════
-  // REPORTES (a partir de datos ya cargados: historial + estadísticas + gráficos)
-  // ══════════════════════════════════════
-  get reporteCompletadas(): number { return this.historialAdmin.filter(h => h.estado === 'completada').length; }
-  get reporteCanceladas(): number { return this.historialAdmin.filter(h => h.estado === 'cancelada').length; }
-  get reportePendientes(): number { return this.historialAdmin.filter(h => h.estado === 'pendiente').length; }
-  get reporteInasistencias(): number { return this.historialAdmin.filter(h => h.estado === 'inasistencia').length; }
 
   descargarPdf(citaId: number): void { window.open(`${API}/citas/${citaId}/pdf`, '_blank'); }
   exportarHistorialPdf(): void { alert('Exportar PDF: pendiente.'); }

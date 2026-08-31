@@ -1,0 +1,103 @@
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-info">
+      <span class="stat-label">Citas completadas</span>
+      <span class="stat-num">{{ reporteCompletadas }}</span>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-info">
+      <span class="stat-label">Citas canceladas</span>
+      <span class="stat-num">{{ reporteCanceladas }}</span>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-info">
+      <span class="stat-label">Citas pendientes</span>
+      <span class="stat-num">{{ reportePendientes }}</span>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-info">
+      <span class="stat-label">Profesionales activos</span>
+      <span class="stat-num">{{ profesionalesActivos }}</span>
+    </div>
+  </div>
+</div>
+
+<div class="graficos-grid">
+  <div class="card grafico-card">
+    <div class="card-header">
+      <h3 class="card-title">Citas por especialidad</h3>
+      <button
+        class="btn-exportar-small"
+        (click)="exportarEspecialidadExcel.emit()"
+      >
+        ↓ Excel
+      </button>
+    </div>
+
+    <div
+      class="grafico-leyenda"
+      style="flex-direction:column; align-items:stretch; gap:8px;"
+    >
+      <div *ngFor="let item of graficoEspecialidad" class="reporte-barra-fila">
+        <span class="reporte-barra-label">{{ item.especialidad }}</span>
+        <div class="reporte-barra-track">
+          <div
+            class="reporte-barra-fill"
+            [style.width.%]="item.porcentaje"
+          ></div>
+        </div>
+        <span class="reporte-barra-pct">{{ item.porcentaje }}%</span>
+      </div>
+
+      <span *ngIf="graficoEspecialidad.length === 0" class="tabla-vacia">
+        Sin datos
+      </span>
+    </div>
+  </div>
+
+  <div class="card grafico-card">
+    <div class="card-header">
+      <h3 class="card-title">Atenciones prioritarias</h3>
+    </div>
+
+    <div class="est-stats-grid">
+      <div class="est-stat orange">
+        <span class="est-stat-num">{{ urgentesPendientes }}</span>
+        <span class="est-stat-label">Urgentes pendientes</span>
+      </div>
+
+      <div class="est-stat red">
+        <span class="est-stat-num">{{ reporteCanceladas }}</span>
+        <span class="est-stat-label">Canceladas (histórico)</span>
+      </div>
+
+      <div class="est-stat">
+        <span class="est-stat-num">{{ reporteInasistencias }}</span>
+        <span class="est-stat-label">Inasistencias</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">Exportar reportes</h3>
+  </div>
+
+  <p class="card-desc">
+    Los reportes detallados (atenciones, listado de alumnos) están disponibles
+    en Historial → Exportación CGR.
+  </p>
+
+  <div class="historial-acciones">
+    <button class="btn-filtrar" (click)="irAHistorial.emit()">
+      Ir a Historial / Exportación CGR →
+    </button>
+  </div>
+</div>
