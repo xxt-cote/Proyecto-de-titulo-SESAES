@@ -90,14 +90,18 @@
     <h3 class="card-title">Exportar reportes</h3>
   </div>
 
-  <p class="card-desc">
+  <p class="card-desc" *ngIf="puedeExportarCgr">
     Los reportes detallados (atenciones, listado de alumnos) están disponibles
     en Historial → Exportación CGR.
   </p>
 
+  <p class="card-desc" *ngIf="!puedeExportarCgr">
+    Consulta el detalle operativo de atenciones desde Historial.
+  </p>
+
   <div class="historial-acciones">
     <button class="btn-filtrar" (click)="irAHistorial.emit()">
-      Ir a Historial / Exportación CGR →
+      {{ puedeExportarCgr ? 'Ir a Historial / Exportación CGR →' : 'Ir a Historial →' }}
     </button>
   </div>
 </div>

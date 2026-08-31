@@ -1,13 +1,13 @@
 <div class="config-tabs">
-          <button class="config-tab" [class.active]="configTabActiva==='general'" (click)="cambiarTab('general')">⚙️ General</button>
-          <button class="config-tab" [class.active]="configTabActiva==='citas'" (click)="cambiarTab('citas')">📋 Citas</button>
-          <button class="config-tab" [class.active]="configTabActiva==='horarios'" (click)="cambiarTab('horarios')">🕐 Horarios</button>
-          <button class="config-tab" [class.active]="configTabActiva==='usuarios'" (click)="cambiarTab('usuarios')">👥 Usuarios y roles</button>
-          <button class="config-tab" [class.active]="configTabActiva==='seguridad'" (click)="cambiarTab('seguridad')">🔐 Seguridad</button>
+          <button class="config-tab" *ngIf="puedeConfigGeneral" [class.active]="configTabActiva==='general'" (click)="cambiarTab('general')">⚙️ General</button>
+          <button class="config-tab" *ngIf="puedeConfigCitas" [class.active]="configTabActiva==='citas'" (click)="cambiarTab('citas')">📋 Citas</button>
+          <button class="config-tab" *ngIf="puedeConfigHorarios" [class.active]="configTabActiva==='horarios'" (click)="cambiarTab('horarios')">🕐 Horarios</button>
+          <button class="config-tab" *ngIf="puedeConfigUsuarios" [class.active]="configTabActiva==='usuarios'" (click)="cambiarTab('usuarios')">👥 Usuarios y roles</button>
+          <button class="config-tab" *ngIf="puedeVerAuditoria" [class.active]="configTabActiva==='seguridad'" (click)="cambiarTab('seguridad')">🔐 Seguridad</button>
         </div>
 
         <!-- TAB GENERAL -->
-        <div class="config-nueva-layout" *ngIf="configTabActiva==='general'">
+        <div class="config-nueva-layout" *ngIf="configTabActiva==='general' && puedeConfigGeneral">
           <div class="card config-card">
             <div class="card-header">
               <h3 class="card-title">Información del Centro SESAES</h3>
@@ -31,7 +31,7 @@
         </div>
 
         <!-- TAB CITAS -->
-        <div class="config-nueva-layout" *ngIf="configTabActiva==='citas'">
+        <div class="config-nueva-layout" *ngIf="configTabActiva==='citas' && puedeConfigCitas">
           <div class="card config-card">
             <div class="card-header"><h3 class="card-title">Reglas de citas</h3></div>
             <p class="card-desc">La duración de atención se define por profesional (ver módulo Profesionales). Aquí se configuran las reglas generales del servicio.</p>
@@ -66,7 +66,7 @@
         </div>
 
         <!-- TAB HORARIOS -->
-        <div class="config-nueva-layout" *ngIf="configTabActiva==='horarios'">
+        <div class="config-nueva-layout" *ngIf="configTabActiva==='horarios' && puedeConfigHorarios">
           <div class="card config-card">
             <div class="card-header">
               <h3 class="card-title">Días en que el centro no atiende</h3>
@@ -113,7 +113,7 @@
         </div>
 
         <!-- TAB USUARIOS Y ROLES -->
-        <div class="config-nueva-layout" *ngIf="configTabActiva==='usuarios'">
+        <div class="config-nueva-layout" *ngIf="configTabActiva==='usuarios' && puedeConfigUsuarios">
           <div class="card config-card">
             <div class="card-header"><h3 class="card-title">Usuarios y roles</h3></div>
             <p class="card-desc">Estudiante, Profesional y Administrador tienen distintos permisos. Solo el administrador puede marcar una cita como urgente.</p>
@@ -132,7 +132,7 @@
         </div>
 
         <!-- TAB SEGURIDAD -->
-        <div class="config-nueva-layout" *ngIf="configTabActiva==='seguridad'">
+        <div class="config-nueva-layout" *ngIf="configTabActiva==='seguridad' && puedeVerAuditoria">
           <div class="card config-card auditoria-card">
             <div class="card-header">
               <h3 class="card-title">Registro de actividad</h3>
@@ -142,7 +142,7 @@
                 <button class="btn-filtrar" (click)="cargarAuditoria.emit()">Filtrar</button>
                 <button class="btn-exportar-excel" (click)="exportarAuditoriaExcel.emit()">↓ Excel</button>
                 <button class="btn-exportar-pdf" (click)="exportarAuditoriaPdf.emit()">↓ PDF</button>
-                <button class="btn-eliminar-todo-auditoria" *ngIf="hayAuditoriaSeleccionada" (click)="eliminarAuditoriaSeleccionada.emit()">
+                <button class="btn-eliminar-todo-auditoria" *ngIf="puedeGestionarAuditoria && hayAuditoriaSeleccionada" (click)="eliminarAuditoriaSeleccionada.emit()">
                   🗑️ Eliminar seleccionados ({{ auditoriaSeleccionada.length }})
                 </button>
               </div>
@@ -153,14 +153,14 @@
               <thead>
                 <tr>
                   <th class="th-checkbox">
-                    <input type="checkbox" *ngIf="auditoria.length > 0" [checked]="todaAuditoriaSeleccionada" (change)="toggleSeleccionarTodaAuditoria.emit()" />
+                    <input type="checkbox" *ngIf="puedeGestionarAuditoria && auditoria.length > 0" [checked]="todaAuditoriaSeleccionada" (change)="toggleSeleccionarTodaAuditoria.emit()" />
                   </th>
                   <th>FECHA / HORA</th><th>ACCIÓN</th><th>DETALLE</th><th>ENTIDAD</th>
                 </tr>
               </thead>
               <tbody>
                 <tr *ngFor="let a of auditoria" [class.fila-seleccionada]="a.seleccionada">
-                  <td class="td-checkbox"><input type="checkbox" [(ngModel)]="a.seleccionada" /></td>
+                  <td class="td-checkbox"><input *ngIf="puedeGestionarAuditoria" type="checkbox" [(ngModel)]="a.seleccionada" /></td>
                   <td>{{ a.fecha | date:'dd/MM/yyyy HH:mm' }}</td>
                   <td>{{ a.accion }}</td>
                   <td>{{ a.detalle }}</td>

@@ -6,6 +6,8 @@ import { HttpClient } from '@angular/common/http';
 import { environment } from '../config';
 import { obtenerFeriado } from '../shared/feriados-chile';
 import { ToastService } from '../shared/toast/toast.service';
+import { AuthService } from '../auth.service';
+import { Permission } from '../shared/auth/permission.model';
 import { AdminCitasComponent } from './citas/admin-citas';
 import { AdminProfesionalesComponent } from './profesionales/admin-profesionales';
 import { AdminPerfilComponent } from './perfil/admin-perfil';
@@ -14,7 +16,7 @@ import { AdminReportesComponent } from './reportes/admin-reportes';
 import { AdminEstudiantesComponent } from './estudiantes/admin-estudiantes';
 import { AdminInicioComponent } from './inicio/admin-inicio';
 import { AdminHorarioComponent } from './horario/admin-horario';
-import { AdminConfiguracionComponent } from './configuracion/admin-configuracion';
+import { AdminConfiguracionComponent, ConfigTab } from './configuracion/admin-configuracion';
 
 
 const API = environment.apiUrl;
@@ -86,8 +88,94 @@ toggleSidebarMovil(): void {
     private router: Router,
     private http: HttpClient,
     private cdr: ChangeDetectorRef,
-    private toast: ToastService
+    private toast: ToastService,
+    private auth: AuthService
   ) {}
+
+  hasPermission(permission: Permission): boolean {
+    return this.auth.hasPermission(permission);
+  }
+
+  get puedeExportarCgr(): boolean {
+    return this.hasPermission('reportes.cgr.exportar');
+  }
+
+  get puedeConfigGeneral(): boolean {
+    return this.hasPermission('configuracion.gestionar');
+  }
+
+  get puedeConfigCitas(): boolean {
+    return this.hasPermission('configuracion.gestionar');
+  }
+
+  get puedeConfigHorarios(): boolean {
+    return this.hasPermission('agenda.gestionar');
+  }
+
+  get puedeConfigUsuarios(): boolean {
+    return this.hasPermission('usuarios.gestionar');
+  }
+
+  get puedeVerAuditoria(): boolean {
+    return this.hasPermission('auditoria.ver');
+  }
+
+  get puedeGestionarAuditoria(): boolean {
+    return this.hasPermission('auditoria.gestionar');
+  }
+
+  puedeAccederSeccion(seccion: string): boolean {
+    switch (seccion) {
+      case 'inicio':
+      case 'miperfil':
+        return true;
+      case 'horario':
+      case 'citas':
+        return this.hasPermission('agenda.gestionar');
+      case 'profesional':
+        return this.hasPermission('profesionales.gestionar');
+      case 'estudiantes':
+        return this.hasPermission('usuarios.gestionar');
+      case 'historial':
+      case 'reportes':
+        return this.hasPermission('reportes.ver');
+      case 'configuracion':
+        return (
+          this.puedeConfigGeneral ||
+          this.puedeConfigHorarios ||
+          this.puedeConfigUsuarios ||
+          this.puedeVerAuditoria
+        );
+      default:
+        return false;
+    }
+  }
+
+  puedeAccederTabConfig(tab: ConfigTab): boolean {
+    switch (tab) {
+      case 'general':
+      case 'citas':
+        return this.hasPermission('configuracion.gestionar');
+      case 'horarios':
+        return this.hasPermission('agenda.gestionar');
+      case 'usuarios':
+        return this.hasPermission('usuarios.gestionar');
+      case 'seguridad':
+        return this.hasPermission('auditoria.ver');
+      default:
+        return false;
+    }
+  }
+
+  private asegurarTabConfigPermitida(): void {
+    if (this.puedeAccederTabConfig(this.configTabActiva)) return;
+
+    const primeraPermitida: ConfigTab | undefined = (
+      ['general', 'citas', 'horarios', 'usuarios', 'seguridad'] as ConfigTab[]
+    ).find(tab => this.puedeAccederTabConfig(tab));
+
+    if (primeraPermitida) this.configTabActiva = primeraPermitida;
+  }
 
   ngOnInit(): void {
     const temaGuardado = localStorage.getItem('admin_tema_oscuro');
@@ -97,21 +185,41 @@ toggleSidebarMovil(): void {
   }
 
   cargarDatos(): void {
-    this.cargarEstadisticas();
-    this.cargarProximasCitas();
-    this.cargarGraficoEspecialidad();
-    this.cargarGraficoSemana();
-    this.cargarProfesionales();
-    this.cargarHistorial();
-    this.cargarNotificaciones();
-    this.cargarResumenDia();
-    this.cargarActividadReciente();
+    if (this.hasPermission('reportes.ver')) {
+      this.cargarEstadisticas();
+      this.cargarGraficoEspecialidad();
+      this.cargarGraficoSemana();
+      this.cargarHistorial();
+    }
+
+    if (this.hasPermission('agenda.gestionar')) {
+      this.cargarProximasCitas();
+      this.cargarResumenDia();
+      this.cargarSolicitudesHorarioAdmin();
+      this.cargarDiasCerrados();
+    }
+
+    if (this.hasPermission('profesionales.gestionar')) {
+      this.cargarProfesionales();
+    }
+
+    if (this.hasPermission('usuarios.gestionar')) {
+      this.cargarNotificaciones();
+    }
+
+    if (this.hasPermission('auditoria.ver')) {
+      this.cargarActividadReciente();
+    }
+
     this.cargarConfiguracionCentro();
-    this.cargarSolicitudesHorarioAdmin();
-    this.cargarDiasCerrados();
   }
 
   navegarA(seccion: string): void {
+  if (!this.puedeAccederSeccion(seccion)) {
+    this.toast.error('No tienes permisos para acceder a esta sección.');
+    return;
+  }
+
   this.seccionActiva = seccion;
   this.mensajeExito  = '';
   this.mensajeError  = '';
@@ -119,16 +227,27 @@ toggleSidebarMovil(): void {
   this.sidebarMovilAbierta = false;
   this.busquedaGlobal = '';
   this.resultadosBusquedaGlobal = { profesionales: [], estudiantes: [] };
+
   if (seccion === 'configuracion') {
-    this.cargarAuditoria(); this.cargarConfiguracionCentro(); this.cargarDiasCerrados();
-    this.cargarConfiguracionCitas();
+    this.asegurarTabConfigPermitida();
+    if (this.puedeConfigGeneral) this.cargarConfiguracionCentro();
+    if (this.puedeConfigCitas) this.cargarConfiguracionCitas();
+    if (this.puedeConfigHorarios) this.cargarDiasCerrados();
+    if (this.puedeVerAuditoria) this.cargarAuditoria();
   }
-  if (seccion === 'estudiantes') { this.cargarEstudiantes(); }
-  if (seccion === 'reportes') {
-    this.cargarEstadisticas(); this.cargarGraficoEspecialidad(); this.cargarGraficoSemana();
+
+  if (seccion === 'estudiantes' && this.hasPermission('usuarios.gestionar')) {
+    this.cargarEstudiantes();
+  }
+
+  if (seccion === 'reportes' && this.hasPermission('reportes.ver')) {
+    this.cargarEstadisticas();
+    this.cargarGraficoEspecialidad();
+    this.cargarGraficoSemana();
     this.cargarHistorial();
   }
-  if (seccion === 'miperfil') { this.cargarConfiguracionCentro(); }
+
+  if (seccion === 'miperfil') this.cargarConfiguracionCentro();
 }
 
   // ══════════════════════════════════════
@@ -145,10 +264,19 @@ toggleSidebarMovil(): void {
   buscarGlobal(): void {
     const q = this.busquedaGlobal.trim().toLowerCase();
     if (q.length < 2) { this.resultadosBusquedaGlobal = { profesionales: [], estudiantes: [] }; return; }
-    const profs = this.profesionales.filter(p =>
-      p.nombre?.toLowerCase().includes(q) || p.especialidad?.toLowerCase().includes(q)
-    ).slice(0, 5);
+    const profs = this.hasPermission('profesionales.gestionar')
+      ? this.profesionales.filter(p =>
+          p.nombre?.toLowerCase().includes(q) || p.especialidad?.toLowerCase().includes(q)
+        ).slice(0, 5)
+      : [];
+
     this.resultadosBusquedaGlobal = { profesionales: profs, estudiantes: [] };
+
+    if (!this.hasPermission('usuarios.gestionar')) {
+      this.buscandoGlobal = false;
+      return;
+    }
+
     this.buscandoGlobal = true;
     this.http.get<any[]>(`${API}/admin/estudiantes?q=${encodeURIComponent(q)}`).subscribe({
       next: (data) => {
@@ -161,6 +289,7 @@ toggleSidebarMovil(): void {
   }
 
   irAProfesionalDesdeBusqueda(p: any): void {
+    if (!this.hasPermission('profesionales.gestionar')) return;
     this.busquedaGlobal = '';
     this.resultadosBusquedaGlobal = { profesionales: [], estudiantes: [] };
     this.navegarA('profesional');
@@ -172,13 +301,14 @@ toggleSidebarMovil(): void {
   }
 
   irAEstudianteDesdeBusqueda(e: any): void {
+    if (!this.hasPermission('usuarios.gestionar')) return;
     this.busquedaGlobal = '';
     this.resultadosBusquedaGlobal = { profesionales: [], estudiantes: [] };
     this.navegarA('estudiantes');
     setTimeout(() => this.verPerfilEstudianteAdmin(e), 0);
   }
 
-  cerrarSesion(): void { localStorage.clear(); window.location.href = '/login'; }
+  cerrarSesion(): void { this.auth.logout(); this.router.navigate(['/login']); }
 
   toggleTema(): void {
     this.temaOscuro = !this.temaOscuro;
@@ -340,6 +470,11 @@ toggleSidebarMovil(): void {
   actividadReciente: any[] = [];
 
   cargarActividadReciente(): void {
+    if (!this.hasPermission('auditoria.ver')) {
+      this.actividadReciente = [];
+      return;
+    }
+
     this.http.get<any[]>(`${API}/admin/auditoria`).subscribe({
       next: (data) => {
         this.actividadReciente = (data ?? []).slice(0,5).map(a => ({
@@ -485,8 +620,15 @@ toggleSidebarMovil(): void {
   // EXPORTACIÓN CGR
   // ══════════════════════════════════════
 
-  exportarCGR2025(): void { window.open(`${API}/admin/exportar/cgr?anio=2025`, '_blank'); }
-  exportarCGR2026(): void { window.open(`${API}/admin/exportar/cgr?anio=2026&fecha_fin=2026-05-31`, '_blank'); }
+  exportarCGR2025(): void {
+    if (!this.puedeExportarCgr) return;
+    window.open(`${API}/admin/exportar/cgr?anio=2025`, '_blank');
+  }
+
+  exportarCGR2026(): void {
+    if (!this.puedeExportarCgr) return;
+    window.open(`${API}/admin/exportar/cgr?anio=2026&fecha_fin=2026-05-31`, '_blank');
+  }
 
   // Selector de año dinámico para CGR (reemplaza los botones fijos 2025/2026)
   cgrAnio     = new Date().getFullYear();
@@ -500,11 +642,16 @@ toggleSidebarMovil(): void {
   }
 
   exportarCGR(): void {
+    if (!this.puedeExportarCgr) return;
+
     let url = `${API}/admin/exportar/cgr?anio=${this.cgrAnio}`;
     if (this.cgrFechaFin) url += `&fecha_fin=${this.cgrFechaFin}`;
     window.open(url, '_blank');
   }
-  exportarListadoAlumnos(): void { window.open(`${API}/admin/exportar/alumnos`, '_blank'); }
+  exportarListadoAlumnos(): void {
+    if (!this.puedeExportarCgr) return;
+    window.open(`${API}/admin/exportar/alumnos`, '_blank');
+  }
 
   // ══════════════════════════════════════
   // HORARIO
@@ -1140,9 +1287,20 @@ toggleSidebarMovil(): void {
   // ══════════════════════════════════════
   // CONFIGURACIÓN → tabs (General / Citas / Horarios / Usuarios y roles / Seguridad)
   // ══════════════════════════════════════
-  configTabActiva: 'general' | 'citas' | 'horarios' | 'usuarios' | 'seguridad' = 'general';
-  cambiarTabConfig(tab: 'general' | 'citas' | 'horarios' | 'usuarios' | 'seguridad'): void {
+  configTabActiva: ConfigTab = 'general';
+
+  cambiarTabConfig(tab: ConfigTab): void {
+    if (!this.puedeAccederTabConfig(tab)) {
+      this.toast.error('No tienes permisos para acceder a esta opción.');
+      return;
+    }
+
     this.configTabActiva = tab;
+
+    if (tab === 'general') this.cargarConfiguracionCentro();
+    if (tab === 'citas') this.cargarConfiguracionCitas();
+    if (tab === 'horarios') this.cargarDiasCerrados();
+    if (tab === 'seguridad') this.cargarAuditoria();
   }
 
   // Reglas de citas (endpoint ya existente en backend: /admin/configuracion)
@@ -1153,6 +1311,8 @@ toggleSidebarMovil(): void {
   guardandoConfigCitas = false;
 
   cargarConfiguracionCitas(): void {
+    if (!this.hasPermission('configuracion.gestionar')) return;
+
     this.http.get<any>(`${API}/admin/configuracion`).subscribe({
       next: (data) => { this.configCitas = data ?? this.configCitas; this.cdr.detectChanges(); },
       error: () => {}
@@ -1160,6 +1320,8 @@ toggleSidebarMovil(): void {
   }
 
   guardarConfiguracionCitas(): void {
+    if (!this.hasPermission('configuracion.gestionar')) return;
+
     this.guardandoConfigCitas = true;
     this.http.patch(`${API}/admin/configuracion`, {
       duracion_turno_min: Number(this.configCitas.duracion_turno_min),
@@ -1394,6 +1556,12 @@ toggleSidebarMovil(): void {
   }
 
   cargarAuditoria(): void {
+    if (!this.hasPermission('auditoria.ver')) {
+      this.auditoria = [];
+      this.cargandoAuditoria = false;
+      return;
+    }
+
     this.cargandoAuditoria = true;
     let url = `${API}/admin/auditoria?`;
     if (this.auditFiltroDesde) url += `fecha_inicio=${this.auditFiltroDesde}&`;
@@ -1409,6 +1577,8 @@ toggleSidebarMovil(): void {
   }
 
   eliminarAuditoria(id: number): void {
+    if (!this.hasPermission('auditoria.gestionar')) return;
+
     this.http.delete(`${API}/admin/auditoria/${id}`).subscribe({
       next: () => {
         this.auditoria = this.auditoria.filter(a => a.id !== id);
@@ -1425,11 +1595,15 @@ toggleSidebarMovil(): void {
   }
 
   toggleSeleccionarTodaAuditoria(): void {
+    if (!this.hasPermission('auditoria.gestionar')) return;
+
     const nuevoValor = !this.todaAuditoriaSeleccionada;
     this.auditoria.forEach(a => a.seleccionada = nuevoValor);
   }
 
   eliminarAuditoriaSeleccionada(): void {
+    if (!this.hasPermission('auditoria.gestionar')) return;
+
     const seleccionadas = this.auditoriaSeleccionada;
     if (!seleccionadas.length) return;
     if (!confirm(`¿Eliminar ${seleccionadas.length} registro(s) de auditoría seleccionados? Esta acción no se puede deshacer.`)) return;
@@ -1445,6 +1619,8 @@ toggleSidebarMovil(): void {
   }
 
   exportarAuditoriaExcel(): void {
+    if (!this.hasPermission('auditoria.ver')) return;
+
     this.exportarComoExcel(this.auditoria.map(a => ({
       'Fecha/Hora': a.fecha, Acción: a.accion, Detalle: a.detalle,
       Entidad: a.entidad, 'ID Entidad': a.entidad_id

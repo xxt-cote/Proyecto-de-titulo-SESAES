@@ -49,6 +49,13 @@ export class AdminConfiguracionComponent {
   @Input() auditoriaSeleccionada: any[] = [];
   @Input() todaAuditoriaSeleccionada = false;
 
+  @Input() puedeConfigGeneral = false;
+  @Input() puedeConfigCitas = false;
+  @Input() puedeConfigHorarios = false;
+  @Input() puedeConfigUsuarios = false;
+  @Input() puedeVerAuditoria = false;
+  @Input() puedeGestionarAuditoria = false;
+
   @Output() habilitarEdicionCentro = new EventEmitter<void>();
   @Output() cancelarEdicionCentro = new EventEmitter<void>();
   @Output() guardarInfoCentro = new EventEmitter<void>();

@@ -26,7 +26,7 @@ import { isPermission } from './shared/auth/permission.model';
  *   sin token) → false, redirige a /login.
  * - rol desconocido/no normalizable → false, redirige a /login.
  * - route.data.permission ausente, vacío, o no perteneciente al
- *   catálogo de 17 Permission (isPermission) → false.
+ *   catálogo de 18 Permission (isPermission) → false.
  * - permission válido pero no concedido por ROLE_DEFAULT_PERMISSIONS del
  *   rol actual → false, redirige al destino de rechazo del rol (ver
  *   destinoRechazo).

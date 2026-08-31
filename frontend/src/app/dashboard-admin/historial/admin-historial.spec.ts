@@ -121,7 +121,8 @@ describe('AdminHistorialComponent', () => {
     const cgrSpy = vi.spyOn(component.exportarCgr, 'emit');
     const alumnosSpy = vi.spyOn(component.exportarAlumnos, 'emit');
 
-    fixture.detectChanges();
+        fixture.componentRef.setInput('puedeExportarCgr', true);
+fixture.detectChanges();
 
     const botones = Array.from(
       fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>

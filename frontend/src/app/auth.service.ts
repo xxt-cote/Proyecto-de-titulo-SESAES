@@ -8,7 +8,7 @@ export interface LoginResponse {
   message: string;
   access_token: string;
   token_type: string;
-  rol: 'estudiante' | 'profesional' | 'admin';
+  rol: 'estudiante' | 'profesional' | 'admin' | 'superadmin';
   id: number;
   nombre: string;
   foto_url: string | null;

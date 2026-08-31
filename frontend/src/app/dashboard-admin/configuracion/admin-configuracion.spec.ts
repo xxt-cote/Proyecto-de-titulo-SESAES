@@ -39,7 +39,8 @@ describe('AdminConfiguracionComponent', () => {
     });
 
     fixture.componentRef.setInput('configTabActiva', 'general');
-    fixture.detectChanges();
+        fixture.componentRef.setInput('puedeConfigGeneral', true);
+fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain(
       'Información del Centro SESAES'
@@ -75,7 +76,8 @@ describe('AdminConfiguracionComponent', () => {
       sobreturnos_habilitados: true
     });
 
-    fixture.detectChanges();
+        fixture.componentRef.setInput('puedeConfigCitas', true);
+fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Reglas de citas');
 
@@ -96,7 +98,8 @@ describe('AdminConfiguracionComponent', () => {
 
     fixture.componentRef.setInput('configTabActiva', 'horarios');
     fixture.componentRef.setInput('diasCerrados', [dia]);
-    fixture.detectChanges();
+        fixture.componentRef.setInput('puedeConfigHorarios', true);
+fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('2026-09-18');
     expect(fixture.nativeElement.textContent).toContain('Centro cerrado');
@@ -125,7 +128,8 @@ describe('AdminConfiguracionComponent', () => {
       }
     ]);
 
-    fixture.detectChanges();
+        fixture.componentRef.setInput('puedeConfigUsuarios', true);
+fixture.detectChanges();
 
     const texto = fixture.nativeElement.textContent as string;
     expect(texto).toContain('Admin SESAES');
@@ -149,7 +153,8 @@ describe('AdminConfiguracionComponent', () => {
       }
     ]);
 
-    fixture.detectChanges();
+        fixture.componentRef.setInput('puedeVerAuditoria', true);
+fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain(
       'Cambio de configuración'

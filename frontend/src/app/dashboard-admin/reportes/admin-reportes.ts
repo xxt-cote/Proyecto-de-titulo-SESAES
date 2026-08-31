@@ -12,6 +12,7 @@ export class AdminReportesComponent {
   @Input() graficoEspecialidad: any[] = [];
   @Input() profesionalesActivos = 0;
   @Input() urgentesPendientes = 0;
+  @Input() puedeExportarCgr = false;
 
   @Output() exportarEspecialidadExcel = new EventEmitter<void>();
   @Output() irAHistorial = new EventEmitter<void>();

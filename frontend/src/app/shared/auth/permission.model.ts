@@ -9,7 +9,7 @@
  * si se llamara al backend), usando los DEFAULT permissions por rol
  * porque el JWT actual solo contiene 'rol', no la lista de permisos.
  *
- * Los 17 permission strings y el mapeo ROLE_DEFAULT_PERMISSIONS deben
+ * Los 18 permission strings y el mapeo ROLE_DEFAULT_PERMISSIONS deben
  * coincidir EXACTAMENTE con backend/app/rbac/permissions.py. Cualquier
  * cambio en uno debe reflejarse en el otro.
  *
@@ -22,7 +22,7 @@
 import type { Role } from './role.model';
 
 /**
- * Única fuente de verdad de los 17 permission strings (Fase 3.3).
+ * Única fuente de verdad de los 18 permission strings (Fase 3.3).
  * `Permission` se deriva de este array para no mantener dos listas
  * manuales separadas, y `isPermission` permite validar en runtime un
  * valor arbitrario (ej. route.data.permission) contra este catálogo.
@@ -56,7 +56,7 @@ export type Permission = (typeof PERMISSION_VALUES)[number];
 /**
  * Type guard en runtime para validar que un valor arbitrario (ej.
  * route.data['permission'], potencialmente manipulado) es realmente uno
- * de los 17 Permission conocidos. Fail-closed: cualquier valor fuera del
+ * de los 18 Permission conocidos. Fail-closed: cualquier valor fuera del
  * catálogo (incluyendo undefined, '', u otro tipo) → false.
  */
 export function isPermission(value: unknown): value is Permission {
