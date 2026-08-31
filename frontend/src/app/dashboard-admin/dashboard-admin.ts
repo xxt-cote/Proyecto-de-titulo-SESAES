@@ -13,6 +13,7 @@ import { AdminProfesionalesComponent } from './profesionales/admin-profesionales
 import { AdminPerfilComponent } from './perfil/admin-perfil';
 import { AdminHistorialComponent } from './historial/admin-historial';
 import { AdminReportesComponent } from './reportes/admin-reportes';
+import { AdminEstudiantesComponent } from './estudiantes/admin-estudiantes';
 Chart.register(...registerables);
 
 
@@ -21,7 +22,7 @@ const API = environment.apiUrl;
 @Component({
   selector: 'app-dashboard-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePipe, AdminCitasComponent, AdminProfesionalesComponent, AdminPerfilComponent, AdminHistorialComponent, AdminReportesComponent],
+  imports: [CommonModule, FormsModule, DatePipe, AdminCitasComponent, AdminProfesionalesComponent, AdminPerfilComponent, AdminHistorialComponent, AdminReportesComponent, AdminEstudiantesComponent],
   templateUrl: './dashboard-admin.html',
   styleUrl: './dashboard-admin.css',
   encapsulation: ViewEncapsulation.None
@@ -1137,10 +1138,6 @@ private crearGraficos(): void {
     this.cargarEstudiantes();
   }
 
-  getPaginasEstudiantes(): number[] {
-    const total = Math.ceil(this.estudiantesTotal / this.estudiantesPorPagina);
-    return Array.from({ length: total }, (_, i) => i + 1);
-  }
 
   irAPaginaEstudiantes(pagina: number): void {
     this.estudiantesPagina = pagina;
