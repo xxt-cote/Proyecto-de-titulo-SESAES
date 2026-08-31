@@ -1,12 +1,10 @@
-import { Component, OnInit, AfterViewInit, OnDestroy, ViewChild, ElementRef, ViewEncapsulation, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ViewChild, ViewEncapsulation, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
-import { Chart, registerables } from 'chart.js';
 import { environment } from '../config';
 import { obtenerFeriado } from '../shared/feriados-chile';
-import { obtenerDiasInternacionales } from '../shared/dias-internacionales';
 import { ToastService } from '../shared/toast/toast.service';
 import { AdminCitasComponent } from './citas/admin-citas';
 import { AdminProfesionalesComponent } from './profesionales/admin-profesionales';
@@ -14,7 +12,7 @@ import { AdminPerfilComponent } from './perfil/admin-perfil';
 import { AdminHistorialComponent } from './historial/admin-historial';
 import { AdminReportesComponent } from './reportes/admin-reportes';
 import { AdminEstudiantesComponent } from './estudiantes/admin-estudiantes';
-Chart.register(...registerables);
+import { AdminInicioComponent } from './inicio/admin-inicio';
 
 
 const API = environment.apiUrl;
@@ -22,12 +20,12 @@ const API = environment.apiUrl;
 @Component({
   selector: 'app-dashboard-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePipe, AdminCitasComponent, AdminProfesionalesComponent, AdminPerfilComponent, AdminHistorialComponent, AdminReportesComponent, AdminEstudiantesComponent],
+  imports: [CommonModule, FormsModule, DatePipe, AdminCitasComponent, AdminProfesionalesComponent, AdminPerfilComponent, AdminHistorialComponent, AdminReportesComponent, AdminEstudiantesComponent, AdminInicioComponent],
   templateUrl: './dashboard-admin.html',
   styleUrl: './dashboard-admin.css',
   encapsulation: ViewEncapsulation.None
 })
-export class DashboardAdminComponent implements OnInit, AfterViewInit, OnDestroy {
+export class DashboardAdminComponent implements OnInit {
 // Referencia al hijo para cerrar sus modales tras una operación CRUD exitosa
 // (el estado de los modales vive en el hijo; el shell sigue ejecutando el HTTP).
 @ViewChild(AdminProfesionalesComponent) adminProfesionalesRef?: AdminProfesionalesComponent;
@@ -94,7 +92,6 @@ toggleSidebarMovil(): void {
     if (temaGuardado === 'true') this.temaOscuro = true;
     this.cargarDatos();
     this.generarSemanaActual();
-    this.generarCalendarioInicio();
   }
 
   cargarDatos(): void {
@@ -130,9 +127,6 @@ toggleSidebarMovil(): void {
     this.cargarHistorial();
   }
   if (seccion === 'miperfil') { this.cargarConfiguracionCentro(); }
-  if (seccion === 'inicio') {
-    setTimeout(() => this.crearGraficos(), 0);
-  }
 }
 
   // ══════════════════════════════════════
@@ -336,12 +330,6 @@ toggleSidebarMovil(): void {
     });
   }
 
-  getIconoEstadoProf(estado: string): string {
-    if (estado === 'activo') return '✅';
-    if (estado === 'licencia') return '🔴';
-    if (estado === 'inasistencia') return '⚠️';
-    return '⚪';
-  }
 
   // ══════════════════════════════════════
   // ACTIVIDAD RECIENTE
@@ -432,89 +420,28 @@ toggleSidebarMovil(): void {
 
   // ══════════════════════════════════════
   // GRÁFICOS
+  // El shell conserva datos/HTTP/exportación porque graficoEspecialidad
+  // también alimenta Reportes. La renderización Chart.js vive en Inicio.
   // ══════════════════════════════════════
 
-  @ViewChild('chartEspecialidad') chartEspecialidadRef!: ElementRef<HTMLCanvasElement>;
-  @ViewChild('chartSemana') chartSemanaRef!: ElementRef<HTMLCanvasElement>;
-  private chartEspecialidad?: Chart;
-  private chartSemana?: Chart;
-
-  readonly coloresGrafico = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#8b5cf6', '#64748b'];
-
   graficoEspecialidad: any[] = [];
-  graficoSemana:       any[] = [];
-  filtroGraficoMes          = '';
-  filtroGraficoAnio         = new Date().getFullYear();
-  filtroGraficoCarrera      = '';
-
-  readonly meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
-                    'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-
-  get aniosDisponiblesGrafico(): number[] {
-    const actual = new Date().getFullYear();
-    const anios: number[] = [];
-    for (let a = actual + 1; a >= actual - 3; a--) anios.push(a);
-    return anios;
-  }
-
-  ngAfterViewInit(): void {
-    this.crearGraficos();
-  }
-
-  ngOnDestroy(): void {
-    this.chartEspecialidad?.destroy();
-    this.chartSemana?.destroy();
-  }
-
-private crearGraficos(): void {
-    this.chartEspecialidad?.destroy();
-    this.chartSemana?.destroy();
-
-    if (this.chartEspecialidadRef) {
-      this.chartEspecialidad = new Chart(this.chartEspecialidadRef.nativeElement, {
-        type: 'doughnut',
-        data: { labels: [], datasets: [{ data: [], backgroundColor: this.coloresGrafico, borderWidth: 2 }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-      });
-    }
-    if (this.chartSemanaRef) {
-      this.chartSemana = new Chart(this.chartSemanaRef.nativeElement, {
-        type: 'line',
-        data: { labels: [], datasets: [{ data: [], borderColor: '#2a78d6', backgroundColor: 'rgba(42,120,214,0.1)', fill: true, tension: 0.3, pointRadius: 3 }] },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
-        }
-      });
-    }
-
-    this.actualizarGraficoEspecialidad();
-    this.actualizarGraficoSemana();
-}
-
-  private actualizarGraficoEspecialidad(): void {
-    if (!this.chartEspecialidad) return;
-    this.chartEspecialidad.data.labels = this.graficoEspecialidad.map(d => d.especialidad);
-    this.chartEspecialidad.data.datasets[0].data = this.graficoEspecialidad.map(d => d.cantidad);
-    this.chartEspecialidad.update();
-  }
-
-  private actualizarGraficoSemana(): void {
-    if (!this.chartSemana) return;
-    this.chartSemana.data.labels = this.graficoSemana.map(d => d.dia);
-    this.chartSemana.data.datasets[0].data = this.graficoSemana.map(d => d.cantidad);
-    this.chartSemana.update();
-  }
+  graficoSemana: any[] = [];
+  filtroGraficoMes = '';
+  filtroGraficoAnio = new Date().getFullYear();
+  filtroGraficoCarrera = '';
 
   cargarGraficoEspecialidad(): void {
     let url = `${API}/admin/graficos/especialidad?anio=${this.filtroGraficoAnio}`;
-    if (this.filtroGraficoMes)     url += `&mes=${this.filtroGraficoMes}`;
-    if (this.filtroGraficoCarrera) url += `&carrera=${encodeURIComponent(this.filtroGraficoCarrera)}`;
+    if (this.filtroGraficoMes) {
+      url += `&mes=${this.filtroGraficoMes}`;
+    }
+    if (this.filtroGraficoCarrera) {
+      url += `&carrera=${encodeURIComponent(this.filtroGraficoCarrera)}`;
+    }
+
     this.http.get<any[]>(url).subscribe({
       next: (data) => {
         this.graficoEspecialidad = data ?? [];
-        this.actualizarGraficoEspecialidad();
         this.cdr.detectChanges();
       },
       error: () => {}
@@ -525,7 +452,6 @@ private crearGraficos(): void {
     this.http.get<any[]>(`${API}/admin/graficos/semana`).subscribe({
       next: (data) => {
         this.graficoSemana = data ?? [];
-        this.actualizarGraficoSemana();
         this.cdr.detectChanges();
       },
       error: () => {}
@@ -533,17 +459,26 @@ private crearGraficos(): void {
   }
 
   exportarEspecialidadExcel(): void {
-    this.exportarComoExcel(this.graficoEspecialidad.map(d => ({
-      Especialidad: d.especialidad, Cantidad: d.cantidad, Porcentaje: d.porcentaje + '%'
-    })), 'citas_por_especialidad');
+    this.exportarComoExcel(
+      this.graficoEspecialidad.map(d => ({
+        Especialidad: d.especialidad,
+        Cantidad: d.cantidad,
+        Porcentaje: d.porcentaje + '%'
+      })),
+      'citas_por_especialidad'
+    );
   }
 
   exportarSemanaExcel(): void {
-    this.exportarComoExcel(this.graficoSemana.map(d => ({
-      Día: d.dia, Fecha: d.fecha, Cantidad: d.cantidad
-    })), 'citas_por_semana');
+    this.exportarComoExcel(
+      this.graficoSemana.map(d => ({
+        Día: d.dia,
+        Fecha: d.fecha,
+        Cantidad: d.cantidad
+      })),
+      'citas_por_semana'
+    );
   }
-
   // ══════════════════════════════════════
   // EXPORTACIÓN CGR
   // ══════════════════════════════════════
@@ -640,60 +575,6 @@ private crearGraficos(): void {
       },
       error: () => { this.citasHorario = []; }
     });
-  }
-
-  // ══════════════════════════════════════
-  // CALENDARIO DE INICIO (solo visual — mes completo, sin seleccion de dia)
-  // ══════════════════════════════════════
-
-  calMesVisible  = new Date().getMonth();
-  calAnioVisible = new Date().getFullYear();
-  calDiasMes: any[] = [];
-
-  get calNombreMesVisible(): string {
-    return `${this.meses[this.calMesVisible]} ${this.calAnioVisible}`;
-  }
-
-  generarCalendarioInicio(): void {
-    const primerDia = new Date(this.calAnioVisible, this.calMesVisible, 1);
-    const ultimoDia = new Date(this.calAnioVisible, this.calMesVisible + 1, 0);
-    const hoy       = this.toDateStr(new Date());
-    const offset    = (primerDia.getDay() + 6) % 7;
-    const celdas: any[] = [];
-    for (let i = 0; i < offset; i++) celdas.push(null);
-    for (let dia = 1; dia <= ultimoDia.getDate(); dia++) {
-      const fechaStr = `${this.calAnioVisible}-${String(this.calMesVisible+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
-      celdas.push({ num: dia, fecha: fechaStr, esHoy: fechaStr === hoy });
-    }
-    this.calDiasMes = celdas;
-  }
-
-  calMesAnterior(): void {
-    this.calMesVisible--;
-    if (this.calMesVisible < 0) { this.calMesVisible = 11; this.calAnioVisible--; }
-    this.generarCalendarioInicio();
-  }
-
-  calMesSiguiente(): void {
-    this.calMesVisible++;
-    if (this.calMesVisible > 11) { this.calMesVisible = 0; this.calAnioVisible++; }
-    this.generarCalendarioInicio();
-  }
-
-  // Info del día al hacer clic en el mini-calendario (feriado chileno +
-  // días internacionales ONU) — puramente informativo, no bloquea nada.
-  diaSeleccionadoInfo: string | null = null;
-  seleccionarDiaInfo(dia: any): void {
-    if (!dia) return;
-    this.diaSeleccionadoInfo = this.diaSeleccionadoInfo === dia.fecha ? null : dia.fecha;
-  }
-  infoDelDia(fecha: string | undefined): string[] {
-    if (!fecha) return [];
-    const info: string[] = [];
-    const feriado = obtenerFeriado(fecha);
-    if (feriado) info.push(`🇨🇱 Feriado: ${feriado.nombre}`);
-    for (const d of obtenerDiasInternacionales(fecha)) info.push(`🌍 ${d.nombre}`);
-    return info;
   }
 
   generarSemanaActual(): void {
