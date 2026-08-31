@@ -1394,6 +1394,7 @@ toggleSidebarMovil(): void {
   }
 
   guardarInfoCentro(): void {
+    if (!this.puedeConfigGeneral) return;
     if (!this.centroModificado) return;
     this.guardandoConfig = true;
     this.http.patch(`${API}/configuracion-centro`, {

@@ -176,7 +176,7 @@
 
             <button
               class="btn-tabla descargar"
-              *ngIf="h.tiene_pdf"
+              *ngIf="puedeDescargarPdf && h.tiene_pdf"
               (click)="descargarPdf.emit(h.id)"
               title="Descargar PDF"
             >

@@ -779,7 +779,27 @@ get subtituloSeccionEst(): string {
     }
   }
 
-  descargarPdf(citaId: number): void { window.open(`${API}/citas/${citaId}/pdf`, '_blank'); }
+  descargarPdf(citaId: number): void {
+    this.http.get(`${API}/citas/${citaId}/pdf`, {
+      responseType: 'blob'
+    }).subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        const enlace = document.createElement('a');
+
+        enlace.href = url;
+        enlace.target = '_blank';
+        enlace.rel = 'noopener';
+        enlace.click();
+
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      },
+      error: () => {
+        this.mensajeError = 'No se pudo descargar el documento.';
+        setTimeout(() => this.mensajeError = '', 3000);
+      }
+    });
+  }
 
   // ══════════════════════════════════════
   // HISTORIAL

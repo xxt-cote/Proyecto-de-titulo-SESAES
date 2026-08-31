@@ -48,6 +48,7 @@ export class AdminHistorialComponent implements OnChanges {
   @Output() cgrFechaFinChange = new EventEmitter<string>();
 
   @Input() puedeExportarCgr = false;
+  @Input() puedeDescargarPdf = true;
 
   @Output() aplicarFiltros = new EventEmitter<void>();
   @Output() limpiarFiltros = new EventEmitter<void>();
