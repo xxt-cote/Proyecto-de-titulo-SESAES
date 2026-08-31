@@ -8,9 +8,9 @@ import { environment } from '../config';
 import { obtenerFeriado } from '../shared/feriados-chile';
 import { obtenerDiasInternacionales } from '../shared/dias-internacionales';
 import { ToastService } from '../shared/toast/toast.service';
-import { AdminCitasComponent } from './admin-citas/admin-citas';
-import { AdminProfesionalesComponent } from './admin-profesionales/admin-profesionales';
-import { AdminPerfilComponent } from './admin-perfil/admin-perfil';
+import { AdminCitasComponent } from './citas/admin-citas';
+import { AdminProfesionalesComponent } from './profesionales/admin-profesionales';
+import { AdminPerfilComponent } from './perfil/admin-perfil';
 Chart.register(...registerables);
 
 
