@@ -11,12 +11,13 @@ import { PhotoViewerComponent } from '../shared/photo-viewer/photo-viewer';
 import { obtenerFeriado } from '../shared/feriados-chile';
 import { obtenerDiasInternacionales } from '../shared/dias-internacionales';
 import { ToastService } from '../shared/toast/toast.service';
+import { EstudianteHistorialComponent } from './historial/estudiante-historial';
 const API = environment.apiUrl;
 
 @Component({
   selector: 'app-dashboard-estudiante',
   standalone: true,
-  imports: [CommonModule, FormsModule, PhotoCropperComponent, PhotoViewerComponent],
+  imports: [CommonModule, FormsModule, PhotoCropperComponent, PhotoViewerComponent, EstudianteHistorialComponent],
   templateUrl: './dashboard-estudiante.html',
   styleUrl: './dashboard-estudiante.css',
   encapsulation: ViewEncapsulation.None
@@ -33,9 +34,6 @@ export class DashboardEstudianteComponent implements OnInit {
   filtroArea     = '';
   horaSeleccionada   = '';
   observaciones      = '';
-  filtroProfesional  = '';
-  filtroEspecialidad = '';
-  filtroFecha        = '';
   profesionalSeleccionado: any = null;
   cargando       = false;
 
@@ -841,24 +839,6 @@ get subtituloSeccionEst(): string {
 
   historialResumen() {
     return this.historialCompleto.slice(0, 3);
-  }
-
-  historialFiltrado() {
-    this.historialMostrado = this.historialCompleto.filter(h => {
-      const matchProf  = !this.filtroProfesional  || (h.profesional ?? '').toLowerCase().includes(this.filtroProfesional.toLowerCase());
-      const matchEsp   = !this.filtroEspecialidad || h.especialidad === this.filtroEspecialidad;
-      const matchFecha = !this.filtroFecha         || h.fechaRaw === this.filtroFecha;
-      return matchProf && matchEsp && matchFecha;
-    });
-    this.cdr.detectChanges();
-  }
-
-  limpiarFiltros(): void {
-    this.filtroProfesional = '';
-    this.filtroEspecialidad = '';
-    this.filtroFecha = '';
-    this.historialMostrado = this.historialCompleto;
-    this.cdr.detectChanges();
   }
 
   get totalCitas()       { return this.historialCompleto.length; }
