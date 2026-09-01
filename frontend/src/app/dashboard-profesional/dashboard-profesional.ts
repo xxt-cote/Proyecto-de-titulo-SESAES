@@ -9,13 +9,14 @@ import { PhotoViewerComponent } from '../shared/photo-viewer/photo-viewer';
 import { obtenerFeriado } from '../shared/feriados-chile';
 import { obtenerDiasInternacionales } from '../shared/dias-internacionales';
 import { ToastService } from '../shared/toast/toast.service';
+import { ProfessionalAyudaComponent } from './ayuda/professional-ayuda';
 
 const API = environment.apiUrl;
 
 @Component({
   selector: 'app-dashboard-profesional',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePipe, PhotoCropperComponent, PhotoViewerComponent],
+  imports: [CommonModule, FormsModule, DatePipe, PhotoCropperComponent, PhotoViewerComponent, ProfessionalAyudaComponent],
   templateUrl: './dashboard-profesional.html',
   styleUrl: './dashboard-profesional.css',
   encapsulation: ViewEncapsulation.None
@@ -1229,7 +1230,6 @@ eliminarSolicitudesSeleccionadas(): void {
   fichaTab: 'timeline' | 'resumen' | 'ficha' | 'citas' = 'timeline';
 
   gestionarPlantillaAbierto = false;
-  ayudaBannerCerrado = false;
   plantillaPreguntasEdit: any[] = [];
   guardandoPlantilla = false;
 
