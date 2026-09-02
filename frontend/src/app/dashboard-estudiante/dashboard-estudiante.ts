@@ -12,12 +12,13 @@ import { obtenerFeriado } from '../shared/feriados-chile';
 import { obtenerDiasInternacionales } from '../shared/dias-internacionales';
 import { ToastService } from '../shared/toast/toast.service';
 import { EstudianteHistorialComponent } from './historial/estudiante-historial';
+import { EstudianteCitasProximasComponent } from './citas-proximas/estudiante-citas-proximas';
 const API = environment.apiUrl;
 
 @Component({
   selector: 'app-dashboard-estudiante',
   standalone: true,
-  imports: [CommonModule, FormsModule, PhotoCropperComponent, PhotoViewerComponent, EstudianteHistorialComponent],
+  imports: [CommonModule, FormsModule, PhotoCropperComponent, PhotoViewerComponent, EstudianteHistorialComponent, EstudianteCitasProximasComponent],
   templateUrl: './dashboard-estudiante.html',
   styleUrl: './dashboard-estudiante.css',
   encapsulation: ViewEncapsulation.None
@@ -667,41 +668,11 @@ get subtituloSeccionEst(): string {
 
   proximasCitas: any[] = [];
 
-  private diffHorasParaCancelar(cita: any): number | null {
-    if (!cita.fecha_raw || !cita.hora) return null;
-    const horaMatch = cita.hora.match(/(\d{1,2}):(\d{2})/);
-    if (!horaMatch) return null;
-    const fechaHora = new Date(`${cita.fecha_raw}T${horaMatch[1].padStart(2,'0')}:${horaMatch[2]}:00`);
-    return (fechaHora.getTime() - Date.now()) / (1000 * 60 * 60);
-  }
-
-  puedeCancelar(cita: any): boolean {
-    const diff = this.diffHorasParaCancelar(cita);
-    if (diff === null) return true;
-    // Igual que el backend: la restricción de "mínimo 5 horas antes" solo
-    // aplica si la cita todavía está por venir. Si ya pasó (diff negativo)
-    // y sigue "pendiente" porque el profesional no la cerró, el estudiante
-    // debe poder cancelarla o reagendar sin quedar atrapado.
-    return diff < 0 || diff > 5;
-  }
-
-  // true si la cita ya pasó su fecha/hora pero el profesional todavía no
-  // la marcó como completada/inasistencia/cancelada — para mostrar un
-  // aviso claro en vez de dejarla ahí como si nada, dando a entender que
-  // "no asistió" cuando en realidad solo falta que el profesional la cierre.
-  citaPendienteVencida(cita: any): boolean {
-    const diff = this.diffHorasParaCancelar(cita);
-    return diff !== null && diff <= 0;
-  }
-
-  avisoCancelacion(cita: any): string {
-    const diff = this.diffHorasParaCancelar(cita);
-    if (diff === null || diff <= 0) return '';
-    const horas = Math.floor(diff); const minutos = Math.round((diff - horas) * 60);
-    if (horas === 0) return `Faltan ${minutos} min, no se puede cancelar`;
-    if (minutos === 0) return `Faltan ${horas}h, no se puede cancelar`;
-    return `Faltan ${horas}h ${minutos}min, no se puede cancelar`;
-  }
+  // NOTA (Fase 5B): puedeCancelar / citaPendienteVencida / avisoCancelacion /
+  // diffHorasParaCancelar se relocalizaron a EstudianteCitasProximasComponent
+  // (frontend/src/app/dashboard-estudiante/citas-proximas/). Son lógica
+  // puramente visual, sin HTTP, exclusiva de la pestaña "Próximas" — el shell
+  // sigue siendo dueño de proximasCitas y de todo lo que implica HTTP/modal.
 
   // ══════════════════════════════════════
   // MODAL: CANCELAR CITA (con opción de reagendar)
