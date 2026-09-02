@@ -438,16 +438,6 @@ eliminarSeleccionadas(): void {
     this.filtroEstadoHistorial = 'por_revisar';
   }
 
-  // Botón "+ Nueva atención": intenta completar la próxima cita pendiente que ya
-  // corresponde atender; si no hay ninguna disponible, lleva a Solicitudes.
-  accionNuevaAtencion(): void {
-    const pendienteHoy = this.citasHoy.find(c => c.estado === 'pendiente' && this.puedeGestionarCita(c));
-    if (pendienteHoy) { this.abrirModalCompletar(pendienteHoy); return; }
-    const pendienteGeneral = this.citasPendientes.find(c => this.puedeGestionarCita(c));
-    if (pendienteGeneral) { this.abrirModalCompletar(pendienteGeneral); return; }
-    this.navegarA('solicitudes');
-  }
-
   // ══ Donut chart de composición del día (reemplaza al "pulso del día") ══
   // Tres getters puros que devuelven los ángulos de corte del conic-gradient,
   // calculados a partir de estadisticasDia. El color de cada tramo se define

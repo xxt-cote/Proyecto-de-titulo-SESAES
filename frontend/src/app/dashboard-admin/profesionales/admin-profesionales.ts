@@ -1,6 +1,7 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { normalizarTexto } from '../../shared/text-normalization';
 
 /**
  * Fase 3.4C — extracción de la sección "Gestión de Profesionales" del
@@ -46,9 +47,9 @@ export class AdminProfesionalesComponent {
   pagProf = 1;
 
   get profesionalesFiltradosBusqueda(): any[] {
-    const q = this.busquedaProfesional.toLowerCase();
+    const q = normalizarTexto(this.busquedaProfesional);
     return !q ? this.profesionales : this.profesionales.filter(p =>
-      p.nombre.toLowerCase().includes(q) || p.especialidad.toLowerCase().includes(q)
+      normalizarTexto(p.nombre).includes(q) || normalizarTexto(p.especialidad).includes(q)
     );
   }
 

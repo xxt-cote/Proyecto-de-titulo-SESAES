@@ -151,10 +151,11 @@
       <tr *ngFor="let h of historialPaginado">
         <td>
           <div class="tabla-usuario">
-            <div class="mini-avatar">{{ h.iniciales }}</div>
+            <div class="mini-avatar">{{ inicialesEstudiante(h.estudiante) }}</div>
             <div>
               <strong>{{ h.estudiante }}</strong>
               <span>{{ h.rut }}</span>
+              <span *ngIf="h.carrera">{{ h.carrera }}</span>
             </div>
           </div>
         </td>

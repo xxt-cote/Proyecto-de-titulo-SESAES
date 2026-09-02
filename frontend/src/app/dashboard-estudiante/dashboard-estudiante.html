@@ -232,7 +232,6 @@
           <div class="quick-col">
             <button class="quick-btn quick-btn-primary" (click)="navegarA('citas','solicitar')">➕ Solicitar cita</button>
             <button class="quick-btn" (click)="navegarA('citas','proximas')">📅 Mis citas</button>
-            <button class="quick-btn" (click)="navegarA('citas','solicitar')">🏥 Servicios</button>
             <button class="quick-btn" (click)="navegarA('documentos')">📄 Documentos</button>
             <button class="quick-btn" (click)="navegarA('ayuda')">❓ Ayuda</button>
           </div>
@@ -624,34 +623,12 @@
           <p class="dato-inst"><span>Estado</span><strong>Alumno Regular</strong></p>
         </div>
 
-        <!-- Preferencias -->
-        <div class="config-card">
-          <h3 class="config-card-title">🔔 Preferencias</h3>
-          <div class="setting-row">
-            <span>Modo oscuro</span>
-            <button class="toggle-switch" [class.on]="temaOscuro" (click)="toggleTemaRapido()" [attr.aria-pressed]="temaOscuro"></button>
-          </div>
-          <div class="setting-row">
-            <span>Recordatorios de citas</span>
-            <button class="toggle-switch on" disabled title="Próximamente configurable"></button>
-          </div>
-          <div class="setting-row">
-            <span>Notificaciones por correo</span>
-            <button class="toggle-switch on" disabled title="Próximamente configurable"></button>
-          </div>
-          <p style="font-size:11px;color:#94a3b8;margin-top:10px;">Modo oscuro ya se guarda en tu cuenta. Los recordatorios y correos son fijos por ahora — pronto podrás desactivarlos.</p>
-        </div>
-
         <!-- Seguridad -->
         <div class="config-card">
           <h3 class="config-card-title">🔒 Seguridad</h3>
           <div class="setting-row">
             <span>Contraseña</span>
             <button class="btn-cambiar" (click)="mostrarProximamente('Próximamente podrás cambiar tu contraseña desde aquí.')">Cambiar</button>
-          </div>
-          <div class="setting-row">
-            <span>Sesiones activas</span>
-            <button class="btn-cambiar" (click)="mostrarProximamente('Próximamente podrás ver y cerrar tus sesiones activas en otros dispositivos.')">Ver</button>
           </div>
         </div>
 

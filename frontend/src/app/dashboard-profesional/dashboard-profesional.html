@@ -197,7 +197,7 @@
           </div>
           <div class="inicio-hero-acciones-prof">
             <button class="btn-hero-secundario-prof" (click)="navegarA('horario')">Ver agenda</button>
-            <button class="btn-hero-primario-prof" (click)="accionNuevaAtencion()">+ Nueva atención</button>
+            <button class="btn-hero-primario-prof" (click)="navegarA('historial-clinico')">Buscar paciente</button>
           </div>
         </div>
 
@@ -245,7 +245,6 @@
               <span class="agenda-vacia-icono-prof">📅</span>
               <p>No tienes citas programadas para hoy</p>
               <div class="agenda-vacia-acciones-prof">
-                <button class="btn-hero-primario-prof" (click)="accionNuevaAtencion()">+ Nueva atención</button>
                 <button class="btn-hero-secundario-prof" (click)="navegarA('horario')">Ver agenda completa</button>
                 <button class="btn-hero-secundario-prof" (click)="navegarA('horario'); horarioTab='configuracion'">Ver mi horario</button>
               </div>
@@ -364,9 +363,6 @@
             <h3 class="card-title-prof">⚡ Acciones rápidas</h3>
           </div>
           <div class="acciones-rapidas-grid-prof">
-            <button (click)="accionNuevaAtencion()">✚ Nueva atención</button>
-            <button (click)="navegarA('historial-clinico')">🔍 Buscar paciente</button>
-            <button (click)="navegarA('horario')">📅 Ver agenda</button>
             <button (click)="navegarA('horario'); horarioTab='configuracion'">🕐 Mi horario</button>
             <button (click)="navegarA('solicitudes')">📥 Solicitudes</button>
           </div>
@@ -816,7 +812,7 @@
             </div>
             <div class="patient-head-acciones-prof">
               <button class="btn-hero-secundario-prof" (click)="fichaTab='ficha'">Ver ficha</button>
-              <button class="btn-hero-primario-prof" (click)="registrarNuevaAtencionDesdeFicha()">+ Nueva atención</button>
+              <button class="btn-hero-primario-prof" (click)="registrarNuevaAtencionDesdeFicha()">Registrar atención</button>
             </div>
           </div>
 
@@ -869,7 +865,7 @@
                 <span class="timeline-vacio-icono-prof">📋</span>
                 <p><strong>Aún no hay atenciones completadas</strong></p>
                 <p>El historial aparecerá aquí después de registrar la primera atención del paciente.</p>
-                <button class="btn-hero-primario-prof" (click)="registrarNuevaAtencionDesdeFicha()">+ Registrar nueva atención</button>
+                <button class="btn-hero-primario-prof" (click)="registrarNuevaAtencionDesdeFicha()">Registrar atención</button>
               </div>
 
               <ng-container *ngFor="let grupo of fichaCitasCompletadasPorAnio">
@@ -918,7 +914,6 @@
               <div class="card-prof side-card-prof">
                 <h3 class="card-title-prof">Acciones rápidas</h3>
                 <div class="acciones-rapidas-prof">
-                  <button (click)="registrarNuevaAtencionDesdeFicha()">✚ Registrar nueva atención</button>
                   <button (click)="fichaTab='citas'">🗓️ Ver todas las citas</button>
                   <button (click)="imprimirHistorial()">⎙ Imprimir historial</button>
                 </div>

@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { normalizarTexto } from '../../shared/text-normalization';
 
 // ══════════════════════════════════════════════════════════════════
 // EstudianteHistorialComponent — Student 5A (extracción presentacional)
@@ -57,7 +58,8 @@ export class EstudianteHistorialComponent implements OnChanges {
 
   historialFiltrado(): void {
     this.historialMostrado = this.historial.filter(h => {
-      const matchProf  = !this.filtroProfesional  || (h.profesional ?? '').toLowerCase().includes(this.filtroProfesional.toLowerCase());
+      const filtroProf = normalizarTexto(this.filtroProfesional);
+      const matchProf  = !filtroProf || normalizarTexto(h.profesional).includes(filtroProf);
       const matchEsp   = !this.filtroEspecialidad || h.especialidad === this.filtroEspecialidad;
       const matchFecha = !this.filtroFecha         || h.fechaRaw === this.filtroFecha;
       return matchProf && matchEsp && matchFecha;

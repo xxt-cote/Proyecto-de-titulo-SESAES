@@ -85,4 +85,10 @@ export class AdminHistorialComponent implements OnChanges {
   minVal(a: number, b: number): number {
     return Math.min(a, b);
   }
+
+  inicialesEstudiante(nombre: unknown): string {
+    const partes = String(nombre ?? '').trim().split(/\s+/).filter(Boolean);
+    if (partes.length >= 2) return `${partes[0][0]}${partes[1][0]}`.toUpperCase();
+    return (partes[0] ?? '').substring(0, 2).toUpperCase();
+  }
 }

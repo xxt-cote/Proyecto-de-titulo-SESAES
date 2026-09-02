@@ -89,7 +89,7 @@ get subtituloSeccionEst(): string {
   const map: Record<string, string> = {
     inicio:        'Gestiona tus atenciones en SESAES.',
     documentos:    'Certificados, indicaciones y documentos compartidos contigo.',
-    configuracion: 'Gestiona tu información personal y preferencias del portal.',
+    configuracion: 'Gestiona tu información personal y seguridad de tu cuenta.',
     ayuda:         'Mapa de SESAES, preguntas frecuentes y contacto.'
   };
   return map[this.seccionActiva] ?? '';

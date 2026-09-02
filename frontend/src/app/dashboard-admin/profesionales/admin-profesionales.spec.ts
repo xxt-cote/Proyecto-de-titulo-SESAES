@@ -76,6 +76,15 @@ const nombres = Array.from(elementosNombre)
 
 expect(nombres).toEqual(['Dra. Soto']);
 });
+
+  it('normaliza espacios, mayúsculas y tildes al buscar profesionales', () => {
+    component.profesionales = profesionalesMock;
+    component.busquedaProfesional = '  ODONTOLOGIA  ';
+
+    expect(component.profesionalesFiltradosBusqueda.length).toBe(1);
+    expect(component.profesionalesFiltradosBusqueda[0].nombre).toBe('Dra. Soto');
+  });
+
   it('emite eliminarProfesional con el profesional seleccionado al confirmar desde el modal', () => {
     component.profesionales = profesionalesMock;
     fixture.detectChanges();

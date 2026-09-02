@@ -75,16 +75,18 @@ describe('EstudianteHistorialComponent', () => {
     expect(component.historialMostrado.length).toBe(2);
   });
 
-  it('filtra por nombre de profesional al presionar "Filtrar"', () => {
-    fixture.componentRef.setInput('historial', crearHistorial(3));
+  it('filtra por profesional ignorando espacios, mayúsculas y tildes', () => {
+    const historial = crearHistorial(3);
+    historial[1].profesional = 'José Pérez';
+    fixture.componentRef.setInput('historial', historial);
     fixture.detectChanges();
 
-    component.filtroProfesional = 'Profesional 2';
+    component.filtroProfesional = '  JOSE PEREZ  ';
     component.historialFiltrado();
     fixture.detectChanges();
 
     expect(component.historialMostrado.length).toBe(1);
-    expect(component.historialMostrado[0].profesional).toBe('Profesional 2');
+    expect(component.historialMostrado[0].profesional).toBe('José Pérez');
   });
 
   it('filtra por especialidad y por fecha exacta (fechaRaw)', () => {

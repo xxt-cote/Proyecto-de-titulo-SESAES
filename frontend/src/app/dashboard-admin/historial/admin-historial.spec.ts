@@ -12,6 +12,7 @@ describe('AdminHistorialComponent', () => {
       iniciales: `E${i + 1}`,
       estudiante: `Estudiante ${i + 1}`,
       rut: `1${i + 1}.111.111-1`,
+      carrera: 'Ingeniería Civil',
       especialidad: 'Medicina General',
       profesional: 'Profesional SESAES',
       fecha: '2026-08-31',
@@ -66,6 +67,24 @@ describe('AdminHistorialComponent', () => {
     const texto = fixture.nativeElement.textContent as string;
     expect(texto).toContain('No hay registros con los filtros aplicados');
     expect(texto).toContain('Mostrando 0–0 de 0 resultados');
+  });
+
+  it('muestra la carrera y calcula las iniciales desde el nombre del estudiante', () => {
+    const historial = [{
+      ...crearHistorial(1)[0],
+      estudiante: 'Carlos Muñoz',
+      iniciales: 'VR',
+      carrera: 'Ingeniería en Informática'
+    }];
+
+    fixture.componentRef.setInput('historialAdmin', historial);
+    fixture.detectChanges();
+
+    const avatar = fixture.nativeElement.querySelector('.mini-avatar') as HTMLElement;
+    const texto = fixture.nativeElement.textContent as string;
+
+    expect(avatar.textContent?.trim()).toBe('CM');
+    expect(texto).toContain('Ingeniería en Informática');
   });
 
   it('debe emitir aplicarFiltros al presionar el botón correspondiente', () => {
