@@ -628,7 +628,7 @@
           <h3 class="config-card-title">🔒 Seguridad</h3>
           <div class="setting-row">
             <span>Contraseña</span>
-            <button class="btn-cambiar" (click)="mostrarProximamente('Próximamente podrás cambiar tu contraseña desde aquí.')">Cambiar</button>
+            <button class="btn-cambiar" (click)="abrirModalCambiarPassword()">Cambiar</button>
           </div>
         </div>
 
@@ -773,6 +773,136 @@
       [imagenSrc]="fotoPerfilUrl"
       (cerrar)="verFotoAmpliada = false">
     </app-photo-viewer>
+
+    <!-- ══ MODAL: CAMBIAR CONTRASEÑA ══ -->
+    <div class="modal-overlay-est" *ngIf="modalCambiarPasswordAbierto" (click)="cerrarModalCambiarPassword()">
+      <div class="modal-est" (click)="$event.stopPropagation()">
+        <div class="modal-header-est">
+          <h3>🔒 Cambiar contraseña</h3>
+          <button class="modal-cerrar-est" [disabled]="guardandoCambioPassword" (click)="cerrarModalCambiarPassword()">✕</button>
+        </div>
+        <div class="cuestionario-form-est">
+          <div class="cuestionario-campo-est">
+            <label>Contraseña actual</label>
+            <div class="password-control-est">
+              <input [type]="mostrarPasswordActual ? 'text' : 'password'"
+                     autocomplete="current-password"
+                     [(ngModel)]="passwordActual"
+                     placeholder="Ingresa tu contraseña actual">
+              <button type="button"
+                      class="btn-ojo-password-est"
+                      (click)="mostrarPasswordActual = !mostrarPasswordActual"
+                      [attr.aria-label]="mostrarPasswordActual ? 'Ocultar contraseña actual' : 'Mostrar contraseña actual'"
+                      [title]="mostrarPasswordActual ? 'Ocultar contraseña' : 'Mostrar contraseña'">
+                <svg [lucideIcon]="mostrarPasswordActual ? iconEyeOff : iconEye" aria-hidden="true"></svg>
+              </button>
+            </div>
+          </div>
+          <div class="cuestionario-campo-est">
+            <label>Nueva contraseña</label>
+            <div class="password-control-est">
+              <input [type]="mostrarPasswordNueva ? 'text' : 'password'"
+                     autocomplete="new-password"
+                     [(ngModel)]="passwordNueva"
+                     placeholder="Crea una contraseña segura">
+              <button type="button"
+                      class="btn-ojo-password-est"
+                      (click)="mostrarPasswordNueva = !mostrarPasswordNueva"
+                      [attr.aria-label]="mostrarPasswordNueva ? 'Ocultar nueva contraseña' : 'Mostrar nueva contraseña'"
+                      [title]="mostrarPasswordNueva ? 'Ocultar contraseña' : 'Mostrar contraseña'">
+                <svg [lucideIcon]="mostrarPasswordNueva ? iconEyeOff : iconEye" aria-hidden="true"></svg>
+              </button>
+            </div>
+            <div class="password-reglas-est" aria-live="polite">
+              <span class="regla-password-est" [class.cumple]="passwordMinimo8">
+                {{ passwordMinimo8 ? '✓' : '○' }} Mínimo 8 caracteres
+              </span>
+              <span class="regla-password-est" [class.cumple]="passwordTieneMayuscula">
+                {{ passwordTieneMayuscula ? '✓' : '○' }} Una letra mayúscula
+              </span>
+              <span class="regla-password-est" [class.cumple]="passwordTieneMinuscula">
+                {{ passwordTieneMinuscula ? '✓' : '○' }} Una letra minúscula
+              </span>
+              <span class="regla-password-est" [class.cumple]="passwordTieneNumero">
+                {{ passwordTieneNumero ? '✓' : '○' }} Un número
+              </span>
+              <span class="regla-password-est" [class.cumple]="passwordTieneEspecial">
+                {{ passwordTieneEspecial ? '✓' : '○' }} Un carácter especial
+              </span>
+              <span class="regla-password-est" [class.cumple]="passwordSinEspacios">
+                {{ passwordSinEspacios ? '✓' : '○' }} Sin espacios
+              </span>
+            </div>
+          </div>
+          <div class="cuestionario-campo-est">
+            <label>Confirmar nueva contraseña</label>
+            <div class="password-control-est">
+              <input [type]="mostrarPasswordConfirmacion ? 'text' : 'password'"
+                     autocomplete="new-password"
+                     [(ngModel)]="passwordConfirmacion"
+                     placeholder="Repite la nueva contraseña">
+              <button type="button"
+                      class="btn-ojo-password-est"
+                      (click)="mostrarPasswordConfirmacion = !mostrarPasswordConfirmacion"
+                      [attr.aria-label]="mostrarPasswordConfirmacion ? 'Ocultar confirmación' : 'Mostrar confirmación'"
+                      [title]="mostrarPasswordConfirmacion ? 'Ocultar contraseña' : 'Mostrar contraseña'">
+                <svg [lucideIcon]="mostrarPasswordConfirmacion ? iconEyeOff : iconEye" aria-hidden="true"></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+        <p class="cuestionario-error-est" *ngIf="errorCambioPassword">{{ errorCambioPassword }}</p>
+        <div class="modal-footer-est">
+          <button class="btn-cerrar-modal-est"
+                  [disabled]="guardandoCambioPassword"
+                  (click)="cerrarModalCambiarPassword()">Cancelar</button>
+          <button class="btn-descargar-modal-est"
+                  [disabled]="guardandoCambioPassword"
+                  (click)="guardarCambioPassword()">
+            {{ guardandoCambioPassword ? 'Guardando...' : 'Cambiar contraseña' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ CONFIRMACIÓN: CAMBIO DE CONTRASEÑA ══ -->
+    <div class="modal-overlay-est modal-confirmacion-password-overlay-est"
+         *ngIf="modalConfirmarCambioPasswordAbierto"
+         (click)="cancelarConfirmacionCambioPassword()">
+      <div class="modal-est modal-confirmacion-password-est"
+           role="dialog"
+           aria-modal="true"
+           aria-labelledby="titulo-confirmar-password"
+           (click)="$event.stopPropagation()">
+        <div class="modal-header-est">
+          <h3 id="titulo-confirmar-password">Confirmar cambio de contraseña</h3>
+          <button class="modal-cerrar-est"
+                  [disabled]="guardandoCambioPassword"
+                  (click)="cancelarConfirmacionCambioPassword()">✕</button>
+        </div>
+
+        <p class="confirmacion-password-texto-est">
+          ¿Seguro que quieres cambiar tu contraseña?
+        </p>
+        <p class="confirmacion-password-ayuda-est">
+          Al continuar, deberás usar la nueva contraseña la próxima vez que inicies sesión.
+          SESAES enviará un aviso de seguridad a tu correo institucional.
+        </p>
+
+        <div class="modal-footer-est">
+          <button class="btn-cerrar-modal-est"
+                  [disabled]="guardandoCambioPassword"
+                  (click)="cancelarConfirmacionCambioPassword()">
+            Cancelar
+          </button>
+          <button class="btn-descargar-modal-est"
+                  [disabled]="guardandoCambioPassword"
+                  (click)="confirmarCambioPassword()">
+            {{ guardandoCambioPassword ? 'Cambiando...' : 'Sí, cambiar contraseña' }}
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- ══ MODAL BLOQUEANTE: PRIMER ACCESO (contraseña temporal) ══ -->
     <div class="modal-overlay-est modal-overlay-bloqueante-est" *ngIf="modalPrimerAccesoAbierto">

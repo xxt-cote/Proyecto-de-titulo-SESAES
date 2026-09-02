@@ -6,7 +6,8 @@ from typing import Optional
 from app.database import get_db
 from app.models.usuario import Usuario
 from app.schemas import EstudianteOut, EstudianteUpdate
-from app.security import hash_password
+from app.security import hash_password, verify_password
+from app.routers.correos import simular_envio_correo
 from app.auth_dependencies import get_current_user, verificar_acceso
 
 router = APIRouter(prefix="/estudiante", tags=["Estudiante"])
@@ -26,6 +27,11 @@ router = APIRouter(prefix="/estudiante", tags=["Estudiante"])
 
 class PrimerAccesoIn(BaseModel):
     nueva_password: Optional[str] = None   # None o vacío = "mantener la actual"
+
+
+class CambiarPasswordIn(BaseModel):
+    contrasena_actual: str
+    contrasena_nueva: str
 
 
 @router.get("/{estudiante_id}", response_model=EstudianteOut)
@@ -75,6 +81,83 @@ def actualizar_estudiante(
     return usuario
 
 
+@router.patch("/{estudiante_id}/cambiar-password")
+def cambiar_password_estudiante(
+    estudiante_id: int,
+    datos: CambiarPasswordIn,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    verificar_acceso(
+        current_user,
+        id_esperado=estudiante_id,
+        roles_permitidos=["estudiante"],
+    )
+
+    usuario = db.query(Usuario).filter(
+        Usuario.id == estudiante_id,
+        Usuario.rol == "estudiante"
+    ).first()
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Estudiante no encontrado")
+
+    if not datos.contrasena_actual or not datos.contrasena_nueva:
+        raise HTTPException(
+            status_code=400,
+            detail="Debes ingresar la contraseña actual y la nueva."
+        )
+    nueva = datos.contrasena_nueva
+    password_valida = (
+        len(nueva) >= 8
+        and any(c.isupper() for c in nueva)
+        and any(c.islower() for c in nueva)
+        and any(c.isdigit() for c in nueva)
+        and any((not c.isalnum()) and (not c.isspace()) for c in nueva)
+        and not any(c.isspace() for c in nueva)
+    )
+    if not password_valida:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "La nueva contraseña debe tener al menos 8 caracteres, "
+                "una mayúscula, una minúscula, un número y un carácter especial, "
+                "sin espacios."
+            )
+        )
+    if not verify_password(datos.contrasena_actual, usuario.password):
+        raise HTTPException(
+            status_code=400,
+            detail="La contraseña actual es incorrecta."
+        )
+    if verify_password(datos.contrasena_nueva, usuario.password):
+        raise HTTPException(
+            status_code=400,
+            detail="La nueva contraseña debe ser diferente a la actual."
+        )
+
+    usuario.password = hash_password(datos.contrasena_nueva)
+    usuario.debe_cambiar_password = False
+
+    # Aviso de seguridad: nunca se incluye la contraseña en el correo.
+    simular_envio_correo(
+        db=db,
+        destinatario=usuario.correo,
+        asunto="SESAES - Tu contraseña fue actualizada",
+        cuerpo=(
+            f"Hola {usuario.nombre or 'estudiante'},\n\n"
+            "Te informamos que la contraseña de tu cuenta SESAES fue cambiada correctamente.\n\n"
+            "Si realizaste este cambio, no necesitas hacer nada. "
+            "Si no fuiste tú, comunícate de inmediato con SESAES.\n\n"
+            "Por seguridad, este correo nunca incluye tu contraseña."
+        ),
+        tipo="seguridad",
+        referencia_id=usuario.id,
+    )
+
+    db.commit()
+    return {"message": "Contraseña actualizada correctamente."}
+
+
 @router.patch("/{estudiante_id}/primer-acceso")
 def resolver_primer_acceso(
     estudiante_id: int,
@@ -94,6 +177,11 @@ def resolver_primer_acceso(
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
+    if not usuario.debe_cambiar_password:
+        raise HTTPException(
+            status_code=400,
+            detail="El primer acceso de esta cuenta ya fue resuelto."
+        )
     if datos.nueva_password and datos.nueva_password.strip():
         if len(datos.nueva_password.strip()) < 6:
             raise HTTPException(status_code=400, detail="La nueva contraseña debe tener al menos 6 caracteres.")

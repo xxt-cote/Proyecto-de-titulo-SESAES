@@ -11,6 +11,7 @@ import { PhotoViewerComponent } from '../shared/photo-viewer/photo-viewer';
 import { obtenerFeriado } from '../shared/feriados-chile';
 import { obtenerDiasInternacionales } from '../shared/dias-internacionales';
 import { ToastService } from '../shared/toast/toast.service';
+import { LucideDynamicIcon, LucideEye, LucideEyeOff } from '@lucide/angular';
 import { EstudianteHistorialComponent } from './historial/estudiante-historial';
 import { EstudianteCitasProximasComponent } from './citas-proximas/estudiante-citas-proximas';
 const API = environment.apiUrl;
@@ -18,12 +19,14 @@ const API = environment.apiUrl;
 @Component({
   selector: 'app-dashboard-estudiante',
   standalone: true,
-  imports: [CommonModule, FormsModule, PhotoCropperComponent, PhotoViewerComponent, EstudianteHistorialComponent, EstudianteCitasProximasComponent],
+  imports: [CommonModule, FormsModule, LucideDynamicIcon, PhotoCropperComponent, PhotoViewerComponent, EstudianteHistorialComponent, EstudianteCitasProximasComponent],
   templateUrl: './dashboard-estudiante.html',
   styleUrl: './dashboard-estudiante.css',
   encapsulation: ViewEncapsulation.None
 })
 export class DashboardEstudianteComponent implements OnInit {
+  readonly iconEye = LucideEye;
+  readonly iconEyeOff = LucideEyeOff;
 
   seccionActiva  = 'inicio';
   sidebarMovilAbierto = false;
@@ -890,6 +893,138 @@ toggleFaq(faq: any): void {
     return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(this.correoSecundarioEditable);
   }
 
+  // ══════════════════════════════════════
+  // CAMBIO DE CONTRASEÑA
+  // ══════════════════════════════════════
+  modalCambiarPasswordAbierto = false;
+  passwordActual = '';
+  passwordNueva = '';
+  passwordConfirmacion = '';
+  errorCambioPassword = '';
+  guardandoCambioPassword = false;
+  modalConfirmarCambioPasswordAbierto = false;
+  mostrarPasswordActual = false;
+  mostrarPasswordNueva = false;
+  mostrarPasswordConfirmacion = false;
+
+  get passwordMinimo8(): boolean {
+    return this.passwordNueva.length >= 8;
+  }
+
+  get passwordTieneMayuscula(): boolean {
+    return /[A-ZÁÉÍÓÚÑ]/.test(this.passwordNueva);
+  }
+
+  get passwordTieneMinuscula(): boolean {
+    return /[a-záéíóúñ]/.test(this.passwordNueva);
+  }
+
+  get passwordTieneNumero(): boolean {
+    return /[0-9]/.test(this.passwordNueva);
+  }
+
+  get passwordTieneEspecial(): boolean {
+    return /[^A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s]/.test(this.passwordNueva);
+  }
+
+  get passwordSinEspacios(): boolean {
+    return !/\s/.test(this.passwordNueva);
+  }
+
+  get passwordCumpleReglas(): boolean {
+    return this.passwordMinimo8
+      && this.passwordTieneMayuscula
+      && this.passwordTieneMinuscula
+      && this.passwordTieneNumero
+      && this.passwordTieneEspecial
+      && this.passwordSinEspacios;
+  }
+
+  abrirModalCambiarPassword(): void {
+    this.passwordActual = '';
+    this.passwordNueva = '';
+    this.passwordConfirmacion = '';
+    this.errorCambioPassword = '';
+    this.mostrarPasswordActual = false;
+    this.mostrarPasswordNueva = false;
+    this.mostrarPasswordConfirmacion = false;
+    this.modalConfirmarCambioPasswordAbierto = false;
+    this.modalCambiarPasswordAbierto = true;
+    this.cdr.detectChanges();
+  }
+
+  cerrarModalCambiarPassword(): void {
+    if (this.guardandoCambioPassword) return;
+    this.modalCambiarPasswordAbierto = false;
+    this.passwordActual = '';
+    this.passwordNueva = '';
+    this.passwordConfirmacion = '';
+    this.errorCambioPassword = '';
+    this.mostrarPasswordActual = false;
+    this.mostrarPasswordNueva = false;
+    this.mostrarPasswordConfirmacion = false;
+    this.modalConfirmarCambioPasswordAbierto = false;
+    this.cdr.detectChanges();
+  }
+
+  guardarCambioPassword(): void {
+    if (this.guardandoCambioPassword) return;
+
+    if (!this.passwordActual) {
+      this.errorCambioPassword = 'Ingresa tu contraseña actual.';
+      return;
+    }
+    if (!this.passwordCumpleReglas) {
+      this.errorCambioPassword =
+        'La nueva contraseña no cumple todos los requisitos de seguridad.';
+      return;
+    }
+    if (this.passwordNueva === this.passwordActual) {
+      this.errorCambioPassword =
+        'La nueva contraseña debe ser diferente a la contraseña actual.';
+      return;
+    }
+    if (this.passwordNueva !== this.passwordConfirmacion) {
+      this.errorCambioPassword = 'Las contraseñas nuevas no coinciden.';
+      return;
+    }
+
+    this.errorCambioPassword = '';
+    this.modalConfirmarCambioPasswordAbierto = true;
+    this.cdr.detectChanges();
+  }
+
+  cancelarConfirmacionCambioPassword(): void {
+    if (this.guardandoCambioPassword) return;
+    this.modalConfirmarCambioPasswordAbierto = false;
+    this.cdr.detectChanges();
+  }
+
+  confirmarCambioPassword(): void {
+    if (this.guardandoCambioPassword) return;
+
+    this.modalConfirmarCambioPasswordAbierto = false;
+    this.guardandoCambioPassword = true;
+
+    this.http.patch(`${API}/estudiante/${this.estudianteId}/cambiar-password`, {
+      contrasena_actual: this.passwordActual,
+      contrasena_nueva: this.passwordNueva
+    }).subscribe({
+      next: () => {
+        this.guardandoCambioPassword = false;
+        this.cerrarModalCambiarPassword();
+        this.mensajeExito = 'Contraseña actualizada correctamente.';
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.guardandoCambioPassword = false;
+        this.errorCambioPassword =
+          err?.error?.detail || 'No se pudo cambiar la contraseña.';
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
   cargarDatosEstudiante(): void {
     const id = this.estudianteId;
     if (!id) { this.cerrarSesion(); return; }
@@ -970,7 +1105,7 @@ toggleFaq(faq: any): void {
     return info;
   }
 
-  // Placeholders de funciones aún sin backend (cambiar contraseña, sesiones, etc.)
+  // Placeholders de funciones aún sin backend.
   mostrarProximamente(mensaje: string): void {
     alert(mensaje);
   }

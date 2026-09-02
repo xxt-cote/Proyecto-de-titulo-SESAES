@@ -2681,3 +2681,121 @@ body.tema-oscuro .cal-celda.cerrado::before { background: #f87171; }
 body.tema-oscuro .info-dia-est { background: #1a2333; border-color: #3a4a63; }
 body.tema-oscuro .info-dia-est-titulo { color: #56637a; }
 body.tema-oscuro .info-dia-est-item { color: #c9d1d9; }
+
+/* ══════════════════════════════════════ */
+/* CAMBIO DE CONTRASEÑA — VISIBILIDAD Y REGLAS */
+/* ══════════════════════════════════════ */
+.password-control-est {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-control-est input {
+  width: 100%;
+  padding-right: 46px !important;
+}
+
+.btn-ojo-password-est {
+  position: absolute;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.btn-ojo-password-est:hover {
+  background: #F7F4EC;
+}
+
+.btn-ojo-password-est:focus-visible {
+  outline: 2px solid #2C5A45;
+  outline-offset: 1px;
+}
+
+.password-reglas-est {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px 12px;
+  margin-top: 4px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #F7F4EC;
+  border: 1px solid #E6E0D2;
+}
+
+.regla-password-est {
+  font-size: 11.5px;
+  color: #7A857D;
+  transition: color .15s;
+}
+
+.regla-password-est.cumple {
+  color: #168C80;
+  font-weight: 600;
+}
+
+body.tema-oscuro .btn-ojo-password-est {
+  color: #c9d1d9;
+}
+
+body.tema-oscuro .btn-ojo-password-est:hover {
+  background: #2d3b52;
+}
+
+body.tema-oscuro .password-reglas-est {
+  background: #1c2534;
+  border-color: #3a4a63;
+}
+
+body.tema-oscuro .regla-password-est {
+  color: #8b96a8;
+}
+
+body.tema-oscuro .regla-password-est.cumple {
+  color: #2dd4bf;
+}
+
+@media (max-width: 640px) {
+  .password-reglas-est {
+    grid-template-columns: 1fr;
+  }
+}
+
+.btn-ojo-password-est svg {
+  width: 18px;
+  height: 18px;
+}
+
+.modal-confirmacion-password-overlay-est {
+  z-index: 1300;
+}
+
+.modal-confirmacion-password-est {
+  max-width: 440px;
+}
+
+.confirmacion-password-texto-est {
+  margin: 4px 0 8px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.confirmacion-password-ayuda-est {
+  margin: 0 0 18px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #667085;
+}
+
+body.tema-oscuro .confirmacion-password-ayuda-est {
+  color: #aab4c4;
+}
