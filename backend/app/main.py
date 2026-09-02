@@ -16,6 +16,7 @@ from app.routers.configuracion_centro import router as configuracion_centro_rout
 from app.routers.correos import router as correos_router
 from app.routers.solicitudes_horario import router as solicitudes_horario_router
 from app.routers.historial_clinico import router as historial_clinico_router
+from app.routers.agenda import router as agenda_router
 
 import os
 
@@ -65,6 +66,7 @@ app.include_router(configuracion_centro_router)
 app.include_router(correos_router)
 app.include_router(solicitudes_horario_router)
 app.include_router(historial_clinico_router)
+app.include_router(agenda_router)
 
 @app.get("/")
 def home():

@@ -206,12 +206,22 @@ class CorreosAdminAutorizacionTests(unittest.TestCase):
 
 class EndpointsProfesionalSelfServiceIntactosTests(unittest.TestCase):
     """
-    Confirma que los endpoints self-service del profesional en
-    solicitudes_horario.py (protegidos con verificar_acceso_profesional)
-    no fueron tocados por esta migración.
+    Fase 3.2: los endpoints self-service del profesional en
+    solicitudes_horario.py no fueron tocados por ESA migración (seguían
+    usando únicamente verificar_acceso_profesional).
+
+    Actualización Fase 3.5F: estos 4 endpoints SÍ fueron modificados
+    intencionalmente en esta fase posterior (tarea 4 del checklist) para
+    exigir Permission.AGENDA_GESTIONAR_PROPIA además del ownership, vía
+    el helper _exigir_agenda_gestionar_propia_y_ownership (que internamente
+    sigue llamando a verificar_acceso_profesional — ver
+    test_rbac_fase3_5f_solicitudes_horario.py para la cobertura de
+    comportamiento completa de permiso + ownership). Se actualiza aquí
+    solo la aserción de qué función envuelve la llamada, no el criterio
+    de seguridad en sí.
     """
 
-    def test_endpoints_profesional_siguen_usando_verificar_acceso_profesional(self):
+    def test_endpoints_profesional_usan_helper_agenda_gestionar_propia_y_ownership(self):
         endpoints_profesional = [
             solicitudes_horario.solicitar_colacion,
             solicitudes_horario.solicitar_jornada,
@@ -221,9 +231,9 @@ class EndpointsProfesionalSelfServiceIntactosTests(unittest.TestCase):
         for endpoint in endpoints_profesional:
             codigo = endpoint.__code__.co_names
             self.assertIn(
-                "verificar_acceso_profesional",
+                "_exigir_agenda_gestionar_propia_y_ownership",
                 codigo,
-                f"{endpoint.__name__} ya no invoca verificar_acceso_profesional",
+                f"{endpoint.__name__} ya no invoca el helper de permiso + ownership (Fase 3.5F)",
             )
 
     def test_endpoints_profesional_no_usan_require_permission(self):

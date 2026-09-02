@@ -64,11 +64,16 @@ def verificar_acceso(current_user: dict, id_esperado: int, roles_permitidos: lis
     """
     Exige que el usuario autenticado:
       - tenga uno de los roles permitidos para este endpoint, Y
-      - sea dueño del recurso (current_user['id'] == id_esperado) A MENOS
-        que su rol sea 'admin', en cuyo caso puede ver cualquier recurso.
+      - sea dueño del recurso (current_user['id'] == id_esperado).
+
+    Fase 3.5F: se eliminó el bypass automático para rol 'admin'. ADMIN y
+    SUPERADMIN NO tienen acceso general a recursos ajenos por esta vía;
+    el acceso administrativo a un recurso concreto debe resolverse con un
+    permiso RBAC explícito (has_permission / require_permission) en el
+    endpoint correspondiente, nunca como atajo por rol dentro de este
+    helper de ownership.
 
     Ejemplo: un estudiante solo puede pedir SU historial (id coincide).
-    Un admin puede pedir el de cualquiera.
     Un profesional nunca puede pedir /historial/estudiante/{id} por esta vía
     (tiene sus propios endpoints en historial_clinico.py).
 
@@ -80,9 +85,6 @@ def verificar_acceso(current_user: dict, id_esperado: int, roles_permitidos: lis
     """
     verificar_rol(current_user, roles_permitidos)
 
-    if current_user["rol"] == "admin":
-        return
-
     if current_user["id"] != id_esperado:
         raise HTTPException(status_code=403, detail="No tienes permiso para acceder a este recurso.")
 
@@ -92,13 +94,25 @@ def verificar_acceso_profesional(current_user: dict, profesional_id: int, db, ro
     Igual que verificar_acceso, pero para endpoints cuyo parámetro de ruta
     es Profesional.id (tabla 'profesional'), NO Usuario.id. Resuelve el
     Profesional y compara su usuario_id contra el id del JWT.
+
+    Fase 3.5F: se eliminó el bypass automático para rol 'admin'. El
+    ownership es estricto — solo el profesional dueño del recurso pasa
+    esta verificación. Acceso administrativo, si corresponde, se resuelve
+    con un permiso RBAC explícito en el endpoint (no aquí).
+
+    Corrección de seguridad (checkpoint 2): el default de roles_permitidos
+    ya NO incluye "admin". Recursos propios del profesional exigen
+    ROLE == "profesional" + ownership. Un usuario ADMIN o SUPERADMIN cuyo
+    Usuario.id coincidiera (por error o coincidencia) con el usuario_id de
+    un Profesional NO debe pasar esta verificación solo por compartir ese
+    id — el rol se exige primero, en defensa en profundidad respecto del
+    chequeo de ownership. Ningún llamador real del proyecto dependía del
+    "admin" en este default (todos los endpoints administrativos usan
+    require_permission / has_permission explícitos, no este helper).
     """
     from app.models.profesional import Profesional
 
-    verificar_rol(current_user, roles_permitidos or ["profesional", "admin"])
-
-    if current_user["rol"] == "admin":
-        return
+    verificar_rol(current_user, roles_permitidos or ["profesional"])
 
     prof = db.query(Profesional).filter(Profesional.id == profesional_id).first()
     if not prof or prof.usuario_id != current_user["id"]:

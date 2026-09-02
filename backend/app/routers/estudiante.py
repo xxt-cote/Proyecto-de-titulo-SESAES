@@ -11,6 +11,18 @@ from app.auth_dependencies import get_current_user, verificar_acceso
 
 router = APIRouter(prefix="/estudiante", tags=["Estudiante"])
 
+# Fase 3.5F: se eliminó "admin" de roles_permitidos en los endpoints de
+# recursos propios del estudiante (perfil, actualización de datos,
+# primer acceso). verificar_acceso ya exige ownership estricto
+# (current_user["id"] == estudiante_id), por lo que un ADMIN/SUPERADMIN
+# solo podía "colarse" si su propio Usuario.id coincidía por accidente
+# con el estudiante_id solicitado. Se retira igualmente el rol del
+# default por defensa en profundidad, en línea con el mismo criterio ya
+# aplicado en verificar_acceso_profesional: acceso administrativo a un
+# recurso concreto se resuelve con un permiso RBAC explícito en un
+# endpoint dedicado, nunca como atajo de rol dentro de este helper de
+# ownership.
+
 
 class PrimerAccesoIn(BaseModel):
     nueva_password: Optional[str] = None   # None o vacío = "mantener la actual"
@@ -22,7 +34,7 @@ def obtener_estudiante(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    verificar_acceso(current_user, id_esperado=estudiante_id, roles_permitidos=["estudiante", "admin"])
+    verificar_acceso(current_user, id_esperado=estudiante_id, roles_permitidos=["estudiante"])
     usuario = db.query(Usuario).filter(
         Usuario.id == estudiante_id,
         Usuario.rol == "estudiante"
@@ -39,7 +51,7 @@ def actualizar_estudiante(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    verificar_acceso(current_user, id_esperado=estudiante_id, roles_permitidos=["estudiante", "admin"])
+    verificar_acceso(current_user, id_esperado=estudiante_id, roles_permitidos=["estudiante"])
     usuario = db.query(Usuario).filter(
         Usuario.id == estudiante_id,
         Usuario.rol == "estudiante"
@@ -77,7 +89,7 @@ def resolver_primer_acceso(
     simplemente mantener la temporal (nueva_password vacío/None) — en
     ambos casos, deja de pedírsele esto en logins futuros.
     """
-    verificar_acceso(current_user, id_esperado=estudiante_id, roles_permitidos=["estudiante", "admin"])
+    verificar_acceso(current_user, id_esperado=estudiante_id, roles_permitidos=["estudiante"])
     usuario = db.query(Usuario).filter(Usuario.id == estudiante_id).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")

@@ -12,12 +12,56 @@ from app.models.auditoria import Auditoria
 from app.models.historial_estado_profesional import HistorialEstadoProfesional
 from app.routers.correos import simular_envio_correo
 from app.auth_dependencies import get_current_user, verificar_acceso_profesional
+from app.rbac.permissions import Permission, has_permission
 
 router = APIRouter(tags=["profesionales"])
 
 
 def registrar_auditoria(db, accion, detalle=None, entidad=None, entidad_id=None):
     db.add(Auditoria(accion=accion, detalle=detalle, entidad=entidad, entidad_id=entidad_id))
+
+
+def _exigir_permiso_y_ownership_propio(
+    current_user: dict, prof_id: int, db, permission: Permission
+) -> None:
+    """
+    RBAC + ownership para endpoints "propios" del profesional (Fase 3.5F).
+
+    Exige explícitamente:
+      - que el usuario autenticado tenga `permission` (has_permission), Y
+      - que sea el profesional dueño de `prof_id` (verificar_acceso_profesional,
+        sin bypass admin/superadmin — ver auth_dependencies.py).
+
+    Un profesional sin `permission` recibe 403 aunque sea dueño del recurso.
+    Un profesional con `permission` pero sobre un prof_id ajeno también
+    recibe 403. Ningún rol tiene atajo aquí: ROLE + PERMISSION + OWNERSHIP.
+    """
+    if not has_permission(current_user, permission):
+        raise HTTPException(status_code=403, detail="No tienes permiso para acceder a este recurso.")
+    verificar_acceso_profesional(current_user, prof_id, db, roles_permitidos=["profesional"])
+
+
+def _notificar_con_agenda_gestionar(
+    db, mensaje: str, tipo: str = "info",
+    email_asunto: str = None, email_cuerpo: str = None, email_referencia_id: int = None,
+) -> None:
+    """
+    Notifica a TODOS los usuarios cuyo rol tenga Permission.AGENDA_GESTIONAR
+    (Fase 3.5F), en vez de al primer Usuario con rol == "admin" a secas.
+    El destinatario administrativo se deriva del permiso RBAC, no de un
+    string de rol hardcodeado — sin atajo especial para superadmin (si
+    superadmin no tiene AGENDA_GESTIONAR en ROLE_DEFAULT_PERMISSIONS, no
+    recibe estas notificaciones).
+    """
+    for u in db.query(Usuario).all():
+        if not has_permission(u.rol, Permission.AGENDA_GESTIONAR):
+            continue
+        db.add(Notificacion(usuario_id=u.id, mensaje=mensaje, tipo=tipo))
+        if email_asunto:
+            simular_envio_correo(
+                db, destinatario=u.correo or "", asunto=email_asunto,
+                cuerpo=email_cuerpo or mensaje, tipo=tipo, referencia_id=email_referencia_id,
+            )
 
 
 # ══════════════════════════════════════
@@ -36,8 +80,9 @@ def get_profesionales(db: Session = Depends(get_db), current_user: dict = Depend
             "foto_url":     p.foto_url,
             "duracion_min": p.duracion_min,
             "estado":       p.estado or "activo",
-            "correo":       p.correo,   # ← necesario para login del profesional
-            "usuario_id":   p.usuario_id
+            # Fase 3.5F: correo y usuario_id ya no se exponen en este catálogo
+            # autenticado. El login resuelve el profesional vía
+            # /profesional/buscar-por-usuario/{usuario_id} (ownership estricto).
         }
         for p in db.query(Profesional).filter(Profesional.estado == "activo").all()
     ]
@@ -53,7 +98,8 @@ def buscar_profesional_por_usuario(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    if current_user["rol"] != "admin" and current_user["id"] != usuario_id:
+    # Fase 3.5F: ownership estricto, sin bypass administrativo inline.
+    if current_user["id"] != usuario_id:
         raise HTTPException(status_code=403, detail="No tienes permiso para acceder a este recurso.")
     prof = db.query(Profesional).filter(Profesional.usuario_id == usuario_id).first()
     if not prof:
@@ -157,7 +203,7 @@ def get_estadisticas_dia(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    verificar_acceso_profesional(current_user, prof_id, db)
+    _exigir_permiso_y_ownership_propio(current_user, prof_id, db, Permission.AGENDA_VER_PROFESIONAL)
     hoy = date.today().isoformat()
     citas_hoy = db.query(Cita).filter(Cita.profesional_id == prof_id, Cita.fecha == hoy).all()
     return {
@@ -180,7 +226,7 @@ def get_citas_sin_cerrar(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    verificar_acceso_profesional(current_user, prof_id, db)
+    _exigir_permiso_y_ownership_propio(current_user, prof_id, db, Permission.AGENDA_VER_PROFESIONAL)
     hoy = date.today().isoformat()
     citas = db.query(Cita).filter(
         Cita.profesional_id == prof_id,
@@ -213,7 +259,7 @@ def get_citas_profesional(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    verificar_acceso_profesional(current_user, prof_id, db)
+    _exigir_permiso_y_ownership_propio(current_user, prof_id, db, Permission.ATENCIONES_VER_ASIGNADAS)
     query = db.query(Cita).filter(Cita.profesional_id == prof_id)
     if fecha:  query = query.filter(Cita.fecha == fecha)
     if estado: query = query.filter(Cita.estado == estado)
@@ -253,7 +299,7 @@ def completar_cita(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    verificar_acceso_profesional(current_user, prof_id, db)
+    _exigir_permiso_y_ownership_propio(current_user, prof_id, db, Permission.ATENCIONES_REGISTRAR)
     cita = db.query(Cita).filter(Cita.id == cita_id, Cita.profesional_id == prof_id).first()
     if not cita:
         raise HTTPException(status_code=404, detail="Cita no encontrada")
@@ -281,7 +327,7 @@ def marcar_inasistencia(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    verificar_acceso_profesional(current_user, prof_id, db)
+    _exigir_permiso_y_ownership_propio(current_user, prof_id, db, Permission.AGENDA_GESTIONAR_PROPIA)
     cita = db.query(Cita).filter(Cita.id == cita_id, Cita.profesional_id == prof_id).first()
     if not cita:
         raise HTTPException(status_code=404, detail="Cita no encontrada")
@@ -289,13 +335,11 @@ def marcar_inasistencia(
         raise HTTPException(status_code=400, detail="No puedes marcar inasistencia de una cita que todavía no ocurre")
     est = db.query(Usuario).filter(Usuario.id == cita.estudiante_id).first()
     cita.estado = "inasistencia"
-    admin = db.query(Usuario).filter(Usuario.rol == "admin").first()
-    if admin:
-        db.add(Notificacion(
-            usuario_id=admin.id,
-            mensaje=f"Inasistencia: {est.nombre if est else '—'} no asistió a su cita del {cita.fecha} a las {cita.hora}.",
-            tipo="info"
-        ))
+    _notificar_con_agenda_gestionar(
+        db,
+        mensaje=f"Inasistencia: {est.nombre if est else '—'} no asistió a su cita del {cita.fecha} a las {cita.hora}.",
+        tipo="info",
+    )
     registrar_auditoria(db, "Profesional marcó inasistencia",
                         f"Estudiante: {est.nombre if est else '—'} — {cita.fecha} {cita.hora}",
                         "cita", cita_id)
@@ -334,7 +378,7 @@ def reportar_ausencia(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    verificar_acceso_profesional(current_user, prof_id, db)
+    _exigir_permiso_y_ownership_propio(current_user, prof_id, db, Permission.AGENDA_GESTIONAR_PROPIA)
     prof = db.query(Profesional).filter(Profesional.id == prof_id).first()
     if not prof:
         raise HTTPException(status_code=404, detail="Profesional no encontrado")
@@ -397,23 +441,18 @@ def reportar_ausencia(
 
     db.add(HistorialEstadoProfesional(
         profesional_id=prof_id, estado_anterior=estado_anterior,
-        estado_nuevo=estado_nuevo, motivo=motivo, registrado_por=None
+        estado_nuevo=estado_nuevo, motivo=motivo, registrado_por=current_user["id"]
     ))
 
-    admin = db.query(Usuario).filter(Usuario.rol == "admin").first()
-    if admin:
-        db.add(Notificacion(
-            usuario_id=admin.id,
-            mensaje=f"{prof.nombre} reportó ausencia {rango_desc}. Motivo: {motivo}. "
-                    f"Se cancelaron {len(citas_afectadas)} cita(s) automáticamente.",
-            tipo="advertencia"
-        ))
-        simular_envio_correo(db,
-            destinatario=admin.correo or "admin@utem.cl",
-            asunto=f"SESAES — {prof.nombre} reportó ausencia",
-            cuerpo=f"{prof.nombre} ({prof.especialidad}) reportó ausencia {rango_desc}. Motivo: {motivo}.",
-            tipo="advertencia", referencia_id=prof_id
-        )
+    _notificar_con_agenda_gestionar(
+        db,
+        mensaje=f"{prof.nombre} reportó ausencia {rango_desc}. Motivo: {motivo}. "
+                f"Se cancelaron {len(citas_afectadas)} cita(s) automáticamente.",
+        tipo="advertencia",
+        email_asunto=f"SESAES — {prof.nombre} reportó ausencia",
+        email_cuerpo=f"{prof.nombre} ({prof.especialidad}) reportó ausencia {rango_desc}. Motivo: {motivo}.",
+        email_referencia_id=prof_id,
+    )
 
     registrar_auditoria(db, "Profesional reportó ausencia",
                         f"{prof.nombre} — {tipo} — {rango_desc}: {motivo} ({len(citas_afectadas)} citas canceladas)",

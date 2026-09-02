@@ -10,13 +10,33 @@ from app.models.solicitud_horario import SolicitudHorario
 from app.models.auditoria import Auditoria
 from app.auth_dependencies import get_current_user, verificar_acceso_profesional
 from app.rbac.dependencies import require_permission
-from app.rbac.permissions import Permission
+from app.rbac.permissions import Permission, has_permission
 
 router = APIRouter(tags=["solicitudes-horario"])
 
 
 def registrar_auditoria(db, accion, detalle=None, entidad=None, entidad_id=None):
     db.add(Auditoria(accion=accion, detalle=detalle, entidad=entidad, entidad_id=entidad_id))
+
+
+def _exigir_agenda_gestionar_propia_y_ownership(current_user: dict, prof_id: int, db) -> None:
+    """
+    RBAC + ownership para las 4 operaciones "propias" del profesional en
+    este módulo (Fase 3.5F, mismo criterio que
+    profesionales._exigir_permiso_y_ownership_propio):
+
+      - que el usuario autenticado tenga Permission.AGENDA_GESTIONAR_PROPIA, Y
+      - que sea el profesional dueño de `prof_id` (verificar_acceso_profesional,
+        sin bypass admin/superadmin).
+
+    Un profesional sin este permiso recibe 403 aunque sea dueño del recurso.
+    Un profesional con el permiso pero sobre un prof_id ajeno también recibe
+    403. Las rutas administrativas de este módulo siguen usando
+    Permission.AGENDA_GESTIONAR vía require_permission, sin pasar por aquí.
+    """
+    if not has_permission(current_user, Permission.AGENDA_GESTIONAR_PROPIA):
+        raise HTTPException(status_code=403, detail="No tienes permiso para acceder a este recurso.")
+    verificar_acceso_profesional(current_user, prof_id, db, roles_permitidos=["profesional"])
 
 
 def _hora_a_minutos(hora_str: str) -> int:
@@ -32,9 +52,18 @@ def _hora_a_minutos(hora_str: str) -> int:
 
 
 def _notificar_admin(db, mensaje: str, tipo: str = "info"):
-    admin = db.query(Usuario).filter(Usuario.rol == "admin").first()
-    if admin:
-        db.add(Notificacion(usuario_id=admin.id, mensaje=mensaje, tipo=tipo))
+    """
+    Notifica a TODOS los usuarios cuyo rol tenga Permission.AGENDA_GESTIONAR
+    (Fase 3.5F), en vez de buscar el primer Usuario con rol == "admin" a
+    secas. El destinatario administrativo se deriva del permiso RBAC, no
+    de un string de rol hardcodeado — esto incluye a ADMIN y SUPERADMIN
+    siempre que ambos tengan ese permiso en ROLE_DEFAULT_PERMISSIONS
+    (mismo criterio que profesionales._notificar_con_agenda_gestionar).
+    """
+    for u in db.query(Usuario).all():
+        if not has_permission(u.rol, Permission.AGENDA_GESTIONAR):
+            continue
+        db.add(Notificacion(usuario_id=u.id, mensaje=mensaje, tipo=tipo))
 
 
 def _notificar_profesional(db, prof: Profesional, mensaje: str, tipo: str = "info"):
@@ -53,7 +82,7 @@ def solicitar_colacion(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    verificar_acceso_profesional(current_user, prof_id, db)
+    _exigir_agenda_gestionar_propia_y_ownership(current_user, prof_id, db)
     prof = db.query(Profesional).filter(Profesional.id == prof_id).first()
     if not prof:
         raise HTTPException(status_code=404, detail="Profesional no encontrado")
@@ -99,7 +128,7 @@ def solicitar_jornada(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    verificar_acceso_profesional(current_user, prof_id, db)
+    _exigir_agenda_gestionar_propia_y_ownership(current_user, prof_id, db)
     prof = db.query(Profesional).filter(Profesional.id == prof_id).first()
     if not prof:
         raise HTTPException(status_code=404, detail="Profesional no encontrado")
@@ -142,7 +171,7 @@ def get_mis_solicitudes(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    verificar_acceso_profesional(current_user, prof_id, db)
+    _exigir_agenda_gestionar_propia_y_ownership(current_user, prof_id, db)
     solicitudes = db.query(SolicitudHorario).filter(
         SolicitudHorario.profesional_id == prof_id
     ).order_by(SolicitudHorario.fecha_solicitud.desc()).all()
@@ -166,7 +195,7 @@ def eliminar_solicitud(
     if not solicitud:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
 
-    verificar_acceso_profesional(current_user, solicitud.profesional_id, db)
+    _exigir_agenda_gestionar_propia_y_ownership(current_user, solicitud.profesional_id, db)
 
     db.delete(solicitud)
     db.commit()

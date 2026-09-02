@@ -733,7 +733,7 @@ toggleSidebarMovil(): void {
 
   cargarHorarioProfesional(): void {
     if (!this.filtroProfesionalId) return;
-    this.http.get<any[]>(`${API}/profesional/${this.filtroProfesionalId}/citas`).subscribe({
+    this.http.get<any[]>(`${API}/agenda/profesional/${this.filtroProfesionalId}/citas`).subscribe({
       next: (data) => {
         this.citasHorario = data ?? [];
         this.cdr.detectChanges();
