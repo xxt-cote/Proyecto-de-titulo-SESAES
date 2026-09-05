@@ -8,6 +8,7 @@ class Profesional(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String)
+    tratamiento = Column(String, nullable=True)  # "Dr.", "Dra.", "Psic.", "Klgo.", "Nut.", "Enf.", etc. Nullable: no rompe filas existentes.
     especialidad = Column(String)
     iniciales = Column(String(5))
     descripcion = Column(String, nullable=True)

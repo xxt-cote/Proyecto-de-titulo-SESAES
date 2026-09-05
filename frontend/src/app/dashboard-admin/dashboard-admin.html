@@ -192,6 +192,7 @@
         *ngIf="seccionActiva==='inicio'"
         [estadisticas]="estadisticas"
         [resumenDia]="resumenDia"
+        [actualizandoDisponibilidad]="actualizandoDisponibilidad"
         [graficoEspecialidad]="graficoEspecialidad"
         [graficoSemana]="graficoSemana"
         [proximasCitas]="proximasCitas"
@@ -204,6 +205,7 @@
         (verAgenda)="navegarA('horario')"
         (marcarInasistenciaCita)="marcarInasistencia($event)"
         (cancelarCita)="cancelarCitaAdmin($event)"
+        (actualizarDisponibilidad)="cargarResumenDia()"
       ></app-admin-inicio>
 
 <!-- ══ HORARIO ══ -->
@@ -258,6 +260,7 @@
         (crearProfesional)="onCrearProfesional($event)"
         (cambiarEstado)="onCambiarEstadoProfesional($event)"
         (cambiarDuracion)="onCambiarDuracionProfesional($event)"
+        (cambiarTratamiento)="onCambiarTratamientoProfesional($event)"
         (eliminarProfesional)="onEliminarProfesional($event)"
         (errorValidacion)="onErrorValidacionProfesional($event)"
       ></app-admin-profesionales>

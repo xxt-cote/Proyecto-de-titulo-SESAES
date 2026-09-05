@@ -55,9 +55,16 @@
             <button class="modal-cerrar" (click)="cerrarModal()">✕</button>
           </div>
           <div class="form-grid">
-            <div class="campo-grupo" style="grid-column: 1 / -1">
+            <div class="campo-grupo">
+              <label>Tratamiento</label>
+              <select [(ngModel)]="profNuevoDatos.tratamiento">
+                <option value="">Sin tratamiento</option>
+                <option *ngFor="let t of tratamientosDisponibles" [value]="t">{{ t }}</option>
+              </select>
+            </div>
+            <div class="campo-grupo">
               <label>Nombre Completo *</label>
-              <input [(ngModel)]="profNuevoDatos.nombre" placeholder="Dr. Nombre Apellido" />
+              <input [(ngModel)]="profNuevoDatos.nombre" placeholder="Nombre Apellido" />
             </div>
             <div class="campo-grupo">
               <label>Especialidad *</label>
@@ -112,7 +119,7 @@
             <button class="modal-cerrar" (click)="cerrarModal()">✕</button>
           </div>
           <div class="confirmacion-resumen">
-            <div class="conf-row"><span class="conf-label">Nombre</span><span class="conf-val">{{ profNuevoDatos.nombre }}</span></div>
+            <div class="conf-row"><span class="conf-label">Nombre</span><span class="conf-val">{{ profNuevoDatos.tratamiento ? profNuevoDatos.tratamiento + ' ' : '' }}{{ profNuevoDatos.nombre }}</span></div>
             <div class="conf-row">
               <span class="conf-label">Especialidad</span>
               <span class="conf-val">{{ profNuevoDatos.especialidad === 'otra' ? profNuevoDatos.especialidadNueva : profNuevoDatos.especialidad }}</span>
@@ -142,7 +149,7 @@
           <div class="prof-datos-readonly">
             <div class="mini-avatar avatar-lg">{{ profSeleccionado.iniciales }}</div>
             <div class="prof-datos-info">
-              <h4>{{ profSeleccionado.nombre }}</h4>
+              <h4>{{ nombreConTratamiento(profSeleccionado) }}</h4>
               <span class="esp-badge">{{ profSeleccionado.especialidad }}</span>
             </div>
           </div>
@@ -152,6 +159,20 @@
             <div class="dato-row">
               <span class="dato-label">Estado actual</span>
               <span class="estado-badge" [ngClass]="profSeleccionado.estado">{{ profSeleccionado.estado }}</span>
+            </div>
+          </div>
+
+          <!-- Tratamiento / título -->
+          <div class="modal-separador"></div>
+          <p class="config-seccion-titulo">Tratamiento / título</p>
+          <div class="campo-grupo" style="margin-bottom:12px">
+            <label>Tratamiento</label>
+            <div class="duracion-selector">
+              <select [(ngModel)]="profSeleccionado.nuevoTratamiento">
+                <option value="">Sin tratamiento</option>
+                <option *ngFor="let t of tratamientosDisponibles" [value]="t">{{ t }}</option>
+              </select>
+              <button class="btn-guardar-modal" style="padding:7px 14px" (click)="guardarTratamientoProfesional()">Guardar tratamiento</button>
             </div>
           </div>
 

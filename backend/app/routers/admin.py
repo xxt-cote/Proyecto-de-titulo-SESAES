@@ -91,6 +91,7 @@ def get_resumen_dia(db: Session = Depends(get_db), current_user: dict = Depends(
         result.append({
             "profesional_id": p.id,
             "nombre": p.nombre,
+            "tratamiento": p.tratamiento,
             "especialidad": p.especialidad,
             "estado": p.estado or "activo",
             "citas_hoy": citas_hoy
@@ -290,7 +291,8 @@ def get_grafico_semana(db: Session = Depends(get_db), current_user: dict = Depen
 def get_profesionales_admin(db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.PROFESIONALES_GESTIONAR))):
     return [
         {
-            "id": p.id, "nombre": p.nombre, "especialidad": p.especialidad,
+            "id": p.id, "nombre": p.nombre, "tratamiento": p.tratamiento,
+            "especialidad": p.especialidad,
             "iniciales": p.iniciales, "descripcion": p.descripcion,
             "duracion_min": p.duracion_min, "estado": p.estado or "activo",
             "correo": p.correo, "rut": p.rut, "usuario_id": p.usuario_id,
@@ -314,7 +316,7 @@ def crear_profesional(datos: ProfesionalCreate, db: Session = Depends(get_db), c
     db.commit()
     db.refresh(nuevo_usuario)
     nuevo_prof = Profesional(
-        nombre=datos.nombre, especialidad=datos.especialidad, iniciales=iniciales,
+        nombre=datos.nombre, tratamiento=datos.tratamiento, especialidad=datos.especialidad, iniciales=iniciales,
         descripcion=datos.descripcion or "", duracion_min=datos.duracion_min or 45,
         correo=datos.correo, rut=datos.rut, estado="activo", usuario_id=nuevo_usuario.id
     )
@@ -334,6 +336,12 @@ def actualizar_profesional(prof_id: int, datos: ProfesionalUpdate, db: Session =
     if datos.rut and not validar_rut(datos.rut):
         raise HTTPException(status_code=400, detail="El RUT ingresado no es válido")
     if datos.nombre       is not None: prof.nombre       = datos.nombre
+    # tratamiento es el único campo de este endpoint que distingue "no
+    # enviado" (conservar) de "enviado como null" (limpiar), porque es el
+    # único caso real de "quitar un valor existente" que pide el negocio.
+    # El resto de los campos mantiene exactamente su semántica anterior
+    # (solo se tocan si vienen no-None).
+    if "tratamiento" in datos.model_fields_set: prof.tratamiento = datos.tratamiento
     if datos.especialidad is not None: prof.especialidad = datos.especialidad
     if datos.iniciales    is not None: prof.iniciales    = datos.iniciales
     if datos.descripcion  is not None: prof.descripcion  = datos.descripcion

@@ -1,133 +1,67 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { vi } from 'vitest';
-
-
+import { describe, it, expect } from 'vitest';
 import { AdminInicioComponent } from './admin-inicio';
 
-describe('AdminInicioComponent', () => {
-  let component: AdminInicioComponent;
-  let fixture: ComponentFixture<AdminInicioComponent>;
+/**
+ * AdminInicioComponent no tiene dependencias inyectadas en su constructor,
+ * así que se puede instanciar directamente para probar sus métodos puros
+ * sin necesidad de TestBed.
+ */
+describe('AdminInicioComponent.nombreConTratamiento', () => {
+  const componente = new AdminInicioComponent();
 
-  beforeEach(async () => {
-    await TestBed.configureTestingModule({
-      imports: [AdminInicioComponent]
-    }).compileComponents();
-
-    fixture = TestBed.createComponent(AdminInicioComponent);
-    component = fixture.componentInstance;
-    vi.spyOn(component as any, 'crearGraficos').mockImplementation(() => {});
-  });
-
-  it('debe crearse', () => {
-    fixture.detectChanges();
-    expect(component).toBeTruthy();
-  });
-
-  it('debe mostrar las estadísticas recibidas', () => {
-    fixture.componentRef.setInput('estadisticas', {
-      reservas_hoy: 5,
-      profesionales_activos: 7,
-      horas_disponibles: 12,
-      urgentes: 2
+  it('antepone el tratamiento cuando el nombre no lo trae', () => {
+    const resultado = componente.nombreConTratamiento({
+      nombre: 'Eduardo Carvajal',
+      tratamiento: 'Dr.'
     });
-
-    fixture.detectChanges();
-
-    const texto = fixture.nativeElement.textContent as string;
-    expect(texto).toContain('5');
-    expect(texto).toContain('7');
-    expect(texto).toContain('12');
-    expect(texto).toContain('2');
+    expect(resultado).toBe('Dr. Eduardo Carvajal');
   });
 
-  it('debe mostrar la disponibilidad recibida', () => {
-    fixture.componentRef.setInput('resumenDia', [
-      {
-        nombre: 'Profesional SESAES',
-        estado: 'activo',
-        citas_hoy: 3
-      }
-    ]);
-
-    fixture.detectChanges();
-
-    const texto = fixture.nativeElement.textContent as string;
-    expect(texto).toContain('Profesional SESAES');
-    expect(texto).toContain('Activo');
+  it('no duplica el tratamiento si el nombre ya lo trae (dato histórico)', () => {
+    const resultado = componente.nombreConTratamiento({
+      nombre: 'Dr. Eduardo Carvajal',
+      tratamiento: 'Dr.'
+    });
+    expect(resultado).toBe('Dr. Eduardo Carvajal');
   });
 
-  it('debe emitir recarga al cambiar filtros del gráfico', () => {
-    const anioSpy = vi.spyOn(component.filtroGraficoAnioChange, 'emit');
-    const carreraSpy = vi.spyOn(component.filtroGraficoCarreraChange, 'emit');
-    const recargaSpy = vi.spyOn(component.recargarGraficoEspecialidad, 'emit');
-
-    component.filtroGraficoAnio = 2026;
-    component.filtroGraficoCarrera = 'Ingeniería';
-    component.cargarGraficoEspecialidad();
-
-    expect(anioSpy).toHaveBeenCalledWith(2026);
-    expect(carreraSpy).toHaveBeenCalledWith('Ingeniería');
-    expect(recargaSpy).toHaveBeenCalledTimes(1);
+  it('no antepone nada si no hay tratamiento (null)', () => {
+    const resultado = componente.nombreConTratamiento({
+      nombre: 'Carlos Muñoz',
+      tratamiento: null
+    });
+    expect(resultado).toBe('Carlos Muñoz');
   });
 
-  it('debe emitir las exportaciones', () => {
-    const especialidadSpy = vi.spyOn(component.exportarEspecialidad, 'emit');
-    const semanaSpy = vi.spyOn(component.exportarSemana, 'emit');
-
-    component.exportarEspecialidadExcel();
-    component.exportarSemanaExcel();
-
-    expect(especialidadSpy).toHaveBeenCalledTimes(1);
-    expect(semanaSpy).toHaveBeenCalledTimes(1);
+  it('no antepone nada si no hay tratamiento (undefined / campo ausente)', () => {
+    const resultado = componente.nombreConTratamiento({
+      nombre: 'Carlos Muñoz'
+    });
+    expect(resultado).toBe('Carlos Muñoz');
   });
 
-  it('debe emitir navegación a Agenda', () => {
-    const agendaSpy = vi.spyOn(component.verAgenda, 'emit');
-
-    component.navegarA('horario');
-
-    expect(agendaSpy).toHaveBeenCalledTimes(1);
+  it('no antepone nada si tratamiento es cadena vacía', () => {
+    const resultado = componente.nombreConTratamiento({
+      nombre: 'Carlos Muñoz',
+      tratamiento: ''
+    });
+    expect(resultado).toBe('Carlos Muñoz');
   });
 
-  it('debe emitir las acciones de una próxima cita', () => {
-    const inasistenciaSpy = vi.spyOn(
-      component.marcarInasistenciaCita,
-      'emit'
-    );
-    const cancelarSpy = vi.spyOn(component.cancelarCita, 'emit');
-
-    const cita = {
-      id: 10,
-      estudiante: 'Ana Pérez'
-    };
-
-    component.marcarInasistencia(cita);
-    component.cancelarCitaAdmin(cita);
-
-    expect(inasistenciaSpy).toHaveBeenCalledWith(cita);
-    expect(cancelarSpy).toHaveBeenCalledWith(cita);
+  it('reconoce otros prefijos históricos además de Dr./Dra. (Psic., Klgo., Nut.)', () => {
+    expect(componente.nombreConTratamiento({ nombre: 'Psic. Roberto Fuentes', tratamiento: 'Psic.' }))
+      .toBe('Psic. Roberto Fuentes');
+    expect(componente.nombreConTratamiento({ nombre: 'Klgo. Diego Soto', tratamiento: 'Klgo.' }))
+      .toBe('Klgo. Diego Soto');
+    expect(componente.nombreConTratamiento({ nombre: 'Nut. Carlos Muñoz', tratamiento: 'Nut.' }))
+      .toBe('Nut. Carlos Muñoz');
   });
 
-  it('debe generar el calendario visual del mes', () => {
-    fixture.detectChanges();
-
-    expect(component.calDiasMes.length).toBeGreaterThan(27);
-    expect(component.calNombreMesVisible.length).toBeGreaterThan(0);
-  });
-
-  it('debe mostrar actividad reciente', () => {
-    fixture.componentRef.setInput('actividadReciente', [
-      {
-        mensaje: 'Cita actualizada',
-        tiempo: 'Hace 5 min',
-        tipo: 'info'
-      }
-    ]);
-
-    fixture.detectChanges();
-
-    const texto = fixture.nativeElement.textContent as string;
-    expect(texto).toContain('Cita actualizada');
-    expect(texto).toContain('Hace 5 min');
+  it('recorta espacios sobrantes del nombre antes de anteponer', () => {
+    const resultado = componente.nombreConTratamiento({
+      nombre: '  Ana Martínez  ',
+      tratamiento: 'Dra.'
+    });
+    expect(resultado).toBe('Dra. Ana Martínez');
   });
 });

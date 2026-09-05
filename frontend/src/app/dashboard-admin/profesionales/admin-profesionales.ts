@@ -37,6 +37,7 @@ export class AdminProfesionalesComponent {
   @Output() crearProfesional  = new EventEmitter<any>();
   @Output() cambiarEstado     = new EventEmitter<{ profesional: any; nuevoEstado: string; motivo: string }>();
   @Output() cambiarDuracion   = new EventEmitter<{ profesional: any; duracionMin: number }>();
+  @Output() cambiarTratamiento = new EventEmitter<{ profesional: any; tratamiento: string | null }>();
   @Output() eliminarProfesional = new EventEmitter<any>();
   @Output() errorValidacion   = new EventEmitter<string>();
 
@@ -69,7 +70,8 @@ export class AdminProfesionalesComponent {
   // ══════════════════════════════════════
   modalProfAbierto = false;
   mostrarConfirmacionProf = false;
-  profNuevoDatos: any = { nombre: '', especialidad: '', especialidadNueva: '', correo: '', rut: '', estado: 'activo', password: 'prof123' };
+  profNuevoDatos: any = { nombre: '', tratamiento: '', especialidad: '', especialidadNueva: '', correo: '', rut: '', estado: 'activo', password: 'prof123' };
+  readonly tratamientosDisponibles = ['Dr.', 'Dra.', 'Psic.', 'Klgo.', 'Nut.', 'Enf.'];
   rutValido = true;
   correoValido = true;
   duracionNumero = 45;
@@ -80,7 +82,7 @@ export class AdminProfesionalesComponent {
   }
 
   abrirModalAgregar(): void {
-    this.profNuevoDatos = { nombre: '', especialidad: '', especialidadNueva: '', correo: '', rut: '', estado: 'activo', password: 'prof123' };
+    this.profNuevoDatos = { nombre: '', tratamiento: '', especialidad: '', especialidadNueva: '', correo: '', rut: '', estado: 'activo', password: 'prof123' };
     this.duracionNumero = 45; this.duracionUnidad = 'minutos';
     this.mostrarConfirmacionProf = false; this.rutValido = true; this.correoValido = true;
     this.modalProfAbierto = true;
@@ -123,7 +125,8 @@ export class AdminProfesionalesComponent {
   confirmarCrearProf(): void {
     const especialidadFinal = this.profNuevoDatos.especialidad === 'otra' ? this.profNuevoDatos.especialidadNueva : this.profNuevoDatos.especialidad;
     this.crearProfesional.emit({
-      nombre: this.profNuevoDatos.nombre, especialidad: especialidadFinal,
+      nombre: this.profNuevoDatos.nombre, tratamiento: this.profNuevoDatos.tratamiento || null,
+      especialidad: especialidadFinal,
       correo: this.profNuevoDatos.correo, rut: this.profNuevoDatos.rut,
       duracion_min: this.duracionEnMinutos, estado: 'activo', password: 'prof123'
     });
@@ -139,10 +142,23 @@ export class AdminProfesionalesComponent {
   profSeleccionado: any = null;
 
   abrirModalAcciones(p: any): void {
-    this.profSeleccionado = { ...p, nuevoEstado: p.estado, motivoCambio: '' };
+    this.profSeleccionado = { ...p, nuevoEstado: p.estado, motivoCambio: '', nuevoTratamiento: p.tratamiento || '' };
     this.duracionNumero = p.duracion_min <= 60 ? p.duracion_min : Math.round(p.duracion_min / 60);
     this.duracionUnidad = p.duracion_min > 60 ? 'horas' : 'minutos';
     this.modalAccionesAbierto = true;
+  }
+
+  /**
+   * Construye "[tratamiento] [nombre]" de forma segura para el modal
+   * (misma lógica que AdminInicioComponent.nombreConTratamiento — no
+   * antepone el tratamiento si el nombre ya trae un prefijo histórico).
+   */
+  nombreConTratamiento(p: { nombre: string; tratamiento?: string | null }): string {
+    const nombre = p?.nombre?.trim() || '';
+    const tratamiento = p?.tratamiento?.trim();
+    if (!tratamiento) return nombre;
+    const yaTienePrefijo = /^(dr|dra|psic|klgo|klga|nut|enf)\.?\s/i.test(nombre);
+    return yaTienePrefijo ? nombre : `${tratamiento} ${nombre}`;
   }
 
   /** Público: el shell lo invoca (vía ViewChild) tras completar una acción con éxito. */
@@ -166,6 +182,19 @@ export class AdminProfesionalesComponent {
   guardarDuracionProfesional(): void {
     if (!this.profSeleccionado) return;
     this.cambiarDuracion.emit({ profesional: this.profSeleccionado, duracionMin: this.duracionEnMinutos });
+  }
+
+  /**
+   * Emite la intención al shell; el shell ejecuta el PATCH real.
+   * '' (Sin tratamiento) se emite como null explícito, no como campo
+   * omitido, para que el backend pueda distinguir "limpiar" de "no tocar".
+   */
+  guardarTratamientoProfesional(): void {
+    if (!this.profSeleccionado) return;
+    this.cambiarTratamiento.emit({
+      profesional: this.profSeleccionado,
+      tratamiento: this.profSeleccionado.nuevoTratamiento || null
+    });
   }
 
   /** Emite la intención al shell; el shell confirma y ejecuta el DELETE real. */

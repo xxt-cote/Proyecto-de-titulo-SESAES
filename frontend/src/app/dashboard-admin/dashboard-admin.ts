@@ -17,6 +17,7 @@ import { AdminEstudiantesComponent } from './estudiantes/admin-estudiantes';
 import { AdminInicioComponent } from './inicio/admin-inicio';
 import { AdminHorarioComponent } from './horario/admin-horario';
 import { AdminConfiguracionComponent, ConfigTab } from './configuracion/admin-configuracion';
+import * as XLSX from 'xlsx';
 
 
 const API = environment.apiUrl;
@@ -453,14 +454,20 @@ toggleSidebarMovil(): void {
   // ══════════════════════════════════════
 
   resumenDia: any[] = [];
+  actualizandoDisponibilidad = false;
 
   cargarResumenDia(): void {
+    this.actualizandoDisponibilidad = true;
     this.http.get<any[]>(`${API}/admin/resumen-dia`).subscribe({
       next: (data) => {
         this.resumenDia = data ?? [];
+        this.actualizandoDisponibilidad = false;
         this.cdr.detectChanges();
       },
-      error: () => {}
+      error: () => {
+        this.actualizandoDisponibilidad = false;
+        this.cdr.detectChanges();
+      }
     });
   }
 
@@ -598,24 +605,26 @@ toggleSidebarMovil(): void {
   }
 
   exportarEspecialidadExcel(): void {
-    this.exportarComoExcel(
+    this.exportarComoXlsx(
       this.graficoEspecialidad.map(d => ({
         Especialidad: d.especialidad,
         Cantidad: d.cantidad,
         Porcentaje: d.porcentaje + '%'
       })),
-      'citas_por_especialidad'
+      'citas_por_especialidad',
+      'Citas por especialidad'
     );
   }
 
   exportarSemanaExcel(): void {
-    this.exportarComoExcel(
+    this.exportarComoXlsx(
       this.graficoSemana.map(d => ({
         Día: d.dia,
         Fecha: d.fecha,
         Cantidad: d.cantidad
       })),
-      'citas_por_semana'
+      'citas_por_semana',
+      'Citas por semana'
     );
   }
   // ══════════════════════════════════════
@@ -1102,6 +1111,22 @@ toggleSidebarMovil(): void {
         this.cdr.detectChanges();
       },
       error: () => { this.mensajeError = 'No se pudo actualizar la duración.'; setTimeout(() => this.mensajeError = '', 3000); }
+    });
+  }
+
+  /**
+   * tratamiento: null se envía explícito en el body (no se omite el campo)
+   * para que el backend distinga "limpiar tratamiento" de "no tocarlo".
+   */
+  onCambiarTratamientoProfesional(payload: { profesional: any; tratamiento: string | null }): void {
+    this.http.patch(`${API}/admin/profesionales/${payload.profesional.id}`, { tratamiento: payload.tratamiento }).subscribe({
+      next: () => {
+        this.cargarProfesionales();
+        this.cargarResumenDia();
+        this.mensajeExito = 'Tratamiento actualizado.'; setTimeout(() => this.mensajeExito = '', 3000);
+        this.cdr.detectChanges();
+      },
+      error: () => { this.mensajeError = 'No se pudo actualizar el tratamiento.'; setTimeout(() => this.mensajeError = '', 3000); }
     });
   }
 
@@ -1637,6 +1662,12 @@ toggleSidebarMovil(): void {
   // ══════════════════════════════════════
 
   private exportarComoExcel(datos: any[], nombreArchivo: string): void {
+    // NOTA (iteración Admin Inicio): este método genera un .xls que en
+    // realidad es texto TSV, lo que hace que Excel muestre "posible
+    // pérdida de datos" y rompa tildes/ñ (sin BOM/encoding real). Usado
+    // hoy solo por exportarAuditoriaExcel() — Inicio ya migró a
+    // exportarComoXlsx() (.xlsx real vía SheetJS). Pendiente migrar
+    // Auditoría en su propia fase para no tocar ese módulo ahora.
     if (!datos.length) { alert('No hay datos para exportar.'); return; }
     const headers = Object.keys(datos[0]);
     const filas   = datos.map(fila => headers.map(h => fila[h] ?? '').join('\t'));
@@ -1646,5 +1677,18 @@ toggleSidebarMovil(): void {
     const a    = document.createElement('a');
     a.href = url; a.download = `${nombreArchivo}_${new Date().toISOString().slice(0,10)}.xls`;
     a.click(); URL.revokeObjectURL(url);
+  }
+
+  /**
+   * Genera un .xlsx real (formato binario/XML de Excel, no TSV disfrazado)
+   * vía SheetJS. Preserva tildes/ñ correctamente porque el formato .xlsx
+   * es UTF-8 nativo — no depende de BOM ni de que Excel adivine el encoding.
+   */
+  private exportarComoXlsx(datos: any[], nombreArchivo: string, nombreHoja: string): void {
+    if (!datos.length) { alert('No hay datos para exportar.'); return; }
+    const hoja  = XLSX.utils.json_to_sheet(datos);
+    const libro = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(libro, hoja, nombreHoja);
+    XLSX.writeFile(libro, `${nombreArchivo}_${new Date().toISOString().slice(0,10)}.xlsx`);
   }
 }

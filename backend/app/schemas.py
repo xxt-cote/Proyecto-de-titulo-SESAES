@@ -64,6 +64,7 @@ class EstudianteUpdate(BaseModel):
 
 class ProfesionalCreate(BaseModel):
     nombre:       str
+    tratamiento:  Optional[str] = None  # "Dr.", "Dra.", "Psic.", "Klgo.", "Nut.", "Enf.", None = sin tratamiento
     especialidad: str
     iniciales:    Optional[str] = None
     descripcion:  Optional[str] = None
@@ -75,6 +76,7 @@ class ProfesionalCreate(BaseModel):
 
 class ProfesionalUpdate(BaseModel):
     nombre:       Optional[str] = None
+    tratamiento:  Optional[str] = None
     especialidad: Optional[str] = None
     iniciales:    Optional[str] = None
     descripcion:  Optional[str] = None
@@ -87,6 +89,7 @@ class ProfesionalUpdate(BaseModel):
 class ProfesionalOut(BaseModel):
     id:           int
     nombre:       str
+    tratamiento:  Optional[str] = None
     especialidad: str
     iniciales:    Optional[str] = None
     descripcion:  Optional[str] = None

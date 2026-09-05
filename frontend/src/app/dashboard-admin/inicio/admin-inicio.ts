@@ -50,6 +50,15 @@ export class AdminInicioComponent implements AfterViewInit, OnChanges, OnDestroy
   @Output() verAgenda = new EventEmitter<void>();
   @Output() marcarInasistenciaCita = new EventEmitter<any>();
   @Output() cancelarCita = new EventEmitter<any>();
+  @Output() actualizarDisponibilidad = new EventEmitter<void>();
+
+  /**
+   * Estado de carga controlado por el padre (que ejecuta el HTTP real vía
+   * cargarResumenDia()). El hijo solo lo refleja visualmente y emite la
+   * intención — nunca decide por sí mismo cuándo termina la carga, así
+   * también se apaga correctamente si el GET falla.
+   */
+  @Input() actualizandoDisponibilidad = false;
 
   @ViewChild('chartEspecialidad')
   chartEspecialidadRef!: ElementRef<HTMLCanvasElement>;
@@ -61,13 +70,13 @@ export class AdminInicioComponent implements AfterViewInit, OnChanges, OnDestroy
   private chartSemana?: Chart;
 
   readonly coloresGrafico = [
-    '#2a78d6',
-    '#eb6834',
-    '#1baf7a',
-    '#eda100',
-    '#e87ba4',
-    '#8b5cf6',
-    '#64748b'
+    '#5E857D',
+    '#367DA6',
+    '#A85F13',
+    '#8B5FA3',
+    '#4F746C',
+    '#B4846A',
+    '#5C706D'
   ];
 
   private readonly meses = [
@@ -106,6 +115,10 @@ export class AdminInicioComponent implements AfterViewInit, OnChanges, OnDestroy
     }
   }
 
+  refrescarDisponibilidad(): void {
+    this.actualizarDisponibilidad.emit();
+  }
+
   ngOnDestroy(): void {
     this.chartEspecialidad?.destroy();
     this.chartSemana?.destroy();
@@ -139,11 +152,25 @@ export class AdminInicioComponent implements AfterViewInit, OnChanges, OnDestroy
     this.cancelarCita.emit(cita);
   }
 
+  /**
+   * Construye "[tratamiento] [nombre]" de forma segura: no antepone el
+   * tratamiento si el nombre almacenado ya empieza con un prefijo
+   * (evita duplicados como "Dr. Dr. Fulano" en datos históricos donde
+   * el tratamiento se escribía a mano dentro del campo nombre).
+   */
+  nombreConTratamiento(prof: { nombre: string; tratamiento?: string | null }): string {
+    const nombre = prof?.nombre?.trim() || '';
+    const tratamiento = prof?.tratamiento?.trim();
+    if (!tratamiento) return nombre;
+    const yaTienePrefijo = /^(dr|dra|psic|klgo|klga|nut|enf)\.?\s/i.test(nombre);
+    return yaTienePrefijo ? nombre : `${tratamiento} ${nombre}`;
+  }
+
   getIconoEstadoProf(estado: string): string {
-    if (estado === 'activo') return '✅';
-    if (estado === 'licencia') return '🔴';
-    if (estado === 'inasistencia') return '⚠️';
-    return '⚪';
+    if (estado === 'activo') return 'check_circle';
+    if (estado === 'licencia') return 'medical_information';
+    if (estado === 'inasistencia') return 'person_off';
+    return 'radio_button_unchecked';
   }
 
   formatearFecha(fecha: string): string {
@@ -282,8 +309,8 @@ export class AdminInicioComponent implements AfterViewInit, OnChanges, OnDestroy
             labels: [],
             datasets: [{
               data: [],
-              borderColor: '#2a78d6',
-              backgroundColor: 'rgba(42,120,214,0.1)',
+              borderColor: '#5E857D',
+              backgroundColor: 'rgba(94,133,125,0.12)',
               fill: true,
               tension: 0.3,
               pointRadius: 3
