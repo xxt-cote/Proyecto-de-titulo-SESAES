@@ -480,7 +480,7 @@ tr.fila-urgente { background: #fff6f5; }
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 12px;
+  padding: 8px 12px;
   background: var(--admin-background);
   border-radius: 8px;
   font-size: 13px;
@@ -508,8 +508,10 @@ tr.fila-urgente { background: #fff6f5; }
 
 .admin-shell .disp-icono { flex-shrink: 0; display: inline-flex; }
 .admin-shell .disp-icono .material-symbols-outlined { font-size: 18px; }
-.admin-shell .disp-nombre { font-weight: 600; color: var(--admin-text); flex: 1; }
-.admin-shell .disp-estado { font-size: 12px; color: var(--admin-text-secondary); }
+.admin-shell .disp-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.admin-shell .disp-nombre { font-weight: 600; color: var(--admin-text); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.admin-shell .disp-especialidad { font-size: 11.5px; font-weight: 400; color: var(--admin-text-secondary); line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.admin-shell .disp-estado { font-size: 12px; color: var(--admin-text-secondary); flex-shrink: 0; }
 .admin-shell .disp-activo { color: var(--admin-primary-hover); }
 .admin-shell .disp-licencia { color: #9B1C1C; }
 .admin-shell .disp-inasistencia { color: #A85F13; }
@@ -823,6 +825,75 @@ tr.fila-urgente { background: #fff6f5; }
 .stat-card-sm .stat-num.green  { color: #0d9488; }
 .stat-card-sm .stat-num.blue   { color: #4f8ef7; }
 .stat-card-sm .stat-num.orange { color: #ad7b12; }
+
+/* Chips dinámicos de las cards de Profesionales — reutilizan los mismos
+   colores semánticos ya aprobados para estados de citas (Completada/
+   Pendiente/Inasistencia/Cancelada), no son colores nuevos. */
+.admin-shell .stat-card-sm { position: relative; }
+.admin-shell .stat-chip {
+  align-self: flex-start;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-top: 2px;
+}
+.admin-shell .stat-chip-green { background: #DEF7EC; color: #03543F; }
+.admin-shell .stat-chip-blue  { background: #E7F4FA; color: #367DA6; }
+.admin-shell .stat-chip-amber { background: #FFF3E2; color: #A85F13; }
+.admin-shell .stat-chip-red   { background: #FDE8E8; color: #9B1C1C; }
+
+/* Prefijo + Nombre lado a lado (Crear Profesional) — el prefijo va más
+   angosto que el nombre. */
+.admin-shell .prefijo-nombre-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 12px;
+}
+
+.admin-shell .campo-ayuda { font-size: 11.5px; color: var(--admin-text-secondary); margin: 0 0 6px; }
+
+/* Selector de color identificador */
+.admin-shell .color-picker-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+.admin-shell .color-swatch {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: transform .1s, border-color .15s;
+}
+.admin-shell .color-swatch:hover { transform: scale(1.08); }
+.admin-shell .color-swatch.seleccionado { border-color: var(--admin-text); box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px var(--admin-text); }
+.admin-shell .color-swatch .material-symbols-outlined { color: #fff; font-size: 18px; font-variation-settings: 'FILL' 1, 'wght' 700, 'GRAD' 0, 'opsz' 24; }
+.admin-shell .color-swatch-sin-color {
+  background: #fff;
+  border: 2px solid var(--admin-border);
+}
+.admin-shell .color-swatch-sin-color .material-symbols-outlined {
+  color: var(--admin-text-secondary);
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+.admin-shell .color-swatch-sin-color.seleccionado { border-color: var(--admin-primary); box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px var(--admin-primary); }
+.admin-shell .color-swatch-sin-color.seleccionado .material-symbols-outlined { color: var(--admin-primary); }
+
+/* Badge de especialidad con color propio del profesional (o fallback).
+   Fondo/borde siempre derivados del mismo hex vía alpha — nunca se
+   hardcodea un color por especialidad en el HTML. */
+.admin-shell .esp-badge-color {
+  display: inline-block;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid;
+  white-space: nowrap;
+}
 
 .card-header-actions { display: flex; gap: 10px; align-items: center; }
 

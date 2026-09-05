@@ -1,8 +1,24 @@
     <div class="prof-stats">
-      <div class="stat-card-sm"><span class="stat-label">Total profesionales</span><span class="stat-num">{{ profesionales.length }}</span></div>
-      <div class="stat-card-sm"><span class="stat-label">Activos hoy</span><span class="stat-num green">{{ profesionalesActivos }}</span></div>
-      <div class="stat-card-sm"><span class="stat-label">Especialidades</span><span class="stat-num blue">{{ especialidades.length }}</span></div>
-      <div class="stat-card-sm"><span class="stat-label">Con incidencias</span><span class="stat-num orange">{{ profesionalesConIncidencia }}</span></div>
+      <div class="stat-card-sm">
+        <span class="stat-label">Total profesionales</span>
+        <span class="stat-num">{{ profesionales.length }}</span>
+        <span class="stat-chip stat-chip-green">{{ textoPorcentajeActivos }}</span>
+      </div>
+      <div class="stat-card-sm">
+        <span class="stat-label">Profesionales activos</span>
+        <span class="stat-num green">{{ profesionalesActivos }}</span>
+        <span class="stat-chip stat-chip-blue">{{ textoActivosChip }}</span>
+      </div>
+      <div class="stat-card-sm">
+        <span class="stat-label">Especialidades</span>
+        <span class="stat-num blue">{{ especialidadesReales.length }}</span>
+        <span class="stat-chip stat-chip-blue">En uso</span>
+      </div>
+      <div class="stat-card-sm">
+        <span class="stat-label">Con incidencias</span>
+        <span class="stat-num orange">{{ profesionalesConIncidencia }}</span>
+        <span class="stat-chip" [ngClass]="profesionalesConIncidencia === 0 ? 'stat-chip-green' : 'stat-chip-red'">{{ textoIncidenciasChip }}</span>
+      </div>
     </div>
     <div class="card">
       <div class="card-header">
@@ -21,10 +37,10 @@
             <td>
               <div class="tabla-usuario">
                 <div class="mini-avatar">{{ p.iniciales }}</div>
-                <div><strong>{{ p.nombre }}</strong><span>{{ p.correo }}</span></div>
+                <div><strong>{{ nombreConTratamiento(p) }}</strong><span>{{ p.correo }}</span></div>
               </div>
             </td>
-            <td>{{ p.especialidad }}</td>
+            <td><span class="esp-badge-color" [style.background]="colorDeProfesional(p) + '1a'" [style.color]="colorDeProfesional(p)" [style.borderColor]="colorDeProfesional(p) + '55'">{{ p.especialidad }}</span></td>
             <td>{{ p.rut || '—' }}</td>
             <td><span class="estado-badge" [ngClass]="p.estado">{{ p.estado }}</span></td>
             <td>
@@ -55,16 +71,18 @@
             <button class="modal-cerrar" (click)="cerrarModal()">✕</button>
           </div>
           <div class="form-grid">
-            <div class="campo-grupo">
-              <label>Tratamiento</label>
-              <select [(ngModel)]="profNuevoDatos.tratamiento">
-                <option value="">Sin tratamiento</option>
-                <option *ngFor="let t of tratamientosDisponibles" [value]="t">{{ t }}</option>
-              </select>
-            </div>
-            <div class="campo-grupo">
-              <label>Nombre Completo *</label>
-              <input [(ngModel)]="profNuevoDatos.nombre" placeholder="Nombre Apellido" />
+            <div class="prefijo-nombre-row">
+              <div class="campo-grupo">
+                <label>Prefijo</label>
+                <select [(ngModel)]="profNuevoDatos.tratamiento">
+                  <option value="">Sin prefijo</option>
+                  <option *ngFor="let t of tratamientosDisponibles" [value]="t">{{ t }}</option>
+                </select>
+              </div>
+              <div class="campo-grupo">
+                <label>Nombre Completo *</label>
+                <input [(ngModel)]="profNuevoDatos.nombre" placeholder="Nombre Apellido" />
+              </div>
             </div>
             <div class="campo-grupo">
               <label>Especialidad *</label>
@@ -89,6 +107,32 @@
               <input [(ngModel)]="profNuevoDatos.rut" placeholder="12.345.678-9"
                      (input)="onRutChange()" [class.input-error]="!rutValido" />
               <span class="campo-error" *ngIf="!rutValido">RUT inválido</span>
+            </div>
+            <!-- Color identificador del calendario -->
+            <div class="campo-grupo" style="grid-column: 1 / -1">
+              <label>Color identificador del calendario</label>
+              <p class="campo-ayuda">Color con el que se identificarán los bloques de agenda y referencias visuales de este profesional.</p>
+              <div class="color-picker-grid">
+                <button
+                  type="button"
+                  class="color-swatch color-swatch-sin-color"
+                  [class.seleccionado]="!profNuevoDatos.color_identificador"
+                  (click)="seleccionarColor(null)"
+                  aria-label="Sin color"
+                  title="Sin color">
+                  <span class="material-symbols-outlined">block</span>
+                </button>
+                <button
+                  type="button"
+                  class="color-swatch"
+                  *ngFor="let c of coloresDisponibles"
+                  [style.background]="c"
+                  [class.seleccionado]="profNuevoDatos.color_identificador === c"
+                  (click)="seleccionarColor(c)"
+                  [attr.aria-label]="'Elegir color ' + c">
+                  <span class="material-symbols-outlined" *ngIf="profNuevoDatos.color_identificador === c">check</span>
+                </button>
+              </div>
             </div>
             <!-- Selector de duración -->
             <div class="campo-grupo" style="grid-column: 1 / -1">
@@ -150,7 +194,7 @@
             <div class="mini-avatar avatar-lg">{{ profSeleccionado.iniciales }}</div>
             <div class="prof-datos-info">
               <h4>{{ nombreConTratamiento(profSeleccionado) }}</h4>
-              <span class="esp-badge">{{ profSeleccionado.especialidad }}</span>
+              <span class="esp-badge-color" [style.background]="colorDeProfesional(profSeleccionado) + '1a'" [style.color]="colorDeProfesional(profSeleccionado)" [style.borderColor]="colorDeProfesional(profSeleccionado) + '55'">{{ profSeleccionado.especialidad }}</span>
             </div>
           </div>
           <div class="prof-datos-grid">
@@ -162,18 +206,39 @@
             </div>
           </div>
 
-          <!-- Tratamiento / título -->
+          <!-- Prefijo profesional -->
           <div class="modal-separador"></div>
-          <p class="config-seccion-titulo">Tratamiento / título</p>
+          <p class="config-seccion-titulo">Prefijo profesional</p>
           <div class="campo-grupo" style="margin-bottom:12px">
-            <label>Tratamiento</label>
+            <label>Prefijo</label>
             <div class="duracion-selector">
               <select [(ngModel)]="profSeleccionado.nuevoTratamiento">
-                <option value="">Sin tratamiento</option>
+                <option value="">Sin prefijo</option>
                 <option *ngFor="let t of tratamientosDisponibles" [value]="t">{{ t }}</option>
               </select>
-              <button class="btn-guardar-modal" style="padding:7px 14px" (click)="guardarTratamientoProfesional()">Guardar tratamiento</button>
+              <button class="btn-guardar-modal" style="padding:7px 14px" (click)="guardarTratamientoProfesional()">Guardar prefijo</button>
             </div>
+          </div>
+
+          <!-- Color identificador del calendario -->
+          <div class="modal-separador"></div>
+          <p class="config-seccion-titulo">Color identificador del calendario</p>
+          <p class="campo-ayuda">Color con el que se identificarán los bloques de agenda y referencias visuales de este profesional.</p>
+          <div class="color-picker-grid" style="margin-bottom:8px">
+            <button
+              type="button"
+              class="color-swatch"
+              *ngFor="let c of coloresDisponibles"
+              [style.background]="c"
+              [class.seleccionado]="profSeleccionado.nuevoColor === c"
+              (click)="profSeleccionado.nuevoColor = c"
+              [attr.aria-label]="'Elegir color ' + c">
+              <span class="material-symbols-outlined" *ngIf="profSeleccionado.nuevoColor === c">check</span>
+            </button>
+          </div>
+          <div class="duracion-selector" style="margin-bottom:12px">
+            <button class="btn-cancelar-modal" style="padding:7px 14px" (click)="profSeleccionado.nuevoColor = null" [disabled]="!profSeleccionado.nuevoColor">Quitar color</button>
+            <button class="btn-guardar-modal" style="padding:7px 14px" (click)="guardarColorProfesional()">Guardar color</button>
           </div>
 
           <!-- Duración de atención -->

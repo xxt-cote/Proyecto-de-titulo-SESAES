@@ -38,8 +38,84 @@ export class AdminProfesionalesComponent {
   @Output() cambiarEstado     = new EventEmitter<{ profesional: any; nuevoEstado: string; motivo: string }>();
   @Output() cambiarDuracion   = new EventEmitter<{ profesional: any; duracionMin: number }>();
   @Output() cambiarTratamiento = new EventEmitter<{ profesional: any; tratamiento: string | null }>();
+  @Output() cambiarColorIdentificador = new EventEmitter<{ profesional: any; color: string | null }>();
   @Output() eliminarProfesional = new EventEmitter<any>();
   @Output() errorValidacion   = new EventEmitter<string>();
+
+  // ══════════════════════════════════════
+  // CARDS SUPERIORES — textos derivados de datos reales
+  // (nunca "capacidad" ni "en turno": no tenemos un dato real de turno/
+  // horario-hoy, solo el estado general del profesional en la ficha)
+  // ══════════════════════════════════════
+
+  /** Especialidades realmente presentes en profesionales[], sin mezclar
+   * con la lista base usada como opciones del <select> de creación. */
+  get especialidadesReales(): string[] {
+    return Array.from(new Set(this.profesionales.map(p => p.especialidad).filter(Boolean)));
+  }
+
+  get porcentajeActivos(): number {
+    if (!this.profesionales.length) return 0;
+    return Math.round((this.profesionalesActivos / this.profesionales.length) * 100);
+  }
+
+  get textoPorcentajeActivos(): string {
+    return `${this.porcentajeActivos}% activos`;
+  }
+
+  get textoActivosChip(): string {
+    if (this.profesionalesActivos === 0) return 'Sin profesionales activos';
+    if (this.profesionalesActivos === 1) return '1 activo';
+    return `${this.profesionalesActivos} activos`;
+  }
+
+  get textoIncidenciasChip(): string {
+    if (this.profesionalesConIncidencia === 0) return 'Sin incidencias';
+    if (this.profesionalesConIncidencia === 1) return '1 incidencia';
+    return `${this.profesionalesConIncidencia} incidencias`;
+  }
+
+  // ══════════════════════════════════════
+  // COLOR IDENTIFICADOR
+  // ══════════════════════════════════════
+
+  /** Paleta cerrada — debe coincidir exactamente con COLORES_PERMITIDOS
+   * del backend (schemas.py). Si se agrega/quita un color, cambiar en
+   * ambos lados. */
+  readonly coloresDisponibles = [
+    '#5E857D', '#7FB8A6', '#8B5CF6', '#A78BFA', '#4F8EF7',
+    '#60A5FA', '#D9A441', '#E07A5F', '#D96C8A', '#C75B5B'
+  ];
+
+  /** Fallback discreto por especialidad para profesionales que aún no
+   * tienen color_identificador propio (dato antiguo = null). Es solo un
+   * valor visual por defecto — nunca se persiste ni se confunde con el
+   * color real elegido por cada profesional. Todos los valores están
+   * tomados de coloresDisponibles. */
+  private readonly colorFallbackPorEspecialidad: Record<string, string> = {
+    'Odontología': '#7FB8A6',
+    'Salud Mental': '#8B5CF6',
+    'Psicología': '#A78BFA',
+    'Kinesiología': '#D9A441',
+    'Nutrición': '#D96C8A',
+    'Medicina General': '#4F8EF7',
+    'Oftalmología': '#60A5FA',
+    'Psicopedagogía': '#E07A5F'
+  };
+  private readonly colorFallbackNeutro = '#5C706D'; // = var(--admin-text-secondary), nunca reemplaza la paleta base
+
+  /** Color a usar para el badge de un profesional: su color propio si lo
+   * tiene, si no un fallback por especialidad, si no un neutro. Cada
+   * profesional puede tener un color distinto aunque compartan
+   * especialidad — el color pertenece al profesional, no a la
+   * especialidad. */
+  colorDeProfesional(prof: any): string {
+    return prof?.color_identificador || this.colorFallbackPorEspecialidad[prof?.especialidad] || this.colorFallbackNeutro;
+  }
+
+  seleccionarColor(color: string | null): void {
+    this.profNuevoDatos.color_identificador = color;
+  }
 
   // ══════════════════════════════════════
   // BÚSQUEDA / PAGINACIÓN (estado local/visual)
@@ -70,8 +146,8 @@ export class AdminProfesionalesComponent {
   // ══════════════════════════════════════
   modalProfAbierto = false;
   mostrarConfirmacionProf = false;
-  profNuevoDatos: any = { nombre: '', tratamiento: '', especialidad: '', especialidadNueva: '', correo: '', rut: '', estado: 'activo', password: 'prof123' };
-  readonly tratamientosDisponibles = ['Dr.', 'Dra.', 'Psic.', 'Klgo.', 'Nut.', 'Enf.'];
+  profNuevoDatos: any = { nombre: '', tratamiento: '', especialidad: '', especialidadNueva: '', correo: '', rut: '', estado: 'activo', password: 'prof123', color_identificador: null };
+  readonly tratamientosDisponibles = ['Dr.', 'Dra.'];
   rutValido = true;
   correoValido = true;
   duracionNumero = 45;
@@ -82,7 +158,7 @@ export class AdminProfesionalesComponent {
   }
 
   abrirModalAgregar(): void {
-    this.profNuevoDatos = { nombre: '', tratamiento: '', especialidad: '', especialidadNueva: '', correo: '', rut: '', estado: 'activo', password: 'prof123' };
+    this.profNuevoDatos = { nombre: '', tratamiento: '', especialidad: '', especialidadNueva: '', correo: '', rut: '', estado: 'activo', password: 'prof123', color_identificador: null };
     this.duracionNumero = 45; this.duracionUnidad = 'minutos';
     this.mostrarConfirmacionProf = false; this.rutValido = true; this.correoValido = true;
     this.modalProfAbierto = true;
@@ -128,7 +204,8 @@ export class AdminProfesionalesComponent {
       nombre: this.profNuevoDatos.nombre, tratamiento: this.profNuevoDatos.tratamiento || null,
       especialidad: especialidadFinal,
       correo: this.profNuevoDatos.correo, rut: this.profNuevoDatos.rut,
-      duracion_min: this.duracionEnMinutos, estado: 'activo', password: 'prof123'
+      duracion_min: this.duracionEnMinutos, estado: 'activo', password: 'prof123',
+      color_identificador: this.profNuevoDatos.color_identificador || null
     });
   }
 
@@ -142,7 +219,7 @@ export class AdminProfesionalesComponent {
   profSeleccionado: any = null;
 
   abrirModalAcciones(p: any): void {
-    this.profSeleccionado = { ...p, nuevoEstado: p.estado, motivoCambio: '', nuevoTratamiento: p.tratamiento || '' };
+    this.profSeleccionado = { ...p, nuevoEstado: p.estado, motivoCambio: '', nuevoTratamiento: p.tratamiento || '', nuevoColor: p.color_identificador || null };
     this.duracionNumero = p.duracion_min <= 60 ? p.duracion_min : Math.round(p.duracion_min / 60);
     this.duracionUnidad = p.duracion_min > 60 ? 'horas' : 'minutos';
     this.modalAccionesAbierto = true;
@@ -194,6 +271,19 @@ export class AdminProfesionalesComponent {
     this.cambiarTratamiento.emit({
       profesional: this.profSeleccionado,
       tratamiento: this.profSeleccionado.nuevoTratamiento || null
+    });
+  }
+
+  /**
+   * Emite la intención al shell; el shell ejecuta el PATCH real.
+   * null explícito = "sin color" (vuelve al fallback por especialidad),
+   * distinto de no tocar el campo.
+   */
+  guardarColorProfesional(): void {
+    if (!this.profSeleccionado) return;
+    this.cambiarColorIdentificador.emit({
+      profesional: this.profSeleccionado,
+      color: this.profSeleccionado.nuevoColor || null
     });
   }
 

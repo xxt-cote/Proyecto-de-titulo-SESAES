@@ -8,7 +8,8 @@ class Profesional(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String)
-    tratamiento = Column(String, nullable=True)  # "Dr.", "Dra.", "Psic.", "Klgo.", "Nut.", "Enf.", etc. Nullable: no rompe filas existentes.
+    tratamiento = Column(String, nullable=True)  # Prefijo profesional. La interfaz actual solo permite asignar "Dr." o "Dra." (o ninguno); el campo queda como texto libre en BD por compatibilidad con datos históricos que pudieran traer otros prefijos (p.ej. "Psic.", "Klgo.").
+    color_identificador = Column(String, nullable=True)  # hex de una paleta cerrada (ver COLORES_PERMITIDOS en schemas.py). Nullable: no rompe filas existentes.
     especialidad = Column(String)
     iniciales = Column(String(5))
     descripcion = Column(String, nullable=True)

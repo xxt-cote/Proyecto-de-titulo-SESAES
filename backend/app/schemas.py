@@ -62,9 +62,28 @@ class EstudianteUpdate(BaseModel):
 # PROFESIONAL
 # ══════════════════════════════════════
 
+# Paleta cerrada de color_identificador. Debe coincidir exactamente con
+# `coloresDisponibles` en admin-profesionales.ts (frontend). Único lugar de
+# verdad: la lista y la función de chequeo viven aquí; el router
+# (admin.py) es quien decide qué HTTPException lanzar si no pasa, para
+# poder responder 400 (decisión de producto) en vez del 422 automático
+# que generaría un field_validator de Pydantic.
+COLORES_PERMITIDOS = frozenset({
+    "#5E857D", "#7FB8A6", "#8B5CF6", "#A78BFA", "#4F8EF7",
+    "#60A5FA", "#D9A441", "#E07A5F", "#D96C8A", "#C75B5B",
+})
+
+
+def color_identificador_es_valido(v: Optional[str]) -> bool:
+    """None/ausente = sin color (válido). Cualquier otro valor debe estar
+    exactamente en la paleta cerrada — rechaza nombres CSS ('red'),
+    funciones ('url(...)', 'var(...)') o hex fuera de lista."""
+    return v is None or v in COLORES_PERMITIDOS
+
+
 class ProfesionalCreate(BaseModel):
     nombre:       str
-    tratamiento:  Optional[str] = None  # "Dr.", "Dra.", "Psic.", "Klgo.", "Nut.", "Enf.", None = sin tratamiento
+    tratamiento:  Optional[str] = None  # "Dr.", "Dra." o None ("Sin prefijo") — únicas opciones que ofrece la interfaz actual
     especialidad: str
     iniciales:    Optional[str] = None
     descripcion:  Optional[str] = None
@@ -72,6 +91,7 @@ class ProfesionalCreate(BaseModel):
     correo:       Optional[str] = None
     rut:          Optional[str] = None
     password:     Optional[str] = None  # None = el backend genera una contraseña temporal aleatoria
+    color_identificador: Optional[str] = None  # hex de COLORES_PERMITIDOS, o null = sin color propio (usa fallback visual). Validado en el router (ver admin.py) para responder 400, no aquí.
 
 
 class ProfesionalUpdate(BaseModel):
@@ -85,6 +105,7 @@ class ProfesionalUpdate(BaseModel):
     rut:          Optional[str] = None
     estado:       Optional[str] = None
     hora_almuerzo_inicio: Optional[str] = None 
+    color_identificador: Optional[str] = None  # ídem: validado en el router, no acá.
 
 class ProfesionalOut(BaseModel):
     id:           int
@@ -100,6 +121,7 @@ class ProfesionalOut(BaseModel):
     usuario_id:   Optional[int] = None
     hora_almuerzo_inicio: Optional[str] = None  
     hora_almuerzo_fin:    Optional[str] = None
+    color_identificador: Optional[str] = None
     class Config:
         from_attributes = True
 

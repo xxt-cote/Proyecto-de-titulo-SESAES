@@ -88,7 +88,10 @@
             <div class="disponibilidad-lista">
               <div *ngFor="let prof of resumenDia" class="disponibilidad-item">
                 <span class="disp-icono" [ngClass]="'disp-' + prof.estado"><span class="material-symbols-outlined">{{ getIconoEstadoProf(prof.estado) }}</span></span>
-                <span class="disp-nombre">{{ nombreConTratamiento(prof) }}</span>
+                <span class="disp-info">
+                  <span class="disp-nombre">{{ nombreConTratamiento(prof) }}</span>
+                  <span class="disp-especialidad">{{ prof.especialidad }}</span>
+                </span>
                 <span class="disp-estado" [ngClass]="'disp-' + prof.estado">
                   {{ prof.estado === 'activo' ? 'Activo' : prof.estado === 'licencia' ? 'En licencia médica' : 'Inasistencia' }}
                   <span *ngIf="prof.estado === 'activo' && prof.citas_hoy !== undefined"> ({{ prof.citas_hoy }} citas hoy)</span>

@@ -21,7 +21,8 @@ from app.models.dia_cerrado import DiaCerrado
 from app.routers.correos import simular_envio_correo
 from app.schemas import (
     ProfesionalCreate, ProfesionalUpdate, ProfesionalOut,
-    ConfiguracionOut, ConfiguracionUpdate, CitaCreate
+    ConfiguracionOut, ConfiguracionUpdate, CitaCreate,
+    color_identificador_es_valido
 )
 from app.rbac.dependencies import require_permission
 from app.rbac.permissions import Permission
@@ -93,6 +94,7 @@ def get_resumen_dia(db: Session = Depends(get_db), current_user: dict = Depends(
             "nombre": p.nombre,
             "tratamiento": p.tratamiento,
             "especialidad": p.especialidad,
+            "color_identificador": p.color_identificador,
             "estado": p.estado or "activo",
             "citas_hoy": citas_hoy
         })
@@ -296,7 +298,7 @@ def get_profesionales_admin(db: Session = Depends(get_db), current_user: dict = 
             "iniciales": p.iniciales, "descripcion": p.descripcion,
             "duracion_min": p.duracion_min, "estado": p.estado or "activo",
             "correo": p.correo, "rut": p.rut, "usuario_id": p.usuario_id,
-            "foto_url": p.foto_url
+            "foto_url": p.foto_url, "color_identificador": p.color_identificador
         }
         for p in db.query(Profesional).all()
     ]
@@ -306,6 +308,8 @@ def get_profesionales_admin(db: Session = Depends(get_db), current_user: dict = 
 def crear_profesional(datos: ProfesionalCreate, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.PROFESIONALES_GESTIONAR))):
     if datos.rut and not validar_rut(datos.rut):
         raise HTTPException(status_code=400, detail="El RUT ingresado no es válido")
+    if not color_identificador_es_valido(datos.color_identificador):
+        raise HTTPException(status_code=400, detail="Color identificador no permitido")
     iniciales = datos.iniciales
     if not iniciales and datos.nombre:
         partes = datos.nombre.split()
@@ -318,7 +322,8 @@ def crear_profesional(datos: ProfesionalCreate, db: Session = Depends(get_db), c
     nuevo_prof = Profesional(
         nombre=datos.nombre, tratamiento=datos.tratamiento, especialidad=datos.especialidad, iniciales=iniciales,
         descripcion=datos.descripcion or "", duracion_min=datos.duracion_min or 45,
-        correo=datos.correo, rut=datos.rut, estado="activo", usuario_id=nuevo_usuario.id
+        correo=datos.correo, rut=datos.rut, estado="activo", usuario_id=nuevo_usuario.id,
+        color_identificador=datos.color_identificador
     )
     db.add(nuevo_prof)
     db.commit()
@@ -335,13 +340,16 @@ def actualizar_profesional(prof_id: int, datos: ProfesionalUpdate, db: Session =
         raise HTTPException(status_code=404, detail="Profesional no encontrado")
     if datos.rut and not validar_rut(datos.rut):
         raise HTTPException(status_code=400, detail="El RUT ingresado no es válido")
+    if "color_identificador" in datos.model_fields_set and not color_identificador_es_valido(datos.color_identificador):
+        raise HTTPException(status_code=400, detail="Color identificador no permitido")
     if datos.nombre       is not None: prof.nombre       = datos.nombre
-    # tratamiento es el único campo de este endpoint que distingue "no
-    # enviado" (conservar) de "enviado como null" (limpiar), porque es el
-    # único caso real de "quitar un valor existente" que pide el negocio.
-    # El resto de los campos mantiene exactamente su semántica anterior
-    # (solo se tocan si vienen no-None).
+    # tratamiento y color_identificador son los campos de este endpoint que
+    # distinguen "no enviado" (conservar) de "enviado como null" (limpiar),
+    # porque son los únicos casos reales de "quitar un valor existente" que
+    # pide el negocio. El resto de los campos mantiene exactamente su
+    # semántica anterior (solo se tocan si vienen no-None).
     if "tratamiento" in datos.model_fields_set: prof.tratamiento = datos.tratamiento
+    if "color_identificador" in datos.model_fields_set: prof.color_identificador = datos.color_identificador
     if datos.especialidad is not None: prof.especialidad = datos.especialidad
     if datos.iniciales    is not None: prof.iniciales    = datos.iniciales
     if datos.descripcion  is not None: prof.descripcion  = datos.descripcion

@@ -1123,10 +1123,29 @@ toggleSidebarMovil(): void {
       next: () => {
         this.cargarProfesionales();
         this.cargarResumenDia();
-        this.mensajeExito = 'Tratamiento actualizado.'; setTimeout(() => this.mensajeExito = '', 3000);
+        this.mensajeExito = 'Prefijo actualizado.'; setTimeout(() => this.mensajeExito = '', 3000);
         this.cdr.detectChanges();
       },
-      error: () => { this.mensajeError = 'No se pudo actualizar el tratamiento.'; setTimeout(() => this.mensajeError = '', 3000); }
+      error: () => { this.mensajeError = 'No se pudo actualizar el prefijo.'; setTimeout(() => this.mensajeError = '', 3000); }
+    });
+  }
+
+  /**
+   * color: null se envía explícito en el body (no se omite el campo) para
+   * que el backend distinga "quitar color" de "no tocarlo". Recarga
+   * también resumenDia porque Disponibilidad Hoy en Inicio usa
+   * color_identificador (vía nombreConTratamiento/badge) y debe quedar
+   * sincronizado de inmediato.
+   */
+  onCambiarColorIdentificador(payload: { profesional: any; color: string | null }): void {
+    this.http.patch(`${API}/admin/profesionales/${payload.profesional.id}`, { color_identificador: payload.color }).subscribe({
+      next: () => {
+        this.cargarProfesionales();
+        this.cargarResumenDia();
+        this.mensajeExito = 'Color identificador actualizado.'; setTimeout(() => this.mensajeExito = '', 3000);
+        this.cdr.detectChanges();
+      },
+      error: () => { this.mensajeError = 'No se pudo actualizar el color.'; setTimeout(() => this.mensajeError = '', 3000); }
     });
   }
 
