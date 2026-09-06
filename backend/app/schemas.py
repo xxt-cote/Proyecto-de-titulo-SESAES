@@ -212,6 +212,44 @@ class ConfiguracionCentroUpdate(BaseModel):
 
 
 # ══════════════════════════════════════
+# USUARIO — MI PERFIL (SA-1.2)
+# ══════════════════════════════════════
+# Usuario es la única fuente de verdad de identidad personal para
+# ADMIN/SUPERADMIN. Estos schemas respaldan GET/PATCH /usuarios/me,
+# que operan exclusivamente sobre current_user (nunca sobre un
+# usuario_id recibido del cliente).
+
+class UsuarioMeOut(BaseModel):
+    id:       int
+    nombre:   Optional[str] = None
+    correo:   str
+    telefono: Optional[str] = None
+    foto_url: Optional[str] = None
+    rol:      str
+    activo:   bool
+
+    class Config:
+        from_attributes = True
+
+
+class UsuarioMeUpdate(BaseModel):
+    """
+    Actualización de Mi Perfil (SA-1.2). Únicos campos editables por el
+    propio usuario: nombre, foto_url, telefono.
+
+    extra="forbid": cualquier campo no declarado aquí (rol, activo,
+    permisos, password, debe_cambiar_password, usuario_id, correo) hace
+    que Pydantic rechace la petición COMPLETA con 422, en vez de
+    aceptarla e ignorar esos campos en silencio.
+    """
+    model_config = {"extra": "forbid"}
+
+    nombre:   Optional[str] = None
+    foto_url: Optional[str] = None
+    telefono: Optional[str] = None
+
+
+# ══════════════════════════════════════
 # HISTORIAL DE ESTADOS DEL PROFESIONAL
 # ══════════════════════════════════════
 

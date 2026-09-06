@@ -298,10 +298,12 @@
         (irAHistorial)="navegarA('historial')"
       ></app-admin-reportes>
 
-<!-- ══ MI PERFIL ══ -->
+<!-- ══ MI PERFIL (SA-1.2 — fuente: Usuario vía GET /usuarios/me) ══ -->
       <app-admin-perfil
         *ngIf="seccionActiva==='miperfil'"
-        [configCentro]="configCentro"
+        [usuario]="usuarioPerfil"
+        [perfilCargado]="perfilCargado"
+        [cargandoPerfil]="cargandoPerfil"
         (guardarPerfil)="onGuardarPerfilAdmin($event)"
       ></app-admin-perfil>
 

@@ -99,9 +99,12 @@ toggleSidebarMovil(): void {
 
   // ── Identidad real del shell/topbar (SA-1.1) ──────────────────
   // Fuente de verdad: AuthService / datos de sesión (nombre, foto_url,
-  // rol). NUNCA ConfiguracionCentro.nombre_admin / foto_admin_url — eso
-  // sigue existiendo solo para el componente legacy Mi Perfil, que no
-  // se toca en esta fase.
+  // rol). NUNCA ConfiguracionCentro.nombre_admin / foto_admin_url.
+  // Desde SA-1.2, Mi Perfil (ver AdminPerfilComponent) también usa
+  // Usuario como fuente de identidad (vía GET/PATCH /usuarios/me) y,
+  // tras guardar, sincroniza esta misma sesión mediante
+  // AuthService.actualizarIdentidadSesion() — por eso ambos quedan
+  // consistentes sin exigir logout/login.
 
   get nombreUsuario(): string {
     return this.auth.getNombre() || 'Administrador/a';
@@ -117,9 +120,7 @@ toggleSidebarMovil(): void {
     return this.auth.getRol() === 'superadmin' ? 'Superadministrador' : 'Administrador';
   }
 
-  // Iniciales derivadas del nombre real (ej. "Superadministrador SESAES"
-  // -> "SS", "Claudia Pérez" -> "CP"). Ya no hay un valor fijo "AD" para
-  // todos: solo se usa como último fallback si no hay nombre de sesión.
+  // Iniciales derivadas del nombre real de la sesión.
   get inicialesUsuario(): string {
     const nombre = this.auth.getNombre();
     if (!nombre) return 'AD';
@@ -128,11 +129,13 @@ toggleSidebarMovil(): void {
     if (palabras.length === 0) return 'AD';
 
     const primera = palabras[0][0] ?? '';
-    const segunda = palabras.length > 1 ? (palabras[1][0] ?? '') : (palabras[0][1] ?? '');
+    const segunda = palabras.length > 1
+      ? (palabras[1][0] ?? '')
+      : (palabras[0][1] ?? '');
+
     const iniciales = (primera + segunda).toUpperCase();
     return iniciales || 'AD';
   }
-
   get puedeExportarCgr(): boolean {
     return this.hasPermission('reportes.cgr.exportar');
   }
@@ -284,7 +287,7 @@ toggleSidebarMovil(): void {
     this.cargarHistorial();
   }
 
-  if (seccion === 'miperfil') this.cargarConfiguracionCentro();
+  if (seccion === 'miperfil') this.cargarMiPerfil();
 }
 
   // ══════════════════════════════════════
@@ -1498,52 +1501,145 @@ toggleSidebarMovil(): void {
   }
 
   // ══════════════════════════════════════
-  // Handler del @Output de AdminPerfilComponent (Fase 3.4D).
-  // El hijo NO ejecuta HTTP: solo emite la intención. El shell sigue siendo
-  // quien llama al backend y actualiza configCentro (fuente de verdad
-  // compartida también con topbar/Inicio/Configuración → General). Tras un
-  // guardado exitoso, el shell usa @ViewChild para pedirle al hijo que
-  // restablezca su propio estado de edición (que ahora vive allí).
-  // Se preserva intencionalmente el comportamiento previo a la extracción:
-  // el PATCH de configuracion-centro se dispara sin esperar la validación
-  // de contraseña, que ocurre después.
+  // MI PERFIL (SA-1.2) — identidad real del Usuario autenticado.
+  // Independiente de ConfiguracionCentro: fuente de verdad es
+  // GET/PATCH /usuarios/me. AdminPerfilComponent NO ejecuta HTTP: solo
+  // emite la intención; el shell dispara los PATCH y, tras éxito,
+  // actualiza también la sesión de AuthService (nombre/foto) para que
+  // el topbar (SA-1.1) refleje el cambio sin exigir logout/login.
+  //
+  // cargandoPerfil/perfilCargado: mientras el GET inicial no responde,
+  // AdminPerfilComponent no debe permitir editar/guardar un objeto
+  // vacío como si fueran datos reales del usuario (ver @Input
+  // perfilCargado en admin-perfil.ts).
   // ══════════════════════════════════════
+  usuarioPerfil: any = {};
+  cargandoPerfil = false;
+  perfilCargado  = false;
+
+  cargarMiPerfil(): void {
+    this.cargandoPerfil = true;
+    this.perfilCargado  = false;
+    this.http.get<any>(`${API}/usuarios/me`).subscribe({
+      next: (data) => {
+        this.usuarioPerfil = data;
+        this.cargandoPerfil = false;
+        this.perfilCargado  = true;
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.cargandoPerfil = false;
+        this.perfilCargado  = false;
+        this.mensajeError = 'No se pudo cargar tu perfil.'; setTimeout(() => this.mensajeError = '', 3000);
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  // Handler del @Output de AdminPerfilComponent.
+  //
+  // Flujo determinista (corrige el bug de la entrega anterior, que
+  // disparaba PATCH /usuarios/me ANTES de validar que las contraseñas
+  // nuevas coincidieran):
+  //   A. Valida localmente ANTES de cualquier PATCH.
+  //      A.1. Si CUALQUIERA de los tres campos de contraseña viene con
+  //           contenido, se considera que se intenta cambiar la
+  //           contraseña: en ese caso deben venir LOS TRES. Si falta
+  //           alguno, no se envía ningún PATCH (ni perfil ni
+  //           contraseña).
+  //      A.2. Solo con los tres presentes se valida que
+  //           contrasena_nueva === contrasena_conf. Si no coinciden,
+  //           tampoco se envía ningún PATCH.
+  //   B. PATCH /usuarios/me.
+  //   C. Solo si (B) tuvo éxito: sincroniza la sesión de AuthService.
+  //   D. Solo si además se pidió cambio de contraseña: PATCH
+  //      /configuracion-centro/cambiar-password, SIEMPRE después de
+  //      que (B) confirmó éxito — nunca en paralelo, nunca si (B) falló.
+  // Los 4 casos de mensaje (perfil solo / perfil+password OK /
+  // perfil OK+password falla / perfil falla) se distinguen
+  // explícitamente: nunca se afirma "Perfil y contraseña actualizados"
+  // si una de las dos partes falló.
   onGuardarPerfilAdmin(payload: {
-    nombre_admin: string;
-    foto_admin_url?: string;
+    nombre: string;
+    telefono: string;
+    foto_url?: string;
     contrasena_actual: string;
     contrasena_nueva: string;
     contrasena_conf: string;
   }): void {
-    const payloadCentro: any = { nombre_admin: payload.nombre_admin };
-    if (payload.foto_admin_url) payloadCentro.foto_admin_url = payload.foto_admin_url;
-    this.http.patch(`${API}/configuracion-centro`, payloadCentro).subscribe({
-      next: () => {
-        this.configCentro.nombre_admin = payload.nombre_admin;
-        this.cdr.detectChanges();
-      },
-      error: () => {}
-    });
-    if (payload.contrasena_nueva) {
-      if (payload.contrasena_nueva !== payload.contrasena_conf) {
-        this.mensajeError = 'Las contraseñas nuevas no coinciden.'; setTimeout(() => this.mensajeError = '', 3000); return;
+    // A. Validación local — antes de tocar la red.
+    // A.1. Cualquier campo de contraseña con contenido => se exigen los tres.
+    const seSolicitaCambioPassword = !!payload.contrasena_actual || !!payload.contrasena_nueva || !!payload.contrasena_conf;
+    if (seSolicitaCambioPassword) {
+      const estanLosTresCampos = !!payload.contrasena_actual && !!payload.contrasena_nueva && !!payload.contrasena_conf;
+      if (!estanLosTresCampos) {
+        this.mensajeError = 'Completa todos los campos de contraseña.'; setTimeout(() => this.mensajeError = '', 3000);
+        return;
       }
-      this.http.patch(`${API}/configuracion-centro/cambiar-password`, {
-        contrasena_actual: payload.contrasena_actual, contrasena_nueva: payload.contrasena_nueva
-      }).subscribe({
-        next: () => {
-          this.mensajeExito = 'Perfil y contraseña actualizados.';
-          this.adminPerfilRef?.finalizarEdicion(true);
-          setTimeout(() => this.mensajeExito = '', 3000);
-          this.cdr.detectChanges();
-        },
-        error: (err) => { this.mensajeError = err?.error?.detail || 'Contraseña actual incorrecta.'; setTimeout(() => this.mensajeError = '', 3000); this.cdr.detectChanges(); }
-      });
-    } else {
-      this.adminPerfilRef?.finalizarEdicion(false);
-      this.mensajeExito = 'Perfil actualizado.'; setTimeout(() => this.mensajeExito = '', 3000);
-      this.cdr.detectChanges();
+      // A.2. Los tres campos están presentes: recién aquí tiene sentido
+      // comparar nueva vs. confirmación.
+      if (payload.contrasena_nueva !== payload.contrasena_conf) {
+        this.mensajeError = 'Las contraseñas nuevas no coinciden.'; setTimeout(() => this.mensajeError = '', 3000);
+        return;
+      }
     }
+
+    const payloadUsuario: any = { nombre: payload.nombre, telefono: payload.telefono };
+    if (payload.foto_url) payloadUsuario.foto_url = payload.foto_url;
+
+    // B. PATCH /usuarios/me. (C) y (D) dependen de su resultado.
+    this.http.patch<any>(`${API}/usuarios/me`, payloadUsuario).subscribe({
+      next: (usuarioActualizado) => {
+        this.usuarioPerfil = usuarioActualizado;
+
+        // C. Perfil guardado con éxito: sincroniza el topbar (SA-1.1)
+        // de inmediato, sin exigir logout/login. Correo y rol no se
+        // tocan: no son editables desde Mi Perfil en esta fase.
+        this.auth.actualizarIdentidadSesion({
+          nombre: usuarioActualizado.nombre,
+          foto_url: usuarioActualizado.foto_url
+        });
+        this.cdr.detectChanges();
+
+        if (payload.contrasena_nueva) {
+          // D. Cambio de contraseña solicitado: se dispara recién ahora,
+          // nunca antes ni en paralelo con (B).
+          this.http.patch(`${API}/configuracion-centro/cambiar-password`, {
+            contrasena_actual: payload.contrasena_actual, contrasena_nueva: payload.contrasena_nueva
+          }).subscribe({
+            next: () => {
+              // Caso: perfil OK + contraseña OK.
+              this.mensajeExito = 'Perfil y contraseña actualizados correctamente.';
+              this.adminPerfilRef?.finalizarEdicion(true);
+              setTimeout(() => this.mensajeExito = '', 3000);
+              this.cdr.detectChanges();
+            },
+            error: (err) => {
+              // Caso: perfil OK + contraseña falla. Nunca se informa
+              // como si ambos hubieran fallado o ambos tenido éxito:
+              // el perfil YA se guardó, la contraseña NO cambió.
+              this.mensajeExito = '';
+              this.mensajeError = 'Perfil actualizado, pero la contraseña no se pudo cambiar: '
+                + (err?.error?.detail || 'contraseña actual incorrecta.');
+              this.adminPerfilRef?.finalizarEdicion(false);
+              setTimeout(() => this.mensajeError = '', 4000);
+              this.cdr.detectChanges();
+            }
+          });
+        } else {
+          // Caso: solo perfil, sin cambio de contraseña.
+          this.adminPerfilRef?.finalizarEdicion(false);
+          this.mensajeExito = 'Perfil actualizado correctamente.'; setTimeout(() => this.mensajeExito = '', 3000);
+          this.cdr.detectChanges();
+        }
+      },
+      error: () => {
+        // Caso: el perfil falla -> nunca se intenta el cambio de
+        // contraseña, aunque se hubiera solicitado.
+        this.mensajeError = 'No se pudo actualizar el perfil.'; setTimeout(() => this.mensajeError = '', 3000);
+        this.cdr.detectChanges();
+      }
+    });
   }
 
   esFeriado(fecha: string | undefined): boolean {

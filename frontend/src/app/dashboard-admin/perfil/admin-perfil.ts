@@ -5,24 +5,27 @@ import { PhotoCropperComponent } from '../../shared/photo-cropper/photo-cropper'
 import { PhotoViewerComponent } from '../../shared/photo-viewer/photo-viewer';
 
 /**
- * Fase 3.4D — extracción de la sección "Mi Perfil" del dashboard-admin.
+ * SA-1.2 — "Mi Perfil" desacoplado de ConfiguracionCentro.
  *
- * `configCentro` NO es exclusivo de esta vista (también lo usan el topbar,
- * Configuración → General e Inicio), así que DashboardAdminComponent sigue
- * siendo su dueño: este componente lo recibe por @Input (misma referencia,
- * sin clonar) y solo lee de él (nombre, correo, foto) o, en el caso puntual
- * de la foto recién recortada, lo muta directamente para preservar la
- * actualización en vivo que ya existía en el monolito (el topbar comparte
- * la misma instancia de objeto). El PATCH que confirma ese cambio en el
- * backend sigue disparándolo el shell.
+ * Fuente de verdad de identidad: el Usuario autenticado (GET
+ * /usuarios/me), recibido por @Input `usuario` desde el shell
+ * (DashboardAdminComponent). Este componente ya NO lee ni escribe
+ * configCentro.nombre_admin / configCentro.foto_admin_url /
+ * configCentro.correo_contacto — esos campos quedan reservados a
+ * información institucional (ver ConfiguracionCentro).
  *
- * Estado exclusivo de Mi Perfil (formulario de edición, visibilidad de
- * contraseñas, selección/recorte de foto, lightbox) vive aquí. El guardado
- * real (PATCH /configuracion-centro y /configuracion-centro/cambiar-password)
- * permanece en el shell porque modifica configCentro, la fuente de verdad
- * compartida; este componente solo emite la intención mediante
- * `guardarPerfil` y expone `finalizarEdicion()` para que el shell restablezca
- * el estado de edición tras un guardado exitoso (vía @ViewChild).
+ * Campos editables: nombre, foto_url, telefono (más el cambio de
+ * contraseña, que sigue su propio flujo por
+ * PATCH /configuracion-centro/cambiar-password, sin mover de
+ * namespace en esta fase). Correo y rol son de solo lectura: el correo
+ * es identidad de login (no editable en SA-1.2) y el rol no es
+ * autoservicio.
+ *
+ * Este componente no ejecuta HTTP propio: solo emite `guardarPerfil`
+ * con la intención. El shell decide qué PATCH(es) disparar
+ * (PATCH /usuarios/me y, si corresponde, cambiar-password) y, tras
+ * éxito, actualiza la sesión de AuthService para que el topbar
+ * (SA-1.1) refleje el cambio sin exigir logout/login.
  */
 @Component({
   selector: 'app-admin-perfil',
@@ -32,13 +35,21 @@ import { PhotoViewerComponent } from '../../shared/photo-viewer/photo-viewer';
 })
 export class AdminPerfilComponent implements OnChanges {
 
-  // ── Dato recibido del shell (fuente de verdad: DashboardAdminComponent) ──
-  @Input() configCentro: any = {};
+  // ── Identidad real del Usuario autenticado (fuente: GET /usuarios/me) ──
+  @Input() usuario: any = {};
+
+  // SA-1.2 v2: mientras el GET inicial no responde, no se debe permitir
+  // editar/guardar un objeto vacío como si fueran datos reales del
+  // usuario. El shell pone `perfilCargado = true` recién cuando
+  // `usuario` contiene la respuesta real de GET /usuarios/me.
+  @Input() perfilCargado = false;
+  @Input() cargandoPerfil = false;
 
   // ── Intención emitida al shell (el shell ejecuta el/los PATCH reales) ──
   @Output() guardarPerfil = new EventEmitter<{
-    nombre_admin: string;
-    foto_admin_url?: string;
+    nombre: string;
+    telefono: string;
+    foto_url?: string;
     contrasena_actual: string;
     contrasena_nueva: string;
     contrasena_conf: string;
@@ -47,50 +58,90 @@ export class AdminPerfilComponent implements OnChanges {
   // ══════════════════════════════════════
   // FORMULARIO DE PERFIL (estado exclusivo/local)
   // ══════════════════════════════════════
-  configPerfil: any = { nombre_admin: '', contrasena_actual: '', contrasena_nueva: '', contrasena_conf: '' };
+  configPerfil: any = { nombre: '', telefono: '', contrasena_actual: '', contrasena_nueva: '', contrasena_conf: '' };
   mostrarContrasenaActual = false;
   mostrarContrasenaaNueva  = false;
   mostrarContrasenaConf   = false;
 
   // Edición de Mi Perfil: campos bloqueados hasta presionar "Editar"
   adminPerfilEnEdicion = false;
-  fotoAdminCambiada    = false;
+  fotoCambiada = false;
+
+  // Foto en edición local: a diferencia del monolito legacy, NO muta el
+  // @Input `usuario` directamente. Se muestra con fallback a
+  // usuario.foto_url mientras no se ha recortado una foto nueva, y el
+  // cambio se confirma recién al guardar (PATCH /usuarios/me).
+  fotoPreview: string | null = null;
 
   /**
-   * Sincroniza configPerfil.nombre_admin cuando el shell recarga/reasigna
-   * configCentro (cargarConfiguracionCentro reasigna la referencia en cada
-   * GET exitoso). Reproduce exactamente lo que antes hacía
-   * DashboardAdminComponent.cargarConfiguracionCentro() de forma directa.
+   * Sincroniza el formulario local cuando el shell recarga/reasigna
+   * `usuario` (tras un GET /usuarios/me exitoso).
    */
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['configCentro']) {
-      this.configPerfil.nombre_admin = this.configCentro?.nombre_admin ?? '';
+    if (changes['usuario']) {
+      this.configPerfil.nombre   = this.usuario?.nombre ?? '';
+      this.configPerfil.telefono = this.usuario?.telefono ?? '';
     }
   }
 
-  habilitarEdicionPerfilAdmin(): void { this.adminPerfilEnEdicion = true; }
+  get fotoActual(): string | null {
+    return this.fotoPreview ?? this.usuario?.foto_url ?? null;
+  }
+
+  // Rol visual: admin -> Administrador, superadmin -> Superadministrador.
+  // Nunca muestra el string técnico "superadmin" tal cual.
+  get rolVisual(): string {
+    return this.usuario?.rol === 'superadmin' ? 'Superadministrador' : 'Administrador';
+  }
+  get inicialesUsuario(): string {
+    const nombre = this.usuario?.nombre;
+    if (!nombre) return 'AD';
+
+    const palabras = String(nombre).trim().split(/\s+/).filter(Boolean);
+    if (palabras.length === 0) return 'AD';
+
+    const primera = palabras[0][0] ?? '';
+    const segunda = palabras.length > 1
+      ? (palabras[1][0] ?? '')
+      : (palabras[0][1] ?? '');
+
+    const iniciales = (primera + segunda).toUpperCase();
+    return iniciales || 'AD';
+  }
+
+  habilitarEdicionPerfilAdmin(): void {
+    if (!this.perfilCargado) return; // no editar sobre datos aún no confirmados como reales
+    this.adminPerfilEnEdicion = true;
+  }
 
   cancelarEdicionPerfilAdmin(): void {
     this.adminPerfilEnEdicion = false;
-    this.configPerfil.nombre_admin      = this.configCentro.nombre_admin || '';
+    this.configPerfil.nombre      = this.usuario?.nombre ?? '';
+    this.configPerfil.telefono    = this.usuario?.telefono ?? '';
     this.configPerfil.contrasena_actual = '';
     this.configPerfil.contrasena_nueva  = '';
     this.configPerfil.contrasena_conf   = '';
+    this.fotoPreview  = null;
+    this.fotoCambiada = false;
   }
 
   get perfilAdminModificado(): boolean {
-    return this.configPerfil.nombre_admin !== (this.configCentro.nombre_admin || '')
+    return this.configPerfil.nombre   !== (this.usuario?.nombre ?? '')
+        || this.configPerfil.telefono !== (this.usuario?.telefono ?? '')
         || !!this.configPerfil.contrasena_actual
         || !!this.configPerfil.contrasena_nueva
-        || this.fotoAdminCambiada;
+        || !!this.configPerfil.contrasena_conf
+        || this.fotoCambiada;
   }
 
   /** Emite la intención al shell; el shell ejecuta el/los PATCH reales. */
   guardarPerfilAdmin(): void {
+    if (!this.perfilCargado) return;
     if (!this.perfilAdminModificado) return;
     this.guardarPerfil.emit({
-      nombre_admin: this.configPerfil.nombre_admin,
-      ...(this.configCentro.foto_admin_url ? { foto_admin_url: this.configCentro.foto_admin_url } : {}),
+      nombre: this.configPerfil.nombre,
+      telefono: this.configPerfil.telefono,
+      ...(this.fotoCambiada && this.fotoPreview ? { foto_url: this.fotoPreview } : {}),
       contrasena_actual: this.configPerfil.contrasena_actual,
       contrasena_nueva: this.configPerfil.contrasena_nueva,
       contrasena_conf: this.configPerfil.contrasena_conf
@@ -98,15 +149,13 @@ export class AdminPerfilComponent implements OnChanges {
   }
 
   /**
-   * Público: el shell lo invoca (vía @ViewChild) tras un guardado exitoso
-   * para restablecer el estado de edición, que ahora vive en este hijo.
-   * `limpiarPassword` distingue el caso en que también se cambió la
-   * contraseña con éxito (se limpian los 3 campos), igual que hacía el
-   * monolito.
+   * Público: el shell lo invoca (vía @ViewChild) tras un guardado
+   * exitoso para restablecer el estado de edición.
    */
   finalizarEdicion(limpiarPassword: boolean): void {
     this.adminPerfilEnEdicion = false;
-    this.fotoAdminCambiada = false;
+    this.fotoCambiada = false;
+    this.fotoPreview  = null;
     if (limpiarPassword) {
       this.configPerfil.contrasena_actual = '';
       this.configPerfil.contrasena_nueva  = '';
@@ -115,7 +164,7 @@ export class AdminPerfilComponent implements OnChanges {
   }
 
   // ══════════════════════════════════════
-  // FOTO (selección, recorte, visor ampliado — exclusivos de Mi Perfil)
+  // FOTO (selección, recorte, visor ampliado)
   // ══════════════════════════════════════
   imagenParaRecortar: string | null = null;
   verFotoAmpliada = false;
@@ -131,14 +180,13 @@ export class AdminPerfilComponent implements OnChanges {
   }
 
   /**
-   * Muta configCentro directamente (misma referencia recibida por @Input)
-   * para preservar la actualización en vivo de la foto en el topbar, tal
-   * como ocurría en el monolito. No dispara HTTP: el cambio se confirma
-   * recién al presionar "Guardar cambios".
+   * Guarda la foto recortada en estado local (`fotoPreview`) sin mutar
+   * `usuario`. El cambio se confirma recién al presionar
+   * "Guardar cambios", vía PATCH /usuarios/me.
    */
   onFotoRecortada(dataUrl: string): void {
-    this.configCentro.foto_admin_url = dataUrl;
-    this.fotoAdminCambiada  = true;
+    this.fotoPreview  = dataUrl;
+    this.fotoCambiada = true;
     this.imagenParaRecortar = null;
   }
 

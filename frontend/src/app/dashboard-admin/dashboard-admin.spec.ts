@@ -2,6 +2,7 @@ import { ChangeDetectorRef } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { describe, expect, it, vi } from 'vitest';
+import { of, throwError } from 'rxjs';
 
 import { AuthService } from '../auth.service';
 import { ToastService } from '../shared/toast/toast.service';
@@ -36,7 +37,10 @@ function crearShell(opciones: {
 
   const router = {} as Router;
   const http = {} as HttpClient;
-  const toast = {} as ToastService;
+ const toast = {
+  success: vi.fn(),
+  error: vi.fn()
+} as unknown as ToastService;
   const cdr = {} as ChangeDetectorRef;
 
   return new DashboardAdminComponent(router, http, cdr, toast, auth);
@@ -93,5 +97,295 @@ describe('DashboardAdminComponent — identidad real del topbar (SA-1.1)', () =>
     const component = crearShell();
 
     expect(component.inicialesUsuario).toBe('AD');
+  });
+});
+
+/**
+ * SA-1.2 — Mi Perfil sobre Usuario (GET/PATCH /usuarios/me) y
+ * coordinación con el cambio de contraseña.
+ *
+ * Mismo patrón de instanciación directa (sin TestBed) que el describe
+ * de SA-1.1 de arriba, ampliado con un mock de `http` que registra las
+ * llamadas (get/patch) para poder afirmar CUÁNTAS y EN QUÉ ORDEN se
+ * disparan — es justamente lo que corrige el bug de la entrega
+ * anterior (PATCH de perfil disparado antes de validar la contraseña).
+ *
+ * `auth.actualizarIdentidadSesion` se mockea con estado real (no un
+ * simple vi.fn() vacío): actualiza variables locales que
+ * `getNombre`/`getFotoUrl` vuelven a leer, para poder comprobar que el
+ * topbar (nombreUsuario/fotoUsuarioUrl, getters de SA-1.1) refleja el
+ * cambio sin relogin, tal como hace la implementación real de
+ * AuthService contra sessionStorage.
+ */
+function crearShellConPerfil(opciones: {
+  nombre?: string | null;
+  fotoUrl?: string | null;
+  rol?: string | null;
+  getUsuarioMeResponse?: any;
+  patchUsuarioMeResponse?: any;
+  patchUsuarioMeError?: any;
+  patchPasswordError?: any;
+} = {}) {
+  let nombreSesion = opciones.nombre ?? null;
+  let fotoSesion   = opciones.fotoUrl ?? null;
+
+  const actualizarIdentidadSesion = vi.fn((datos: { nombre?: string; foto_url?: string | null }) => {
+    if (datos.nombre !== undefined) nombreSesion = datos.nombre;
+    if (datos.foto_url !== undefined) fotoSesion = datos.foto_url ?? null;
+  });
+
+  const auth = {
+    getNombre: vi.fn(() => nombreSesion),
+    getFotoUrl: vi.fn(() => fotoSesion),
+    getRol: vi.fn(() => opciones.rol ?? null),
+    hasPermission: vi.fn(() => false),
+    getUsuarioId: vi.fn(() => null),
+    actualizarIdentidadSesion
+  } as unknown as AuthService;
+
+  const patchCalls: { url: string; body: any }[] = [];
+  const getCalls: string[] = [];
+
+  const http = {
+    get: vi.fn((url: string) => {
+      getCalls.push(url);
+      return of(opciones.getUsuarioMeResponse ?? {});
+    }),
+    patch: vi.fn((url: string, body: any) => {
+      patchCalls.push({ url, body });
+      if (url.includes('/usuarios/me')) {
+        if (opciones.patchUsuarioMeError) return throwError(() => opciones.patchUsuarioMeError);
+        return of(opciones.patchUsuarioMeResponse ?? { ...body });
+      }
+      if (url.includes('cambiar-password')) {
+        if (opciones.patchPasswordError) return throwError(() => opciones.patchPasswordError);
+        return of({ message: 'Contraseña actualizada correctamente' });
+      }
+      return of({});
+    })
+  } as unknown as HttpClient;
+
+  const router = {} as Router;
+  const toast = {
+    success: vi.fn(),
+    error: vi.fn()
+  } as unknown as ToastService;
+  const cdr = { detectChanges: vi.fn() } as unknown as ChangeDetectorRef;
+
+  const component = new DashboardAdminComponent(router, http, cdr, toast, auth);
+  return { component, http, auth, patchCalls, getCalls, actualizarIdentidadSesion };
+}
+
+describe('DashboardAdminComponent — Mi Perfil sobre Usuario (SA-1.2)', () => {
+  // ── 1. Carga: estado antes/después de GET /usuarios/me ────────────
+  it('cargarMiPerfil(): perfilCargado pasa de false a true tras un GET exitoso, sin datos inventados de por medio', () => {
+    const { component } = crearShellConPerfil({
+      getUsuarioMeResponse: { id: 7, nombre: 'Admin SESAES', correo: 'admin@utem.cl', telefono: null, foto_url: null, rol: 'admin', activo: true }
+    });
+
+    expect(component.perfilCargado).toBe(false);
+    expect(component.cargandoPerfil).toBe(false);
+
+    component.cargarMiPerfil();
+
+    expect(component.cargandoPerfil).toBe(false); // el observable síncrono de test ya resolvió
+    expect(component.perfilCargado).toBe(true);
+    expect(component.usuarioPerfil.nombre).toBe('Admin SESAES');
+  });
+
+  // ── 2. Contraseñas nuevas no coinciden -> CERO requests ────────────
+  it('contraseña nueva y confirmación distintas -> no dispara ningún PATCH (ni perfil ni contraseña)', () => {
+    const { component, patchCalls } = crearShellConPerfil();
+
+    component.onGuardarPerfilAdmin({
+      nombre: 'Nuevo Nombre', telefono: '+56911111111',
+      contrasena_actual: 'actual123', contrasena_nueva: 'nueva123', contrasena_conf: 'otra-distinta'
+    });
+
+    expect(patchCalls.length).toBe(0);
+    expect(component.mensajeError).toBe('Las contraseñas nuevas no coinciden.');
+  });
+
+  // ── 2.1 a 2.4. SA-1.2 v3 — estados incompletos de contraseña ───────
+  // Regla: si CUALQUIERA de los tres campos de contraseña tiene
+  // contenido, se exigen los tres. Falta cualquiera -> CERO requests.
+  it('solo contraseña actual -> 0 PATCH, "Completa todos los campos de contraseña."', () => {
+    const { component, patchCalls } = crearShellConPerfil();
+
+    component.onGuardarPerfilAdmin({
+      nombre: 'Nuevo Nombre', telefono: '+56911111111',
+      contrasena_actual: 'actual123', contrasena_nueva: '', contrasena_conf: ''
+    });
+
+    expect(patchCalls.length).toBe(0);
+    expect(component.mensajeError).toBe('Completa todos los campos de contraseña.');
+  });
+
+  it('solo nueva + confirmación (sin actual) -> 0 PATCH, "Completa todos los campos de contraseña."', () => {
+    const { component, patchCalls } = crearShellConPerfil();
+
+    component.onGuardarPerfilAdmin({
+      nombre: 'Nuevo Nombre', telefono: '+56911111111',
+      contrasena_actual: '', contrasena_nueva: 'nueva123', contrasena_conf: 'nueva123'
+    });
+
+    expect(patchCalls.length).toBe(0);
+    expect(component.mensajeError).toBe('Completa todos los campos de contraseña.');
+  });
+
+  it('nueva sin confirmación -> 0 PATCH, "Completa todos los campos de contraseña."', () => {
+    const { component, patchCalls } = crearShellConPerfil();
+
+    component.onGuardarPerfilAdmin({
+      nombre: 'Nuevo Nombre', telefono: '+56911111111',
+      contrasena_actual: 'actual123', contrasena_nueva: 'nueva123', contrasena_conf: ''
+    });
+
+    expect(patchCalls.length).toBe(0);
+    expect(component.mensajeError).toBe('Completa todos los campos de contraseña.');
+  });
+
+  it('los tres completos pero no coinciden -> 0 PATCH, "Las contraseñas nuevas no coinciden."', () => {
+    const { component, patchCalls } = crearShellConPerfil();
+
+    component.onGuardarPerfilAdmin({
+      nombre: 'Nuevo Nombre', telefono: '+56911111111',
+      contrasena_actual: 'actual123', contrasena_nueva: 'nueva123', contrasena_conf: 'nueva456'
+    });
+
+    expect(patchCalls.length).toBe(0);
+    expect(component.mensajeError).toBe('Las contraseñas nuevas no coinciden.');
+  });
+
+  it('los tres completos y coinciden -> flujo normal (2 PATCH, perfil + contraseña)', () => {
+    const { component, patchCalls } = crearShellConPerfil({
+      patchUsuarioMeResponse: { id: 7, nombre: 'Nuevo Nombre', correo: 'admin@utem.cl', telefono: '+56911111111', foto_url: null, rol: 'admin', activo: true }
+    });
+
+    component.onGuardarPerfilAdmin({
+      nombre: 'Nuevo Nombre', telefono: '+56911111111',
+      contrasena_actual: 'actual123', contrasena_nueva: 'nueva123', contrasena_conf: 'nueva123'
+    });
+
+    expect(patchCalls.length).toBe(2);
+    expect(patchCalls[0].url).toContain('/usuarios/me');
+    expect(patchCalls[1].url).toContain('cambiar-password');
+    expect(component.mensajeExito).toBe('Perfil y contraseña actualizados correctamente.');
+  });
+
+  // ── 3. Perfil falla -> nunca se intenta el cambio de contraseña ────
+  it('si PATCH /usuarios/me falla, no se intenta PATCH de contraseña aunque se haya solicitado', () => {
+    const { component, patchCalls } = crearShellConPerfil({
+      patchUsuarioMeError: { error: { detail: 'boom' } }
+    });
+
+    component.onGuardarPerfilAdmin({
+      nombre: 'Nuevo Nombre', telefono: '+56911111111',
+      contrasena_actual: 'actual123', contrasena_nueva: 'nueva123', contrasena_conf: 'nueva123'
+    });
+
+    expect(patchCalls.length).toBe(1);
+    expect(patchCalls[0].url).toContain('/usuarios/me');
+    expect(component.mensajeError).toBe('No se pudo actualizar el perfil.');
+  });
+
+  // ── 4. Perfil OK, sin cambio de contraseña -> mensaje "Perfil actualizado" ──
+  it('perfil OK sin cambio de contraseña -> mensaje "Perfil actualizado correctamente."', () => {
+    const { component, patchCalls } = crearShellConPerfil({
+      patchUsuarioMeResponse: { id: 7, nombre: 'Nuevo Nombre', correo: 'admin@utem.cl', telefono: '+56911111111', foto_url: null, rol: 'admin', activo: true }
+    });
+
+    component.onGuardarPerfilAdmin({
+      nombre: 'Nuevo Nombre', telefono: '+56911111111',
+      contrasena_actual: '', contrasena_nueva: '', contrasena_conf: ''
+    });
+
+    expect(patchCalls.length).toBe(1);
+    expect(component.mensajeExito).toBe('Perfil actualizado correctamente.');
+  });
+
+  // ── 5. Perfil OK + contraseña OK -> mensaje conjunto ───────────────
+  it('perfil OK + contraseña OK -> mensaje "Perfil y contraseña actualizados correctamente."', () => {
+    const { component, patchCalls } = crearShellConPerfil({
+      patchUsuarioMeResponse: { id: 7, nombre: 'Nuevo Nombre', correo: 'admin@utem.cl', telefono: '+56911111111', foto_url: null, rol: 'admin', activo: true }
+    });
+
+    component.onGuardarPerfilAdmin({
+      nombre: 'Nuevo Nombre', telefono: '+56911111111',
+      contrasena_actual: 'actual123', contrasena_nueva: 'nueva123', contrasena_conf: 'nueva123'
+    });
+
+    expect(patchCalls.length).toBe(2);
+    expect(patchCalls[0].url).toContain('/usuarios/me');
+    expect(patchCalls[1].url).toContain('cambiar-password');
+    expect(component.mensajeExito).toBe('Perfil y contraseña actualizados correctamente.');
+  });
+
+  // ── 6. Perfil OK + contraseña falla -> mensaje parcial, nunca "ambos OK" ──
+  it('perfil OK + contraseña falla -> informa que el perfil sí se guardó y la contraseña no cambió', () => {
+    const { component, patchCalls } = crearShellConPerfil({
+      patchUsuarioMeResponse: { id: 7, nombre: 'Nuevo Nombre', correo: 'admin@utem.cl', telefono: '+56911111111', foto_url: null, rol: 'admin', activo: true },
+      patchPasswordError: { error: { detail: 'Contraseña actual incorrecta' } }
+    });
+
+    component.onGuardarPerfilAdmin({
+      nombre: 'Nuevo Nombre', telefono: '+56911111111',
+      contrasena_actual: 'mala', contrasena_nueva: 'nueva123', contrasena_conf: 'nueva123'
+    });
+
+    expect(patchCalls.length).toBe(2);
+    expect(component.mensajeExito).toBe(''); // nunca afirma éxito conjunto
+    expect(component.mensajeError).toContain('Perfil actualizado');
+    expect(component.mensajeError).toContain('contraseña no se pudo cambiar');
+  });
+
+  // ── 7. actualizarIdentidadSesion se llama tras perfil OK ───────────
+  it('tras PATCH /usuarios/me exitoso, llama a AuthService.actualizarIdentidadSesion con nombre/foto_url', () => {
+    const { component, actualizarIdentidadSesion } = crearShellConPerfil({
+      patchUsuarioMeResponse: { id: 7, nombre: 'Nuevo Nombre', correo: 'admin@utem.cl', telefono: null, foto_url: 'data:image/png;base64,ABC', rol: 'admin', activo: true }
+    });
+
+    component.onGuardarPerfilAdmin({
+      nombre: 'Nuevo Nombre', telefono: '',
+      contrasena_actual: '', contrasena_nueva: '', contrasena_conf: ''
+    });
+
+    expect(actualizarIdentidadSesion).toHaveBeenCalledWith({
+      nombre: 'Nuevo Nombre',
+      foto_url: 'data:image/png;base64,ABC'
+    });
+  });
+
+  // ── 8. El topbar refleja el nuevo nombre/foto sin relogin ──────────
+  it('el topbar (nombreUsuario/fotoUsuarioUrl) refleja el cambio inmediatamente, sin relogin', () => {
+    const { component } = crearShellConPerfil({
+      nombre: 'Nombre Viejo', fotoUrl: null,
+      patchUsuarioMeResponse: { id: 7, nombre: 'Nombre Actualizado', correo: 'admin@utem.cl', telefono: null, foto_url: 'https://cdn.sesaes.cl/nueva.jpg', rol: 'admin', activo: true }
+    });
+
+    expect(component.nombreUsuario).toBe('Nombre Viejo');
+    expect(component.fotoUsuarioUrl).toBeNull();
+
+    component.onGuardarPerfilAdmin({
+      nombre: 'Nombre Actualizado', telefono: '',
+      contrasena_actual: '', contrasena_nueva: '', contrasena_conf: ''
+    });
+
+    expect(component.nombreUsuario).toBe('Nombre Actualizado');
+    expect(component.fotoUsuarioUrl).toBe('https://cdn.sesaes.cl/nueva.jpg');
+  });
+
+  // ── 9. Sin cambio de contraseña -> nunca se dispara cambiar-password ──
+  it('sin contrasena_nueva, nunca dispara PATCH /configuracion-centro/cambiar-password', () => {
+    const { component, patchCalls } = crearShellConPerfil({
+      patchUsuarioMeResponse: { id: 7, nombre: 'X', correo: 'admin@utem.cl', telefono: null, foto_url: null, rol: 'admin', activo: true }
+    });
+
+    component.onGuardarPerfilAdmin({
+      nombre: 'X', telefono: '',
+      contrasena_actual: '', contrasena_nueva: '', contrasena_conf: ''
+    });
+
+    expect(patchCalls.some(c => c.url.includes('cambiar-password'))).toBe(false);
   });
 });

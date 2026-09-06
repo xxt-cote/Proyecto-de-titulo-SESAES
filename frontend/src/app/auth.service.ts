@@ -83,6 +83,25 @@ export class AuthService {
     return Number.isInteger(id) && id > 0 ? id : null;
   }
 
+  /**
+   * SA-1.2: actualiza nombre/foto de la sesión activa tras un guardado
+   * exitoso de Mi Perfil (PATCH /usuarios/me), sin exigir logout/login.
+   *
+   * Función acotada a propósito: solo toca `nombre` y `foto_url` en
+   * sessionStorage (nunca localStorage), y solo los campos presentes en
+   * `datos` — no reemplaza ni borra el resto de la sesión (token, rol,
+   * id). correo y rol no se editan desde Mi Perfil en esta fase, así
+   * que esta función no los toca.
+   */
+  actualizarIdentidadSesion(datos: { nombre?: string; foto_url?: string | null }): void {
+    if (datos.nombre !== undefined) {
+      sessionStorage.setItem('nombre', datos.nombre ?? '');
+    }
+    if (datos.foto_url !== undefined) {
+      sessionStorage.setItem('foto_url', datos.foto_url ?? '');
+    }
+  }
+
   logout(): void {
     sessionStorage.clear();
   }
