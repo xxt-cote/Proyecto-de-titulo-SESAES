@@ -13,12 +13,16 @@ import unittest
 
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 from app.auth_dependencies import get_current_user
+from app.database import Base
+from app.models.usuario import Usuario
 from app.rbac.dependencies import require_permission
 from app.rbac.permissions import ROLE_DEFAULT_PERMISSIONS, Permission, has_permission
 from app.rbac.roles import Role, normalizar_rol
-from app.security import create_access_token
+from app.security import create_access_token, hash_password
 
 
 class NormalizarRolTests(unittest.TestCase):
@@ -197,11 +201,27 @@ class RequirePermissionDependencyTests(unittest.TestCase):
 
         self.assertEqual(ctx.exception.status_code, 403)
 
+    def setUp(self):
+        # SA-3: get_current_user ahora consulta Usuario en BD, así que
+        # necesita una sesión real (aquí, SQLite en memoria, mismo patrón
+        # que test_auditoria.py / test_usuarios_me.py) — nunca una
+        # SessionLocal real de producción en un test unitario.
+        self._engine = create_engine("sqlite:///:memory:")
+        Base.metadata.create_all(bind=self._engine, tables=[Usuario.__table__])
+        TestingSessionLocal = sessionmaker(bind=self._engine)
+        self.db = TestingSessionLocal()
+
+    def tearDown(self):
+        self.db.close()
+        self._engine.dispose()
+
     def test_get_current_user_sigue_lanzando_401_sin_token(self):
         # No se reemplaza ni se atrapa este 401: require_permission se
         # construye sobre Depends(get_current_user) sin modificarlo.
+        # Se pasa `db` igualmente por completitud de la firma, pero
+        # nunca se usa porque la función falla antes de consultarla.
         with self.assertRaises(HTTPException) as ctx:
-            get_current_user(credentials=None)
+            get_current_user(credentials=None, db=self.db)
 
         self.assertEqual(ctx.exception.status_code, 401)
 
@@ -211,18 +231,81 @@ class RequirePermissionDependencyTests(unittest.TestCase):
         )
 
         with self.assertRaises(HTTPException) as ctx:
-            get_current_user(credentials=credenciales_invalidas)
+            get_current_user(credentials=credenciales_invalidas, db=self.db)
 
         self.assertEqual(ctx.exception.status_code, 401)
 
     def test_get_current_user_acepta_token_valido(self):
-        token = create_access_token({"id": 7, "rol": "profesional", "correo": "p@sesaes.cl"})
+        usuario = Usuario(
+            correo="p@sesaes.cl",
+            password=hash_password("Password123!"),
+            rol="profesional",
+            nombre="Profesional de Prueba",
+            activo=True,
+            debe_cambiar_password=False,
+        )
+        self.db.add(usuario)
+        self.db.commit()
+        self.db.refresh(usuario)
+
+        token = create_access_token({"id": usuario.id, "rol": "profesional", "correo": "p@sesaes.cl"})
         credenciales = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
 
-        current_user = get_current_user(credentials=credenciales)
+        current_user = get_current_user(credentials=credenciales, db=self.db)
 
-        self.assertEqual(current_user["id"], 7)
+        self.assertEqual(current_user["id"], usuario.id)
         self.assertEqual(current_user["rol"], "profesional")
+
+    def test_get_current_user_usa_rol_actual_de_bd_no_el_del_jwt(self):
+        # SA-3: caso central del bug corregido. El JWT fue emitido con
+        # rol=superadmin, pero la BD ya tiene a ese usuario como admin;
+        # current_user["rol"] debe reflejar el rol ACTUAL de BD.
+        usuario = Usuario(
+            correo="cambio-rol@sesaes.cl",
+            password=hash_password("Password123!"),
+            rol="admin",
+            activo=True,
+            debe_cambiar_password=False,
+        )
+        self.db.add(usuario)
+        self.db.commit()
+        self.db.refresh(usuario)
+
+        token_viejo = create_access_token({"id": usuario.id, "rol": "superadmin", "correo": usuario.correo})
+        credenciales = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token_viejo)
+
+        current_user = get_current_user(credentials=credenciales, db=self.db)
+
+        self.assertEqual(current_user["rol"], "admin")
+
+    def test_get_current_user_rechaza_cuenta_desactivada(self):
+        usuario = Usuario(
+            correo="desactivado@sesaes.cl",
+            password=hash_password("Password123!"),
+            rol="admin",
+            activo=False,
+            debe_cambiar_password=False,
+        )
+        self.db.add(usuario)
+        self.db.commit()
+        self.db.refresh(usuario)
+
+        token = create_access_token({"id": usuario.id, "rol": "admin", "correo": usuario.correo})
+        credenciales = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+
+        with self.assertRaises(HTTPException) as ctx:
+            get_current_user(credentials=credenciales, db=self.db)
+
+        self.assertEqual(ctx.exception.status_code, 401)
+
+    def test_get_current_user_rechaza_usuario_inexistente(self):
+        token = create_access_token({"id": 999999, "rol": "admin", "correo": "fantasma@sesaes.cl"})
+        credenciales = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+
+        with self.assertRaises(HTTPException) as ctx:
+            get_current_user(credentials=credenciales, db=self.db)
+
+        self.assertEqual(ctx.exception.status_code, 401)
 
 
 if __name__ == "__main__":

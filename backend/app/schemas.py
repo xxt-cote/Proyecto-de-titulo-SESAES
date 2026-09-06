@@ -1,5 +1,5 @@
 from pydantic import BaseModel, field_validator
-from typing import Optional
+from typing import Literal, Optional
 from datetime import datetime
 import re
 
@@ -249,6 +249,60 @@ class UsuarioMeUpdate(BaseModel):
     nombre:   Optional[str] = None
     foto_url: Optional[str] = None
     telefono: Optional[str] = None
+
+
+# ══════════════════════════════════════
+# GOBERNANZA ADMIN/SUPERADMIN (SA-3)
+# ══════════════════════════════════════
+# Schemas de /usuarios/administradores. Deliberadamente separados de
+# UsuarioMeOut/UsuarioMeUpdate (Mi Perfil): estos operan sobre un
+# usuario_id de la URL/body, no sobre current_user, así que exigen sus
+# propios contratos estrictos, distintos y no reutilizables entre sí.
+
+class UsuarioAdministrativoOut(BaseModel):
+    id:       int
+    nombre:   Optional[str] = None
+    correo:   str
+    telefono: Optional[str] = None
+    foto_url: Optional[str] = None
+    rol:      str
+    activo:   bool
+
+    class Config:
+        from_attributes = True
+
+
+class UsuarioAdministrativoCreate(BaseModel):
+    """
+    Alta de una cuenta ADMIN o SUPERADMIN vía gobernanza (SA-3).
+
+    extra="forbid": no se aceptan campos fuera de los declarados acá
+    (en particular, no se acepta 'activo' ni 'debe_cambiar_password' —
+    las cuentas nuevas siempre nacen activo=True,
+    debe_cambiar_password=False, decisión fija del backend, no del
+    caller).
+    """
+    model_config = {"extra": "forbid"}
+
+    correo:   str
+    password: str
+    nombre:   Optional[str] = None
+    telefono: Optional[str] = None
+    rol:      Literal["admin", "superadmin"]
+
+
+class UsuarioAdministrativoEstadoUpdate(BaseModel):
+    """PATCH .../estado — activar/desactivar una cuenta admin/superadmin."""
+    model_config = {"extra": "forbid"}
+
+    activo: bool
+
+
+class UsuarioAdministrativoRolUpdate(BaseModel):
+    """PATCH .../rol — promover/degradar entre admin y superadmin."""
+    model_config = {"extra": "forbid"}
+
+    rol: Literal["admin", "superadmin"]
 
 
 # ══════════════════════════════════════
