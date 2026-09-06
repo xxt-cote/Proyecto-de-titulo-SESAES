@@ -97,6 +97,42 @@ toggleSidebarMovil(): void {
     return this.auth.hasPermission(permission);
   }
 
+  // ── Identidad real del shell/topbar (SA-1.1) ──────────────────
+  // Fuente de verdad: AuthService / datos de sesión (nombre, foto_url,
+  // rol). NUNCA ConfiguracionCentro.nombre_admin / foto_admin_url — eso
+  // sigue existiendo solo para el componente legacy Mi Perfil, que no
+  // se toca en esta fase.
+
+  get nombreUsuario(): string {
+    return this.auth.getNombre() || 'Administrador/a';
+  }
+
+  get fotoUsuarioUrl(): string | null {
+    return this.auth.getFotoUrl();
+  }
+
+  // Mapeo visual del rol real de la sesión. Nunca infiere el rol desde
+  // permisos ni muestra el string técnico "superadmin" tal cual.
+  get rolVisual(): string {
+    return this.auth.getRol() === 'superadmin' ? 'Superadministrador' : 'Administrador';
+  }
+
+  // Iniciales derivadas del nombre real (ej. "Superadministrador SESAES"
+  // -> "SS", "Claudia Pérez" -> "CP"). Ya no hay un valor fijo "AD" para
+  // todos: solo se usa como último fallback si no hay nombre de sesión.
+  get inicialesUsuario(): string {
+    const nombre = this.auth.getNombre();
+    if (!nombre) return 'AD';
+
+    const palabras = nombre.trim().split(/\s+/).filter(Boolean);
+    if (palabras.length === 0) return 'AD';
+
+    const primera = palabras[0][0] ?? '';
+    const segunda = palabras.length > 1 ? (palabras[1][0] ?? '') : (palabras[0][1] ?? '');
+    const iniciales = (primera + segunda).toUpperCase();
+    return iniciales || 'AD';
+  }
+
   get puedeExportarCgr(): boolean {
     return this.hasPermission('reportes.cgr.exportar');
   }

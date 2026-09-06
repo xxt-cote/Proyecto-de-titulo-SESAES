@@ -93,7 +93,7 @@
   </button>
   <div class="topbar-left">
         <h1 class="topbar-title" *ngIf="seccionActiva!=='inicio'">{{ tituloSeccion }}</h1>
-        <h1 class="topbar-title" *ngIf="seccionActiva==='inicio'">Hola, {{ configCentro.nombre_admin || 'Administrador/a' }} 👋</h1>
+        <h1 class="topbar-title" *ngIf="seccionActiva==='inicio'">Hola, {{ nombreUsuario }} 👋</h1>
         <span class="topbar-sub">{{ subtituloSeccion }}</span>
       </div>
       <div class="topbar-actions">
@@ -135,11 +135,11 @@
           <span class="notif-badge" *ngIf="notifNoLeidas > 0">{{ notifNoLeidas }}</span>
         </button>
         <div class="topbar-perfil">
-          <div class="admin-avatar-topbar" *ngIf="!configCentro.foto_admin_url">AD</div>
-          <img *ngIf="configCentro.foto_admin_url" [src]="configCentro.foto_admin_url" class="admin-avatar-img-topbar" alt="Foto admin" />
+          <div class="admin-avatar-topbar" *ngIf="!fotoUsuarioUrl">{{ inicialesUsuario }}</div>
+          <img *ngIf="fotoUsuarioUrl" [src]="fotoUsuarioUrl" class="admin-avatar-img-topbar" alt="Foto de perfil" />
           <div class="topbar-perfil-info">
-            <span class="topbar-perfil-nombre">{{ configCentro.nombre_admin || 'Admin SESAES' }}</span>
-            <span class="topbar-perfil-rol">Administrador</span>
+            <span class="topbar-perfil-nombre">{{ nombreUsuario }}</span>
+            <span class="topbar-perfil-rol">{{ rolVisual }}</span>
           </div>
         </div>
       </div>

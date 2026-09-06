@@ -51,6 +51,25 @@ export class AuthService {
   }
 
   /**
+   * Nombre real del Usuario autenticado (guardado por guardarSesion()).
+   * Fail-safe: sin sesión o valor vacío -> null. Nunca usa un fallback
+   * fijo ni una fuente distinta a la sesión (p. ej. ConfiguracionCentro).
+   */
+  getNombre(): string | null {
+    const nombre = sessionStorage.getItem('nombre');
+    return nombre && nombre.trim() ? nombre : null;
+  }
+
+  /**
+   * URL de la foto de perfil del Usuario autenticado (guardado por
+   * guardarSesion()). Fail-safe: sin sesión o valor vacío -> null.
+   */
+  getFotoUrl(): string | null {
+    const fotoUrl = sessionStorage.getItem('foto_url');
+    return fotoUrl && fotoUrl.trim() ? fotoUrl : null;
+  }
+
+  /**
    * Usuario.id de la sesión activa.
    *
    * Nunca usa un fallback fijo ni localStorage. Si la sesión no contiene
