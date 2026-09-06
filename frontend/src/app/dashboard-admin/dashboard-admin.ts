@@ -17,6 +17,7 @@ import { AdminEstudiantesComponent } from './estudiantes/admin-estudiantes';
 import { AdminInicioComponent } from './inicio/admin-inicio';
 import { AdminHorarioComponent } from './horario/admin-horario';
 import { AdminConfiguracionComponent, ConfigTab } from './configuracion/admin-configuracion';
+import { AdminAdministradoresComponent } from './administradores/admin-administradores';
 import * as XLSX from 'xlsx';
 
 
@@ -25,7 +26,7 @@ const API = environment.apiUrl;
 @Component({
   selector: 'app-dashboard-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePipe, AdminCitasComponent, AdminProfesionalesComponent, AdminPerfilComponent, AdminHistorialComponent, AdminReportesComponent, AdminEstudiantesComponent, AdminInicioComponent, AdminHorarioComponent, AdminConfiguracionComponent],
+  imports: [CommonModule, FormsModule, DatePipe, AdminCitasComponent, AdminProfesionalesComponent, AdminPerfilComponent, AdminHistorialComponent, AdminReportesComponent, AdminEstudiantesComponent, AdminInicioComponent, AdminHorarioComponent, AdminConfiguracionComponent, AdminAdministradoresComponent],
   templateUrl: './dashboard-admin.html',
   styleUrl: './dashboard-admin.css',
   encapsulation: ViewEncapsulation.None
@@ -65,7 +66,7 @@ toggleSidebarMovil(): void {
       citas: 'Gestión de Citas', profesional: 'Gestión de Profesionales',
       estudiantes: 'Estudiantes', historial: 'Historial de Atenciones',
       reportes: 'Reportes', configuracion: 'Configuración del Sistema',
-      miperfil: 'Mi Perfil'
+      miperfil: 'Mi Perfil', administradores: 'Administradores'
     };
     return map[this.seccionActiva] ?? 'SESAES';
   }
@@ -80,7 +81,8 @@ toggleSidebarMovil(): void {
       historial: 'Consulta las atenciones que ya ocurrieron y exporta reportes para la CGR.',
       reportes: 'Analiza el funcionamiento del servicio: demanda, cancelaciones y prioridades.',
       configuracion: 'Reglas generales del sistema: citas, horarios, usuarios y seguridad.',
-      miperfil: 'Tu información personal y credenciales de acceso.'
+      miperfil: 'Tu información personal y credenciales de acceso.',
+      administradores: 'Gestiona las cuentas ADMIN y SUPERADMIN del sistema.'
     };
     return map[this.seccionActiva] ?? '';
   }
@@ -186,6 +188,13 @@ toggleSidebarMovil(): void {
           this.puedeConfigUsuarios ||
           this.puedeVerAuditoria
         );
+      // SA-4 — Administradores: gobernanza de cuentas ADMIN/SUPERADMIN.
+      // Único permiso que abre esta sección; hoy solo SUPERADMIN lo
+      // tiene por defecto (ver ROLE_DEFAULT_PERMISSIONS). No hay ruta
+      // nueva ni dashboard nuevo: ADMIN y SUPERADMIN siguen compartiendo
+      // /dashboard/admin y la diferencia es puramente de permiso.
+      case 'administradores':
+        return this.hasPermission('roles.gestionar');
       default:
         return false;
     }

@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { of, throwError } from 'rxjs';
 
 import { AuthService } from '../auth.service';
+import { Permission } from '../shared/auth/permission.model';
 import { ToastService } from '../shared/toast/toast.service';
 import { DashboardAdminComponent } from './dashboard-admin';
 
@@ -387,5 +388,77 @@ describe('DashboardAdminComponent — Mi Perfil sobre Usuario (SA-1.2)', () => {
     });
 
     expect(patchCalls.some(c => c.url.includes('cambiar-password'))).toBe(false);
+  });
+});
+
+/**
+ * SA-4 — UI Administradores: gating a nivel shell.
+ *
+ * No se usa TestBed/fixture acá: mismo patrón que rbac-frontend.spec.ts
+ * en este mismo directorio (instanciación directa de
+ * DashboardAdminComponent con AuthService/HttpClient/Router/ToastService
+ * mockeados). Estos tests cubren exactamente la condición booleana que
+ * el template evalúa en dashboard-admin.html:
+ *   - nav:  *ngIf="puedeAccederSeccion('administradores')"
+ *   - hijo: *ngIf="seccionActiva==='administradores' && puedeAccederSeccion('administradores')"
+ * sin necesitar compilar la plantilla completa (que arrastra ~10
+ * componentes hijos y no aporta cobertura adicional sobre esta regla
+ * de gating puntual).
+ */
+function crearShellConPermisos(permisos: Permission[]) {
+  const permitidos = new Set<Permission>(permisos);
+
+  const auth = {
+    hasPermission: vi.fn((permission: Permission) => permitidos.has(permission)),
+    getNombre: vi.fn(() => null),
+    getFotoUrl: vi.fn(() => null),
+    getRol: vi.fn(() => null),
+    getUsuarioId: vi.fn(() => null)
+  } as unknown as AuthService;
+
+  const http = { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() } as unknown as HttpClient;
+  const toast = { success: vi.fn(), error: vi.fn() } as unknown as ToastService;
+  const router = {} as Router;
+  const cdr = { detectChanges: vi.fn() } as unknown as ChangeDetectorRef;
+
+  return new DashboardAdminComponent(router, http, cdr, toast, auth);
+}
+
+describe('DashboardAdminComponent — SA-4 gating de "administradores" (roles.gestionar)', () => {
+  // ── 1. Sin roles.gestionar: la sección no aparece en el menú ──────
+  it('roles.gestionar=false -> puedeAccederSeccion(\'administradores\') es false (Administradores oculto)', () => {
+    const component = crearShellConPermisos(['usuarios.gestionar', 'agenda.gestionar']);
+    expect(component.puedeAccederSeccion('administradores')).toBe(false);
+  });
+
+  // ── 2. Con roles.gestionar: la sección aparece en el menú ─────────
+  it('roles.gestionar=true -> puedeAccederSeccion(\'administradores\') es true (Administradores visible)', () => {
+    const component = crearShellConPermisos(['roles.gestionar']);
+    expect(component.puedeAccederSeccion('administradores')).toBe(true);
+  });
+
+  // ── 3. Seleccionar Administradores navega y habilita el render del hijo ──
+  it('con permiso, navegarA(\'administradores\') activa la sección y la condición de render del hijo es true', () => {
+    const component = crearShellConPermisos(['roles.gestionar']);
+
+    component.navegarA('administradores');
+
+    expect(component.seccionActiva).toBe('administradores');
+    // Misma condición combinada que usa el *ngIf del hijo en el template.
+    expect(component.seccionActiva === 'administradores' && component.puedeAccederSeccion('administradores')).toBe(true);
+  });
+
+  // ── 4. Sección forzada internamente sin permiso: el hijo NO se renderiza ──
+  it('si seccionActiva se fuerza a \'administradores\' sin roles.gestionar, la condición de render del hijo es false', () => {
+    const component = crearShellConPermisos(['usuarios.gestionar']); // sin roles.gestionar
+
+    // navegarA() ya bloquea la navegación normal (probado en el describe
+    // RBAC de este mismo archivo/rbac-frontend.spec.ts), pero esta prueba
+    // cubre el caso más estricto: aunque algo fuerce seccionActiva
+    // internamente (bug, estado inconsistente, etc.), el *ngIf del hijo
+    // vuelve a evaluar el permiso y no debe renderizarlo.
+    (component as any).seccionActiva = 'administradores';
+
+    expect(component.seccionActiva === 'administradores' && component.puedeAccederSeccion('administradores')).toBe(false);
   });
 });

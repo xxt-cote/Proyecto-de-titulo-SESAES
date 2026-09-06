@@ -721,6 +721,13 @@ tr.fila-urgente { background: #fff6f5; }
 .estado-badge.cancelada   { background: #fff0f0;  color: #c53e3e; }
 .estado-badge.pendiente   { background: #eff6ff;  color: #4f8ef7; }
 
+/* ══════════════════════════════════════ */
+/* SA-4 — Administradores (gobernanza ADMIN/SUPERADMIN) */
+/* ══════════════════════════════════════ */
+.rol-badge { padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; background: var(--admin-surface); color: var(--admin-primary-hover); }
+.rol-badge.superadmin { background: #FCE4E7; color: #B92F3E; }
+.rol-badge.admin      { background: var(--admin-surface); color: var(--admin-primary-hover); }
+
 .horario-cell { display: flex; align-items: center; gap: 5px; font-size: 13px; color: #17202a; }
 
 .paginacion { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; font-size: 12px; color: #87919a; }
@@ -1159,7 +1166,7 @@ tr.fila-urgente { background: #fff6f5; }
 .dashboard.tema-oscuro .topbar-sub   { color: #8b96a8; }
 .dashboard.tema-oscuro .topbar-icon-btn, .dashboard.tema-oscuro .tema-toggle-btn { background: #242f42; border-color: #3a4a63; color: #8b96a8; }
 .dashboard.tema-oscuro .main-content { background: #111827; }
-.dashboard.tema-oscuro .card, .dashboard.tema-oscuro .stat-card, .dashboard.tema-oscuro .stat-card-sm, .dashboard.tema-oscuro .modal { background: #242f42; border-color: #3a4a63; box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
+.dashboard.tema-oscuro .card, .dashboard.tema-oscuro .stat-card, .dashboard.tema-oscuro .stat-card-sm, .dashboard.tema-oscuro .modal, .dashboard.tema-oscuro .admins-mobile-card { background: #242f42; border-color: #3a4a63; box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
 .dashboard.tema-oscuro .perfil-acciones-edicion { background: #242f42; }
 .dashboard.tema-oscuro .card-title   { color: #e6edf3; }
 .dashboard.tema-oscuro .stat-label   { color: #8b96a8; }
@@ -1172,6 +1179,10 @@ tr.fila-urgente { background: #fff6f5; }
 .dashboard.tema-oscuro .est-stat-num { color: #e6edf3; }
 .dashboard.tema-oscuro .btn-tabla { background: #2d3b52; border-color: #3a4a63; }
 .dashboard.tema-oscuro .btn-tabla-acciones { background: #2d3b52; border-color: #3a4a63; color: #8b96a8; }
+
+/* SA-4 — Administradores: rol-badge en modo oscuro */
+.dashboard.tema-oscuro .rol-badge.admin      { background: rgba(45,212,191,0.12); color: #2dd4bf; }
+.dashboard.tema-oscuro .rol-badge.superadmin { background: rgba(248,113,113,0.14); color: #f87171; }
 .dashboard.tema-oscuro .leyenda-chip { color: #8b96a8; }
 .dashboard.tema-oscuro .campo-grupo label  { color: #8b96a8; }
 .dashboard.tema-oscuro .campo-grupo input, .dashboard.tema-oscuro .campo-grupo select,
@@ -1453,4 +1464,45 @@ tr.fila-urgente { background: #fff6f5; }
   background: repeating-linear-gradient(45deg, #0f1420, #0f1420 6px, #1a2233 6px, #1a2233 12px);
   border-left: 2px solid #dc2626;
 }
+
+/* ══ SA-4 — sidebar: ícono nuevo (Administradores) en Material Symbols ══ */
+.nav-item .material-symbols-outlined { font-size: 18px; }
+
+/* ══ SA-4 — Administradores: mobile real con tarjetas (no scroll horizontal) ══
+   Scopeado a esta sección; no afecta ninguna otra tabla del Dashboard Admin
+   (que siguen usando .admin-tabla con scroll horizontal en <=1024px). */
+.admins-mobile-list { display: none; }
+
+.admins-mobile-card {
+  background: white;
+  border-radius: 14px;
+  padding: 16px;
+  border: 1px solid #e7ebef;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.admins-mobile-card:last-child { margin-bottom: 0; }
+
+.admins-mobile-card-header { display: flex; align-items: center; gap: 10px; }
+.admins-mobile-card-header > div { display: flex; flex-direction: column; min-width: 0; }
+.admins-mobile-card-header strong { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.admins-mobile-card-header span { font-size: 12px; color: #66727e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.admins-mobile-card-body { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.admins-mobile-card-row { display: flex; align-items: center; gap: 6px; }
+.admins-mobile-card-label { font-size: 11px; font-weight: 600; color: #99a3ad; text-transform: uppercase; }
+
+.admins-mobile-card-acciones { border-top: 1px solid #e7ebef; padding-top: 10px; }
+
+@media (max-width: 640px) {
+  .admins-desktop-table { display: none; }
+  .admins-mobile-list { display: block; }
+}
+
+.dashboard.tema-oscuro .admins-mobile-card-header span,
+.dashboard.tema-oscuro .admins-mobile-card-label { color: #8b96a8; }
+.dashboard.tema-oscuro .admins-mobile-card-acciones { border-color: #3a4a63; }
 

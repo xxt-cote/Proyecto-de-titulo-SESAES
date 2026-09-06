@@ -63,6 +63,11 @@
         </svg>
         Configuración
       </button>
+      <!-- ══ SA-4: Administradores — visible SOLO con roles.gestionar (hoy, solo SUPERADMIN) ══ -->
+      <button class="nav-item" *ngIf="puedeAccederSeccion('administradores')" [class.active]="seccionActiva==='administradores'" (click)="navegarA('administradores')">
+        <span class="material-symbols-outlined" aria-hidden="true">admin_panel_settings</span>
+        Administradores
+      </button>
     </nav>
 
     <div class="sidebar-footer">
@@ -306,6 +311,12 @@
         [cargandoPerfil]="cargandoPerfil"
         (guardarPerfil)="onGuardarPerfilAdmin($event)"
       ></app-admin-perfil>
+
+      <!-- ══ SA-4: ADMINISTRADORES — el hijo es dueño de su propio HTTP; el
+           shell solo decide si se renderiza (sección activa + permiso) ══ -->
+      <app-admin-administradores
+        *ngIf="seccionActiva==='administradores' && puedeAccederSeccion('administradores')"
+      ></app-admin-administradores>
 
       <!-- ══ HISTORIAL ══ -->
       <app-admin-historial
