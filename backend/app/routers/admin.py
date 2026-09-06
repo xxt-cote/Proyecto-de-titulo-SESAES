@@ -15,6 +15,7 @@ from app.models.usuario import Usuario
 from app.models.notificacion import Notificacion
 from app.models.configuracion import ConfiguracionSistema
 from app.models.auditoria import Auditoria
+from app.auditoria import registrar_evento_auditoria
 from app.models.historial_estado_profesional import HistorialEstadoProfesional
 from app.models.correo_log import CorreoLog
 from app.models.dia_cerrado import DiaCerrado
@@ -50,8 +51,10 @@ def validar_rut(rut: str) -> bool:
     return dv == dv_calc
 
 
-def registrar_auditoria(db, accion, detalle=None, entidad=None, entidad_id=None, usuario_id=None):
-    db.add(Auditoria(usuario_id=usuario_id, accion=accion, detalle=detalle, entidad=entidad, entidad_id=entidad_id))
+# SA-2: el helper local registrar_auditoria(...) se eliminó. Todo este
+# router usa ahora app.auditoria.registrar_evento_auditoria, que deriva el
+# actor (usuario_id, actor_rol) EXCLUSIVAMENTE de current_user y nunca
+# hace commit/rollback por sí mismo — ver docstring de app/auditoria.py.
 
 
 # ══════════════════════════════════════
@@ -317,8 +320,7 @@ def crear_profesional(datos: ProfesionalCreate, db: Session = Depends(get_db), c
     nuevo_usuario = Usuario(correo=datos.correo, password=hash_password(datos.password or "prof123"),
                             rol="profesional", nombre=datos.nombre, activo=True)
     db.add(nuevo_usuario)
-    db.commit()
-    db.refresh(nuevo_usuario)
+    db.flush()  # obtener nuevo_usuario.id SIN commit, para poder crear Profesional con el FK correcto
     nuevo_prof = Profesional(
         nombre=datos.nombre, tratamiento=datos.tratamiento, especialidad=datos.especialidad, iniciales=iniciales,
         descripcion=datos.descripcion or "", duracion_min=datos.duracion_min or 45,
@@ -326,10 +328,12 @@ def crear_profesional(datos: ProfesionalCreate, db: Session = Depends(get_db), c
         color_identificador=datos.color_identificador
     )
     db.add(nuevo_prof)
-    db.commit()
+    db.flush()  # obtener nuevo_prof.id SIN commit, para la auditoría
+    registrar_evento_auditoria(db, current_user, "Agregó profesional",
+                                entidad="profesional", entidad_id=nuevo_prof.id,
+                                detalle=f"{datos.nombre} — {datos.especialidad}")
+    db.commit()  # ÚNICO commit: Usuario + Profesional + auditoría, misma transacción
     db.refresh(nuevo_prof)
-    registrar_auditoria(db, "Agregó profesional", f"{datos.nombre} — {datos.especialidad}", "profesional", nuevo_prof.id)
-    db.commit()
     return nuevo_prof
 
 
@@ -360,7 +364,8 @@ def actualizar_profesional(prof_id: int, datos: ProfesionalUpdate, db: Session =
     if datos.nombre and prof.usuario_id:
         usuario = db.query(Usuario).filter(Usuario.id == prof.usuario_id).first()
         if usuario: usuario.nombre = datos.nombre
-    registrar_auditoria(db, "Editó profesional", prof.nombre, "profesional", prof_id)
+    registrar_evento_auditoria(db, current_user, "Editó profesional",
+                                entidad="profesional", entidad_id=prof_id, detalle=prof.nombre)
     db.commit()
     db.refresh(prof)
     return prof
@@ -388,7 +393,9 @@ def eliminar_profesional(prof_id: int, db: Session = Depends(get_db), current_us
         if usuario: usuario.activo = False
     nombre_prof = prof.nombre
     db.delete(prof)
-    registrar_auditoria(db, "Eliminó profesional", f"{nombre_prof} — {len(citas)} citas canceladas", "profesional", prof_id)
+    registrar_evento_auditoria(db, current_user, "Eliminó profesional",
+                                entidad="profesional", entidad_id=prof_id,
+                                detalle=f"{nombre_prof} — {len(citas)} citas canceladas")
     db.commit()
     return {"message": "Profesional eliminado correctamente"}
 
@@ -408,8 +415,9 @@ def cambiar_estado_profesional(prof_id: int, body: dict, db: Session = Depends(g
         profesional_id=prof_id, estado_anterior=estado_anterior,
         estado_nuevo=estado_nuevo, motivo=motivo, registrado_por=None
     ))
-    registrar_auditoria(db, "Cambió estado de profesional",
-                        f"{prof.nombre}: {estado_anterior} → {estado_nuevo}", "profesional", prof_id)
+    registrar_evento_auditoria(db, current_user, "Cambió estado de profesional",
+                                entidad="profesional", entidad_id=prof_id,
+                                detalle=f"{prof.nombre}: {estado_anterior} → {estado_nuevo}")
     db.commit()
     if cancelar_citas:
         citas = db.query(Cita).filter(
@@ -426,8 +434,9 @@ def cambiar_estado_profesional(prof_id: int, body: dict, db: Session = Depends(g
                 asunto="SESAES — Tu cita fue cancelada",
                 cuerpo=f"Tu cita del {cita.fecha} a las {cita.hora} fue cancelada por fuerza mayor.",
                 tipo="cancelacion", referencia_id=cita.id)
-        registrar_auditoria(db, "Canceló citas masivas",
-                            f"{prof.nombre} — {len(citas)} citas el {fecha_afectada}", "profesional", prof_id)
+        registrar_evento_auditoria(db, current_user, "Canceló citas masivas",
+                                    entidad="profesional", entidad_id=prof_id,
+                                    detalle=f"{prof.nombre} — {len(citas)} citas el {fecha_afectada}")
         db.commit()
         return {"message": f"Estado '{estado_nuevo}'. {len(citas)} citas canceladas.", "citas_canceladas": len(citas)}
     return {"message": f"Estado actualizado a '{estado_nuevo}'"}
@@ -464,22 +473,50 @@ def crear_cita_urgente(cita: CitaCreate, db: Session = Depends(get_db), current_
                  estado="pendiente", urgente=True)
     db.add(nueva)
     try:
-        db.commit()
+        # SA-2 — transaccionalidad: flush() envía el INSERT de `nueva` a la
+        # base de datos SIN hacer commit todavía. Esto basta para obtener
+        # nueva.id (necesario para el correo y la auditoría) y para que
+        # cualquier IntegrityError real de este INSERT (p. ej. violación de
+        # FK) se detecte antes de continuar, sin partir la transacción en
+        # dos commits separados.
+        #
+        # AVISO EXPLÍCITO — este except NO es protección contra doble
+        # reserva: el modelo Cita (app/models/cita.py) no tiene ningún
+        # UniqueConstraint, unique=True ni Index único sobre
+        # profesional_id + fecha + hora (confirmado en la revisión SA-2;
+        # grep sin coincidencias sobre unique/constraint/Index en todo el
+        # módulo). Bajo el esquema actual, dos citas urgentes idénticas en
+        # profesional_id + fecha + hora pueden coexistir sin que esto
+        # lance ningún error. Se decidió NO agregar esa constraint en
+        # SA-2 porque Cita contempla `sobrecupo`, y una constraint simple
+        # de (profesional_id, fecha, hora) rompería reglas legítimas de
+        # Agenda. Este bloque se conserva solo por compatibilidad de
+        # alcance (y por si en el futuro se agrega una constraint real).
+        # La prevención real de doble reserva/concurrencia — considerando
+        # sobrecupo, disponibilidad, un posible índice/constraint parcial
+        # y locking — queda como deuda separada del módulo Agenda, fuera
+        # del alcance de SA-2.
+        db.flush()
     except IntegrityError:
         db.rollback()
         raise HTTPException(
             status_code=409,
             detail="Esa hora acaba de ser reservada por otra persona. Por favor elige otra."
         )
-    db.refresh(nueva)
+
     simular_envio_correo(db, destinatario=est.correo if est else "—",
         asunto="SESAES — Cita urgente agendada",
         cuerpo=f"Se agendó una cita URGENTE para el {cita.fecha} a las {cita.hora} con {prof.nombre}.",
         tipo="urgente", referencia_id=nueva.id)
-    registrar_auditoria(db, "Creó cita urgente",
-                        f"Estudiante: {est.nombre if est else cita.estudiante_id} — {prof.nombre} ({cita.fecha} {cita.hora})",
-                        "cita", nueva.id)
-    db.commit()
+
+    registrar_evento_auditoria(
+        db, current_user, "Creó cita urgente",
+        entidad="cita", entidad_id=nueva.id,
+        detalle=f"Estudiante: {est.nombre if est else cita.estudiante_id} — {prof.nombre} ({cita.fecha} {cita.hora})",
+    )
+
+    db.commit()  # ÚNICO commit: Cita + log de correo (correo_log) + auditoría, misma transacción
+    db.refresh(nueva)
     return {"id": nueva.id, "profesional": prof.nombre, "especialidad": prof.especialidad,
             "fecha": nueva.fecha, "hora": nueva.hora, "urgente": True, "estado": nueva.estado}
 
@@ -499,9 +536,9 @@ def cancelar_cita_admin(cita_id: int, body: dict, db: Session = Depends(get_db),
         asunto="SESAES — Tu cita fue cancelada",
         cuerpo=f"Tu cita del {cita.fecha} a las {cita.hora} con {prof.nombre if prof else ''} fue cancelada.",
         tipo="cancelacion", referencia_id=cita_id)
-    registrar_auditoria(db, "Canceló cita",
-                        f"Estudiante: {est.nombre if est else '—'} — {prof.nombre if prof else '—'} — {cita.fecha} {cita.hora}",
-                        "cita", cita_id)
+    registrar_evento_auditoria(db, current_user, "Canceló cita",
+                                entidad="cita", entidad_id=cita_id,
+                                detalle=f"Estudiante: {est.nombre if est else '—'} — {prof.nombre if prof else '—'} — {cita.fecha} {cita.hora}")
     db.commit()
     return {"message": "Cita cancelada y estudiante notificado"}
 
@@ -535,11 +572,11 @@ def cambiar_prioridad_cita(cita_id: int, body: dict, db: Session = Depends(get_d
             mensaje=f"Tu cita del {cita.fecha} a las {cita.hora} fue marcada como urgente por administración.",
             tipo="urgente"))
 
-    registrar_auditoria(
-        db,
+    registrar_evento_auditoria(
+        db, current_user,
         "Marcó cita como urgente" if nuevo_valor else "Quitó prioridad urgente a cita",
-        f"Estudiante: {est.nombre if est else '—'} — {prof.nombre if prof else '—'} — {cita.fecha} {cita.hora}",
-        "cita", cita_id
+        entidad="cita", entidad_id=cita_id,
+        detalle=f"Estudiante: {est.nombre if est else '—'} — {prof.nombre if prof else '—'} — {cita.fecha} {cita.hora}",
     )
     db.commit()
     return {"id": cita.id, "urgente": cita.urgente, "estado": cita.estado}
@@ -613,9 +650,9 @@ def crear_dia_cerrado(body: dict, db: Session = Depends(get_db), current_user: d
             tipo="cancelacion", referencia_id=cita.id
         )
 
-    registrar_auditoria(db, "Cerró el centro un día completo",
-                        f"{fecha} — {motivo} ({len(citas_afectadas)} citas canceladas y notificadas)",
-                        "dia_cerrado", None)
+    registrar_evento_auditoria(db, current_user, "Cerró el centro un día completo",
+                                entidad="dia_cerrado", entidad_id=None,
+                                detalle=f"{fecha} — {motivo} ({len(citas_afectadas)} citas canceladas y notificadas)")
     db.commit()
     db.refresh(dia)
     return {
@@ -663,7 +700,8 @@ def eliminar_dia_cerrado(dia_id: int, db: Session = Depends(get_db), current_use
     dia = db.query(DiaCerrado).filter(DiaCerrado.id == dia_id).first()
     if not dia:
         raise HTTPException(status_code=404, detail="Día cerrado no encontrado")
-    registrar_auditoria(db, "Reabrió un día previamente cerrado", dia.fecha, "dia_cerrado", dia_id)
+    registrar_evento_auditoria(db, current_user, "Reabrió un día previamente cerrado",
+                                entidad="dia_cerrado", entidad_id=dia_id, detalle=dia.fecha)
     db.delete(dia)
     db.commit()
     return {"message": "Día reabierto correctamente. Las citas ya canceladas no se restauran automáticamente."}
@@ -786,7 +824,8 @@ def get_auditoria(fecha_inicio: str = None, fecha_fin: str = None, db: Session =
         query = query.filter(Auditoria.fecha <= datetime.strptime(fecha_fin, "%Y-%m-%d").replace(hour=23, minute=59, second=59))
     registros = query.limit(200).all()
     return [
-        {"id": r.id, "accion": r.accion, "detalle": r.detalle,
+        {"id": r.id, "usuario_id": r.usuario_id, "actor_rol": r.actor_rol,
+         "accion": r.accion, "resultado": r.resultado, "detalle": r.detalle,
          "entidad": r.entidad, "entidad_id": r.entidad_id,
          "fecha": r.fecha.isoformat() if r.fecha else None}
         for r in registros

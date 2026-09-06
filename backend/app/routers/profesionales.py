@@ -8,17 +8,18 @@ from app.models.cita import Cita
 from app.models.profesional import Profesional
 from app.models.usuario import Usuario
 from app.models.notificacion import Notificacion
-from app.models.auditoria import Auditoria
 from app.models.historial_estado_profesional import HistorialEstadoProfesional
 from app.routers.correos import simular_envio_correo
 from app.auth_dependencies import get_current_user, verificar_acceso_profesional
 from app.rbac.permissions import Permission, has_permission
+from app.auditoria import registrar_evento_auditoria
 
 router = APIRouter(tags=["profesionales"])
 
-
-def registrar_auditoria(db, accion, detalle=None, entidad=None, entidad_id=None):
-    db.add(Auditoria(accion=accion, detalle=detalle, entidad=entidad, entidad_id=entidad_id))
+# SA-2: el helper local registrar_auditoria(...) se eliminó. Este router
+# usa ahora app.auditoria.registrar_evento_auditoria, que deriva el actor
+# (usuario_id, actor_rol) EXCLUSIVAMENTE de current_user y nunca hace
+# commit/rollback por sí mismo — ver docstring de app/auditoria.py.
 
 
 def _exigir_permiso_y_ownership_propio(
@@ -168,7 +169,8 @@ def actualizar_perfil(
         if usuario:
             usuario.tema_oscuro = body["tema_oscuro"]
 
-    registrar_auditoria(db, "Profesional actualizó su perfil", None, "profesional", prof_id)
+    registrar_evento_auditoria(db, current_user, "Profesional actualizó su perfil",
+                                entidad="profesional", entidad_id=prof_id)
     db.commit()
     return {"message": "Perfil actualizado correctamente"}
 
@@ -309,9 +311,9 @@ def completar_cita(
     cita.medicamento            = body.get("medicamento") or None
     cita.observaciones_atencion = body.get("observaciones_atencion") or None
     est = db.query(Usuario).filter(Usuario.id == cita.estudiante_id).first()
-    registrar_auditoria(db, "Profesional completó cita",
-                        f"Estudiante: {est.nombre if est else '—'} — {cita.fecha} {cita.hora}",
-                        "cita", cita_id)
+    registrar_evento_auditoria(db, current_user, "Profesional completó cita",
+                                entidad="cita", entidad_id=cita_id,
+                                detalle=f"Estudiante: {est.nombre if est else '—'} — {cita.fecha} {cita.hora}")
     db.commit()
     return {"message": "Cita marcada como completada"}
 
@@ -340,9 +342,9 @@ def marcar_inasistencia(
         mensaje=f"Inasistencia: {est.nombre if est else '—'} no asistió a su cita del {cita.fecha} a las {cita.hora}.",
         tipo="info",
     )
-    registrar_auditoria(db, "Profesional marcó inasistencia",
-                        f"Estudiante: {est.nombre if est else '—'} — {cita.fecha} {cita.hora}",
-                        "cita", cita_id)
+    registrar_evento_auditoria(db, current_user, "Profesional marcó inasistencia",
+                                entidad="cita", entidad_id=cita_id,
+                                detalle=f"Estudiante: {est.nombre if est else '—'} — {cita.fecha} {cita.hora}")
     db.commit()
     return {"message": "Inasistencia registrada"}
 
@@ -454,9 +456,9 @@ def reportar_ausencia(
         email_referencia_id=prof_id,
     )
 
-    registrar_auditoria(db, "Profesional reportó ausencia",
-                        f"{prof.nombre} — {tipo} — {rango_desc}: {motivo} ({len(citas_afectadas)} citas canceladas)",
-                        "profesional", prof_id)
+    registrar_evento_auditoria(db, current_user, "Profesional reportó ausencia",
+                                entidad="profesional", entidad_id=prof_id,
+                                detalle=f"{prof.nombre} — {tipo} — {rango_desc}: {motivo} ({len(citas_afectadas)} citas canceladas)")
     db.commit()
     return {"message": f"Ausencia reportada. {len(citas_afectadas)} cita(s) cancelada(s) y notificadas."}
 

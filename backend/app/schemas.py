@@ -173,7 +173,9 @@ class ConfiguracionUpdate(BaseModel):
 class AuditoriaOut(BaseModel):
     id:         int
     usuario_id: Optional[int] = None
+    actor_rol:  Optional[str] = None
     accion:     str
+    resultado:  str = "exito"
     detalle:    Optional[str] = None
     entidad:    Optional[str] = None
     entidad_id: Optional[int] = None

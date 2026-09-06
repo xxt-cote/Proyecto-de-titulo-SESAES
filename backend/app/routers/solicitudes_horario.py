@@ -7,16 +7,17 @@ from app.models.profesional import Profesional
 from app.models.usuario import Usuario
 from app.models.notificacion import Notificacion
 from app.models.solicitud_horario import SolicitudHorario
-from app.models.auditoria import Auditoria
 from app.auth_dependencies import get_current_user, verificar_acceso_profesional
 from app.rbac.dependencies import require_permission
 from app.rbac.permissions import Permission, has_permission
+from app.auditoria import registrar_evento_auditoria
 
 router = APIRouter(tags=["solicitudes-horario"])
 
-
-def registrar_auditoria(db, accion, detalle=None, entidad=None, entidad_id=None):
-    db.add(Auditoria(accion=accion, detalle=detalle, entidad=entidad, entidad_id=entidad_id))
+# SA-2: el helper local registrar_auditoria(...) se eliminó. Este router
+# usa ahora app.auditoria.registrar_evento_auditoria, que deriva el actor
+# (usuario_id, actor_rol) EXCLUSIVAMENTE de current_user y nunca hace
+# commit/rollback por sí mismo — ver docstring de app/auditoria.py.
 
 
 def _exigir_agenda_gestionar_propia_y_ownership(current_user: dict, prof_id: int, db) -> None:
@@ -114,8 +115,9 @@ def solicitar_colacion(
     db.add(solicitud)
 
     _notificar_admin(db, f"{prof.nombre} solicitó horario de colación: {hora_inicio} - {hora_fin}.")
-    registrar_auditoria(db, "Profesional solicitó horario de colación",
-                        f"{prof.nombre}: {hora_inicio} - {hora_fin}", "profesional", prof_id)
+    registrar_evento_auditoria(db, current_user, "Profesional solicitó horario de colación",
+                                entidad="profesional", entidad_id=prof_id,
+                                detalle=f"{prof.nombre}: {hora_inicio} - {hora_fin}")
     db.commit()
     return {"message": "Solicitud de colación enviada. Queda pendiente de aprobación del administrador.",
             "hora_inicio": hora_inicio, "hora_fin": hora_fin}
@@ -158,8 +160,9 @@ def solicitar_jornada(
     db.add(solicitud)
 
     _notificar_admin(db, f"{prof.nombre} solicitó horario de jornada: {hora_inicio} - {hora_fin}.")
-    registrar_auditoria(db, "Profesional solicitó horario de jornada",
-                        f"{prof.nombre}: {hora_inicio} - {hora_fin}", "profesional", prof_id)
+    registrar_evento_auditoria(db, current_user, "Profesional solicitó horario de jornada",
+                                entidad="profesional", entidad_id=prof_id,
+                                detalle=f"{prof.nombre}: {hora_inicio} - {hora_fin}")
     db.commit()
     return {"message": "Solicitud de jornada enviada. Queda pendiente de aprobación del administrador.",
             "hora_inicio": hora_inicio, "hora_fin": hora_fin}
@@ -259,9 +262,9 @@ def aprobar_solicitud(
     solicitud.fecha_resolucion = datetime.utcnow()
 
     _notificar_profesional(db, prof, mensaje_prof, tipo="info")
-    registrar_auditoria(db, "Admin aprobó solicitud de horario",
-                        f"{prof.nombre} — {solicitud.tipo}: {solicitud.hora_inicio} - {solicitud.hora_fin}",
-                        "solicitud_horario", solicitud_id)
+    registrar_evento_auditoria(db, current_user, "Admin aprobó solicitud de horario",
+                                entidad="solicitud_horario", entidad_id=solicitud_id,
+                                detalle=f"{prof.nombre} — {solicitud.tipo}: {solicitud.hora_inicio} - {solicitud.hora_fin}")
     db.commit()
     return {"message": "Solicitud aprobada correctamente"}
 
@@ -293,7 +296,8 @@ def rechazar_solicitud(
             f"Tu solicitud de horario de {tipo_desc} ({solicitud.hora_inicio} - {solicitud.hora_fin}) fue rechazada. Motivo: {motivo}",
             tipo="advertencia"
         )
-        registrar_auditoria(db, "Admin rechazó solicitud de horario",
-                            f"{prof.nombre} — {solicitud.tipo}: {motivo}", "solicitud_horario", solicitud_id)
+        registrar_evento_auditoria(db, current_user, "Admin rechazó solicitud de horario",
+                                    entidad="solicitud_horario", entidad_id=solicitud_id,
+                                    detalle=f"{prof.nombre} — {solicitud.tipo}: {motivo}")
     db.commit()
     return {"message": "Solicitud rechazada"}
