@@ -1142,10 +1142,32 @@ def cambiar_prioridad_cita(cita_id: int, body: dict, db: Session = Depends(get_d
 # automáticamente cualquier cita que ya existiera para esa fecha.
 
 @router.get("/dias-cerrados")
-def listar_dias_cerrados(db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.AGENDA_GESTIONAR))):
-    dias = db.query(DiaCerrado).order_by(DiaCerrado.fecha).all()
+def listar_dias_cerrados(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(
+        require_effective_permission(Permission.AGENDA_VER)
+    ),
+):
+    """
+    Devuelve los d?as en que el centro completo est? cerrado.
+
+    Esta informaci?n es institucional y no se filtra por
+    especialidad: cualquier administrador con permiso de lectura
+    de agenda necesita conocer los cierres que afectan al centro.
+    """
+    dias = (
+        db.query(DiaCerrado)
+        .order_by(DiaCerrado.fecha)
+        .all()
+    )
+
     return [
-        {"id": d.id, "fecha": d.fecha, "motivo": d.motivo, "fecha_creacion": d.fecha_creacion}
+        {
+            "id": d.id,
+            "fecha": d.fecha,
+            "motivo": d.motivo,
+            "fecha_creacion": d.fecha_creacion,
+        }
         for d in dias
     ]
 
