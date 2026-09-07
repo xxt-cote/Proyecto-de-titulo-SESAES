@@ -28,6 +28,165 @@ from app.rbac.admin_authorization import (
 router = APIRouter(prefix="/agenda", tags=["agenda"])
 
 
+
+@router.get("/citas")
+def listar_citas_admin(
+    estudiante: str | None = None,
+    fecha_inicio: str | None = None,
+    fecha_fin: str | None = None,
+    estado: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(
+        require_effective_permission(
+            Permission.AGENDA_VER
+        )
+    ),
+):
+    """
+    Listado administrativo/operacional de citas.
+
+    Requiere agenda.ver y respeta el alcance administrativo efectivo.
+    No reutiliza /admin/historial porque esa ruta pertenece a
+    reporter?a y exige reportes.ver.
+
+    Expone solamente datos operacionales necesarios para Agenda/Citas.
+    Nunca expone campos cl?nicos.
+    """
+    alcance = obtener_alcance_administrativo_efectivo(
+        db,
+        current_user,
+    )
+
+    if alcance is None:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes acceso al alcance solicitado.",
+        )
+
+    ids_profesionales: list[int] | None = None
+
+    if not alcance.institucional:
+        ids_profesionales = [
+            profesional.id
+            for profesional in db.query(Profesional).all()
+            if especialidad_permitida_por_alcance(
+                alcance,
+                profesional.especialidad,
+            )
+        ]
+
+        if not ids_profesionales:
+            return []
+
+    query = db.query(Cita)
+
+    # El alcance se aplica antes que cualquier filtro solicitado.
+    if ids_profesionales is not None:
+        query = query.filter(
+            Cita.profesional_id.in_(
+                ids_profesionales
+            )
+        )
+
+    if estudiante and estudiante.strip():
+        patron = f"%{estudiante.strip()}%"
+
+        query = (
+            query
+            .join(
+                Usuario,
+                Cita.estudiante_id == Usuario.id,
+            )
+            .filter(
+                Usuario.nombre.ilike(patron)
+                | Usuario.rut.ilike(patron)
+            )
+        )
+
+    if fecha_inicio:
+        query = query.filter(
+            Cita.fecha >= fecha_inicio
+        )
+
+    if fecha_fin:
+        query = query.filter(
+            Cita.fecha <= fecha_fin
+        )
+
+    if estado:
+        query = query.filter(
+            Cita.estado == estado
+        )
+
+    citas = (
+        query
+        .order_by(
+            Cita.fecha.desc(),
+            Cita.hora.desc(),
+        )
+        .all()
+    )
+
+    resultado = []
+
+    for cita in citas:
+        profesional = (
+            db.query(Profesional)
+            .filter(
+                Profesional.id == cita.profesional_id
+            )
+            .first()
+        )
+
+        estudiante_obj = (
+            db.query(Usuario)
+            .filter(
+                Usuario.id == cita.estudiante_id
+            )
+            .first()
+        )
+
+        resultado.append({
+            "id": cita.id,
+            "estudiante": (
+                estudiante_obj.nombre
+                if estudiante_obj
+                else "?"
+            ),
+            "estudiante_id": cita.estudiante_id,
+            "rut": (
+                estudiante_obj.rut
+                if estudiante_obj
+                else "?"
+            ),
+            # Se conserva el contrato visual que hoy consume
+            # AdminCitasComponent.
+            "iniciales": (
+                profesional.iniciales
+                if profesional
+                else "??"
+            ),
+            "especialidad": (
+                profesional.especialidad
+                if profesional
+                else "?"
+            ),
+            "profesional": (
+                profesional.nombre
+                if profesional
+                else "?"
+            ),
+            "profesional_id": cita.profesional_id,
+            "fecha": cita.fecha,
+            "hora": cita.hora,
+            "estado": cita.estado,
+            "urgente": cita.urgente or False,
+            "sobrecupo": cita.sobrecupo or False,
+        })
+
+    return resultado
+
+
 @router.get("/profesional/{prof_id}/citas")
 def get_citas_profesional_admin(
     prof_id: int,
