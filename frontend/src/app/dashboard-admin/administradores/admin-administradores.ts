@@ -1,9 +1,10 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef, EventEmitter, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { environment } from '../../config';
 import { ToastService } from '../../shared/toast/toast.service';
+import { AuthService } from '../../auth.service';
 
 const API = environment.apiUrl;
 
@@ -69,6 +70,8 @@ interface NuevoAdministradorForm {
 })
 export class AdminAdministradoresComponent implements OnInit {
 
+  @Output() sesionAdministrativaActualizada = new EventEmitter<void>();
+
   administradores: AdministradorOut[] = [];
   cargando = false;
 
@@ -99,7 +102,12 @@ export class AdminAdministradoresComponent implements OnInit {
   tipoConfirmacion: TipoConfirmacion | null = null;
   adminEnConfirmacion: AdministradorOut | null = null;
 
-  constructor(private http: HttpClient, private cdr: ChangeDetectorRef, private toast: ToastService) {}
+  constructor(
+    private http: HttpClient,
+    private cdr: ChangeDetectorRef,
+    private toast: ToastService,
+    private auth: AuthService
+  ) {}
 
   ngOnInit(): void {
     this.cargarAdministradores();
@@ -188,8 +196,12 @@ export class AdminAdministradoresComponent implements OnInit {
     this.nuevoAdmin = this.formularioVacio();
   }
 
+  get correoCreacionValido(): boolean {
+    return /^[^@\s]+@utem\.cl$/i.test(this.nuevoAdmin.correo.trim());
+  }
+
   get creacionValida(): boolean {
-    return !!this.nuevoAdmin.correo.trim() && !!this.nuevoAdmin.password && !!this.nuevoAdmin.rol;
+    return this.correoCreacionValido && !!this.nuevoAdmin.password && !!this.nuevoAdmin.rol;
   }
 
   crearAdministrador(): void {
@@ -199,7 +211,7 @@ export class AdminAdministradoresComponent implements OnInit {
     this.mensajeErrorModal = null;
 
     const payload: any = {
-      correo: this.nuevoAdmin.correo.trim(),
+      correo: this.nuevoAdmin.correo.trim().toLowerCase(),
       password: this.nuevoAdmin.password,
       rol: this.nuevoAdmin.rol
     };
@@ -344,11 +356,24 @@ export class AdminAdministradoresComponent implements OnInit {
       `${API}/usuarios/administradores/${admin.id}/rol`,
       { rol: nuevoRol }
     ).subscribe({
-      next: () => {
-        this.procesandoId = null;
+    next: (actualizado) => {
+      this.procesandoId = null;
+
+      const esSesionActual = admin.id === this.auth.getUsuarioId();
+
+      if (esSesionActual) {
+        this.auth.actualizarRolSesion(actualizado.rol);
+        this.sesionAdministrativaActualizada.emit();
+      }
+
+      // Si la propia cuenta perdio roles.gestionar, evitamos un GET
+      // que el backend rechazaria correctamente con 403.
+      if (this.auth.hasPermission('roles.gestionar')) {
         this.cargarAdministradores();
-        this.toast.success('Rol actualizado correctamente.');
-      },
+      }
+
+      this.toast.success('Rol actualizado correctamente.');
+    },
       error: (err: HttpErrorResponse) => {
         this.procesandoId = null;
         const mensaje = this.mensajeDeError(err, {

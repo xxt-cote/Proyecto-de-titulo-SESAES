@@ -462,3 +462,34 @@ describe('DashboardAdminComponent — SA-4 gating de "administradores" (roles.ge
     expect(component.seccionActiva === 'administradores' && component.puedeAccederSeccion('administradores')).toBe(false);
   });
 });
+describe('DashboardAdminComponent - SA-6.2 salida de seccion tras perder permiso', () => {
+  it('sale de Administradores hacia Inicio cuando la sesion pierde roles.gestionar', () => {
+    const component = crearShellConPermisos(['roles.gestionar']);
+
+    component.navegarA('administradores');
+
+    expect(component.seccionActiva).toBe('administradores');
+    expect(component.puedeAccederSeccion('administradores')).toBe(true);
+
+    // Simula el AuthService despues de que la propia cuenta fue degradada.
+    const auth = (component as any).auth as {
+      hasPermission: ReturnType<typeof vi.fn>;
+    };
+
+    auth.hasPermission.mockReturnValue(false);
+
+    component.onSesionAdministrativaActualizada();
+
+    expect(component.seccionActiva).toBe('inicio');
+    expect(component.puedeAccederSeccion('administradores')).toBe(false);
+  });
+
+  it('permanece en la seccion actual si el nuevo rol todavia conserva acceso', () => {
+    const component = crearShellConPermisos(['roles.gestionar']);
+
+    component.navegarA('administradores');
+    component.onSesionAdministrativaActualizada();
+
+    expect(component.seccionActiva).toBe('administradores');
+  });
+});

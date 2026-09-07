@@ -45,4 +45,29 @@ describe('AuthService — identidad de sesión', () => {
 
     expect(service.getUsuarioId()).toBeNull();
   });
+  it('actualizarRolSesion cambia el rol sin alterar la identidad', () => {
+    sessionStorage.setItem('rol', 'superadmin');
+    sessionStorage.setItem('usuario_id', '15');
+    sessionStorage.setItem('nombre', 'Super Admin');
+    sessionStorage.setItem('access_token', 'token-prueba');
+
+    service.actualizarRolSesion('admin');
+
+    expect(service.getRol()).toBe('admin');
+    expect(service.getUsuarioId()).toBe(15);
+    expect(service.getNombre()).toBe('Super Admin');
+    expect(service.getToken()).toBe('token-prueba');
+  });
+
+  it('actualizarRolSesion recalcula inmediatamente los permisos por rol', () => {
+    sessionStorage.setItem('rol', 'superadmin');
+
+    expect(service.hasPermission('roles.gestionar')).toBe(true);
+
+    service.actualizarRolSesion('admin');
+
+    expect(service.hasPermission('roles.gestionar')).toBe(false);
+  });
+
+
 });

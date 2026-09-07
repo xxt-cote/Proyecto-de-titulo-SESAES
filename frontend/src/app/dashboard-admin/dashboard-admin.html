@@ -316,6 +316,7 @@
            shell solo decide si se renderiza (sección activa + permiso) ══ -->
       <app-admin-administradores
         *ngIf="seccionActiva==='administradores' && puedeAccederSeccion('administradores')"
+        (sesionAdministrativaActualizada)="onSesionAdministrativaActualizada()"
       ></app-admin-administradores>
 
       <!-- ══ HISTORIAL ══ -->

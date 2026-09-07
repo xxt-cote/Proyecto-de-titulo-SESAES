@@ -40,6 +40,15 @@ describe('AdminAdministradoresComponent (SA-4)', () => {
   let toast: { success: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> };
 
   beforeEach(async () => {
+    sessionStorage.clear();
+    localStorage.clear();
+
+    // Este describe representa la pantalla Administradores ya autorizada.
+    // La sesion activa debe tener roles.gestionar; usamos un id distinto
+    // de los fixtures para que las mutaciones existentes sean sobre OTRA cuenta.
+    sessionStorage.setItem('rol', 'superadmin');
+    sessionStorage.setItem('usuario_id', '99');
+
     toast = { success: vi.fn(), error: vi.fn() };
 
     await TestBed.configureTestingModule({
@@ -59,6 +68,8 @@ describe('AdminAdministradoresComponent (SA-4)', () => {
 
   afterEach(() => {
     httpMock.verify();
+    sessionStorage.clear();
+    localStorage.clear();
   });
 
   function flushListadoInicial(data: any[] = []): void {
@@ -168,7 +179,7 @@ describe('AdminAdministradoresComponent (SA-4)', () => {
 
   it('abrirModalCrear resetea el formulario y abre el modal', () => {
     flushListadoInicial([]);
-    component.nuevoAdmin.correo = 'sobrante@sesaes.cl';
+    component.nuevoAdmin.correo = 'sobrante@utem.cl';
     component.abrirModalCrear();
     expect(component.modalCrearAbierto).toBe(true);
     expect(component.nuevoAdmin.correo).toBe('');
@@ -189,11 +200,100 @@ describe('AdminAdministradoresComponent (SA-4)', () => {
     component.nuevoAdmin = { correo: '', password: '', nombre: '', telefono: '', rol: 'admin' };
     expect(component.creacionValida).toBe(false);
 
-    component.nuevoAdmin.correo = 'x@sesaes.cl';
+    component.nuevoAdmin.correo = 'x@utem.cl';
     expect(component.creacionValida).toBe(false);
 
     component.nuevoAdmin.password = 'Abcdef1!';
     expect(component.creacionValida).toBe(true);
+  });
+
+  it('creacionValida acepta @utem.cl con mayusculas y espacios externos', () => {
+    flushListadoInicial([]);
+
+    component.nuevoAdmin = {
+      correo: '  Persona@UTEM.CL  ',
+      password: 'Abcdef1!',
+      nombre: '',
+      telefono: '',
+      rol: 'admin'
+    };
+
+    expect(component.correoCreacionValido).toBe(true);
+    expect(component.creacionValida).toBe(true);
+  });
+
+  it('creacionValida rechaza dominios no institucionales y dominios parecidos', () => {
+    flushListadoInicial([]);
+
+    component.nuevoAdmin.password = 'Abcdef1!';
+    component.nuevoAdmin.rol = 'admin';
+
+    for (const correo of [
+      'persona@gmail.com',
+      'persona@test.local',
+      'persona@utem.cl.evil.com',
+      'persona@sub.utem.cl',
+      'persona@@utem.cl'
+    ]) {
+      component.nuevoAdmin.correo = correo;
+
+      expect(component.correoCreacionValido).toBe(false);
+      expect(component.creacionValida).toBe(false);
+    }
+  });
+
+  it('crearAdministrador no dispara POST si el correo no es @utem.cl', () => {
+    flushListadoInicial([]);
+
+    component.nuevoAdmin = {
+      correo: 'persona@gmail.com',
+      password: 'Abcdef1!',
+      nombre: '',
+      telefono: '',
+      rol: 'admin'
+    };
+
+    component.crearAdministrador();
+
+    httpMock.expectNone(
+      req => req.url.includes(URL_LISTADO) && req.method === 'POST'
+    );
+  });
+
+  it('crearAdministrador normaliza correo institucional antes del POST', () => {
+    flushListadoInicial([]);
+
+    component.nuevoAdmin = {
+      correo: '  Persona@UTEM.CL  ',
+      password: 'Abcdef1!',
+      nombre: '',
+      telefono: '',
+      rol: 'admin'
+    };
+
+    component.crearAdministrador();
+
+    const reqPost = httpMock.expectOne(
+      req => req.url.includes(URL_LISTADO) && req.method === 'POST'
+    );
+
+    expect(reqPost.request.body.correo).toBe('persona@utem.cl');
+
+    reqPost.flush(admin({
+      id: 99,
+      correo: 'persona@utem.cl'
+    }));
+
+    const reqReload = httpMock.expectOne(
+      req => req.url.includes(URL_LISTADO) && req.method === 'GET'
+    );
+
+    reqReload.flush([admin({
+      id: 99,
+      correo: 'persona@utem.cl'
+    })]);
+
+    expect(component.modalCrearAbierto).toBe(false);
   });
 
   it('crearAdministrador no dispara POST si el formulario es inválido', () => {
@@ -206,17 +306,17 @@ describe('AdminAdministradoresComponent (SA-4)', () => {
   it('crearAdministrador exitoso: recarga la lista, limpia password, cierra modal y muestra éxito', () => {
     flushListadoInicial([]);
     component.abrirModalCrear();
-    component.nuevoAdmin = { correo: 'nuevo@sesaes.cl', password: 'Abcdef1!', nombre: 'Nuevo', telefono: '', rol: 'admin' };
+    component.nuevoAdmin = { correo: 'nuevo@utem.cl', password: 'Abcdef1!', nombre: 'Nuevo', telefono: '', rol: 'admin' };
 
     component.crearAdministrador();
 
     const reqPost = httpMock.expectOne(req => req.url.includes(URL_LISTADO) && req.method === 'POST');
-    expect(reqPost.request.body).toEqual({ correo: 'nuevo@sesaes.cl', password: 'Abcdef1!', rol: 'admin', nombre: 'Nuevo' });
-    reqPost.flush(admin({ id: 9, correo: 'nuevo@sesaes.cl' }));
+    expect(reqPost.request.body).toEqual({ correo: 'nuevo@utem.cl', password: 'Abcdef1!', rol: 'admin', nombre: 'Nuevo' });
+    reqPost.flush(admin({ id: 9, correo: 'nuevo@utem.cl' }));
 
     // Recarga completa tras éxito (no merge local optimista).
     const reqReload = httpMock.expectOne(req => req.url.includes(URL_LISTADO) && req.method === 'GET');
-    reqReload.flush([admin({ id: 9, correo: 'nuevo@sesaes.cl' })]);
+    reqReload.flush([admin({ id: 9, correo: 'nuevo@utem.cl' })]);
 
     expect(component.modalCrearAbierto).toBe(false);
     expect(component.nuevoAdmin.password).toBe('');
@@ -227,7 +327,7 @@ describe('AdminAdministradoresComponent (SA-4)', () => {
   it('crearAdministrador 409 (correo duplicado): muestra el detail real del backend y no altera el listado', () => {
     flushListadoInicial([admin({ id: 1 })]);
     component.abrirModalCrear();
-    component.nuevoAdmin = { correo: 'admin1@sesaes.cl', password: 'Abcdef1!', nombre: '', telefono: '', rol: 'admin' };
+    component.nuevoAdmin = { correo: 'admin1@utem.cl', password: 'Abcdef1!', nombre: '', telefono: '', rol: 'admin' };
 
     component.crearAdministrador();
 
@@ -244,7 +344,7 @@ describe('AdminAdministradoresComponent (SA-4)', () => {
   it('crearAdministrador 422 (política de password): usa el detail del backend', () => {
     flushListadoInicial([]);
     component.abrirModalCrear();
-    component.nuevoAdmin = { correo: 'x@sesaes.cl', password: 'debil', nombre: '', telefono: '', rol: 'admin' };
+    component.nuevoAdmin = { correo: 'x@utem.cl', password: 'debil', nombre: '', telefono: '', rol: 'admin' };
 
     component.crearAdministrador();
 
@@ -257,7 +357,7 @@ describe('AdminAdministradoresComponent (SA-4)', () => {
   it('crearAdministrador 403: usa el fallback de permisos si el backend no trae detail', () => {
     flushListadoInicial([]);
     component.abrirModalCrear();
-    component.nuevoAdmin = { correo: 'x@sesaes.cl', password: 'Abcdef1!', nombre: '', telefono: '', rol: 'admin' };
+    component.nuevoAdmin = { correo: 'x@utem.cl', password: 'Abcdef1!', nombre: '', telefono: '', rol: 'admin' };
 
     component.crearAdministrador();
 
@@ -270,7 +370,7 @@ describe('AdminAdministradoresComponent (SA-4)', () => {
   it('crearAdministrador con error sin detail y sin fallback conocido: mensaje genérico', () => {
     flushListadoInicial([]);
     component.abrirModalCrear();
-    component.nuevoAdmin = { correo: 'x@sesaes.cl', password: 'Abcdef1!', nombre: '', telefono: '', rol: 'admin' };
+    component.nuevoAdmin = { correo: 'x@utem.cl', password: 'Abcdef1!', nombre: '', telefono: '', rol: 'admin' };
 
     component.crearAdministrador();
 
@@ -285,7 +385,7 @@ describe('AdminAdministradoresComponent (SA-4)', () => {
     const spyLocal = vi.spyOn(Storage.prototype, 'setItem');
 
     component.abrirModalCrear();
-    component.nuevoAdmin = { correo: 'x@sesaes.cl', password: 'Abcdef1!', nombre: '', telefono: '', rol: 'admin' };
+    component.nuevoAdmin = { correo: 'x@utem.cl', password: 'Abcdef1!', nombre: '', telefono: '', rol: 'admin' };
     component.crearAdministrador();
 
     httpMock.expectOne(req => req.url.includes(URL_LISTADO) && req.method === 'POST').flush(admin());
@@ -552,6 +652,134 @@ describe('AdminAdministradoresComponent (SA-4)', () => {
 
   it('iniciales cae al correo cuando no hay nombre', () => {
     flushListadoInicial([]);
-    expect(component.iniciales(admin({ nombre: null, correo: 'zz@sesaes.cl' }))).toBe('ZZ');
+    expect(component.iniciales(admin({ nombre: null, correo: 'zz@utem.cl' }))).toBe('ZZ');
+  });
+});
+describe('AdminAdministradoresComponent - SA-6.2 refresco de sesion tras cambio de rol', () => {
+  let component: AdminAdministradoresComponent;
+  let fixture: ComponentFixture<AdminAdministradoresComponent>;
+  let httpMock: HttpTestingController;
+  let toast: { success: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> };
+
+  beforeEach(async () => {
+    sessionStorage.clear();
+    localStorage.clear();
+
+    // Por defecto, la sesion de estas pruebas pertenece a otro SUPERADMIN.
+    sessionStorage.setItem('rol', 'superadmin');
+    sessionStorage.setItem('usuario_id', '99');
+
+    toast = { success: vi.fn(), error: vi.fn() };
+
+    await TestBed.configureTestingModule({
+      imports: [AdminAdministradoresComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: ToastService, useValue: toast }
+      ],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(AdminAdministradoresComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    httpMock = TestBed.inject(HttpTestingController);
+
+    // GET inicial disparado por ngOnInit.
+    httpMock.expectOne(
+      req => req.url.includes(URL_LISTADO) && req.method === 'GET'
+    ).flush([]);
+  });
+
+  afterEach(() => {
+    httpMock.verify();
+    sessionStorage.clear();
+    localStorage.clear();
+  });
+
+  it('cambiar rol de otra cuenta conserva la sesion y recarga el listado', () => {
+    const emitSpy = vi.spyOn(component.sesionAdministrativaActualizada, 'emit');
+
+    component.cambiarRol(
+      admin({
+        id: 1,
+        rol: 'admin',
+        correo: 'otra@utem.cl'
+      }),
+      'superadmin'
+    );
+
+    const reqPatch = httpMock.expectOne(
+      req =>
+        req.url.includes('/usuarios/administradores/1/rol') &&
+        req.method === 'PATCH'
+    );
+
+    expect(reqPatch.request.body).toEqual({ rol: 'superadmin' });
+
+    reqPatch.flush(
+      admin({
+        id: 1,
+        rol: 'superadmin',
+        correo: 'otra@utem.cl'
+      })
+    );
+
+    // Como la sesion actual sigue siendo SUPERADMIN, conserva
+    // roles.gestionar y debe recargar el listado.
+    httpMock.expectOne(
+      req => req.url.includes(URL_LISTADO) && req.method === 'GET'
+    ).flush([]);
+
+    expect(sessionStorage.getItem('rol')).toBe('superadmin');
+    expect(sessionStorage.getItem('usuario_id')).toBe('99');
+    expect(emitSpy).not.toHaveBeenCalled();
+    expect(toast.success).toHaveBeenCalled();
+  });
+
+  it('degradar la propia cuenta actualiza sesion, emite evento y evita GET sin permiso', () => {
+    sessionStorage.setItem('rol', 'superadmin');
+    sessionStorage.setItem('usuario_id', '15');
+
+    const emitSpy = vi.spyOn(component.sesionAdministrativaActualizada, 'emit');
+
+    component.cambiarRol(
+      admin({
+        id: 15,
+        rol: 'superadmin',
+        correo: 'superadmin@utem.cl'
+      }),
+      'admin'
+    );
+
+    const reqPatch = httpMock.expectOne(
+      req =>
+        req.url.includes('/usuarios/administradores/15/rol') &&
+        req.method === 'PATCH'
+    );
+
+    expect(reqPatch.request.body).toEqual({ rol: 'admin' });
+
+    reqPatch.flush(
+      admin({
+        id: 15,
+        rol: 'admin',
+        correo: 'superadmin@utem.cl'
+      })
+    );
+
+    expect(sessionStorage.getItem('rol')).toBe('admin');
+    expect(sessionStorage.getItem('usuario_id')).toBe('15');
+
+    expect(emitSpy).toHaveBeenCalledTimes(1);
+
+    // ADMIN ya no tiene roles.gestionar: no debemos lanzar el GET
+    // que el backend rechazaria con 403.
+    httpMock.expectNone(
+      req => req.url.includes(URL_LISTADO) && req.method === 'GET'
+    );
+
+    expect(toast.success).toHaveBeenCalled();
   });
 });

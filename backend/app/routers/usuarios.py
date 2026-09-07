@@ -233,6 +233,23 @@ def crear_administrador(
     # ix_usuario_correo): existe una carrera concurrente posible entre
     # este SELECT y el INSERT, por eso también se captura IntegrityError
     # más abajo.
+    # SA-6.1 - Las cuentas administrativas deben usar el dominio
+    # institucional que tambien exige el login. El backend es la autoridad.
+    partes_correo = correo_normalizado.split("@")
+    if (
+        len(partes_correo) != 2
+        or not partes_correo[0]
+        or partes_correo[1] != "utem.cl"
+        or any(caracter.isspace() for caracter in correo_normalizado)
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "El correo de una cuenta administrativa debe ser "
+                "institucional y terminar exactamente en @utem.cl."
+            ),
+        )
+
     duplicado = (
         db.query(Usuario)
         .filter(func.lower(Usuario.correo) == correo_normalizado)

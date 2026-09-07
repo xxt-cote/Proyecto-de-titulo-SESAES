@@ -231,7 +231,16 @@
     <div class="form-grid">
       <div class="campo-grupo">
         <label>Correo</label>
-        <input type="email" [(ngModel)]="nuevoAdmin.correo" placeholder="correo@sesaes.cl" [disabled]="guardando" />
+        <input
+          type="email"
+          [(ngModel)]="nuevoAdmin.correo"
+          placeholder="nombre@utem.cl"
+          autocomplete="email"
+          [disabled]="guardando"
+        />
+        <small *ngIf="nuevoAdmin.correo.trim() && !correoCreacionValido">
+          Solo se permiten correos institucionales @utem.cl.
+        </small>
       </div>
       <div class="campo-grupo">
         <label>Rol</label>

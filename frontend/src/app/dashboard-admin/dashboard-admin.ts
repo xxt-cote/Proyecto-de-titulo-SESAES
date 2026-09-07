@@ -259,6 +259,14 @@ toggleSidebarMovil(): void {
     this.cargarConfiguracionCentro();
   }
 
+  onSesionAdministrativaActualizada(): void {
+    // AuthService ya contiene el rol confirmado por el backend.
+    // Si el nuevo rol perdio acceso a la seccion actual, volvemos a Inicio.
+    if (!this.puedeAccederSeccion(this.seccionActiva)) {
+      this.navegarA('inicio');
+    }
+  }
+
   navegarA(seccion: string): void {
   if (!this.puedeAccederSeccion(seccion)) {
     this.toast.error('No tienes permisos para acceder a esta sección.');

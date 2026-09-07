@@ -175,6 +175,48 @@ def test_exigir_acceso_clinico_admin_y_superadmin_sin_bypass(db, rol):
     assert exc.value.status_code == 403
 
 
+@pytest.mark.parametrize("rol", ["admin", "superadmin"])
+def test_get_ficha_endpoint_admin_superadmin_403(db, rol):
+    """SA-6.3: un rol administrativo no puede leer una ficha clinica."""
+    _seed_prof_y_usuarios(db)
+    _cita(db, estado="completada")
+
+    with pytest.raises(HTTPException) as exc:
+        m.obtener_historial(
+            profesional_id=5,
+            estudiante_id=99,
+            db=db,
+            current_user={"id": 10, "rol": rol},
+        )
+
+    assert exc.value.status_code == 403
+
+
+@pytest.mark.parametrize("rol", ["admin", "superadmin"])
+def test_put_ficha_endpoint_admin_superadmin_403(db, rol):
+    """SA-6.3: un rol administrativo no puede modificar una ficha clinica."""
+    _seed_prof_y_usuarios(db)
+    _cita(db, estado="completada")
+
+    with pytest.raises(HTTPException) as exc:
+        m.guardar_historial(
+            profesional_id=5,
+            estudiante_id=99,
+            datos=m.HistorialGuardarIn(respuestas={"1": "dato-clinico"}),
+            db=db,
+            current_user={"id": 10, "rol": rol},
+        )
+
+    assert exc.value.status_code == 403
+
+    historial = db.query(HistorialPaciente).filter(
+        HistorialPaciente.profesional_id == 5,
+        HistorialPaciente.estudiante_id == 99,
+    ).first()
+
+    assert historial is None
+
+
 def test_get_ficha_exige_ficha_ver_asignada():
     source = inspect.getsource(m.obtener_historial)
     assert "Permission.FICHA_VER_ASIGNADA" in source

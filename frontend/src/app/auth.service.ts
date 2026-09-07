@@ -102,6 +102,19 @@ export class AuthService {
     }
   }
 
+  /**
+   * SA-6.2 - Sincroniza el rol administrativo de la sesion activa
+   * despues de que el backend confirma un cambio de rol sobre la
+   * propia cuenta.
+   *
+   * No modifica token, id, nombre ni foto. El backend sigue siendo
+   * la autoridad real de permisos; esto mantiene coherente la UX
+   * de la sesion ya abierta.
+   */
+  actualizarRolSesion(rol: 'admin' | 'superadmin'): void {
+    sessionStorage.setItem('rol', rol);
+  }
+
   logout(): void {
     sessionStorage.clear();
   }

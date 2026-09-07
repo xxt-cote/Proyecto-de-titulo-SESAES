@@ -207,6 +207,69 @@ def test_correo_solo_espacios_es_rechazado_con_422(db_session):
 # 10. ADMIN no puede usar la dependency
 # ══════════════════════════════════════
 
+
+# SA-6.1 - Correo institucional obligatorio
+
+def test_correo_institucional_se_normaliza_a_minusculas(db_session):
+    superadmin = _crear_usuario(
+        db_session,
+        correo="super-correo-normaliza@utem.cl",
+        rol="superadmin",
+    )
+
+    datos = UsuarioAdministrativoCreate(
+        correo="  Nueva.Cuenta@UTEM.CL  ",
+        password=PASSWORD_VALIDA,
+        rol="admin",
+    )
+
+    resultado = crear_administrador(
+        datos,
+        db_session,
+        _current_user_de(superadmin),
+    )
+
+    assert resultado.correo == "nueva.cuenta@utem.cl"
+
+
+@pytest.mark.parametrize(
+    "correo_invalido",
+    [
+        "usuario@gmail.com",
+        "usuario@test.local",
+        "usuario@utem.cl.evil.com",
+        "usuario@sub.utem.cl",
+        "usuario@@utem.cl",
+    ],
+)
+def test_correo_no_institucional_es_rechazado_con_422(
+    db_session,
+    correo_invalido,
+):
+    superadmin = _crear_usuario(
+        db_session,
+        correo="super-correo-institucional@utem.cl",
+        rol="superadmin",
+    )
+
+    datos = UsuarioAdministrativoCreate(
+        correo=correo_invalido,
+        password=PASSWORD_VALIDA,
+        rol="admin",
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        crear_administrador(
+            datos,
+            db_session,
+            _current_user_de(superadmin),
+        )
+
+    assert exc_info.value.status_code == 422
+    assert "@utem.cl" in str(exc_info.value.detail)
+    assert db_session.query(Usuario).count() == 1
+
+
 def test_admin_no_puede_usar_dependency_roles_gestionar():
     dependencia = require_permission(Permission.ROLES_GESTIONAR)
     admin_dict = {"id": 1, "rol": "admin", "correo": "admin@utem.cl"}
