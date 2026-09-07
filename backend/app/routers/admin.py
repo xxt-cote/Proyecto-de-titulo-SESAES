@@ -972,36 +972,137 @@ def crear_profesional(
 
 
 @router.patch("/profesionales/{prof_id}")
-def actualizar_profesional(prof_id: int, datos: ProfesionalUpdate, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.PROFESIONALES_GESTIONAR))):
-    prof = db.query(Profesional).filter(Profesional.id == prof_id).first()
-    if not prof:
-        raise HTTPException(status_code=404, detail="Profesional no encontrado")
+def actualizar_profesional(
+    prof_id: int,
+    datos: ProfesionalUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(
+        require_effective_permission(
+            Permission.PROFESIONALES_GESTIONAR
+        )
+    ),
+):
+    alcance = obtener_alcance_administrativo_efectivo(
+        db,
+        current_user,
+    )
+
+    if alcance is None:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes acceso al alcance solicitado.",
+        )
+
+    prof = (
+        db.query(Profesional)
+        .filter(
+            Profesional.id == prof_id
+        )
+        .first()
+    )
+
+    if (
+        not prof
+        or not especialidad_permitida_por_alcance(
+            alcance,
+            prof.especialidad,
+        )
+    ):
+        # No revelar profesionales pertenecientes
+        # a otra especialidad administrativa.
+        raise HTTPException(
+            status_code=404,
+            detail="Profesional no encontrado",
+        )
+
+    if (
+        datos.especialidad is not None
+        and not especialidad_permitida_por_alcance(
+            alcance,
+            datos.especialidad,
+        )
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "No tienes permiso para mover al profesional "
+                "a esta especialidad."
+            ),
+        )
+
     if datos.rut and not validar_rut(datos.rut):
-        raise HTTPException(status_code=400, detail="El RUT ingresado no es válido")
-    if "color_identificador" in datos.model_fields_set and not color_identificador_es_valido(datos.color_identificador):
-        raise HTTPException(status_code=400, detail="Color identificador no permitido")
-    if datos.nombre       is not None: prof.nombre       = datos.nombre
-    # tratamiento y color_identificador son los campos de este endpoint que
-    # distinguen "no enviado" (conservar) de "enviado como null" (limpiar),
-    # porque son los únicos casos reales de "quitar un valor existente" que
-    # pide el negocio. El resto de los campos mantiene exactamente su
-    # semántica anterior (solo se tocan si vienen no-None).
-    if "tratamiento" in datos.model_fields_set: prof.tratamiento = datos.tratamiento
-    if "color_identificador" in datos.model_fields_set: prof.color_identificador = datos.color_identificador
-    if datos.especialidad is not None: prof.especialidad = datos.especialidad
-    if datos.iniciales    is not None: prof.iniciales    = datos.iniciales
-    if datos.descripcion  is not None: prof.descripcion  = datos.descripcion
-    if datos.duracion_min is not None: prof.duracion_min = datos.duracion_min
-    if datos.correo       is not None: prof.correo       = datos.correo
-    if datos.rut          is not None: prof.rut          = datos.rut
-    if datos.estado       is not None: prof.estado       = datos.estado
+        raise HTTPException(
+            status_code=400,
+            detail="El RUT ingresado no es v?lido",
+        )
+
+    if (
+        "color_identificador" in datos.model_fields_set
+        and not color_identificador_es_valido(
+            datos.color_identificador
+        )
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Color identificador no permitido",
+        )
+
+    if datos.nombre is not None:
+        prof.nombre = datos.nombre
+
+    # tratamiento y color_identificador distinguen entre
+    # "no enviado" y "enviado expl?citamente como null".
+    if "tratamiento" in datos.model_fields_set:
+        prof.tratamiento = datos.tratamiento
+
+    if "color_identificador" in datos.model_fields_set:
+        prof.color_identificador = datos.color_identificador
+
+    if datos.especialidad is not None:
+        prof.especialidad = datos.especialidad
+
+    if datos.iniciales is not None:
+        prof.iniciales = datos.iniciales
+
+    if datos.descripcion is not None:
+        prof.descripcion = datos.descripcion
+
+    if datos.duracion_min is not None:
+        prof.duracion_min = datos.duracion_min
+
+    if datos.correo is not None:
+        prof.correo = datos.correo
+
+    if datos.rut is not None:
+        prof.rut = datos.rut
+
+    if datos.estado is not None:
+        prof.estado = datos.estado
+
     if datos.nombre and prof.usuario_id:
-        usuario = db.query(Usuario).filter(Usuario.id == prof.usuario_id).first()
-        if usuario: usuario.nombre = datos.nombre
-    registrar_evento_auditoria(db, current_user, "Editó profesional",
-                                entidad="profesional", entidad_id=prof_id, detalle=prof.nombre)
+        usuario = (
+            db.query(Usuario)
+            .filter(
+                Usuario.id == prof.usuario_id
+            )
+            .first()
+        )
+
+        if usuario:
+            usuario.nombre = datos.nombre
+
+    registrar_evento_auditoria(
+        db,
+        current_user,
+        "Edit? profesional",
+        entidad="profesional",
+        entidad_id=prof_id,
+        detalle=prof.nombre,
+    )
+
     db.commit()
     db.refresh(prof)
+
     return prof
 
 
