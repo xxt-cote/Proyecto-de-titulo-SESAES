@@ -95,18 +95,88 @@ def validar_rut(rut: str) -> bool:
 # ══════════════════════════════════════
 
 @router.get("/estadisticas")
-def get_estadisticas(db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.REPORTES_VER))):
+def get_estadisticas(db: Session = Depends(get_db), current_user: dict = Depends(require_effective_permission(Permission.REPORTES_VER))):
     hoy = date.today().isoformat()
-    reservas_hoy = db.query(Cita).filter(Cita.fecha == hoy, Cita.estado == "pendiente").count()
-    profesionales_activos = db.query(Profesional).filter(Profesional.estado == "activo").count()
-    citas_hoy = db.query(Cita).filter(Cita.fecha == hoy, Cita.estado.in_(["pendiente","completada"])).count()
-    horas_disponibles = max(0, (profesionales_activos * 10) - citas_hoy)
-    urgentes = db.query(Cita).filter(Cita.urgente == True, Cita.estado == "pendiente").count()
+
+    alcance = obtener_alcance_administrativo_efectivo(
+        db,
+        current_user,
+    )
+
+    if alcance is None:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes acceso al alcance solicitado.",
+        )
+
+    ids_profesionales = None
+
+    if not alcance.institucional:
+        ids_profesionales = _ids_profesionales_en_alcance(
+            db,
+            alcance,
+        )
+
+        if not ids_profesionales:
+            return {
+                "reservas_hoy": 0,
+                "profesionales_activos": 0,
+                "horas_disponibles": 0,
+                "urgentes": 0,
+            }
+
+    reservas_query = db.query(Cita).filter(
+        Cita.fecha == hoy,
+        Cita.estado == "pendiente",
+    )
+
+    profesionales_query = db.query(Profesional).filter(
+        Profesional.estado == "activo"
+    )
+
+    citas_hoy_query = db.query(Cita).filter(
+        Cita.fecha == hoy,
+        Cita.estado.in_(["pendiente", "completada"]),
+    )
+
+    urgentes_query = db.query(Cita).filter(
+        Cita.urgente == True,  # noqa: E712
+        Cita.estado == "pendiente",
+    )
+
+    if ids_profesionales is not None:
+        reservas_query = reservas_query.filter(
+            Cita.profesional_id.in_(ids_profesionales)
+        )
+
+        profesionales_query = profesionales_query.filter(
+            Profesional.id.in_(ids_profesionales)
+        )
+
+        citas_hoy_query = citas_hoy_query.filter(
+            Cita.profesional_id.in_(ids_profesionales)
+        )
+
+        urgentes_query = urgentes_query.filter(
+            Cita.profesional_id.in_(ids_profesionales)
+        )
+
+    reservas_hoy = reservas_query.count()
+    profesionales_activos = profesionales_query.count()
+    citas_hoy = citas_hoy_query.count()
+
+    horas_disponibles = max(
+        0,
+        (profesionales_activos * 10) - citas_hoy,
+    )
+
+    urgentes = urgentes_query.count()
+
     return {
         "reservas_hoy": reservas_hoy,
         "profesionales_activos": profesionales_activos,
         "horas_disponibles": horas_disponibles,
-        "urgentes": urgentes
+        "urgentes": urgentes,
     }
 
 
