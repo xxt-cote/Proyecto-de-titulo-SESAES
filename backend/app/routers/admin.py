@@ -463,17 +463,74 @@ def get_grafico_especialidad(
 
 
 @router.get("/graficos/semana")
-def get_grafico_semana(db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.REPORTES_VER))):
+def get_grafico_semana(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(
+        require_effective_permission(Permission.REPORTES_VER)
+    ),
+):
     hoy = date.today()
     lunes = hoy - timedelta(days=hoy.weekday())
-    dias = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"]
+    dias = ["Lun", "Mar", "Mi?", "Jue", "Vie", "S?b", "Dom"]
+
+    alcance = obtener_alcance_administrativo_efectivo(
+        db,
+        current_user,
+    )
+
+    if alcance is None:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes acceso al alcance solicitado.",
+        )
+
+    ids_profesionales = None
+
+    if not alcance.institucional:
+        ids_profesionales = _ids_profesionales_en_alcance(
+            db,
+            alcance,
+        )
+
+        if not ids_profesionales:
+            return [
+                {
+                    "dia": dias[i],
+                    "fecha": (
+                        lunes + timedelta(days=i)
+                    ).isoformat(),
+                    "cantidad": 0,
+                }
+                for i in range(7)
+            ]
+
     result = []
+
     for i in range(7):
         dia = lunes + timedelta(days=i)
-        count = db.query(Cita).filter(
-            Cita.fecha == dia.isoformat(), Cita.estado.in_(["pendiente","completada"])
-        ).count()
-        result.append({"dia": dias[i], "fecha": dia.isoformat(), "cantidad": count})
+
+        query = db.query(Cita).filter(
+            Cita.fecha == dia.isoformat(),
+            Cita.estado.in_(
+                ["pendiente", "completada"]
+            ),
+        )
+
+        if ids_profesionales is not None:
+            query = query.filter(
+                Cita.profesional_id.in_(
+                    ids_profesionales
+                )
+            )
+
+        cantidad = query.count()
+
+        result.append({
+            "dia": dias[i],
+            "fecha": dia.isoformat(),
+            "cantidad": cantidad,
+        })
+
     return result
 
 
