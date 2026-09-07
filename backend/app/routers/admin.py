@@ -42,6 +42,32 @@ router = APIRouter(prefix="/admin", tags=["administrador"])
 RUTS_EXCLUIDOS_CGR = {"16.458.880-7", "19.741.131-7"}
 
 
+def _ids_profesionales_en_alcance(
+    db: Session,
+    alcance,
+) -> list[int]:
+    """
+    Devuelve los IDs de profesionales visibles para un alcance limitado.
+
+    Para alcance institucional no se utiliza este helper: el endpoint
+    conserva la consulta global sin introducir un IN innecesario.
+
+    La comparaci?n usa la misma normalizaci?n SA-8/SA-9 del resto
+    de la autorizaci?n administrativa.
+    """
+    if alcance is None or alcance.institucional:
+        return []
+
+    return [
+        profesional.id
+        for profesional in db.query(Profesional).all()
+        if especialidad_permitida_por_alcance(
+            alcance,
+            profesional.especialidad,
+        )
+    ]
+
+
 def validar_rut(rut: str) -> bool:
     if not rut: return False
     rut_limpio = rut.replace(".", "").replace("-", "")
@@ -136,11 +162,47 @@ def get_resumen_dia(db: Session = Depends(get_db), current_user: dict = Depends(
 # ══════════════════════════════════════
 
 @router.get("/proximas-citas")
-def get_proximas_citas(db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.AGENDA_GESTIONAR))):
+def get_proximas_citas(db: Session = Depends(get_db), current_user: dict = Depends(require_effective_permission(Permission.AGENDA_VER))):
     hoy = date.today().isoformat()
-    citas = db.query(Cita).filter(
-        Cita.fecha >= hoy, Cita.estado == "pendiente"
-    ).order_by(Cita.fecha, Cita.hora).limit(20).all()
+
+    alcance = obtener_alcance_administrativo_efectivo(
+        db,
+        current_user,
+    )
+
+    if alcance is None:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes acceso al alcance solicitado.",
+        )
+
+    query = db.query(Cita).filter(
+        Cita.fecha >= hoy,
+        Cita.estado == "pendiente",
+    )
+
+    if not alcance.institucional:
+        ids_profesionales = _ids_profesionales_en_alcance(
+            db,
+            alcance,
+        )
+
+        if not ids_profesionales:
+            return []
+
+        # El alcance se aplica ANTES de order_by/limit para que el
+        # limite de 20 corresponda a citas realmente visibles.
+        query = query.filter(
+            Cita.profesional_id.in_(ids_profesionales)
+        )
+
+    citas = (
+        query
+        .order_by(Cita.fecha, Cita.hora)
+        .limit(20)
+        .all()
+    )
+
     result = []
     for c in citas:
         prof = db.query(Profesional).filter(Profesional.id == c.profesional_id).first()
