@@ -1136,45 +1136,173 @@ def eliminar_profesional(prof_id: int, db: Session = Depends(get_db), current_us
 
 
 @router.patch("/profesionales/{prof_id}/estado")
-def cambiar_estado_profesional(prof_id: int, body: dict, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.PROFESIONALES_GESTIONAR))):
-    prof = db.query(Profesional).filter(Profesional.id == prof_id).first()
-    if not prof:
-        raise HTTPException(status_code=404, detail="Profesional no encontrado")
+def cambiar_estado_profesional(
+    prof_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(
+        require_effective_permission(
+            Permission.PROFESIONALES_GESTIONAR
+        )
+    ),
+):
+    alcance = obtener_alcance_administrativo_efectivo(
+        db,
+        current_user,
+    )
+
+    if alcance is None:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes acceso al alcance solicitado.",
+        )
+
+    prof = (
+        db.query(Profesional)
+        .filter(
+            Profesional.id == prof_id
+        )
+        .first()
+    )
+
+    if (
+        not prof
+        or not especialidad_permitida_por_alcance(
+            alcance,
+            prof.especialidad,
+        )
+    ):
+        # No revelar profesionales fuera del alcance
+        # administrativo efectivo.
+        raise HTTPException(
+            status_code=404,
+            detail="Profesional no encontrado",
+        )
+
     estado_anterior = prof.estado or "activo"
-    estado_nuevo    = body.get("estado", "activo")
-    cancelar_citas  = body.get("cancelar_citas", False)
-    fecha_afectada  = body.get("fecha", date.today().isoformat())
-    motivo          = body.get("motivo")
+    estado_nuevo = body.get(
+        "estado",
+        "activo",
+    )
+    cancelar_citas = body.get(
+        "cancelar_citas",
+        False,
+    )
+    fecha_afectada = body.get(
+        "fecha",
+        date.today().isoformat(),
+    )
+    motivo = body.get("motivo")
+
     prof.estado = estado_nuevo
-    db.add(HistorialEstadoProfesional(
-        profesional_id=prof_id, estado_anterior=estado_anterior,
-        estado_nuevo=estado_nuevo, motivo=motivo, registrado_por=None
-    ))
-    registrar_evento_auditoria(db, current_user, "Cambió estado de profesional",
-                                entidad="profesional", entidad_id=prof_id,
-                                detalle=f"{prof.nombre}: {estado_anterior} → {estado_nuevo}")
+
+    db.add(
+        HistorialEstadoProfesional(
+            profesional_id=prof_id,
+            estado_anterior=estado_anterior,
+            estado_nuevo=estado_nuevo,
+            motivo=motivo,
+            registrado_por=None,
+        )
+    )
+
+    registrar_evento_auditoria(
+        db,
+        current_user,
+        "Cambi? estado de profesional",
+        entidad="profesional",
+        entidad_id=prof_id,
+        detalle=(
+            f"{prof.nombre}: "
+            f"{estado_anterior} ? {estado_nuevo}"
+        ),
+    )
+
+    # Se conserva el commit hist?rico previo a la eventual
+    # cancelaci?n masiva de citas.
     db.commit()
+
     if cancelar_citas:
-        citas = db.query(Cita).filter(
-            Cita.profesional_id == prof_id, Cita.fecha == fecha_afectada, Cita.estado == "pendiente"
-        ).all()
+        citas = (
+            db.query(Cita)
+            .filter(
+                Cita.profesional_id == prof_id,
+                Cita.fecha == fecha_afectada,
+                Cita.estado == "pendiente",
+            )
+            .all()
+        )
+
         for cita in citas:
-            est = db.query(Usuario).filter(Usuario.id == cita.estudiante_id).first()
-            cita.estado = "cancelada"; cita.cancelada_por_admin = True
-            cita.motivo_cancelacion = f"Profesional: {estado_nuevo}"
-            db.add(Notificacion(usuario_id=cita.estudiante_id,
-                mensaje="Tu cita fue cancelada por fuerza mayor. Puedes reagendar tu hora cuando lo desees desde tu dashboard.",
-                tipo="cancelacion"))
-            simular_envio_correo(db, destinatario=est.correo if est else "—",
-                asunto="SESAES — Tu cita fue cancelada",
-                cuerpo=f"Tu cita del {cita.fecha} a las {cita.hora} fue cancelada por fuerza mayor.",
-                tipo="cancelacion", referencia_id=cita.id)
-        registrar_evento_auditoria(db, current_user, "Canceló citas masivas",
-                                    entidad="profesional", entidad_id=prof_id,
-                                    detalle=f"{prof.nombre} — {len(citas)} citas el {fecha_afectada}")
+            est = (
+                db.query(Usuario)
+                .filter(
+                    Usuario.id == cita.estudiante_id
+                )
+                .first()
+            )
+
+            cita.estado = "cancelada"
+            cita.cancelada_por_admin = True
+            cita.motivo_cancelacion = (
+                f"Profesional: {estado_nuevo}"
+            )
+
+            db.add(
+                Notificacion(
+                    usuario_id=cita.estudiante_id,
+                    mensaje=(
+                        "Tu cita fue cancelada por fuerza mayor. "
+                        "Puedes reagendar tu hora cuando lo desees "
+                        "desde tu dashboard."
+                    ),
+                    tipo="cancelacion",
+                )
+            )
+
+            simular_envio_correo(
+                db,
+                destinatario=(
+                    est.correo
+                    if est
+                    else "?"
+                ),
+                asunto="SESAES ? Tu cita fue cancelada",
+                cuerpo=(
+                    f"Tu cita del {cita.fecha} a las "
+                    f"{cita.hora} fue cancelada por fuerza mayor."
+                ),
+                tipo="cancelacion",
+                referencia_id=cita.id,
+            )
+
+        registrar_evento_auditoria(
+            db,
+            current_user,
+            "Cancel? citas masivas",
+            entidad="profesional",
+            entidad_id=prof_id,
+            detalle=(
+                f"{prof.nombre} ? "
+                f"{len(citas)} citas el {fecha_afectada}"
+            ),
+        )
+
         db.commit()
-        return {"message": f"Estado '{estado_nuevo}'. {len(citas)} citas canceladas.", "citas_canceladas": len(citas)}
-    return {"message": f"Estado actualizado a '{estado_nuevo}'"}
+
+        return {
+            "message": (
+                f"Estado '{estado_nuevo}'. "
+                f"{len(citas)} citas canceladas."
+            ),
+            "citas_canceladas": len(citas),
+        }
+
+    return {
+        "message": (
+            f"Estado actualizado a '{estado_nuevo}'"
+        )
+    }
 
 
 @router.get("/profesionales/{prof_id}/historial-estados")
