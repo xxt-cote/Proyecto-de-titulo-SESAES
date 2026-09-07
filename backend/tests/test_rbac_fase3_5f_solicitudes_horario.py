@@ -287,27 +287,114 @@ def test_notificar_admin_no_busca_rol_admin_hardcodeado():
 
 
 @pytest.mark.parametrize("rol", ["admin", "superadmin"])
-def test_notificar_admin_notifica_admin_y_superadmin_con_permiso(rol):
-    db = FakeDB({Usuario: [_usuario(1, rol)]})
-    m._notificar_admin(db, "mensaje de prueba")
+def test_notificar_admin_notifica_admin_y_superadmin_con_permiso(
+    rol,
+    monkeypatch,
+):
+    db = FakeDB({
+        Usuario: [
+            _usuario(
+                1,
+                rol,
+            ),
+        ]
+    })
+
+    monkeypatch.setattr(
+        m,
+        "tiene_permiso_admin_en_especialidad",
+        lambda db_recibida, usuario_id, permiso, especialidad: (
+            usuario_id == 1
+            and permiso == Permission.AGENDA_GESTIONAR
+            and especialidad == "Nutricion"
+        ),
+    )
+
+    m._notificar_admin(
+        db,
+        "Nutricion",
+        "mensaje de prueba",
+    )
+
     assert len(db.added) == 1
     assert db.added[0].usuario_id == 1
 
 
 @pytest.mark.parametrize("rol", ["profesional", "estudiante"])
-def test_notificar_admin_no_notifica_roles_sin_agenda_gestionar(rol):
-    db = FakeDB({Usuario: [_usuario(1, rol)]})
-    m._notificar_admin(db, "mensaje de prueba")
+def test_notificar_admin_no_notifica_roles_sin_agenda_gestionar(
+    rol,
+    monkeypatch,
+):
+    db = FakeDB({
+        Usuario: [
+            _usuario(
+                1,
+                rol,
+            ),
+        ]
+    })
+
+    monkeypatch.setattr(
+        m,
+        "tiene_permiso_admin_en_especialidad",
+        lambda *args, **kwargs: False,
+    )
+
+    m._notificar_admin(
+        db,
+        "Nutricion",
+        "mensaje de prueba",
+    )
+
     assert len(db.added) == 0
 
 
-def test_notificar_admin_notifica_solo_a_quienes_tienen_el_permiso():
-    db = FakeDB({Usuario: [
-        _usuario(1, "admin"),
-        _usuario(2, "superadmin"),
-        _usuario(3, "profesional"),
-        _usuario(4, "estudiante"),
-    ]})
-    m._notificar_admin(db, "mensaje de prueba")
-    notificados = {n.usuario_id for n in db.added}
-    assert notificados == {1, 2}
+def test_notificar_admin_notifica_solo_a_quienes_tienen_el_permiso(
+    monkeypatch,
+):
+    db = FakeDB({
+        Usuario: [
+            _usuario(
+                1,
+                "admin",
+            ),
+            _usuario(
+                2,
+                "superadmin",
+            ),
+            _usuario(
+                3,
+                "profesional",
+            ),
+            _usuario(
+                4,
+                "estudiante",
+            ),
+        ]
+    })
+
+    monkeypatch.setattr(
+        m,
+        "tiene_permiso_admin_en_especialidad",
+        lambda db_recibida, usuario_id, permiso, especialidad: (
+            usuario_id == 1
+            and permiso == Permission.AGENDA_GESTIONAR
+            and especialidad == "Nutricion"
+        ),
+    )
+
+    m._notificar_admin(
+        db,
+        "Nutricion",
+        "mensaje de prueba",
+    )
+
+    notificados = {
+        n.usuario_id
+        for n in db.added
+    }
+
+    assert notificados == {
+        1,
+        2,
+    }

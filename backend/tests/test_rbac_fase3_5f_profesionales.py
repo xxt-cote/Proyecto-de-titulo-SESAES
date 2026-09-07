@@ -205,21 +205,58 @@ def test_marcar_inasistencia_profesional_ajeno_no_autorizado():
     assert exc.value.status_code == 403
 
 
-def test_marcar_inasistencia_dueno_con_agenda_gestionar_propia_autoriza():
-    cita = _cita(profesional_id=5, fecha="2020-01-01", estado="pendiente")
+def test_marcar_inasistencia_dueno_con_agenda_gestionar_propia_autoriza(
+    monkeypatch,
+):
+    cita = _cita(
+        profesional_id=5,
+        fecha="2020-01-01",
+        estado="pendiente",
+    )
+
     db = FakeDB({
-        Profesional: [_prof(5, usuario_id=10)],
-        Cita: [cita],
+        Profesional: [
+            _prof(5, usuario_id=10),
+        ],
+        Cita: [
+            cita,
+        ],
         Usuario: [
-            _usuario(99, "estudiante", nombre="Ana"),
-            _usuario(1, "admin", correo="admin@utem.cl"),
+            _usuario(
+                99,
+                "estudiante",
+                nombre="Ana",
+            ),
+            _usuario(
+                1,
+                "admin",
+                correo="admin@utem.cl",
+            ),
         ],
     })
-    resultado = m.marcar_inasistencia(
-        prof_id=5, cita_id=7, db=db, current_user={"id": 10, "rol": "profesional"}
+
+    # Este test verifica ownership/inasistencia, no seleccion de
+    # destinatarios administrativos.
+    monkeypatch.setattr(
+        m,
+        "_notificar_con_agenda_gestionar",
+        lambda *args, **kwargs: None,
     )
+
+    resultado = m.marcar_inasistencia(
+        prof_id=5,
+        cita_id=7,
+        db=db,
+        current_user={
+            "id": 10,
+            "rol": "profesional",
+        },
+    )
+
     assert cita.estado == "inasistencia"
-    assert resultado == {"message": "Inasistencia registrada"}
+    assert resultado == {
+        "message": "Inasistencia registrada"
+    }
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -343,20 +380,59 @@ def test_reportar_ausencia_rechaza_otro_profesional():
     assert exc.value.status_code == 403
 
 
-def test_reportar_ausencia_guarda_registrado_por_como_current_user_id():
+def test_reportar_ausencia_guarda_registrado_por_como_current_user_id(
+    monkeypatch,
+):
     db = FakeDB({
-        Profesional: [_prof(5, usuario_id=10)],
+        Profesional: [
+            _prof(5, usuario_id=10),
+        ],
         Cita: [],
-        Usuario: [_usuario(1, "admin", correo="admin@utem.cl")],
+        Usuario: [
+            _usuario(
+                1,
+                "admin",
+                correo="admin@utem.cl",
+            ),
+        ],
     })
-    m.reportar_ausencia(
-        prof_id=5, body={"tipo": "dia_completo", "motivo": "gripe"},
-        db=db, current_user={"id": 10, "rol": "profesional"},
+
+    # El objetivo de este test es la trazabilidad registrado_por.
+    monkeypatch.setattr(
+        m,
+        "_notificar_con_agenda_gestionar",
+        lambda *args, **kwargs: None,
     )
-    historiales = [o for o in db.added if type(o).__name__ == "HistorialEstadoProfesional"]
+
+    m.reportar_ausencia(
+        prof_id=5,
+        body={
+            "tipo": "dia_completo",
+            "motivo": "gripe",
+        },
+        db=db,
+        current_user={
+            "id": 10,
+            "rol": "profesional",
+        },
+    )
+
+    historiales = [
+        o
+        for o in db.added
+        if type(o).__name__
+        == "HistorialEstadoProfesional"
+    ]
+
     assert len(historiales) == 1
     assert historiales[0].registrado_por == 10
-    assert "registrado_por=None" not in inspect.getsource(m.reportar_ausencia)
+
+    assert (
+        "registrado_por=None"
+        not in inspect.getsource(
+            m.reportar_ausencia
+        )
+    )
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -369,24 +445,64 @@ def test_notificar_con_agenda_gestionar_no_usa_rol_admin_hardcodeado():
     assert "Permission.AGENDA_GESTIONAR" in source
 
 
-def test_notificar_con_agenda_gestionar_incluye_superadmin_no_solo_admin():
+def test_notificar_con_agenda_gestionar_incluye_superadmin_no_solo_admin(
+    monkeypatch,
+):
     """
-    Prueba de comportamiento (no solo de texto fuente): un rol que NO es
-    el string "admin" pero SÍ tiene AGENDA_GESTIONAR (superadmin) debe
-    recibir la notificación igual que admin — y roles sin el permiso
-    (profesional, estudiante) no deben recibirla.
+    ADMIN se resuelve por permiso persistido + alcance.
+    SUPERADMIN conserva agenda.gestionar por RBAC explicito.
     """
     db = FakeDB({
         Usuario: [
-            _usuario(1, "admin", correo="admin@utem.cl"),
-            _usuario(2, "superadmin", correo="super@utem.cl"),
-            _usuario(3, "profesional", correo="prof@utem.cl"),
-            _usuario(4, "estudiante", correo="est@utem.cl"),
+            _usuario(
+                1,
+                "admin",
+                correo="admin@utem.cl",
+            ),
+            _usuario(
+                2,
+                "superadmin",
+                correo="super@utem.cl",
+            ),
+            _usuario(
+                3,
+                "profesional",
+                correo="prof@utem.cl",
+            ),
+            _usuario(
+                4,
+                "estudiante",
+                correo="est@utem.cl",
+            ),
         ]
     })
-    m._notificar_con_agenda_gestionar(db, mensaje="hola", tipo="info")
-    ids_notificados = {o.usuario_id for o in db.added}
-    assert ids_notificados == {1, 2}
+
+    monkeypatch.setattr(
+        m,
+        "tiene_permiso_admin_en_especialidad",
+        lambda db_recibida, usuario_id, permiso, especialidad: (
+            usuario_id == 1
+            and permiso == Permission.AGENDA_GESTIONAR
+            and especialidad == "Nutricion"
+        ),
+    )
+
+    m._notificar_con_agenda_gestionar(
+        db,
+        "Nutricion",
+        mensaje="hola",
+        tipo="info",
+    )
+
+    ids_notificados = {
+        o.usuario_id
+        for o in db.added
+    }
+
+    assert ids_notificados == {
+        1,
+        2,
+    }
 
 
 def test_marcar_inasistencia_notifica_por_permiso_no_por_rol_admin_string():

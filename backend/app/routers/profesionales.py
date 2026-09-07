@@ -12,6 +12,9 @@ from app.models.historial_estado_profesional import HistorialEstadoProfesional
 from app.routers.correos import simular_envio_correo
 from app.auth_dependencies import get_current_user, verificar_acceso_profesional
 from app.rbac.permissions import Permission, has_permission
+from app.rbac.admin_authorization import (
+    tiene_permiso_admin_en_especialidad,
+)
 from app.auditoria import registrar_evento_auditoria
 
 router = APIRouter(tags=["profesionales"])
@@ -43,25 +46,57 @@ def _exigir_permiso_y_ownership_propio(
 
 
 def _notificar_con_agenda_gestionar(
-    db, mensaje: str, tipo: str = "info",
-    email_asunto: str = None, email_cuerpo: str = None, email_referencia_id: int = None,
+    db,
+    especialidad: str,
+    mensaje: str,
+    tipo: str = "info",
+    email_asunto: str = None,
+    email_cuerpo: str = None,
+    email_referencia_id: int = None,
 ) -> None:
     """
-    Notifica a TODOS los usuarios cuyo rol tenga Permission.AGENDA_GESTIONAR
-    (Fase 3.5F), en vez de al primer Usuario con rol == "admin" a secas.
-    El destinatario administrativo se deriva del permiso RBAC, no de un
-    string de rol hardcodeado — sin atajo especial para superadmin (si
-    superadmin no tiene AGENDA_GESTIONAR en ROLE_DEFAULT_PERMISSIONS, no
-    recibe estas notificaciones).
+    Notifica a usuarios administrativos activos con capacidad real
+    agenda.gestionar para la especialidad del evento.
+
+    ADMIN requiere configuracion valida, permiso persistido y alcance.
+    SUPERADMIN conserva su permiso explicito definido por rol.
     """
     for u in db.query(Usuario).all():
-        if not has_permission(u.rol, Permission.AGENDA_GESTIONAR):
+        if not getattr(u, "activo", True):
             continue
-        db.add(Notificacion(usuario_id=u.id, mensaje=mensaje, tipo=tipo))
+
+        if u.rol == "admin":
+            autorizado = tiene_permiso_admin_en_especialidad(
+                db,
+                u.id,
+                Permission.AGENDA_GESTIONAR,
+                especialidad,
+            )
+        else:
+            autorizado = has_permission(
+                u.rol,
+                Permission.AGENDA_GESTIONAR,
+            )
+
+        if not autorizado:
+            continue
+
+        db.add(
+            Notificacion(
+                usuario_id=u.id,
+                mensaje=mensaje,
+                tipo=tipo,
+            )
+        )
+
         if email_asunto:
             simular_envio_correo(
-                db, destinatario=u.correo or "", asunto=email_asunto,
-                cuerpo=email_cuerpo or mensaje, tipo=tipo, referencia_id=email_referencia_id,
+                db,
+                destinatario=u.correo or "",
+                asunto=email_asunto,
+                cuerpo=email_cuerpo or mensaje,
+                tipo=tipo,
+                referencia_id=email_referencia_id,
             )
 
 
@@ -330,6 +365,20 @@ def marcar_inasistencia(
     current_user: dict = Depends(get_current_user),
 ):
     _exigir_permiso_y_ownership_propio(current_user, prof_id, db, Permission.AGENDA_GESTIONAR_PROPIA)
+    prof = (
+        db.query(Profesional)
+        .filter(
+            Profesional.id == prof_id
+        )
+        .first()
+    )
+
+    if not prof:
+        raise HTTPException(
+            status_code=404,
+            detail="Profesional no encontrado",
+        )
+
     cita = db.query(Cita).filter(Cita.id == cita_id, Cita.profesional_id == prof_id).first()
     if not cita:
         raise HTTPException(status_code=404, detail="Cita no encontrada")
@@ -339,6 +388,7 @@ def marcar_inasistencia(
     cita.estado = "inasistencia"
     _notificar_con_agenda_gestionar(
         db,
+        prof.especialidad,
         mensaje=f"Inasistencia: {est.nombre if est else '—'} no asistió a su cita del {cita.fecha} a las {cita.hora}.",
         tipo="info",
     )
@@ -448,12 +498,13 @@ def reportar_ausencia(
 
     _notificar_con_agenda_gestionar(
         db,
+        prof.especialidad,
         mensaje=f"{prof.nombre} reportó ausencia {rango_desc}. Motivo: {motivo}. "
                 f"Se cancelaron {len(citas_afectadas)} cita(s) automáticamente.",
         tipo="advertencia",
         email_asunto=f"SESAES — {prof.nombre} reportó ausencia",
         email_cuerpo=f"{prof.nombre} ({prof.especialidad}) reportó ausencia {rango_desc}. Motivo: {motivo}.",
-        email_referencia_id=prof_id,
+        email_referencia_id=None,
     )
 
     registrar_evento_auditoria(db, current_user, "Profesional reportó ausencia",

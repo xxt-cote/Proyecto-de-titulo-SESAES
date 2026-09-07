@@ -12,6 +12,7 @@ from app.rbac.dependencies import require_effective_permission
 from app.rbac.admin_authorization import (
     obtener_alcance_administrativo_efectivo,
     especialidad_permitida_por_alcance,
+    tiene_permiso_admin_en_especialidad,
 )
 from app.rbac.permissions import Permission, has_permission
 from app.auditoria import registrar_evento_auditoria
@@ -79,19 +80,46 @@ def _hora_a_minutos(hora_str: str) -> int:
     return -1
 
 
-def _notificar_admin(db, mensaje: str, tipo: str = "info"):
+def _notificar_admin(
+    db,
+    especialidad: str,
+    mensaje: str,
+    tipo: str = "info",
+):
     """
-    Notifica a TODOS los usuarios cuyo rol tenga Permission.AGENDA_GESTIONAR
-    (Fase 3.5F), en vez de buscar el primer Usuario con rol == "admin" a
-    secas. El destinatario administrativo se deriva del permiso RBAC, no
-    de un string de rol hardcodeado — esto incluye a ADMIN y SUPERADMIN
-    siempre que ambos tengan ese permiso en ROLE_DEFAULT_PERMISSIONS
-    (mismo criterio que profesionales._notificar_con_agenda_gestionar).
+    Notifica a usuarios administrativos activos con capacidad real
+    agenda.gestionar para la especialidad de la solicitud.
+
+    ADMIN requiere configuracion valida, permiso persistido y alcance.
+    SUPERADMIN conserva su permiso explicito definido por rol.
     """
     for u in db.query(Usuario).all():
-        if not has_permission(u.rol, Permission.AGENDA_GESTIONAR):
+        if not getattr(u, "activo", True):
             continue
-        db.add(Notificacion(usuario_id=u.id, mensaje=mensaje, tipo=tipo))
+
+        if u.rol == "admin":
+            autorizado = tiene_permiso_admin_en_especialidad(
+                db,
+                u.id,
+                Permission.AGENDA_GESTIONAR,
+                especialidad,
+            )
+        else:
+            autorizado = has_permission(
+                u.rol,
+                Permission.AGENDA_GESTIONAR,
+            )
+
+        if not autorizado:
+            continue
+
+        db.add(
+            Notificacion(
+                usuario_id=u.id,
+                mensaje=mensaje,
+                tipo=tipo,
+            )
+        )
 
 
 def _notificar_profesional(db, prof: Profesional, mensaje: str, tipo: str = "info"):
@@ -141,7 +169,7 @@ def solicitar_colacion(
     )
     db.add(solicitud)
 
-    _notificar_admin(db, f"{prof.nombre} solicitó horario de colación: {hora_inicio} - {hora_fin}.")
+    _notificar_admin(db, prof.especialidad, f"{prof.nombre} solicitó horario de colación: {hora_inicio} - {hora_fin}.")
     registrar_evento_auditoria(db, current_user, "Profesional solicitó horario de colación",
                                 entidad="profesional", entidad_id=prof_id,
                                 detalle=f"{prof.nombre}: {hora_inicio} - {hora_fin}")
@@ -186,7 +214,7 @@ def solicitar_jornada(
     )
     db.add(solicitud)
 
-    _notificar_admin(db, f"{prof.nombre} solicitó horario de jornada: {hora_inicio} - {hora_fin}.")
+    _notificar_admin(db, prof.especialidad, f"{prof.nombre} solicitó horario de jornada: {hora_inicio} - {hora_fin}.")
     registrar_evento_auditoria(db, current_user, "Profesional solicitó horario de jornada",
                                 entidad="profesional", entidad_id=prof_id,
                                 detalle=f"{prof.nombre}: {hora_inicio} - {hora_fin}")

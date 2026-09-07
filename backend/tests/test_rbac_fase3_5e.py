@@ -6,40 +6,93 @@ from fastapi import HTTPException
 
 from app.routers import citas, configuracion_centro
 from app.schemas import ConfiguracionCentroUpdate
+from app.rbac.permissions import Permission
 
 
 @pytest.mark.parametrize("rol", ["admin", "superadmin"])
-def test_admin_y_superadmin_tienen_agenda_global(rol):
+def test_admin_y_superadmin_tienen_agenda_global(
+    rol,
+    monkeypatch,
+):
+    db = object()
+
+    monkeypatch.setattr(
+        citas,
+        "tiene_permiso_efectivo",
+        lambda db_recibida, current_user, permiso: (
+            db_recibida is db
+            and current_user["rol"] == rol
+            and permiso == Permission.AGENDA_GESTIONAR
+        ),
+    )
+
     assert citas._puede_gestionar_agenda(
-        {"id": 10, "rol": rol}
+        {"id": 10, "rol": rol},
+        db,
     )
 
 
 @pytest.mark.parametrize("rol", ["estudiante", "profesional"])
-def test_roles_no_administrativos_no_tienen_agenda_global(rol):
+def test_roles_no_administrativos_no_tienen_agenda_global(
+    rol,
+    monkeypatch,
+):
+    db = object()
+
+    monkeypatch.setattr(
+        citas,
+        "tiene_permiso_efectivo",
+        lambda db_recibida, current_user, permiso: False,
+    )
+
     assert not citas._puede_gestionar_agenda(
-        {"id": 10, "rol": rol}
+        {"id": 10, "rol": rol},
+        db,
     )
 
 
 @pytest.mark.parametrize("rol", ["admin", "superadmin"])
-def test_agenda_global_permite_operar_para_otro_estudiante(rol):
-    citas._verificar_propietario_o_agenda(
+def test_agenda_global_permite_operar_para_otro_estudiante(
+    rol,
+    monkeypatch,
+):
+    db = object()
+
+    monkeypatch.setattr(
+        citas,
+        "tiene_permiso_efectivo",
+        lambda db_recibida, current_user, permiso: True,
+    )
+
+    assert citas._verificar_propietario_o_agenda(
         {"id": 10, "rol": rol},
         20,
+        db,
+    ) is True
+
+
+def test_estudiante_solo_puede_operar_su_agenda(
+    monkeypatch,
+):
+    db = object()
+
+    monkeypatch.setattr(
+        citas,
+        "tiene_permiso_efectivo",
+        lambda db_recibida, current_user, permiso: False,
     )
 
-
-def test_estudiante_solo_puede_operar_su_agenda():
-    citas._verificar_propietario_o_agenda(
+    assert citas._verificar_propietario_o_agenda(
         {"id": 20, "rol": "estudiante"},
         20,
-    )
+        db,
+    ) is False
 
     with pytest.raises(HTTPException) as exc:
         citas._verificar_propietario_o_agenda(
             {"id": 20, "rol": "estudiante"},
             21,
+            db,
         )
 
     assert exc.value.status_code == 403
@@ -95,17 +148,37 @@ def test_crear_cita_protege_urgencia_y_sobrecupo():
     source = inspect.getsource(citas.crear_cita)
 
     assert "_verificar_propietario_o_agenda" in source
-    assert source.count(
+    assert "puede_gestionar_agenda" in source
+    assert "_verificar_alcance_profesional_agenda" in source
+
+    assert (
         "_puede_gestionar_agenda(current_user)"
+        not in source
+    )
+
+    assert source.count(
+        "if puede_gestionar_agenda"
     ) >= 2
+
     assert '"urgente":      nueva.urgente or False' in source
 
 
 def test_cancelacion_administrativa_depende_de_agenda():
     source = inspect.getsource(citas.cancelar_cita)
 
-    assert "if not _puede_gestionar_agenda(current_user)" in source
+    assert (
+        "puede_gestionar_agenda = "
+        "_puede_gestionar_agenda"
+        in source
+    )
+
+    assert "_verificar_alcance_profesional_agenda" in source
     assert 'current_user["rol"] != "admin"' not in source
+
+    assert (
+        "_puede_gestionar_agenda(current_user)"
+        not in source
+    )
 
 
 def test_admin_no_modifica_configuracion_global_por_defecto():
