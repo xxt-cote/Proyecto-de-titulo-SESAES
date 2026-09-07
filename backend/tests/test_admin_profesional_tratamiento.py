@@ -197,7 +197,10 @@ def test_listado_profesionales_incluye_tratamiento(db_session):
         db_session, FAKE_ADMIN
     )
 
-    listado = get_profesionales_admin(db_session, FAKE_ADMIN)
+    listado = get_profesionales_admin(
+        db_session,
+        {"id": -1, "rol": "superadmin"},
+    )
 
     assert listado[0]["tratamiento"] == "Dra."
 
@@ -321,5 +324,8 @@ def test_listado_profesionales_incluye_color(db_session):
                            color_identificador="#4F8EF7"),
         db_session, FAKE_ADMIN
     )
-    listado = get_profesionales_admin(db_session, FAKE_ADMIN)
+    listado = get_profesionales_admin(
+        db_session,
+        {"id": -1, "rol": "superadmin"},
+    )
     assert listado[0]["color_identificador"] == "#4F8EF7"

@@ -25,8 +25,15 @@ from app.schemas import (
     ConfiguracionOut, ConfiguracionUpdate, CitaCreate,
     color_identificador_es_valido
 )
-from app.rbac.dependencies import require_permission
+from app.rbac.dependencies import (
+    require_permission,
+    require_effective_permission,
+)
 from app.rbac.permissions import Permission
+from app.rbac.admin_authorization import (
+    obtener_alcance_administrativo_efectivo,
+    especialidad_permitida_por_alcance,
+)
 
 
 
@@ -293,7 +300,27 @@ def get_grafico_semana(db: Session = Depends(get_db), current_user: dict = Depen
 # ══════════════════════════════════════
 
 @router.get("/profesionales")
-def get_profesionales_admin(db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.PROFESIONALES_GESTIONAR))):
+def get_profesionales_admin(db: Session = Depends(get_db), current_user: dict = Depends(require_effective_permission(Permission.PROFESIONALES_VER))):
+    alcance = obtener_alcance_administrativo_efectivo(
+        db,
+        current_user,
+    )
+
+    if alcance is None:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes acceso al alcance solicitado.",
+        )
+
+    profesionales = [
+        p
+        for p in db.query(Profesional).all()
+        if especialidad_permitida_por_alcance(
+            alcance,
+            p.especialidad,
+        )
+    ]
+
     return [
         {
             "id": p.id, "nombre": p.nombre, "tratamiento": p.tratamiento,
@@ -303,7 +330,7 @@ def get_profesionales_admin(db: Session = Depends(get_db), current_user: dict = 
             "correo": p.correo, "rut": p.rut, "usuario_id": p.usuario_id,
             "foto_url": p.foto_url, "color_identificador": p.color_identificador
         }
-        for p in db.query(Profesional).all()
+        for p in profesionales
     ]
 
 
