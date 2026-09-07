@@ -69,6 +69,13 @@ class AccesoAdministrativo(Base):
         passive_deletes=True,
     )
 
+    permisos = relationship(
+        "AccesoAdminPermiso",
+        back_populates="acceso",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
 
 class AccesoAdminEspecialidad(Base):
     __tablename__ = "acceso_admin_especialidad"
@@ -106,4 +113,53 @@ class AccesoAdminEspecialidad(Base):
     acceso = relationship(
         "AccesoAdministrativo",
         back_populates="especialidades",
+    )
+class AccesoAdminPermiso(Base):
+    """
+    Permiso administrativo asignado explicitamente a una cuenta ADMIN.
+
+    La tabla solo admite permisos administrativos delegables. La
+    compatibilidad concreta perfil -> permiso se valida en la capa de
+    dominio de SA-9; esta restriccion de BD impide persistir permisos
+    reservados, clinicos o de autoservicio.
+    """
+
+    __tablename__ = "acceso_admin_permiso"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "acceso_admin_id",
+            "permiso",
+            name="uq_acceso_admin_permiso",
+        ),
+        CheckConstraint(
+            "permiso IN ("
+            "'usuarios.ver', "
+            "'usuarios.gestionar', "
+            "'profesionales.ver', "
+            "'profesionales.gestionar', "
+            "'agenda.ver', "
+            "'agenda.gestionar', "
+            "'reportes.ver'"
+            ")",
+            name="ck_acceso_admin_permiso_valido",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+
+    acceso_admin_id = Column(
+        Integer,
+        ForeignKey(
+            "acceso_administrativo.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+    )
+
+    permiso = Column(String(96), nullable=False)
+
+    acceso = relationship(
+        "AccesoAdministrativo",
+        back_populates="permisos",
     )
