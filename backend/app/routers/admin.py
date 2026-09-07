@@ -1237,34 +1237,119 @@ def crear_dia_cerrado(body: dict, db: Session = Depends(get_db), current_user: d
 
 
 @router.get("/dias-cerrados/{dia_id}/citas")
-def citas_canceladas_por_dia_cerrado(dia_id: int, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.AGENDA_GESTIONAR))):
+def citas_canceladas_por_dia_cerrado(
+    dia_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(
+        require_effective_permission(Permission.AGENDA_VER)
+    ),
+):
     """
-    Detalle de las citas que se cancelaron cuando se cerró este día —
-    para que el admin lo tenga a mano si el estudiante llama a preguntar
-    o pedir que le reagenden.
-    """
-    dia = db.query(DiaCerrado).filter(DiaCerrado.id == dia_id).first()
-    if not dia:
-        raise HTTPException(status_code=404, detail="Día cerrado no encontrado")
+    Detalle administrativo de las citas canceladas en un d?a
+    de cierre institucional.
 
-    citas = db.query(Cita).filter(
+    El cierre es informaci?n global, pero las personas y citas
+    mostradas respetan el alcance administrativo efectivo.
+    """
+    alcance = obtener_alcance_administrativo_efectivo(
+        db,
+        current_user,
+    )
+
+    if alcance is None:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes acceso al alcance solicitado.",
+        )
+
+    dia = (
+        db.query(DiaCerrado)
+        .filter(
+            DiaCerrado.id == dia_id
+        )
+        .first()
+    )
+
+    if not dia:
+        raise HTTPException(
+            status_code=404,
+            detail="D?a cerrado no encontrado",
+        )
+
+    ids_profesionales = None
+
+    if not alcance.institucional:
+        ids_profesionales = _ids_profesionales_en_alcance(
+            db,
+            alcance,
+        )
+
+        if not ids_profesionales:
+            return []
+
+    query = db.query(Cita).filter(
         Cita.fecha == dia.fecha,
-        Cita.cancelada_por_admin == True  # noqa: E712
-    ).all()
+        Cita.cancelada_por_admin == True,  # noqa: E712
+    )
+
+    if ids_profesionales is not None:
+        query = query.filter(
+            Cita.profesional_id.in_(
+                ids_profesionales
+            )
+        )
+
+    citas = query.all()
 
     resultado = []
+
     for cita in citas:
-        est = db.query(Usuario).filter(Usuario.id == cita.estudiante_id).first()
-        prof = db.query(Profesional).filter(Profesional.id == cita.profesional_id).first()
+        est = (
+            db.query(Usuario)
+            .filter(
+                Usuario.id == cita.estudiante_id
+            )
+            .first()
+        )
+
+        prof = (
+            db.query(Profesional)
+            .filter(
+                Profesional.id == cita.profesional_id
+            )
+            .first()
+        )
+
         resultado.append({
             "cita_id": cita.id,
-            "estudiante": est.nombre if est else "—",
-            "rut": est.rut if est else "—",
-            "correo": est.correo if est else "—",
-            "profesional": prof.nombre if prof else "—",
-            "especialidad": prof.especialidad if prof else "—",
+            "estudiante": (
+                est.nombre
+                if est
+                else "?"
+            ),
+            "rut": (
+                est.rut
+                if est
+                else "?"
+            ),
+            "correo": (
+                est.correo
+                if est
+                else "?"
+            ),
+            "profesional": (
+                prof.nombre
+                if prof
+                else "?"
+            ),
+            "especialidad": (
+                prof.especialidad
+                if prof
+                else "?"
+            ),
             "hora": cita.hora,
         })
+
     return resultado
 
 

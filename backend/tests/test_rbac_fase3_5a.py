@@ -35,7 +35,7 @@ ENDPOINTS = [
     ("PATCH", "/admin/citas/{cita_id}/prioridad", Permission.AGENDA_GESTIONAR),
     ("GET", "/admin/dias-cerrados", Permission.AGENDA_VER),
     ("POST", "/admin/dias-cerrados", Permission.AGENDA_GESTIONAR),
-    ("GET", "/admin/dias-cerrados/{dia_id}/citas", Permission.AGENDA_GESTIONAR),
+    ("GET", "/admin/dias-cerrados/{dia_id}/citas", Permission.AGENDA_VER),
     ("DELETE", "/admin/dias-cerrados/{dia_id}", Permission.AGENDA_GESTIONAR),
     ("GET", "/admin/historial", Permission.REPORTES_VER),
     ("GET", "/admin/notificaciones", Permission.USUARIOS_GESTIONAR),
