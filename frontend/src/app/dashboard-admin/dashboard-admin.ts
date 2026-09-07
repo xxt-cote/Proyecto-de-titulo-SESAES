@@ -222,11 +222,104 @@ toggleSidebarMovil(): void {
     if (primeraPermitida) this.configTabActiva = primeraPermitida;
   }
 
+  contextoAdministrativoCargando = true;
+  contextoAdministrativoListo = false;
+
+  private limpiarDatosVisiblesDeAccesoAnterior(): void {
+    // Si cambia el rol/perfil durante una sesion, no dejamos datos
+    // privilegiados anteriores visibles mientras llega el nuevo contexto.
+    this.estadisticas = {
+      reservas_hoy: 0,
+      profesionales_activos: 0,
+      horas_disponibles: 0,
+      urgentes: 0
+    };
+
+    this.resumenDia = [];
+    this.actividadReciente = [];
+    this.proximasCitas = [];
+    this.graficoEspecialidad = [];
+    this.graficoSemana = [];
+
+    this.profesionales = [];
+
+    this.notificaciones = [];
+    this.notifNoLeidas = 0;
+    this.notifPanelAbierto = false;
+
+    this.busquedaGlobal = '';
+    this.resultadosBusquedaGlobal = {
+      profesionales: [],
+      estudiantes: []
+    };
+    this.buscandoGlobal = false;
+
+    this.estudiantesAdmin = [];
+    this.estudiantesTotal = 0;
+    this.estudiantesCargando = false;
+    this.fichaEstudianteSeleccionado = null;
+    this.modalPerfilEstudianteAbierto = false;
+
+    this.historialAdmin = [];
+    this.estadisticasEstudiante = null;
+  }
+
+  private cargarContextoAdministrativoEfectivo(): void {
+    this.contextoAdministrativoCargando = true;
+    this.contextoAdministrativoListo = false;
+
+    this.limpiarDatosVisiblesDeAccesoAnterior();
+
+    this.auth.cargarAccesoAdministrativo().subscribe({
+      next: () => {
+        this.contextoAdministrativoCargando = false;
+        this.contextoAdministrativoListo = true;
+
+        // El backend acaba de confirmar rol, perfil, permisos y alcance.
+        // Si una degradacion deja la seccion actual fuera de alcance,
+        // volvemos a Inicio sin intentar cargarla.
+        if (!this.puedeAccederSeccion(this.seccionActiva)) {
+          this.seccionActiva = 'inicio';
+        }
+
+        if (this.seccionActiva === 'configuracion') {
+          this.asegurarTabConfigPermitida();
+        }
+
+        // Solo ahora se permiten requests administrativos derivados
+        // de permisos.
+        this.cargarDatos();
+        this.cdr.detectChanges();
+      },
+
+      error: () => {
+        // AuthService ya borro su snapshot antes de la request y tambien
+        // ante error. Por tanto hasPermission() permanece fail-closed.
+        this.contextoAdministrativoCargando = false;
+        this.contextoAdministrativoListo = false;
+
+        this.mensajeError =
+          'No se pudo cargar el acceso administrativo actual.';
+
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
   ngOnInit(): void {
-    const temaGuardado = localStorage.getItem('admin_tema_oscuro');
-    if (temaGuardado === 'true') this.temaOscuro = true;
-    this.cargarDatos();
+    const temaGuardado =
+      localStorage.getItem('admin_tema_oscuro');
+
+    if (temaGuardado === 'true') {
+      this.temaOscuro = true;
+    }
+
+    // Esta preparacion no consulta informacion protegida.
     this.generarSemanaActual();
+
+    // SA-10: no ejecutar cargarDatos() antes de conocer el contexto
+    // efectivo actual del backend.
+    this.cargarContextoAdministrativoEfectivo();
   }
 
   cargarDatos(): void {
@@ -260,11 +353,9 @@ toggleSidebarMovil(): void {
   }
 
   onSesionAdministrativaActualizada(): void {
-    // AuthService ya contiene el rol confirmado por el backend.
-    // Si el nuevo rol perdio acceso a la seccion actual, volvemos a Inicio.
-    if (!this.puedeAccederSeccion(this.seccionActiva)) {
-      this.navegarA('inicio');
-    }
+    // actualizarRolSesion() invalida el snapshot anterior en AuthService.
+    // Volvemos a consultar backend antes de habilitar cualquier capacidad.
+    this.cargarContextoAdministrativoEfectivo();
   }
 
   navegarA(seccion: string): void {

@@ -413,7 +413,10 @@ function crearShellConPermisos(permisos: Permission[]) {
     getNombre: vi.fn(() => null),
     getFotoUrl: vi.fn(() => null),
     getRol: vi.fn(() => null),
-    getUsuarioId: vi.fn(() => null)
+    getUsuarioId: vi.fn(() => null),
+    cargarAccesoAdministrativo: vi.fn(
+      () => of({})
+    )
   } as unknown as AuthService;
 
   const http = { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() } as unknown as HttpClient;
@@ -478,6 +481,10 @@ describe('DashboardAdminComponent - SA-6.2 salida de seccion tras perder permiso
 
     auth.hasPermission.mockReturnValue(false);
 
+    vi
+      .spyOn(component, 'cargarDatos')
+      .mockImplementation(() => {});
+
     component.onSesionAdministrativaActualizada();
 
     expect(component.seccionActiva).toBe('inicio');
@@ -488,6 +495,10 @@ describe('DashboardAdminComponent - SA-6.2 salida de seccion tras perder permiso
     const component = crearShellConPermisos(['roles.gestionar']);
 
     component.navegarA('administradores');
+    vi
+      .spyOn(component, 'cargarDatos')
+      .mockImplementation(() => {});
+
     component.onSesionAdministrativaActualizada();
 
     expect(component.seccionActiva).toBe('administradores');

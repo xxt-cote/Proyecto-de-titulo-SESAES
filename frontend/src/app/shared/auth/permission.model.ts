@@ -9,9 +9,9 @@
  * si se llamara al backend), usando los DEFAULT permissions por rol
  * porque el JWT actual solo contiene 'rol', no la lista de permisos.
  *
- * Los 17 permission strings y el mapeo ROLE_DEFAULT_PERMISSIONS deben
- * coincidir EXACTAMENTE con backend/app/rbac/permissions.py. Cualquier
- * cambio en uno debe reflejarse en el otro.
+ * Los 20 permission strings deben coincidir con backend/app/rbac/permissions.py.
+ * ADMIN y SUPERADMIN no derivan sus permisos efectivos desde este mapa;
+ * su contexto administrativo se carga desde el backend.
  *
  * Nota — autorización de recurso (no implementada todavía): los
  * permisos con sufijo '_asignada'/'_asignadas' son solo una capacidad
@@ -22,15 +22,18 @@
 import type { Role } from './role.model';
 
 /**
- * Única fuente de verdad de los 17 permission strings (Fase 3.3).
+ * Única fuente de verdad de los 20 permission strings (Fase 3.3).
  * `Permission` se deriva de este array para no mantener dos listas
  * manuales separadas, y `isPermission` permite validar en runtime un
  * valor arbitrario (ej. route.data.permission) contra este catálogo.
  */
 export const PERMISSION_VALUES = [
   // Administración
+  'usuarios.ver',
   'usuarios.gestionar',
+  'profesionales.ver',
   'profesionales.gestionar',
+  'agenda.ver',
   'agenda.gestionar',
   'configuracion.gestionar',
   'reportes.ver',
@@ -55,7 +58,7 @@ export type Permission = (typeof PERMISSION_VALUES)[number];
 /**
  * Type guard en runtime para validar que un valor arbitrario (ej.
  * route.data['permission'], potencialmente manipulado) es realmente uno
- * de los 17 Permission conocidos. Fail-closed: cualquier valor fuera del
+ * de los 20 Permission conocidos. Fail-closed: cualquier valor fuera del
  * catálogo (incluyendo undefined, '', u otro tipo) → false.
  */
 export function isPermission(value: unknown): value is Permission {
@@ -71,25 +74,10 @@ export function isPermission(value: unknown): value is Permission {
  * clínicos automáticos, igual que en el backend.
  */
 export const ROLE_DEFAULT_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
-  superadmin: [
-    'usuarios.gestionar',
-    'profesionales.gestionar',
-    'agenda.gestionar',
-    'configuracion.gestionar',
-    'reportes.ver',
-    'reportes.cgr.exportar',
-    'auditoria.ver',
-    'roles.gestionar',
-  ],
-  admin: [
-    // Administrador operativo: solo lo esencial del día a día.
-    // 'configuracion.gestionar', 'reportes.cgr.exportar', 'auditoria.ver'
-    // y 'roles.gestionar' quedan reservados a superadmin por defecto.
-    'usuarios.gestionar',
-    'profesionales.gestionar',
-    'agenda.gestionar',
-    'reportes.ver',
-  ],
+  // SA-10: ADMIN y SUPERADMIN fallan cerrado hasta recibir
+  // su contexto administrativo efectivo desde el backend.
+  superadmin: [],
+  admin: [],
   profesional: [
     'atenciones.ver_asignadas',
     'atenciones.registrar',

@@ -10,6 +10,7 @@ import { DashboardAdminComponent } from './dashboard-admin';
 import { AdminConfiguracionComponent } from './configuracion/admin-configuracion';
 import { AdminHistorialComponent } from './historial/admin-historial';
 import { AdminReportesComponent } from './reportes/admin-reportes';
+import { Subject } from 'rxjs';
 
 
 function crearShell(
@@ -42,6 +43,50 @@ function crearShell(
     component: new DashboardAdminComponent(router, http, cdr, toast, auth),
     http,
     toast
+  };
+}
+
+
+function crearShellCargaContexto() {
+  const acceso$ = new Subject<any>();
+
+  const auth = {
+    hasPermission: vi.fn(() => false),
+    getUsuarioId: vi.fn(() => 15),
+    cargarAccesoAdministrativo: vi.fn(
+      () => acceso$.asObservable()
+    )
+  } as unknown as AuthService;
+
+  const http = {
+    get: vi.fn(),
+    post: vi.fn(),
+    patch: vi.fn(),
+    delete: vi.fn()
+  } as unknown as HttpClient;
+
+  const toast = {
+    success: vi.fn(),
+    error: vi.fn()
+  } as unknown as ToastService;
+
+  const router = {} as Router;
+
+  const cdr = {
+    detectChanges: vi.fn()
+  } as unknown as ChangeDetectorRef;
+
+  return {
+    component: new DashboardAdminComponent(
+      router,
+      http,
+      cdr,
+      toast,
+      auth
+    ),
+    auth,
+    acceso$,
+    cdr
   };
 }
 
@@ -147,4 +192,129 @@ describe('Fase 3.5B — integración frontend RBAC', () => {
       localStorage.removeItem('usuario_id');
     }
   });
+
+  it('SA-10.1B: no carga datos administrativos mientras el contexto esta pendiente', () => {
+    const {
+      component,
+      auth
+    } = crearShellCargaContexto();
+
+    const cargarDatosSpy = vi
+      .spyOn(component, 'cargarDatos')
+      .mockImplementation(() => {});
+
+    component.ngOnInit();
+
+    expect(
+      auth.cargarAccesoAdministrativo
+    ).toHaveBeenCalledTimes(1);
+
+    expect(
+      cargarDatosSpy
+    ).not.toHaveBeenCalled();
+
+    expect(
+      component.contextoAdministrativoCargando
+    ).toBe(true);
+
+    expect(
+      component.contextoAdministrativoListo
+    ).toBe(false);
+  });
+
+  it('SA-10.1B: carga datos solo despues de recibir el contexto efectivo', () => {
+    const {
+      component,
+      acceso$
+    } = crearShellCargaContexto();
+
+    const cargarDatosSpy = vi
+      .spyOn(component, 'cargarDatos')
+      .mockImplementation(() => {});
+
+    component.ngOnInit();
+
+    expect(
+      cargarDatosSpy
+    ).not.toHaveBeenCalled();
+
+    acceso$.next({
+      rol: 'admin',
+      perfil: 'administrador_general',
+      permisos: [],
+      alcance: {
+        tipo: 'institucional',
+        especialidades: []
+      }
+    });
+
+    expect(
+      cargarDatosSpy
+    ).toHaveBeenCalledTimes(1);
+
+    expect(
+      component.contextoAdministrativoCargando
+    ).toBe(false);
+
+    expect(
+      component.contextoAdministrativoListo
+    ).toBe(true);
+  });
+
+  it('SA-10.1B: ante error permanece fail-closed y no carga datos administrativos', () => {
+    const {
+      component,
+      acceso$
+    } = crearShellCargaContexto();
+
+    const cargarDatosSpy = vi
+      .spyOn(component, 'cargarDatos')
+      .mockImplementation(() => {});
+
+    component.ngOnInit();
+
+    acceso$.error(
+      new Error('contexto no disponible')
+    );
+
+    expect(
+      cargarDatosSpy
+    ).not.toHaveBeenCalled();
+
+    expect(
+      component.contextoAdministrativoCargando
+    ).toBe(false);
+
+    expect(
+      component.contextoAdministrativoListo
+    ).toBe(false);
+
+    expect(
+      component.mensajeError
+    ).toContain(
+      'acceso administrativo'
+    );
+  });
+
+  it('SA-10.1B: una actualizacion de sesion obliga a recargar el contexto', () => {
+    const {
+      component,
+      auth
+    } = crearShellCargaContexto();
+
+    component.onSesionAdministrativaActualizada();
+
+    expect(
+      auth.cargarAccesoAdministrativo
+    ).toHaveBeenCalledTimes(1);
+
+    expect(
+      component.contextoAdministrativoCargando
+    ).toBe(true);
+
+    expect(
+      component.contextoAdministrativoListo
+    ).toBe(false);
+  });
+
 });

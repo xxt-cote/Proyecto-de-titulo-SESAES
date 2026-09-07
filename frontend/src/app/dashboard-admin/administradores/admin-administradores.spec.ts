@@ -4,6 +4,7 @@ import { provideHttpClientTesting, HttpTestingController } from '@angular/common
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 import { AdminAdministradoresComponent } from './admin-administradores';
+import { AuthService } from '../../auth.service';
 import { ToastService } from '../../shared/toast/toast.service';
 
 const URL_LISTADO = '/usuarios/administradores';
@@ -32,6 +33,33 @@ function admin(
     ...overrides
   };
 }
+
+function cargarContextoSuperadmin(
+  httpMock: HttpTestingController
+): void {
+  const auth = TestBed.inject(AuthService);
+
+  auth.cargarAccesoAdministrativo().subscribe();
+
+  httpMock.expectOne(
+    req =>
+      req.url.includes(
+        '/usuarios/me/acceso-administrativo'
+      ) &&
+      req.method === 'GET'
+  ).flush({
+    rol: 'superadmin',
+    perfil: null,
+    permisos: [
+      'roles.gestionar'
+    ],
+    alcance: {
+      tipo: 'institucional',
+      especialidades: []
+    }
+  });
+}
+
 
 describe('AdminAdministradoresComponent (SA-4)', () => {
   let component: AdminAdministradoresComponent;
@@ -64,6 +92,10 @@ describe('AdminAdministradoresComponent (SA-4)', () => {
     component = fixture.componentInstance;
     fixture.detectChanges(); // dispara ngOnInit -> cargarAdministradores()
     httpMock = TestBed.inject(HttpTestingController);
+
+    // SA-10: este componente hijo solo se renderiza despu?s de que
+    // el shell administrativo obtuvo el contexto efectivo.
+    cargarContextoSuperadmin(httpMock);
   });
 
   afterEach(() => {
@@ -690,6 +722,9 @@ describe('AdminAdministradoresComponent - SA-6.2 refresco de sesion tras cambio 
     httpMock.expectOne(
       req => req.url.includes(URL_LISTADO) && req.method === 'GET'
     ).flush([]);
+
+    // La sesi?n empieza como SUPERADMIN ya autorizada por el shell.
+    cargarContextoSuperadmin(httpMock);
   });
 
   afterEach(() => {

@@ -1,9 +1,13 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, catchError, map, tap, throwError } from 'rxjs';
 import { environment } from './config';
 import { normalizarRol } from './shared/auth/role.model';
-import { ROLE_DEFAULT_PERMISSIONS, Permission } from './shared/auth/permission.model';
+import {
+  isPermission,
+  ROLE_DEFAULT_PERMISSIONS,
+  Permission
+} from './shared/auth/permission.model';
 export interface LoginResponse {
   message: string;
   access_token: string;
@@ -14,10 +18,35 @@ export interface LoginResponse {
   foto_url: string | null;
   debe_cambiar_password: boolean;
 }
+export type PerfilAccesoAdministrativo =
+  | 'administrador_general'
+  | 'administrador_especialidad'
+  | 'secretaria_general'
+  | 'secretaria_especialidad';
+
+export type TipoAlcanceAdministrativo =
+  | 'institucional'
+  | 'especialidades';
+
+export interface ContextoAccesoAdministrativo {
+  rol: 'admin' | 'superadmin';
+  perfil: PerfilAccesoAdministrativo | null;
+  permisos: Permission[];
+  alcance: {
+    tipo: TipoAlcanceAdministrativo;
+    especialidades: string[];
+  };
+}
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
 
   private apiUrl = environment.apiUrl;
+
+  // SA-10: snapshot solo en memoria.
+  // null = no cargado/error => fail-closed.
+  private contextoAccesoAdministrativo:
+    ContextoAccesoAdministrativo | null = null;
 
   constructor(private http: HttpClient) {}
 
@@ -33,6 +62,7 @@ export class AuthService {
   // en pestañas distintas del mismo navegador (ej. estudiante en una,
   // profesional en otra) sin que una pise los datos de la otra.
   guardarSesion(data: LoginResponse): void {
+    this.contextoAccesoAdministrativo = null;
     sessionStorage.setItem('access_token', data.access_token);
     sessionStorage.setItem('rol', data.rol);
     sessionStorage.setItem('id', String(data.id));
@@ -112,10 +142,12 @@ export class AuthService {
    * de la sesion ya abierta.
    */
   actualizarRolSesion(rol: 'admin' | 'superadmin'): void {
+    this.contextoAccesoAdministrativo = null;
     sessionStorage.setItem('rol', rol);
   }
 
   logout(): void {
+    this.contextoAccesoAdministrativo = null;
     sessionStorage.clear();
   }
 
@@ -136,10 +168,200 @@ export class AuthService {
    * Fail-closed: sin sesión, rol desconocido, o permiso no listado para
    * ese rol → false.
    */
+  cargarAccesoAdministrativo(): Observable<ContextoAccesoAdministrativo> {
+    // Una recarga invalida primero cualquier snapshot anterior.
+    this.contextoAccesoAdministrativo = null;
+
+    return this.http.get<unknown>(
+      `${this.apiUrl}/usuarios/me/acceso-administrativo`
+    ).pipe(
+      map(raw => this.normalizarContextoAccesoAdministrativo(raw)),
+      tap(contexto => {
+        this.contextoAccesoAdministrativo = contexto;
+
+        // El backend resolvio el rol ACTUAL desde BD.
+        sessionStorage.setItem('rol', contexto.rol);
+      }),
+      catchError(error => {
+        this.contextoAccesoAdministrativo = null;
+        return throwError(() => error);
+      })
+    );
+  }
+
+  getContextoAccesoAdministrativo(): ContextoAccesoAdministrativo | null {
+    const contexto = this.contextoAccesoAdministrativo;
+
+    if (!contexto) return null;
+
+    return {
+      rol: contexto.rol,
+      perfil: contexto.perfil,
+      permisos: [...contexto.permisos],
+      alcance: {
+        tipo: contexto.alcance.tipo,
+        especialidades: [...contexto.alcance.especialidades]
+      }
+    };
+  }
+
   hasPermission(permission: Permission): boolean {
     const rol = normalizarRol(this.getRol());
+
     if (!rol) return false;
+
+    if (rol === 'admin' || rol === 'superadmin') {
+      const contexto = this.contextoAccesoAdministrativo;
+
+      if (
+        !contexto ||
+        contexto.rol !== rol
+      ) {
+        return false;
+      }
+
+      return contexto.permisos.includes(permission);
+    }
+
     return ROLE_DEFAULT_PERMISSIONS[rol].includes(permission);
+  }
+
+  private normalizarContextoAccesoAdministrativo(
+    raw: unknown
+  ): ContextoAccesoAdministrativo {
+    if (
+      !raw ||
+      typeof raw !== 'object' ||
+      Array.isArray(raw)
+    ) {
+      throw new Error('Contexto administrativo invalido.');
+    }
+
+    const data = raw as Record<string, unknown>;
+
+    if (
+      data['rol'] !== 'admin' &&
+      data['rol'] !== 'superadmin'
+    ) {
+      throw new Error('Rol administrativo invalido.');
+    }
+
+    const perfiles = [
+      'administrador_general',
+      'administrador_especialidad',
+      'secretaria_general',
+      'secretaria_especialidad'
+    ] as const;
+
+    const perfil = data['perfil'];
+
+    if (
+      perfil !== null &&
+      (
+        typeof perfil !== 'string' ||
+        !(perfiles as readonly string[]).includes(perfil)
+      )
+    ) {
+      throw new Error('Perfil administrativo invalido.');
+    }
+
+    if (
+      data['rol'] === 'admin' &&
+      perfil === null
+    ) {
+      throw new Error('ADMIN sin perfil administrativo.');
+    }
+
+    if (
+      data['rol'] === 'superadmin' &&
+      perfil !== null
+    ) {
+      throw new Error(
+        'SUPERADMIN no debe declarar perfil ADMIN.'
+      );
+    }
+
+    const permisos = data['permisos'];
+
+    if (
+      !Array.isArray(permisos) ||
+      !permisos.every(isPermission) ||
+      new Set(permisos).size !== permisos.length
+    ) {
+      throw new Error(
+        'Lista de permisos administrativos invalida.'
+      );
+    }
+
+    const alcance = data['alcance'];
+
+    if (
+      !alcance ||
+      typeof alcance !== 'object' ||
+      Array.isArray(alcance)
+    ) {
+      throw new Error('Alcance administrativo invalido.');
+    }
+
+    const alcanceData =
+      alcance as Record<string, unknown>;
+
+    const tipo = alcanceData['tipo'];
+
+    if (
+      tipo !== 'institucional' &&
+      tipo !== 'especialidades'
+    ) {
+      throw new Error(
+        'Tipo de alcance administrativo invalido.'
+      );
+    }
+
+    const especialidades =
+      alcanceData['especialidades'];
+
+    if (
+      !Array.isArray(especialidades) ||
+      !especialidades.every(
+        value =>
+          typeof value === 'string' &&
+          value.trim().length > 0
+      )
+    ) {
+      throw new Error(
+        'Especialidades administrativas invalidas.'
+      );
+    }
+
+    if (
+      tipo === 'institucional' &&
+      especialidades.length !== 0
+    ) {
+      throw new Error(
+        'Alcance institucional no debe declarar especialidades.'
+      );
+    }
+
+    if (
+      tipo === 'especialidades' &&
+      especialidades.length === 0
+    ) {
+      throw new Error(
+        'Alcance por especialidades requiere al menos una.'
+      );
+    }
+
+    return {
+      rol: data['rol'],
+      perfil:
+        perfil as PerfilAccesoAdministrativo | null,
+      permisos: [...permisos] as Permission[],
+      alcance: {
+        tipo,
+        especialidades:
+          [...especialidades] as string[]
+      }
+    };
   }
 
   /**

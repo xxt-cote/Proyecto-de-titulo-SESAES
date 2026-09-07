@@ -71,11 +71,25 @@ describe('permissionGuard', () => {
     return TestBed.runInInjectionContext(() => permissionGuard(route, estadoDummy));
   }
 
-  it('1. ADMIN + agenda.gestionar -> true', () => {
-    montarSesion('admin', jwtSintetico(3600));
-    const resultado = ejecutarGuard(rutaConPermission('agenda.gestionar' satisfies Permission));
-    expect(resultado).toBe(true);
-    expect(navigateSpy).not.toHaveBeenCalled();
+  it('1. ADMIN sin contexto efectivo + agenda.gestionar -> false -> /dashboard/admin', () => {
+    montarSesion(
+      'admin',
+      jwtSintetico(3600)
+    );
+
+    const resultado = ejecutarGuard(
+      rutaConPermission(
+        'agenda.gestionar' satisfies Permission
+      )
+    );
+
+    expect(resultado).toBe(false);
+
+    expect(
+      navigateSpy
+    ).toHaveBeenCalledWith([
+      '/dashboard/admin'
+    ]);
   });
 
   it('2. ADMIN + configuracion.gestionar -> false -> /dashboard/admin', () => {
@@ -85,11 +99,25 @@ describe('permissionGuard', () => {
     expect(navigateSpy).toHaveBeenCalledWith(['/dashboard/admin']);
   });
 
-  it('3. SUPERADMIN + configuracion.gestionar -> true', () => {
-    montarSesion('superadmin', jwtSintetico(3600));
-    const resultado = ejecutarGuard(rutaConPermission('configuracion.gestionar' satisfies Permission));
-    expect(resultado).toBe(true);
-    expect(navigateSpy).not.toHaveBeenCalled();
+  it('3. SUPERADMIN sin contexto efectivo + configuracion.gestionar -> false -> /dashboard/admin', () => {
+    montarSesion(
+      'superadmin',
+      jwtSintetico(3600)
+    );
+
+    const resultado = ejecutarGuard(
+      rutaConPermission(
+        'configuracion.gestionar' satisfies Permission
+      )
+    );
+
+    expect(resultado).toBe(false);
+
+    expect(
+      navigateSpy
+    ).toHaveBeenCalledWith([
+      '/dashboard/admin'
+    ]);
   });
 
   it('4. SUPERADMIN + ficha.ver_asignada -> false -> /dashboard/admin', () => {
@@ -158,4 +186,43 @@ describe('permissionGuard', () => {
     expect(resultado).toBe(false);
     expect(navigateSpy).toHaveBeenCalledWith(['/login']);
   });
+
+  it('14. PROFESIONAL + agenda.ver_profesional -> true', () => {
+    montarSesion(
+      'profesional',
+      jwtSintetico(3600)
+    );
+
+    const resultado = ejecutarGuard(
+      rutaConPermission(
+        'agenda.ver_profesional' satisfies Permission
+      )
+    );
+
+    expect(resultado).toBe(true);
+
+    expect(
+      navigateSpy
+    ).not.toHaveBeenCalled();
+  });
+
+  it('15. ESTUDIANTE + perfil.ver_propio -> true', () => {
+    montarSesion(
+      'estudiante',
+      jwtSintetico(3600)
+    );
+
+    const resultado = ejecutarGuard(
+      rutaConPermission(
+        'perfil.ver_propio' satisfies Permission
+      )
+    );
+
+    expect(resultado).toBe(true);
+
+    expect(
+      navigateSpy
+    ).not.toHaveBeenCalled();
+  });
+
 });
