@@ -1,0 +1,370 @@
+"""
+SESAES - SA-9.3: resolucion efectiva de autorizacion administrativa.
+
+Esta capa combina:
+- estado ACTUAL de Usuario;
+- rol base ACTUAL;
+- configuracion acceso_administrativo;
+- techo de permisos del perfil;
+- permisos persistidos explicitamente;
+- alcance institucional o por especialidades.
+
+No modifica require_permission() ni routers todavia. SA-9.4/SA-9.5
+conectaran este resolver de forma progresiva.
+
+Reglas principales:
+- ADMIN sin configuracion -> fail closed;
+- ADMIN sin permiso persistido -> fail closed;
+- permiso fuera del techo del perfil -> fail closed;
+- configuracion inconsistente -> fail closed;
+- SUPERADMIN no depende de acceso_administrativo;
+- roles no ADMIN conservan sus capacidades RBAC de rol;
+- ningun rol recibe wildcard ni bypass clinico.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from sqlalchemy.orm import Session
+
+from app.models.acceso_administrativo import (
+    AccesoAdministrativo,
+    AccesoAdminEspecialidad,
+    AccesoAdminPermiso,
+)
+from app.models.usuario import Usuario
+from app.rbac.admin_access import (
+    PerfilAccesoAdmin,
+    TipoAlcanceAdmin,
+    normalizar_especialidad,
+    permisos_permitidos_para_perfil,
+    validar_configuracion_acceso_admin,
+)
+from app.rbac.permissions import Permission, has_permission
+from app.rbac.roles import Role, normalizar_rol
+
+
+@dataclass(frozen=True)
+class ContextoAutorizacionAdmin:
+    acceso_id: int
+    perfil: PerfilAccesoAdmin
+    tipo_alcance: TipoAlcanceAdmin
+    especialidades_normalizadas: frozenset[str]
+
+
+def _normalizar_permiso(
+    permiso: Permission | str,
+) -> Permission | None:
+    try:
+        return Permission(permiso)
+    except (TypeError, ValueError):
+        return None
+
+
+def _cargar_usuario_activo(
+    db: Session,
+    usuario_id: object,
+) -> Usuario | None:
+    if isinstance(usuario_id, bool) or not isinstance(usuario_id, int):
+        return None
+
+    usuario = (
+        db.query(Usuario)
+        .filter(Usuario.id == usuario_id)
+        .first()
+    )
+
+    if usuario is None or usuario.activo is not True:
+        return None
+
+    return usuario
+
+
+def _cargar_contexto_admin_desde_usuario(
+    db: Session,
+    usuario: Usuario,
+) -> ContextoAutorizacionAdmin | None:
+    rol = normalizar_rol(usuario.rol)
+
+    if rol is not Role.ADMIN:
+        return None
+
+    acceso = (
+        db.query(AccesoAdministrativo)
+        .filter(
+            AccesoAdministrativo.usuario_id == usuario.id
+        )
+        .first()
+    )
+
+    if acceso is None:
+        return None
+
+    filas_especialidad = (
+        db.query(AccesoAdminEspecialidad)
+        .filter(
+            AccesoAdminEspecialidad.acceso_admin_id == acceso.id
+        )
+        .all()
+    )
+
+    # No confiamos en especialidad_normalizada almacenada para autorizar.
+    # Recalculamos desde el nombre visible y revalidamos TODA la
+    # configuracion para detectar tambien:
+    # - perfil especialidad sin especialidades;
+    # - perfil institucional con especialidades residuales;
+    # - duplicados normalizados;
+    # - perfil/alcance incompatible.
+    try:
+        perfil, tipo_alcance, especialidades = (
+            validar_configuracion_acceso_admin(
+                rol_usuario=rol.value,
+                perfil=acceso.perfil,
+                tipo_alcance=acceso.tipo_alcance,
+                especialidades=[
+                    fila.especialidad
+                    for fila in filas_especialidad
+                ],
+            )
+        )
+    except (TypeError, ValueError):
+        return None
+
+    return ContextoAutorizacionAdmin(
+        acceso_id=acceso.id,
+        perfil=perfil,
+        tipo_alcance=tipo_alcance,
+        especialidades_normalizadas=frozenset(
+            especialidad.normalizada
+            for especialidad in especialidades
+        ),
+    )
+
+
+def obtener_contexto_admin(
+    db: Session,
+    usuario_id: object,
+) -> ContextoAutorizacionAdmin | None:
+    """
+    Obtiene una configuracion ADMIN valida y activa.
+
+    Cualquier ausencia o inconsistencia falla cerrado con None.
+    """
+    usuario = _cargar_usuario_activo(db, usuario_id)
+
+    if usuario is None:
+        return None
+
+    return _cargar_contexto_admin_desde_usuario(
+        db,
+        usuario,
+    )
+
+
+def _tiene_permiso_admin_con_contexto(
+    db: Session,
+    contexto: ContextoAutorizacionAdmin,
+    permiso: Permission,
+) -> bool:
+    permitidos = permisos_permitidos_para_perfil(
+        contexto.perfil
+    )
+
+    if permiso not in permitidos:
+        return False
+
+    registro = (
+        db.query(AccesoAdminPermiso.id)
+        .filter(
+            AccesoAdminPermiso.acceso_admin_id
+            == contexto.acceso_id,
+            AccesoAdminPermiso.permiso
+            == permiso.value,
+        )
+        .first()
+    )
+
+    return registro is not None
+
+
+def tiene_permiso_admin(
+    db: Session,
+    usuario_id: object,
+    permiso: Permission | str,
+) -> bool:
+    """
+    True solo si ADMIN activo tiene:
+    - configuracion valida;
+    - permiso permitido por su perfil;
+    - permiso persistido explicitamente.
+    """
+    permiso_enum = _normalizar_permiso(permiso)
+
+    if permiso_enum is None:
+        return False
+
+    contexto = obtener_contexto_admin(
+        db,
+        usuario_id,
+    )
+
+    if contexto is None:
+        return False
+
+    return _tiene_permiso_admin_con_contexto(
+        db,
+        contexto,
+        permiso_enum,
+    )
+
+
+def especialidad_en_alcance_admin(
+    db: Session,
+    usuario_id: object,
+    especialidad: object,
+) -> bool:
+    """
+    Verifica si una especialidad concreta pertenece al alcance ADMIN.
+
+    Un alcance institucional cubre cualquier especialidad valida.
+    Un alcance limitado exige coincidencia normalizada.
+    """
+    if not isinstance(especialidad, str):
+        return False
+
+    try:
+        especialidad_objetivo = normalizar_especialidad(
+            especialidad
+        )
+    except ValueError:
+        return False
+
+    contexto = obtener_contexto_admin(
+        db,
+        usuario_id,
+    )
+
+    if contexto is None:
+        return False
+
+    if (
+        contexto.tipo_alcance
+        is TipoAlcanceAdmin.INSTITUCIONAL
+    ):
+        return True
+
+    return (
+        especialidad_objetivo.normalizada
+        in contexto.especialidades_normalizadas
+    )
+
+
+def tiene_permiso_admin_en_especialidad(
+    db: Session,
+    usuario_id: object,
+    permiso: Permission | str,
+    especialidad: object,
+) -> bool:
+    """
+    Combinacion permiso + alcance para recursos asociados a una
+    especialidad concreta.
+    """
+    permiso_enum = _normalizar_permiso(permiso)
+
+    if permiso_enum is None:
+        return False
+
+    contexto = obtener_contexto_admin(
+        db,
+        usuario_id,
+    )
+
+    if contexto is None:
+        return False
+
+    if not _tiene_permiso_admin_con_contexto(
+        db,
+        contexto,
+        permiso_enum,
+    ):
+        return False
+
+    if not isinstance(especialidad, str):
+        return False
+
+    try:
+        objetivo = normalizar_especialidad(
+            especialidad
+        )
+    except ValueError:
+        return False
+
+    if (
+        contexto.tipo_alcance
+        is TipoAlcanceAdmin.INSTITUCIONAL
+    ):
+        return True
+
+    return (
+        objetivo.normalizada
+        in contexto.especialidades_normalizadas
+    )
+
+
+def tiene_permiso_efectivo(
+    db: Session,
+    current_user: object,
+    permiso: Permission | str,
+) -> bool:
+    """
+    Resolver general preparado para las dependencias de SA-9.4/9.5.
+
+    Usa siempre Usuario ACTUAL de BD como autoridad:
+    - ADMIN -> permisos persistidos + perfil;
+    - SUPERADMIN -> permisos explicitos de ROLE_DEFAULT_PERMISSIONS;
+    - PROFESIONAL/ESTUDIANTE -> capacidades RBAC actuales de rol.
+
+    El alcance de recurso sigue siendo una segunda comprobacion:
+    esta funcion responde solo a la capacidad efectiva general.
+    """
+    permiso_enum = _normalizar_permiso(permiso)
+
+    if permiso_enum is None or not isinstance(current_user, dict):
+        return False
+
+    usuario = _cargar_usuario_activo(
+        db,
+        current_user.get("id"),
+    )
+
+    if usuario is None:
+        return False
+
+    rol = normalizar_rol(usuario.rol)
+
+    if rol is None:
+        return False
+
+    if rol is Role.ADMIN:
+        contexto = _cargar_contexto_admin_desde_usuario(
+            db,
+            usuario,
+        )
+
+        if contexto is None:
+            return False
+
+        return _tiene_permiso_admin_con_contexto(
+            db,
+            contexto,
+            permiso_enum,
+        )
+
+    # Para SUPERADMIN/PROFESIONAL/ESTUDIANTE se conserva la fuente
+    # explicita de permisos por rol. No se confia en current_user["rol"]:
+    # usamos el rol ACTUAL resuelto nuevamente desde Usuario.
+    return has_permission(
+        rol,
+        permiso_enum,
+    )
