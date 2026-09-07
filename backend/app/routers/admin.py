@@ -859,32 +859,115 @@ def get_profesionales_admin(db: Session = Depends(get_db), current_user: dict = 
 
 
 @router.post("/profesionales")
-def crear_profesional(datos: ProfesionalCreate, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.PROFESIONALES_GESTIONAR))):
+def crear_profesional(
+    datos: ProfesionalCreate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(
+        require_effective_permission(
+            Permission.PROFESIONALES_GESTIONAR
+        )
+    ),
+):
+    alcance = obtener_alcance_administrativo_efectivo(
+        db,
+        current_user,
+    )
+
+    if alcance is None:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes acceso al alcance solicitado.",
+        )
+
+    if not especialidad_permitida_por_alcance(
+        alcance,
+        datos.especialidad,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "No tienes permiso para gestionar "
+                "profesionales de esta especialidad."
+            ),
+        )
+
     if datos.rut and not validar_rut(datos.rut):
-        raise HTTPException(status_code=400, detail="El RUT ingresado no es válido")
-    if not color_identificador_es_valido(datos.color_identificador):
-        raise HTTPException(status_code=400, detail="Color identificador no permitido")
+        raise HTTPException(
+            status_code=400,
+            detail="El RUT ingresado no es v?lido",
+        )
+
+    if not color_identificador_es_valido(
+        datos.color_identificador
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Color identificador no permitido",
+        )
+
     iniciales = datos.iniciales
+
     if not iniciales and datos.nombre:
         partes = datos.nombre.split()
-        iniciales = (partes[0][0] + partes[1][0]).upper() if len(partes) >= 2 else datos.nombre[:2].upper()
-    nuevo_usuario = Usuario(correo=datos.correo, password=hash_password(datos.password or "prof123"),
-                            rol="profesional", nombre=datos.nombre, activo=True)
-    db.add(nuevo_usuario)
-    db.flush()  # obtener nuevo_usuario.id SIN commit, para poder crear Profesional con el FK correcto
-    nuevo_prof = Profesional(
-        nombre=datos.nombre, tratamiento=datos.tratamiento, especialidad=datos.especialidad, iniciales=iniciales,
-        descripcion=datos.descripcion or "", duracion_min=datos.duracion_min or 45,
-        correo=datos.correo, rut=datos.rut, estado="activo", usuario_id=nuevo_usuario.id,
-        color_identificador=datos.color_identificador
+        iniciales = (
+            (partes[0][0] + partes[1][0]).upper()
+            if len(partes) >= 2
+            else datos.nombre[:2].upper()
+        )
+
+    nuevo_usuario = Usuario(
+        correo=datos.correo,
+        password=hash_password(
+            datos.password or "prof123"
+        ),
+        rol="profesional",
+        nombre=datos.nombre,
+        activo=True,
     )
+
+    db.add(nuevo_usuario)
+
+    # Obtener nuevo_usuario.id SIN commit, para poder crear
+    # Profesional con el FK correcto.
+    db.flush()
+
+    nuevo_prof = Profesional(
+        nombre=datos.nombre,
+        tratamiento=datos.tratamiento,
+        especialidad=datos.especialidad,
+        iniciales=iniciales,
+        descripcion=datos.descripcion or "",
+        duracion_min=datos.duracion_min or 45,
+        correo=datos.correo,
+        rut=datos.rut,
+        estado="activo",
+        usuario_id=nuevo_usuario.id,
+        color_identificador=datos.color_identificador,
+    )
+
     db.add(nuevo_prof)
-    db.flush()  # obtener nuevo_prof.id SIN commit, para la auditoría
-    registrar_evento_auditoria(db, current_user, "Agregó profesional",
-                                entidad="profesional", entidad_id=nuevo_prof.id,
-                                detalle=f"{datos.nombre} — {datos.especialidad}")
-    db.commit()  # ÚNICO commit: Usuario + Profesional + auditoría, misma transacción
+
+    # Obtener nuevo_prof.id SIN commit para la auditor?a.
+    db.flush()
+
+    registrar_evento_auditoria(
+        db,
+        current_user,
+        "Agreg? profesional",
+        entidad="profesional",
+        entidad_id=nuevo_prof.id,
+        detalle=(
+            f"{datos.nombre} ? "
+            f"{datos.especialidad}"
+        ),
+    )
+
+    # ?NICO commit: Usuario + Profesional + auditor?a,
+    # misma transacci?n.
+    db.commit()
+
     db.refresh(nuevo_prof)
+
     return nuevo_prof
 
 

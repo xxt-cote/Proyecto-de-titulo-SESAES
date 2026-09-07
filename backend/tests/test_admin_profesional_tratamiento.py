@@ -46,7 +46,11 @@ from app.routers.admin import (
     get_resumen_dia,
 )
 
-FAKE_ADMIN = {"id": 1, "rol": "admin"}
+# Estos tests llaman directamente las funciones del router y,
+# como explica la cabecera del archivo, NO prueban RBAC.
+# Usamos un contexto institucional para no introducir bypasses
+# de autorizaci?n en producci?n.
+FAKE_ADMIN = {"id": -1, "rol": "superadmin"}
 
 
 @pytest.fixture()
