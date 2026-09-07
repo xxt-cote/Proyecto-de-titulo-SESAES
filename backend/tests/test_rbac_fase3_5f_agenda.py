@@ -4,11 +4,11 @@ endpoint administrativo/operacional GET /agenda/profesional/{prof_id}/citas
 en app/routers/agenda.py.
 
 Cubre:
-  - conectado a require_permission(Permission.AGENDA_GESTIONAR) (Permission
+  - conectado a require_permission(Permission.AGENDA_VER) (Permission
     exacto leído del closure, mismo criterio que test_rbac_fase3_2.py)
-  - ADMIN con AGENDA_GESTIONAR -> permitido
-  - SUPERADMIN con AGENDA_GESTIONAR -> permitido
-  - profesional (sin AGENDA_GESTIONAR) -> 403
+  - ADMIN con AGENDA_VER -> permitido
+  - SUPERADMIN con AGENDA_VER -> permitido
+  - profesional (sin AGENDA_VER) -> 403
   - estudiante -> 403
   - la respuesta contiene únicamente los campos operacionales:
     id, estudiante, estudiante_id, especialidad, fecha, hora, estado,
@@ -95,30 +95,73 @@ def _usuario(id_=99, nombre="Ana", rut="11.111.111-1"):
 
 # ══════════════════════════════════════════════════════════════════
 # A. Permiso conectado — el endpoint debe exigir exactamente
-#    Permission.AGENDA_GESTIONAR (no AGENDA_VER_PROFESIONAL ni
+#    Permission.AGENDA_VER (no AGENDA_VER_PROFESIONAL ni
 #    ATENCIONES_VER_ASIGNADAS, que son del endpoint clínico).
 # ══════════════════════════════════════════════════════════════════
-def test_endpoint_agenda_usa_agenda_gestionar():
-    assert _permiso_de(m.get_citas_profesional_admin) == Permission.AGENDA_GESTIONAR
+def test_endpoint_agenda_usa_agenda_ver():
+    assert _permiso_de(m.get_citas_profesional_admin) == Permission.AGENDA_VER
 
 
 # ══════════════════════════════════════════════════════════════════
 # B. Autorización — ADMIN/SUPERADMIN pasan, profesional/estudiante no.
 # ══════════════════════════════════════════════════════════════════
 @pytest.mark.parametrize("rol", ["admin", "superadmin"])
-def test_admin_superadmin_con_agenda_gestionar_permitido(rol):
-    dependencia = _dependencia_de(m.get_citas_profesional_admin)
-    current_user = {"id": 1, "rol": rol, "correo": "x@utem.cl"}
-    resuelto = dependencia(current_user=current_user)  # no debe lanzar
+def test_admin_superadmin_con_agenda_ver_permitido(
+    rol,
+    monkeypatch,
+):
+    dependencia = _dependencia_de(
+        m.get_citas_profesional_admin
+    )
+
+    monkeypatch.setattr(
+        "app.rbac.dependencies.tiene_permiso_efectivo",
+        lambda db, current_user, permission: (
+            current_user["rol"] in {"admin", "superadmin"}
+            and permission is Permission.AGENDA_VER
+        ),
+    )
+
+    current_user = {
+        "id": 1,
+        "rol": rol,
+        "correo": "x@utem.cl",
+    }
+
+    resuelto = dependencia(
+        current_user=current_user,
+        db=object(),
+    )
+
     assert resuelto == current_user
 
 
 @pytest.mark.parametrize("rol", ["profesional", "estudiante"])
-def test_rol_sin_agenda_gestionar_da_403(rol):
-    dependencia = _dependencia_de(m.get_citas_profesional_admin)
-    current_user = {"id": 1, "rol": rol, "correo": "x@utem.cl"}
+def test_rol_sin_agenda_ver_da_403(
+    rol,
+    monkeypatch,
+):
+    dependencia = _dependencia_de(
+        m.get_citas_profesional_admin
+    )
+
+    monkeypatch.setattr(
+        "app.rbac.dependencies.tiene_permiso_efectivo",
+        lambda db, current_user, permission: False,
+    )
+
+    current_user = {
+        "id": 1,
+        "rol": rol,
+        "correo": "x@utem.cl",
+    }
+
     with pytest.raises(HTTPException) as exc:
-        dependencia(current_user=current_user)
+        dependencia(
+            current_user=current_user,
+            db=object(),
+        )
+
     assert exc.value.status_code == 403
 
 
@@ -143,7 +186,7 @@ def test_respuesta_contiene_unicamente_campos_operacionales():
         Cita: [_cita(7, prof_id=5)],
         Usuario: [_usuario(99)],
     })
-    resultado = m.get_citas_profesional_admin(prof_id=5, db=db, current_user={"id": 1, "rol": "admin"})
+    resultado = m.get_citas_profesional_admin(prof_id=5, db=db, current_user={"id": 1, "rol": "superadmin"})
     assert len(resultado) == 1
     fila = resultado[0]
     assert set(fila.keys()) == CAMPOS_ESPERADOS
@@ -167,7 +210,7 @@ def test_respuesta_valores_correctos():
         Cita: [_cita(7, prof_id=5, estudiante_id=99, estado="completada", fecha="2026-03-01", hora="10:30")],
         Usuario: [_usuario(99, nombre="Ana Pérez")],
     })
-    resultado = m.get_citas_profesional_admin(prof_id=5, db=db, current_user={"id": 1, "rol": "admin"})
+    resultado = m.get_citas_profesional_admin(prof_id=5, db=db, current_user={"id": 1, "rol": "superadmin"})
     fila = resultado[0]
     assert fila == {
         "id": 7,
@@ -186,5 +229,5 @@ def test_profesional_no_encontrado_da_404():
     from fastapi import HTTPException as HTTPExc
     db = FakeDB({Profesional: []})
     with pytest.raises(HTTPExc) as exc:
-        m.get_citas_profesional_admin(prof_id=999, db=db, current_user={"id": 1, "rol": "admin"})
+        m.get_citas_profesional_admin(prof_id=999, db=db, current_user={"id": 1, "rol": "superadmin"})
     assert exc.value.status_code == 404

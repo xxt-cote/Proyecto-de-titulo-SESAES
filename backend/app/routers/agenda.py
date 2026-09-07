@@ -4,7 +4,7 @@ endpoint CLÍNICO que usa el dashboard del profesional
 (GET /profesional/{prof_id}/citas en profesionales.py).
 
 Este módulo es exclusivamente para el rol administrativo: exige
-Permission.AGENDA_GESTIONAR (no AGENDA_VER_PROFESIONAL ni ownership de
+Permission.AGENDA_VER (no AGENDA_VER_PROFESIONAL ni ownership de
 profesional) y devuelve solo los campos operacionales necesarios para
 que Admin/Superadmin vean el horario de un profesional — nunca datos
 clínicos (medicamento, observaciones_atencion, ficha, anamnesis,
@@ -18,8 +18,12 @@ from app.database import get_db
 from app.models.cita import Cita
 from app.models.profesional import Profesional
 from app.models.usuario import Usuario
-from app.rbac.dependencies import require_permission
+from app.rbac.dependencies import require_effective_permission
 from app.rbac.permissions import Permission
+from app.rbac.admin_authorization import (
+    obtener_alcance_administrativo_efectivo,
+    especialidad_permitida_por_alcance,
+)
 
 router = APIRouter(prefix="/agenda", tags=["agenda"])
 
@@ -28,13 +32,13 @@ router = APIRouter(prefix="/agenda", tags=["agenda"])
 def get_citas_profesional_admin(
     prof_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission(Permission.AGENDA_GESTIONAR)),
+    current_user: dict = Depends(require_effective_permission(Permission.AGENDA_VER)),
 ):
     """
     Vista administrativa/operacional de la agenda de un profesional.
 
-    Requiere Permission.AGENDA_GESTIONAR (no ownership del profesional:
-    esto es para Admin/Superadmin que gestionan horarios, no para el
+    Requiere Permission.AGENDA_VER (no ownership del profesional:
+    esto es para Admin/Superadmin con lectura administrativa, no para el
     profesional dueño — ese caso ya está cubierto por su propio endpoint
     clínico protegido en profesionales.py).
 
@@ -45,6 +49,23 @@ def get_citas_profesional_admin(
     prof = db.query(Profesional).filter(Profesional.id == prof_id).first()
     if not prof:
         raise HTTPException(status_code=404, detail="Profesional no encontrado")
+
+    alcance = obtener_alcance_administrativo_efectivo(
+        db,
+        current_user,
+    )
+
+    if (
+        alcance is None
+        or not especialidad_permitida_por_alcance(
+            alcance,
+            prof.especialidad,
+        )
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="El profesional esta fuera de tu alcance administrativo.",
+        )
 
     citas = db.query(Cita).filter(Cita.profesional_id == prof_id).order_by(Cita.fecha, Cita.hora).all()
 
