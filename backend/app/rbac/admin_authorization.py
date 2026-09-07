@@ -368,3 +368,104 @@ def tiene_permiso_efectivo(
         rol,
         permiso_enum,
     )
+# ??????????????????????????????????????????????????????????????????
+# SA-9.4 - Alcance administrativo efectivo para recursos
+# ??????????????????????????????????????????????????????????????????
+
+@dataclass(frozen=True)
+class AlcanceAdministrativoEfectivo:
+    """
+    Alcance ya resuelto para una request administrativa.
+
+    institucional=True:
+        no restringe por especialidad.
+
+    institucional=False:
+        solo permite las especialidades normalizadas indicadas.
+    """
+
+    institucional: bool
+    especialidades_normalizadas: frozenset[str]
+
+
+def obtener_alcance_administrativo_efectivo(
+    db: Session,
+    current_user: object,
+) -> AlcanceAdministrativoEfectivo | None:
+    """
+    Resuelve el alcance administrativo efectivo.
+
+    SUPERADMIN:
+        alcance institucional, pero sigue necesitando el permiso RBAC
+        explicito exigido por el endpoint.
+
+    ADMIN:
+        requiere configuracion SA-8 valida y activa.
+
+    Otros roles:
+        no tienen alcance administrativo.
+    """
+    if not isinstance(current_user, dict):
+        return None
+
+    rol = normalizar_rol(current_user.get("rol"))
+
+    if rol is Role.SUPERADMIN:
+        return AlcanceAdministrativoEfectivo(
+            institucional=True,
+            especialidades_normalizadas=frozenset(),
+        )
+
+    if rol is not Role.ADMIN:
+        return None
+
+    contexto = obtener_contexto_admin(
+        db,
+        current_user.get("id"),
+    )
+
+    if contexto is None:
+        return None
+
+    return AlcanceAdministrativoEfectivo(
+        institucional=(
+            contexto.tipo_alcance
+            is TipoAlcanceAdmin.INSTITUCIONAL
+        ),
+        especialidades_normalizadas=(
+            contexto.especialidades_normalizadas
+        ),
+    )
+
+
+def especialidad_permitida_por_alcance(
+    alcance: AlcanceAdministrativoEfectivo | None,
+    especialidad: object,
+) -> bool:
+    """
+    Comprueba una especialidad concreta contra un alcance resuelto.
+
+    El alcance institucional no restringe por especialidad.
+
+    Para alcance limitado, un valor vacio/invalido falla cerrado.
+    """
+    if alcance is None:
+        return False
+
+    if alcance.institucional:
+        return True
+
+    if not isinstance(especialidad, str):
+        return False
+
+    try:
+        objetivo = normalizar_especialidad(
+            especialidad
+        )
+    except ValueError:
+        return False
+
+    return (
+        objetivo.normalizada
+        in alcance.especialidades_normalizadas
+    )
