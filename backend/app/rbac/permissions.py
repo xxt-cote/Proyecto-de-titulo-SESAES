@@ -1,7 +1,7 @@
 """
 SESAES — RBAC: catálogo de permisos y resolución (Fase 3.1)
 
-Catálogo de 17 permisos agrupados por dominio real del sistema
+Catálogo de 20 permisos agrupados por dominio real del sistema
 (administración, clínico/profesional, estudiante/autoservicio), y la
 tabla ROLE_DEFAULT_PERMISSIONS que define, para cada Role, el conjunto
 de permisos que tiene por defecto.
@@ -43,11 +43,14 @@ from app.rbac.roles import Role, normalizar_rol
 
 
 class Permission(str, enum.Enum):
-    """Catálogo de permisos de SESAES (17 permisos)."""
+    """Catálogo de permisos de SESAES (20 permisos)."""
 
     # ── Administración ──────────────────────────────────────────
+    USUARIOS_VER = "usuarios.ver"
     USUARIOS_GESTIONAR = "usuarios.gestionar"
+    PROFESIONALES_VER = "profesionales.ver"
     PROFESIONALES_GESTIONAR = "profesionales.gestionar"
+    AGENDA_VER = "agenda.ver"
     AGENDA_GESTIONAR = "agenda.gestionar"
     CONFIGURACION_GESTIONAR = "configuracion.gestionar"
     REPORTES_VER = "reportes.ver"
@@ -78,8 +81,11 @@ class Permission(str, enum.Enum):
 ROLE_DEFAULT_PERMISSIONS: Dict[Role, FrozenSet[Permission]] = {
     Role.SUPERADMIN: frozenset(
         {
+            Permission.USUARIOS_VER,
             Permission.USUARIOS_GESTIONAR,
+            Permission.PROFESIONALES_VER,
             Permission.PROFESIONALES_GESTIONAR,
+            Permission.AGENDA_VER,
             Permission.AGENDA_GESTIONAR,
             Permission.CONFIGURACION_GESTIONAR,
             Permission.REPORTES_VER,

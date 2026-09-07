@@ -19,6 +19,8 @@ import unicodedata
 from dataclasses import dataclass
 from typing import Iterable
 
+from app.rbac.permissions import Permission
+
 
 class PerfilAccesoAdmin(str, enum.Enum):
     ADMINISTRADOR_GENERAL = "administrador_general"
@@ -160,3 +162,141 @@ def validar_configuracion_acceso_admin(
             )
 
     return perfil_enum, alcance_enum, tuple(normalizadas)
+# ??????????????????????????????????????????????????????????????????
+# SA-9.1 - Techo de permisos por perfil administrativo
+# ??????????????????????????????????????????????????????????????????
+#
+# Esta matriz NO concede permisos automaticamente.
+# Define el subconjunto MAXIMO que SUPERADMIN podra asignar a una
+# cuenta ADMIN de cada perfil en SA-9.2.
+#
+# Autorizacion efectiva:
+#
+#   permiso asignado explicitamente
+#   + permitido por perfil
+#   + recurso dentro del alcance
+#   + cuenta activa
+#
+# Permisos reservados, clinicos y de autoservicio nunca forman
+# parte del techo administrativo.
+
+PERMISOS_ADMIN_OPERATIVOS = frozenset(
+    {
+        Permission.USUARIOS_VER,
+        Permission.USUARIOS_GESTIONAR,
+        Permission.PROFESIONALES_VER,
+        Permission.PROFESIONALES_GESTIONAR,
+        Permission.AGENDA_VER,
+        Permission.AGENDA_GESTIONAR,
+        Permission.REPORTES_VER,
+    }
+)
+
+PERMISOS_RESERVADOS_SUPERADMIN = frozenset(
+    {
+        Permission.CONFIGURACION_GESTIONAR,
+        Permission.REPORTES_CGR_EXPORTAR,
+        Permission.AUDITORIA_VER,
+        Permission.ROLES_GESTIONAR,
+    }
+)
+
+PERMISOS_NO_ADMINISTRATIVOS = frozenset(
+    {
+        Permission.ATENCIONES_VER_ASIGNADAS,
+        Permission.ATENCIONES_REGISTRAR,
+        Permission.FICHA_VER_ASIGNADA,
+        Permission.FICHA_EDITAR_ASIGNADA,
+        Permission.AGENDA_VER_PROFESIONAL,
+        Permission.AGENDA_GESTIONAR_PROPIA,
+        Permission.CITAS_GESTIONAR_PROPIAS,
+        Permission.PERFIL_VER_PROPIO,
+        Permission.DOCUMENTOS_VER_PROPIOS,
+    }
+)
+
+PERFIL_PERMISOS_PERMITIDOS = {
+    PerfilAccesoAdmin.ADMINISTRADOR_GENERAL: frozenset(
+        {
+            Permission.USUARIOS_VER,
+            Permission.USUARIOS_GESTIONAR,
+            Permission.PROFESIONALES_VER,
+            Permission.PROFESIONALES_GESTIONAR,
+            Permission.AGENDA_VER,
+            Permission.AGENDA_GESTIONAR,
+            Permission.REPORTES_VER,
+        }
+    ),
+    PerfilAccesoAdmin.ADMINISTRADOR_ESPECIALIDAD: frozenset(
+        {
+            Permission.USUARIOS_VER,
+            Permission.USUARIOS_GESTIONAR,
+            Permission.PROFESIONALES_VER,
+            Permission.PROFESIONALES_GESTIONAR,
+            Permission.AGENDA_VER,
+            Permission.AGENDA_GESTIONAR,
+            Permission.REPORTES_VER,
+        }
+    ),
+    PerfilAccesoAdmin.SECRETARIA_GENERAL: frozenset(
+        {
+            Permission.USUARIOS_VER,
+            Permission.PROFESIONALES_VER,
+            Permission.AGENDA_VER,
+            Permission.AGENDA_GESTIONAR,
+        }
+    ),
+    PerfilAccesoAdmin.SECRETARIA_ESPECIALIDAD: frozenset(
+        {
+            Permission.USUARIOS_VER,
+            Permission.PROFESIONALES_VER,
+            Permission.AGENDA_VER,
+            Permission.AGENDA_GESTIONAR,
+        }
+    ),
+}
+
+
+def permisos_permitidos_para_perfil(
+    perfil: PerfilAccesoAdmin | str,
+) -> frozenset[Permission]:
+    try:
+        perfil_enum = PerfilAccesoAdmin(perfil)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Perfil administrativo invalido.") from exc
+
+    return PERFIL_PERMISOS_PERMITIDOS[perfil_enum]
+
+
+def validar_permisos_para_perfil(
+    *,
+    perfil: PerfilAccesoAdmin | str,
+    permisos: Iterable[Permission | str],
+) -> frozenset[Permission]:
+    """
+    Valida un subconjunto explicito de permisos para un perfil.
+
+    No completa defaults ni concede permisos automaticamente.
+    Un conjunto vacio es valido y representa fail-closed.
+    """
+    permitidos = permisos_permitidos_para_perfil(perfil)
+    resultado: set[Permission] = set()
+
+    for permiso in permisos:
+        try:
+            permiso_enum = Permission(permiso)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"Permiso administrativo invalido: {permiso!r}."
+            ) from exc
+
+        if permiso_enum not in permitidos:
+            raise ValueError(
+                "El permiso "
+                f"{permiso_enum.value!r} no esta permitido para "
+                f"el perfil {PerfilAccesoAdmin(perfil).value!r}."
+            )
+
+        resultado.add(permiso_enum)
+
+    return frozenset(resultado)
