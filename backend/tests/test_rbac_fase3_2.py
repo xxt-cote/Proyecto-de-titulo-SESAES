@@ -162,44 +162,29 @@ class SolicitudesHorarioAdminAutorizacionTests(unittest.TestCase):
 
 
 class CorreosAdminAutorizacionTests(unittest.TestCase):
-    """Mismo criterio de autorización que arriba, para GET /correos."""
+    """
+    Desde SA-9.6B, GET /correos usa autorizaci?n efectiva.
 
-    def setUp(self):
-        self.dependencia = _dependencia_de(correos.get_correos)
+    El Permission sigue siendo REPORTES_VER, pero un ADMIN ya
+    no puede autorizarse correctamente usando solamente un dict
+    con rol: el permiso depende de su configuraci?n persistida.
+    """
 
-    def test_admin_autorizado(self):
-        current_user = {"id": 1, "rol": "admin", "correo": "admin@sesaes.cl"}
-        resultado = self.dependencia(current_user=current_user)
-        self.assertEqual(resultado, current_user)
+    def test_get_correos_captura_reportes_ver(self):
+        self.assertEqual(
+            _permiso_de(correos.get_correos),
+            Permission.REPORTES_VER,
+        )
 
-    def test_superadmin_autorizado(self):
-        current_user = {"id": 2, "rol": "superadmin", "correo": "super@sesaes.cl"}
-        resultado = self.dependencia(current_user=current_user)
-        self.assertEqual(resultado, current_user)
+    def test_get_correos_usa_autorizacion_efectiva(self):
+        dependencia = _dependencia_de(
+            correos.get_correos
+        )
 
-    def test_profesional_403(self):
-        current_user = {"id": 3, "rol": "profesional", "correo": "p@sesaes.cl"}
-        with self.assertRaises(HTTPException) as ctx:
-            self.dependencia(current_user=current_user)
-        self.assertEqual(ctx.exception.status_code, 403)
-
-    def test_estudiante_403(self):
-        current_user = {"id": 4, "rol": "estudiante", "correo": "e@sesaes.cl"}
-        with self.assertRaises(HTTPException) as ctx:
-            self.dependencia(current_user=current_user)
-        self.assertEqual(ctx.exception.status_code, 403)
-
-    def test_rol_desconocido_403(self):
-        current_user = {"id": 5, "rol": "rol-inventado", "correo": "x@sesaes.cl"}
-        with self.assertRaises(HTTPException) as ctx:
-            self.dependencia(current_user=current_user)
-        self.assertEqual(ctx.exception.status_code, 403)
-
-    def test_rol_null_403(self):
-        current_user = {"id": 6, "rol": None, "correo": "n@sesaes.cl"}
-        with self.assertRaises(HTTPException) as ctx:
-            self.dependencia(current_user=current_user)
-        self.assertEqual(ctx.exception.status_code, 403)
+        self.assertIn(
+            "tiene_permiso_efectivo",
+            dependencia.__code__.co_names,
+        )
 
 
 class EndpointsProfesionalSelfServiceIntactosTests(unittest.TestCase):
