@@ -256,11 +256,25 @@ class PermissionCapturadoPorEndpointTests(unittest.TestCase):
         self.assertEqual(permiso, Permission.REPORTES_VER)
         self.assertNotEqual(permiso, Permission.AGENDA_GESTIONAR)
 
-    def test_admin_tiene_agenda_gestionar_y_reportes_ver_explicitos(self):
+    def test_admin_no_recibe_agenda_ni_reportes_por_rol(self):
         from app.rbac.permissions import has_permission
 
-        self.assertTrue(has_permission("admin", Permission.AGENDA_GESTIONAR))
-        self.assertTrue(has_permission("admin", Permission.REPORTES_VER))
+        # SA-9: estas capacidades de ADMIN ya no nacen del rol.
+        # Se resuelven mediante configuracion administrativa:
+        # perfil + permiso persistido + alcance.
+        self.assertFalse(
+            has_permission(
+                "admin",
+                Permission.AGENDA_GESTIONAR,
+            )
+        )
+
+        self.assertFalse(
+            has_permission(
+                "admin",
+                Permission.REPORTES_VER,
+            )
+        )
 
     def test_superadmin_tiene_agenda_gestionar_y_reportes_ver_explicitos(self):
         from app.rbac.permissions import has_permission

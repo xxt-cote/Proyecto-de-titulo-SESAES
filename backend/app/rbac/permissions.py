@@ -100,21 +100,7 @@ ROLE_DEFAULT_PERMISSIONS: Dict[Role, FrozenSet[Permission]] = {
             # ver principio de mínimo privilegio en el docstring del módulo.
         }
     ),
-    Role.ADMIN: frozenset(
-        {
-            # Administrador operativo: solo lo esencial del día a día.
-            # CONFIGURACION_GESTIONAR, REPORTES_CGR_EXPORTAR, AUDITORIA_VER
-            # y ROLES_GESTIONAR quedan reservados a SUPERADMIN por defecto
-            # (configuración global, exportación CGR sensible y auditoría
-            # son funciones administrativas superiores). Una fase
-            # posterior podrá asignar permisos adicionales a
-            # administradores concretos mediante persistencia real.
-            Permission.USUARIOS_GESTIONAR,
-            Permission.PROFESIONALES_GESTIONAR,
-            Permission.AGENDA_GESTIONAR,
-            Permission.REPORTES_VER,
-        }
-    ),
+    Role.ADMIN: frozenset(),
     Role.PROFESIONAL: frozenset(
         {
             Permission.ATENCIONES_VER_ASIGNADAS,

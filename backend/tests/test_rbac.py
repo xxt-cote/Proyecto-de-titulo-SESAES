@@ -103,11 +103,19 @@ class RoleDefaultPermissionCasosObligatoriosTests(unittest.TestCase):
     def test_admin_no_tiene_roles_gestionar(self):
         self.assertFalse(has_permission(Role.ADMIN, Permission.ROLES_GESTIONAR))
 
-    def test_admin_tiene_solo_lo_operativo_esencial(self):
-        self.assertTrue(has_permission(Role.ADMIN, Permission.USUARIOS_GESTIONAR))
-        self.assertTrue(has_permission(Role.ADMIN, Permission.PROFESIONALES_GESTIONAR))
-        self.assertTrue(has_permission(Role.ADMIN, Permission.AGENDA_GESTIONAR))
-        self.assertTrue(has_permission(Role.ADMIN, Permission.REPORTES_VER))
+    def test_admin_no_recibe_permisos_operativos_por_rol(self):
+        self.assertEqual(
+            ROLE_DEFAULT_PERMISSIONS[Role.ADMIN],
+            frozenset(),
+        )
+
+        for permiso in Permission:
+            self.assertFalse(
+                has_permission(
+                    Role.ADMIN,
+                    permiso,
+                )
+            )
 
     def test_admin_no_tiene_configuracion_gestionar(self):
         self.assertFalse(has_permission(Role.ADMIN, Permission.CONFIGURACION_GESTIONAR))
@@ -153,7 +161,22 @@ class HasPermissionApiTests(unittest.TestCase):
         self.assertFalse(has_permission(current_user, Permission.USUARIOS_GESTIONAR))
 
     def test_acepta_string_de_rol_crudo(self):
-        self.assertTrue(has_permission("admin", Permission.USUARIOS_GESTIONAR))
+        # La API sigue aceptando el rol como string.
+        self.assertTrue(
+            has_permission(
+                "superadmin",
+                Permission.USUARIOS_GESTIONAR,
+            )
+        )
+
+        # SA-9: que "admin" sea un rol valido ya no implica
+        # permisos administrativos estaticos.
+        self.assertFalse(
+            has_permission(
+                "admin",
+                Permission.USUARIOS_GESTIONAR,
+            )
+        )
 
     def test_dict_sin_rol_devuelve_false(self):
         self.assertFalse(has_permission({"id": 1}, Permission.PERFIL_VER_PROPIO))
@@ -176,12 +199,24 @@ class RequirePermissionDependencyTests(unittest.TestCase):
     """
 
     def test_autorizado_devuelve_current_user(self):
-        dependencia = require_permission(Permission.USUARIOS_GESTIONAR)
-        current_user = {"id": 1, "rol": "admin", "correo": "admin@sesaes.cl"}
+        dependencia = require_permission(
+            Permission.USUARIOS_GESTIONAR
+        )
 
-        resultado = dependencia(current_user=current_user)
+        current_user = {
+            "id": 1,
+            "rol": "superadmin",
+            "correo": "superadmin@sesaes.cl",
+        }
 
-        self.assertEqual(resultado, current_user)
+        resultado = dependencia(
+            current_user=current_user
+        )
+
+        self.assertEqual(
+            resultado,
+            current_user,
+        )
 
     def test_sin_permiso_lanza_403(self):
         dependencia = require_permission(Permission.ROLES_GESTIONAR)
