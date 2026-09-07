@@ -1099,25 +1099,125 @@ def crear_cita_urgente(cita: CitaCreate, db: Session = Depends(get_db), current_
 
 
 @router.patch("/citas/{cita_id}/cancelar")
-def cancelar_cita_admin(cita_id: int, body: dict, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.AGENDA_GESTIONAR))):
-    cita = db.query(Cita).filter(Cita.id == cita_id).first()
-    if not cita: raise HTTPException(status_code=404, detail="Cita no encontrada")
-    est  = db.query(Usuario).filter(Usuario.id == cita.estudiante_id).first()
-    prof = db.query(Profesional).filter(Profesional.id == cita.profesional_id).first()
-    motivo = body.get("motivo", "Cancelada por administrador")
-    cita.estado = "cancelada"; cita.cancelada_por_admin = True; cita.motivo_cancelacion = motivo
-    db.add(Notificacion(usuario_id=cita.estudiante_id,
-        mensaje="Tu cita fue cancelada por fuerza mayor. Puedes reagendar tu hora cuando lo desees desde tu dashboard.",
-        tipo="cancelacion"))
-    simular_envio_correo(db, destinatario=est.correo if est else "—",
-        asunto="SESAES — Tu cita fue cancelada",
-        cuerpo=f"Tu cita del {cita.fecha} a las {cita.hora} con {prof.nombre if prof else ''} fue cancelada.",
-        tipo="cancelacion", referencia_id=cita_id)
-    registrar_evento_auditoria(db, current_user, "Canceló cita",
-                                entidad="cita", entidad_id=cita_id,
-                                detalle=f"Estudiante: {est.nombre if est else '—'} — {prof.nombre if prof else '—'} — {cita.fecha} {cita.hora}")
+def cancelar_cita_admin(
+    cita_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(
+        require_effective_permission(Permission.AGENDA_GESTIONAR)
+    ),
+):
+    alcance = obtener_alcance_administrativo_efectivo(
+        db,
+        current_user,
+    )
+
+    if alcance is None:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes acceso al alcance solicitado.",
+        )
+
+    cita = (
+        db.query(Cita)
+        .filter(
+            Cita.id == cita_id
+        )
+        .first()
+    )
+
+    if not cita:
+        raise HTTPException(
+            status_code=404,
+            detail="Cita no encontrada",
+        )
+
+    prof = (
+        db.query(Profesional)
+        .filter(
+            Profesional.id == cita.profesional_id
+        )
+        .first()
+    )
+
+    if (
+        not prof
+        or not especialidad_permitida_por_alcance(
+            alcance,
+            prof.especialidad,
+        )
+    ):
+        # No revelar la existencia de citas pertenecientes
+        # a profesionales fuera del alcance administrativo.
+        raise HTTPException(
+            status_code=404,
+            detail="Cita no encontrada",
+        )
+
+    est = (
+        db.query(Usuario)
+        .filter(
+            Usuario.id == cita.estudiante_id
+        )
+        .first()
+    )
+
+    motivo = body.get(
+        "motivo",
+        "Cancelada por administrador",
+    )
+
+    cita.estado = "cancelada"
+    cita.cancelada_por_admin = True
+    cita.motivo_cancelacion = motivo
+
+    db.add(
+        Notificacion(
+            usuario_id=cita.estudiante_id,
+            mensaje=(
+                "Tu cita fue cancelada por fuerza mayor. "
+                "Puedes reagendar tu hora cuando lo desees "
+                "desde tu dashboard."
+            ),
+            tipo="cancelacion",
+        )
+    )
+
+    simular_envio_correo(
+        db,
+        destinatario=(
+            est.correo
+            if est
+            else "?"
+        ),
+        asunto="SESAES ? Tu cita fue cancelada",
+        cuerpo=(
+            f"Tu cita del {cita.fecha} a las {cita.hora} "
+            f"con {prof.nombre} fue cancelada."
+        ),
+        tipo="cancelacion",
+        referencia_id=cita_id,
+    )
+
+    registrar_evento_auditoria(
+        db,
+        current_user,
+        "Cancel? cita",
+        entidad="cita",
+        entidad_id=cita_id,
+        detalle=(
+            f"Estudiante: "
+            f"{est.nombre if est else '?'} ? "
+            f"{prof.nombre} ? "
+            f"{cita.fecha} {cita.hora}"
+        ),
+    )
+
     db.commit()
-    return {"message": "Cita cancelada y estudiante notificado"}
+
+    return {
+        "message": "Cita cancelada y estudiante notificado"
+    }
 
 
 @router.patch("/citas/{cita_id}/prioridad")
