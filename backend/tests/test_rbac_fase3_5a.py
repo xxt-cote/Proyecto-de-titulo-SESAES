@@ -21,7 +21,7 @@ ENDPOINTS = [
     ("GET", "/admin/proximas-citas", Permission.AGENDA_VER),
     ("GET", "/admin/estudiantes", Permission.USUARIOS_VER),
     ("GET", "/admin/estudiantes/listado", Permission.USUARIOS_VER),
-    ("GET", "/admin/estudiantes/{estudiante_id}/perfil", Permission.USUARIOS_GESTIONAR),
+    ("GET", "/admin/estudiantes/{estudiante_id}/perfil", Permission.USUARIOS_VER),
     ("GET", "/admin/graficos/especialidad", Permission.REPORTES_VER),
     ("GET", "/admin/graficos/semana", Permission.REPORTES_VER),
     ("GET", "/admin/profesionales", Permission.PROFESIONALES_VER),

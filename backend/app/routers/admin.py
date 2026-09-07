@@ -533,37 +533,159 @@ def listar_estudiantes(
 
 
 @router.get("/estudiantes/{estudiante_id}/perfil")
-def perfil_estudiante_admin(estudiante_id: int, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.USUARIOS_GESTIONAR))):
-    """Ficha de un estudiante puntual: sus datos + sus últimas atenciones."""
-    est = db.query(Usuario).filter(Usuario.id == estudiante_id, Usuario.rol == "estudiante").first()
+def perfil_estudiante_admin(
+    estudiante_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(
+        require_effective_permission(Permission.USUARIOS_VER)
+    ),
+):
+    """
+    Ficha administrativa de un estudiante.
+
+    En alcance limitado, la visibilidad del estudiante y todas
+    las m?tricas derivadas de citas se restringen a profesionales
+    incluidos en el alcance efectivo.
+    """
+    alcance = obtener_alcance_administrativo_efectivo(
+        db,
+        current_user,
+    )
+
+    if alcance is None:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes acceso al alcance solicitado.",
+        )
+
+    ids_profesionales = None
+
+    if not alcance.institucional:
+        ids_profesionales = _ids_profesionales_en_alcance(
+            db,
+            alcance,
+        )
+
+        if not ids_profesionales:
+            raise HTTPException(
+                status_code=404,
+                detail="Estudiante no encontrado",
+            )
+
+    est = (
+        db.query(Usuario)
+        .filter(
+            Usuario.id == estudiante_id,
+            Usuario.rol == "estudiante",
+        )
+        .first()
+    )
+
     if not est:
-        raise HTTPException(status_code=404, detail="Estudiante no encontrado")
+        raise HTTPException(
+            status_code=404,
+            detail="Estudiante no encontrado",
+        )
+
+    total_query = db.query(
+        func.count(Cita.id)
+    ).filter(
+        Cita.estudiante_id == estudiante_id
+    )
+
+    if ids_profesionales is not None:
+        total_query = total_query.filter(
+            Cita.profesional_id.in_(
+                ids_profesionales
+            )
+        )
+
+    total = total_query.scalar() or 0
+
+    # Para alcance limitado, una ficha administrativa solo es
+    # visible si existe al menos una cita dentro del scope.
+    if (
+        ids_profesionales is not None
+        and total == 0
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail="Estudiante no encontrado",
+        )
+
+    citas_query = (
+        db.query(Cita)
+        .filter(
+            Cita.estudiante_id == estudiante_id
+        )
+    )
+
+    if ids_profesionales is not None:
+        citas_query = citas_query.filter(
+            Cita.profesional_id.in_(
+                ids_profesionales
+            )
+        )
 
     citas = (
-        db.query(Cita)
-        .filter(Cita.estudiante_id == estudiante_id)
+        citas_query
         .order_by(Cita.fecha.desc())
         .limit(10)
         .all()
     )
+
     ultimas = []
+
     for c in citas:
-        prof = db.query(Profesional).filter(Profesional.id == c.profesional_id).first()
+        prof = (
+            db.query(Profesional)
+            .filter(
+                Profesional.id == c.profesional_id
+            )
+            .first()
+        )
+
         ultimas.append({
-            "id": c.id, "fecha": c.fecha, "hora": c.hora, "estado": c.estado,
-            "especialidad": prof.especialidad if prof else "—",
-            "profesional": prof.nombre if prof else "—",
+            "id": c.id,
+            "fecha": c.fecha,
+            "hora": c.hora,
+            "estado": c.estado,
+            "especialidad": (
+                prof.especialidad
+                if prof
+                else "?"
+            ),
+            "profesional": (
+                prof.nombre
+                if prof
+                else "?"
+            ),
         })
 
-    total = db.query(func.count(Cita.id)).filter(Cita.estudiante_id == estudiante_id).scalar()
-    atendidas = db.query(func.count(Cita.id)).filter(
-        Cita.estudiante_id == estudiante_id, Cita.estado == "completada"
-    ).scalar()
+    atendidas_query = db.query(
+        func.count(Cita.id)
+    ).filter(
+        Cita.estudiante_id == estudiante_id,
+        Cita.estado == "completada",
+    )
+
+    if ids_profesionales is not None:
+        atendidas_query = atendidas_query.filter(
+            Cita.profesional_id.in_(
+                ids_profesionales
+            )
+        )
+
+    atendidas = atendidas_query.scalar() or 0
 
     return {
-        "id": est.id, "nombre": est.nombre or "—", "rut": est.rut or "—",
-        "carrera": est.carrera or "—", "correo": est.correo,
-        "citas_totales": total, "citas_atendidas": atendidas,
+        "id": est.id,
+        "nombre": est.nombre or "?",
+        "rut": est.rut or "?",
+        "carrera": est.carrera or "?",
+        "correo": est.correo,
+        "citas_totales": total,
+        "citas_atendidas": atendidas,
         "ultimas_atenciones": ultimas,
     }
 
