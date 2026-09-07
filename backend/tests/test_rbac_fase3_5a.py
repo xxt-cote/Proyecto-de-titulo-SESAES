@@ -38,13 +38,20 @@ ENDPOINTS = [
     ("GET", "/admin/dias-cerrados/{dia_id}/citas", Permission.AGENDA_VER),
     ("DELETE", "/admin/dias-cerrados/{dia_id}", Permission.AGENDA_GESTIONAR),
     ("GET", "/admin/historial", Permission.REPORTES_VER),
-    ("GET", "/admin/notificaciones", Permission.USUARIOS_GESTIONAR),
     ("GET", "/admin/exportar/cgr", Permission.REPORTES_CGR_EXPORTAR),
     ("GET", "/admin/exportar/alumnos", Permission.REPORTES_CGR_EXPORTAR),
     ("GET", "/admin/auditoria", Permission.AUDITORIA_VER),
     ("GET", "/admin/configuracion", Permission.CONFIGURACION_GESTIONAR),
     ("PATCH", "/admin/configuracion", Permission.CONFIGURACION_GESTIONAR),
 ]
+
+
+# Rutas dentro del router /admin que son self-service autenticado.
+# No operan sobre recursos de terceros y por dise?o no requieren
+# un Permission administrativo.
+SELF_SERVICE_ENDPOINTS = {
+    ("GET", "/admin/notificaciones"),
+}
 
 
 def _route(method: str, path: str) -> APIRoute:
@@ -78,18 +85,76 @@ def test_cada_endpoint_admin_exige_su_permiso(method, path, permission):
     assert _captured_permissions(route) == [permission]
 
 
-def test_todas_las_rutas_admin_productivas_tienen_permiso_explicito():
-    expected = {(method, path) for method, path, _ in ENDPOINTS}
+def test_todas_las_rutas_admin_productivas_tienen_autorizacion_explicita():
+    """
+    Toda ruta productiva del router admin debe estar clasificada:
+
+    - ENDPOINTS:
+      exige exactamente un Permission administrativo.
+    - SELF_SERVICE_ENDPOINTS:
+      exige autenticaci?n propia, pero ning?n Permission
+      administrativo de terceros.
+
+    As? una ruta nueva no puede quedar fuera del inventario de
+    seguridad por accidente.
+    """
+    expected_with_permission = {
+        (method, path)
+        for method, path, _ in ENDPOINTS
+    }
+
+    expected = (
+        expected_with_permission
+        | SELF_SERVICE_ENDPOINTS
+    )
+
     actual = {
         (method, route.path)
         for route in admin.router.routes
         if isinstance(route, APIRoute)
         for method in route.methods
-        if method in {"GET", "POST", "PATCH", "PUT", "DELETE"}
+        if method in {
+            "GET",
+            "POST",
+            "PATCH",
+            "PUT",
+            "DELETE",
+        }
     }
+
     assert actual == expected
-    for method, path in sorted(actual):
-        assert len(_captured_permissions(_route(method, path))) == 1
+
+    # Todas las rutas administrativas de terceros conservan
+    # exactamente un permiso expl?cito.
+    for method, path in sorted(
+        expected_with_permission
+    ):
+        assert len(
+            _captured_permissions(
+                _route(method, path)
+            )
+        ) == 1
+
+    # Las excepciones self-service no deben capturar ning?n
+    # Permission administrativo y deben seguir autenticadas.
+    for method, path in sorted(
+        SELF_SERVICE_ENDPOINTS
+    ):
+        route = _route(method, path)
+
+        assert _captured_permissions(route) == []
+
+        current_user = inspect.signature(
+            route.endpoint
+        ).parameters["current_user"]
+
+        dependency = getattr(
+            current_user.default,
+            "dependency",
+            None,
+        )
+
+        assert dependency is admin.get_current_user
 
 
 # ══════════════════════════════════════════════════════════════════

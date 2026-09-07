@@ -25,6 +25,7 @@ from app.schemas import (
     ConfiguracionOut, ConfiguracionUpdate, CitaCreate,
     color_identificador_es_valido
 )
+from app.auth_dependencies import get_current_user
 from app.rbac.dependencies import (
     require_permission,
     require_effective_permission,
@@ -2265,14 +2266,44 @@ def get_historial_admin(
 # ══════════════════════════════════════
 
 @router.get("/notificaciones")
-def get_notificaciones_admin(db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.USUARIOS_GESTIONAR))):
+def get_notificaciones_admin(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Devuelve ?nicamente las notificaciones de la cuenta
+    autenticada que est? usando el dashboard administrativo.
+
+    Es una operaci?n self-service: no requiere permisos para
+    consultar o gestionar cuentas de terceros y no depende del
+    alcance administrativo por especialidad.
+    """
     usuario_id = current_user["id"]
-    notifs = db.query(Notificacion).filter(
-        Notificacion.usuario_id == usuario_id
-    ).order_by(Notificacion.fecha_creacion.desc()).limit(100).all()
+
+    notifs = (
+        db.query(Notificacion)
+        .filter(
+            Notificacion.usuario_id == usuario_id
+        )
+        .order_by(
+            Notificacion.fecha_creacion.desc()
+        )
+        .limit(100)
+        .all()
+    )
+
     return [
-        {"id": n.id, "mensaje": n.mensaje, "tipo": n.tipo, "leida": n.leida,
-         "fecha_creacion": n.fecha_creacion.isoformat() if n.fecha_creacion else None}
+        {
+            "id": n.id,
+            "mensaje": n.mensaje,
+            "tipo": n.tipo,
+            "leida": n.leida,
+            "fecha_creacion": (
+                n.fecha_creacion.isoformat()
+                if n.fecha_creacion
+                else None
+            ),
+        }
         for n in notifs
     ]
 
