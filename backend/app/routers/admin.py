@@ -994,12 +994,75 @@ def cambiar_estado_profesional(prof_id: int, body: dict, db: Session = Depends(g
 
 
 @router.get("/profesionales/{prof_id}/historial-estados")
-def get_historial_estados(prof_id: int, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.PROFESIONALES_GESTIONAR))):
-    registros = db.query(HistorialEstadoProfesional).filter(
-        HistorialEstadoProfesional.profesional_id == prof_id
-    ).order_by(HistorialEstadoProfesional.fecha.desc()).all()
-    return [{"id": r.id, "estado_anterior": r.estado_anterior, "estado_nuevo": r.estado_nuevo,
-             "motivo": r.motivo, "fecha": r.fecha.isoformat() if r.fecha else None} for r in registros]
+def get_historial_estados(
+    prof_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(
+        require_effective_permission(Permission.PROFESIONALES_VER)
+    ),
+):
+    """
+    Devuelve el historial administrativo de estados de un
+    profesional visible dentro del alcance efectivo.
+    """
+    alcance = obtener_alcance_administrativo_efectivo(
+        db,
+        current_user,
+    )
+
+    if alcance is None:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes acceso al alcance solicitado.",
+        )
+
+    prof = (
+        db.query(Profesional)
+        .filter(
+            Profesional.id == prof_id
+        )
+        .first()
+    )
+
+    if (
+        not prof
+        or not especialidad_permitida_por_alcance(
+            alcance,
+            prof.especialidad,
+        )
+    ):
+        # No revelar si existe un profesional perteneciente
+        # a otra especialidad administrativa.
+        raise HTTPException(
+            status_code=404,
+            detail="Profesional no encontrado",
+        )
+
+    registros = (
+        db.query(HistorialEstadoProfesional)
+        .filter(
+            HistorialEstadoProfesional.profesional_id == prof_id
+        )
+        .order_by(
+            HistorialEstadoProfesional.fecha.desc()
+        )
+        .all()
+    )
+
+    return [
+        {
+            "id": r.id,
+            "estado_anterior": r.estado_anterior,
+            "estado_nuevo": r.estado_nuevo,
+            "motivo": r.motivo,
+            "fecha": (
+                r.fecha.isoformat()
+                if r.fecha
+                else None
+            ),
+        }
+        for r in registros
+    ]
 
 
 # ══════════════════════════════════════

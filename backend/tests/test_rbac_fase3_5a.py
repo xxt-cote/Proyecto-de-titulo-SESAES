@@ -29,7 +29,7 @@ ENDPOINTS = [
     ("PATCH", "/admin/profesionales/{prof_id}", Permission.PROFESIONALES_GESTIONAR),
     ("DELETE", "/admin/profesionales/{prof_id}", Permission.PROFESIONALES_GESTIONAR),
     ("PATCH", "/admin/profesionales/{prof_id}/estado", Permission.PROFESIONALES_GESTIONAR),
-    ("GET", "/admin/profesionales/{prof_id}/historial-estados", Permission.PROFESIONALES_GESTIONAR),
+    ("GET", "/admin/profesionales/{prof_id}/historial-estados", Permission.PROFESIONALES_VER),
     ("POST", "/admin/citas/urgente", Permission.AGENDA_GESTIONAR),
     ("PATCH", "/admin/citas/{cita_id}/cancelar", Permission.AGENDA_GESTIONAR),
     ("PATCH", "/admin/citas/{cita_id}/prioridad", Permission.AGENDA_GESTIONAR),
