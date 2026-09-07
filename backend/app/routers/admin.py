@@ -297,15 +297,72 @@ def get_proximas_citas(db: Session = Depends(get_db), current_user: dict = Depen
 # ══════════════════════════════════════
 
 @router.get("/estudiantes")
-def buscar_estudiantes(q: str = "", db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.USUARIOS_GESTIONAR))):
-    if len(q) < 2: return []
-    estudiantes = db.query(Usuario).filter(
+def buscar_estudiantes(
+    q: str = "",
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(
+        require_effective_permission(Permission.USUARIOS_VER)
+    ),
+):
+    alcance = obtener_alcance_administrativo_efectivo(
+        db,
+        current_user,
+    )
+
+    if alcance is None:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes acceso al alcance solicitado.",
+        )
+
+    if len(q) < 2:
+        return []
+
+    query = db.query(Usuario).filter(
         Usuario.rol == "estudiante",
-        (Usuario.nombre.ilike(f"%{q}%")) | (Usuario.rut.ilike(f"%{q}%"))
-    ).limit(10).all()
+        (
+            Usuario.nombre.ilike(f"%{q}%")
+            | Usuario.rut.ilike(f"%{q}%")
+        ),
+    )
+
+    if not alcance.institucional:
+        ids_profesionales = _ids_profesionales_en_alcance(
+            db,
+            alcance,
+        )
+
+        if not ids_profesionales:
+            return []
+
+        query = (
+            query
+            .join(
+                Cita,
+                Cita.estudiante_id == Usuario.id,
+            )
+            .filter(
+                Cita.profesional_id.in_(
+                    ids_profesionales
+                )
+            )
+            .distinct()
+        )
+
+    estudiantes = (
+        query
+        .limit(10)
+        .all()
+    )
+
     return [
-        {"id": e.id, "nombre": e.nombre or "—", "rut": e.rut or "—",
-         "carrera": e.carrera or "—", "correo": e.correo}
+        {
+            "id": e.id,
+            "nombre": e.nombre or "?",
+            "rut": e.rut or "?",
+            "carrera": e.carrera or "?",
+            "correo": e.correo,
+        }
         for e in estudiantes
     ]
 
