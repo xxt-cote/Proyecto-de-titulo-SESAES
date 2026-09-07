@@ -1007,12 +1007,38 @@ def get_historial_estados(prof_id: int, db: Session = Depends(get_db), current_u
 # ══════════════════════════════════════
 
 @router.post("/citas/urgente")
-def crear_cita_urgente(cita: CitaCreate, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.AGENDA_GESTIONAR))):
+def crear_cita_urgente(cita: CitaCreate, db: Session = Depends(get_db), current_user: dict = Depends(require_effective_permission(Permission.AGENDA_GESTIONAR))):
+    alcance = obtener_alcance_administrativo_efectivo(
+        db,
+        current_user,
+    )
+
+    if alcance is None:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes acceso al alcance solicitado.",
+        )
+
     if db.query(DiaCerrado).filter(DiaCerrado.fecha == cita.fecha).first():
         raise HTTPException(status_code=400, detail="El centro permanece cerrado ese día. Elige otra fecha.")
 
     prof = db.query(Profesional).filter(Profesional.id == cita.profesional_id).first()
-    if not prof: raise HTTPException(status_code=404, detail="Profesional no encontrado")
+    if not prof:
+        raise HTTPException(
+            status_code=404,
+            detail="Profesional no encontrado",
+        )
+
+    if not especialidad_permitida_por_alcance(
+        alcance,
+        prof.especialidad,
+    ):
+        # No revelar que existe un profesional fuera del
+        # alcance administrativo del usuario.
+        raise HTTPException(
+            status_code=404,
+            detail="Profesional no encontrado",
+        )
     est = db.query(Usuario).filter(Usuario.id == cita.estudiante_id).first()
     if not est or est.rol != "estudiante":
         raise HTTPException(
