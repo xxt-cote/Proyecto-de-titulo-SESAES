@@ -1173,7 +1173,24 @@ def listar_dias_cerrados(
 
 
 @router.post("/dias-cerrados")
-def crear_dia_cerrado(body: dict, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.AGENDA_GESTIONAR))):
+def crear_dia_cerrado(body: dict, db: Session = Depends(get_db), current_user: dict = Depends(require_effective_permission(Permission.AGENDA_GESTIONAR))):
+    alcance = obtener_alcance_administrativo_efectivo(
+        db,
+        current_user,
+    )
+
+    if (
+        alcance is None
+        or not alcance.institucional
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Esta operaci?n requiere alcance "
+                "administrativo institucional."
+            ),
+        )
+
     fecha  = body.get("fecha")
     motivo = body.get("motivo") or "El centro permanecerá cerrado este día."
     if not fecha:
@@ -1354,7 +1371,24 @@ def citas_canceladas_por_dia_cerrado(
 
 
 @router.delete("/dias-cerrados/{dia_id}")
-def eliminar_dia_cerrado(dia_id: int, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.AGENDA_GESTIONAR))):
+def eliminar_dia_cerrado(dia_id: int, db: Session = Depends(get_db), current_user: dict = Depends(require_effective_permission(Permission.AGENDA_GESTIONAR))):
+    alcance = obtener_alcance_administrativo_efectivo(
+        db,
+        current_user,
+    )
+
+    if (
+        alcance is None
+        or not alcance.institucional
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Esta operaci?n requiere alcance "
+                "administrativo institucional."
+            ),
+        )
+
     dia = db.query(DiaCerrado).filter(DiaCerrado.id == dia_id).first()
     if not dia:
         raise HTTPException(status_code=404, detail="Día cerrado no encontrado")
