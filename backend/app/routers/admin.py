@@ -369,46 +369,149 @@ def buscar_estudiantes(
 
 @router.get("/estudiantes/listado")
 def listar_estudiantes(
-    q: str = "", carrera: str = "", pagina: int = 1, por_pagina: int = 20,
+    q: str = "",
+    carrera: str = "",
+    pagina: int = 1,
+    por_pagina: int = 20,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission(Permission.USUARIOS_GESTIONAR))
+    current_user: dict = Depends(
+        require_effective_permission(Permission.USUARIOS_VER)
+    ),
 ):
     """
-    Listado completo de estudiantes (con paginación), a diferencia de
-    /estudiantes que solo sirve para autocompletar una búsqueda puntual.
-    Incluye el conteo de citas totales y atendidas de cada estudiante,
-    calculado con una sola consulta agregada para no golpear la base
-    de datos una vez por estudiante.
+    Listado completo de estudiantes con paginaci?n.
+
+    Para alcances administrativos limitados, tanto la visibilidad
+    del estudiante como sus m?tricas se restringen a citas con
+    profesionales incluidos en el alcance efectivo.
     """
-    query = db.query(Usuario).filter(Usuario.rol == "estudiante")
+    alcance = obtener_alcance_administrativo_efectivo(
+        db,
+        current_user,
+    )
+
+    if alcance is None:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes acceso al alcance solicitado.",
+        )
+
+    ids_profesionales = None
+
+    if not alcance.institucional:
+        ids_profesionales = _ids_profesionales_en_alcance(
+            db,
+            alcance,
+        )
+
+        if not ids_profesionales:
+            return {
+                "total": 0,
+                "pagina": pagina,
+                "por_pagina": por_pagina,
+                "estudiantes": [],
+            }
+
+    query = db.query(Usuario).filter(
+        Usuario.rol == "estudiante"
+    )
+
+    if ids_profesionales is not None:
+        query = (
+            query
+            .join(
+                Cita,
+                Cita.estudiante_id == Usuario.id,
+            )
+            .filter(
+                Cita.profesional_id.in_(
+                    ids_profesionales
+                )
+            )
+            .distinct()
+        )
+
     if q:
         query = query.filter(
-            (Usuario.nombre.ilike(f"%{q}%")) | (Usuario.rut.ilike(f"%{q}%"))
+            (
+                Usuario.nombre.ilike(f"%{q}%")
+                | Usuario.rut.ilike(f"%{q}%")
+            )
         )
+
     if carrera:
-        query = query.filter(Usuario.carrera.ilike(f"%{carrera}%"))
+        query = query.filter(
+            Usuario.carrera.ilike(
+                f"%{carrera}%"
+            )
+        )
 
     total = query.count()
+
     estudiantes = (
-        query.order_by(Usuario.nombre)
-        .offset((pagina - 1) * por_pagina)
+        query
+        .order_by(Usuario.nombre)
+        .offset(
+            (pagina - 1) * por_pagina
+        )
         .limit(por_pagina)
         .all()
     )
 
     ids = [e.id for e in estudiantes]
-    conteos = dict(
-        db.query(Cita.estudiante_id, func.count(Cita.id))
-        .filter(Cita.estudiante_id.in_(ids))
-        .group_by(Cita.estudiante_id)
-        .all()
-    ) if ids else {}
-    atendidas = dict(
-        db.query(Cita.estudiante_id, func.count(Cita.id))
-        .filter(Cita.estudiante_id.in_(ids), Cita.estado == "completada")
-        .group_by(Cita.estudiante_id)
-        .all()
-    ) if ids else {}
+
+    conteos = {}
+
+    if ids:
+        conteos_query = (
+            db.query(
+                Cita.estudiante_id,
+                func.count(Cita.id),
+            )
+            .filter(
+                Cita.estudiante_id.in_(ids)
+            )
+        )
+
+        if ids_profesionales is not None:
+            conteos_query = conteos_query.filter(
+                Cita.profesional_id.in_(
+                    ids_profesionales
+                )
+            )
+
+        conteos = dict(
+            conteos_query
+            .group_by(Cita.estudiante_id)
+            .all()
+        )
+
+    atendidas = {}
+
+    if ids:
+        atendidas_query = (
+            db.query(
+                Cita.estudiante_id,
+                func.count(Cita.id),
+            )
+            .filter(
+                Cita.estudiante_id.in_(ids),
+                Cita.estado == "completada",
+            )
+        )
+
+        if ids_profesionales is not None:
+            atendidas_query = atendidas_query.filter(
+                Cita.profesional_id.in_(
+                    ids_profesionales
+                )
+            )
+
+        atendidas = dict(
+            atendidas_query
+            .group_by(Cita.estudiante_id)
+            .all()
+        )
 
     return {
         "total": total,
@@ -416,8 +519,11 @@ def listar_estudiantes(
         "por_pagina": por_pagina,
         "estudiantes": [
             {
-                "id": e.id, "nombre": e.nombre or "—", "rut": e.rut or "—",
-                "carrera": e.carrera or "—", "correo": e.correo,
+                "id": e.id,
+                "nombre": e.nombre or "?",
+                "rut": e.rut or "?",
+                "carrera": e.carrera or "?",
+                "correo": e.correo,
                 "citas_totales": conteos.get(e.id, 0),
                 "citas_atendidas": atendidas.get(e.id, 0),
             }
