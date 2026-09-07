@@ -120,47 +120,45 @@ class EndpointsMigradosUsanRequirePermissionTests(unittest.TestCase):
 
 class SolicitudesHorarioAdminAutorizacionTests(unittest.TestCase):
     """
-    ADMIN y SUPERADMIN autorizados (porque AGENDA_GESTIONAR está en sus
-    permisos explícitos, no por comparación de rol); PROFESIONAL,
-    ESTUDIANTE, rol desconocido y rol null → 403.
+    Desde SA-9.6A, las rutas administrativas de solicitudes de
+    horario usan autorizaci?n efectiva.
+
+    Un ADMIN ya no puede autorizarse correctamente a partir de un
+    dict de rol aislado: su permiso efectivo depende de la BD, del
+    perfil persistido y del alcance administrativo.
+
+    Estos tests hist?ricos conservan su responsabilidad original:
+    comprobar el Permission exacto conectado a los endpoints y que
+    la dependencia ya usa el resolver efectivo.
     """
 
-    def setUp(self):
-        self.dependencia = _dependencia_de(solicitudes_horario.get_solicitudes_admin)
+    def test_los_tres_endpoints_capturan_agenda_gestionar(self):
+        for endpoint in (
+            solicitudes_horario.get_solicitudes_admin,
+            solicitudes_horario.aprobar_solicitud,
+            solicitudes_horario.rechazar_solicitud,
+        ):
+            self.assertEqual(
+                _permiso_de(endpoint),
+                Permission.AGENDA_GESTIONAR,
+            )
 
-    def test_admin_autorizado(self):
-        current_user = {"id": 1, "rol": "admin", "correo": "admin@sesaes.cl"}
-        resultado = self.dependencia(current_user=current_user)
-        self.assertEqual(resultado, current_user)
+    def test_los_tres_endpoints_usan_autorizacion_efectiva(self):
+        for endpoint in (
+            solicitudes_horario.get_solicitudes_admin,
+            solicitudes_horario.aprobar_solicitud,
+            solicitudes_horario.rechazar_solicitud,
+        ):
+            dependencia = _dependencia_de(endpoint)
 
-    def test_superadmin_autorizado(self):
-        current_user = {"id": 2, "rol": "superadmin", "correo": "super@sesaes.cl"}
-        resultado = self.dependencia(current_user=current_user)
-        self.assertEqual(resultado, current_user)
-
-    def test_profesional_403(self):
-        current_user = {"id": 3, "rol": "profesional", "correo": "p@sesaes.cl"}
-        with self.assertRaises(HTTPException) as ctx:
-            self.dependencia(current_user=current_user)
-        self.assertEqual(ctx.exception.status_code, 403)
-
-    def test_estudiante_403(self):
-        current_user = {"id": 4, "rol": "estudiante", "correo": "e@sesaes.cl"}
-        with self.assertRaises(HTTPException) as ctx:
-            self.dependencia(current_user=current_user)
-        self.assertEqual(ctx.exception.status_code, 403)
-
-    def test_rol_desconocido_403(self):
-        current_user = {"id": 5, "rol": "rol-inventado", "correo": "x@sesaes.cl"}
-        with self.assertRaises(HTTPException) as ctx:
-            self.dependencia(current_user=current_user)
-        self.assertEqual(ctx.exception.status_code, 403)
-
-    def test_rol_null_403(self):
-        current_user = {"id": 6, "rol": None, "correo": "n@sesaes.cl"}
-        with self.assertRaises(HTTPException) as ctx:
-            self.dependencia(current_user=current_user)
-        self.assertEqual(ctx.exception.status_code, 403)
+            self.assertIn(
+                "tiene_permiso_efectivo",
+                dependencia.__code__.co_names,
+                (
+                    f"{endpoint.__name__} no usa "
+                    "autorizaci?n efectiva"
+                ),
+            )
 
 
 class CorreosAdminAutorizacionTests(unittest.TestCase):
