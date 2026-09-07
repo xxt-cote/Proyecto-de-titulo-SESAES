@@ -1107,32 +1107,133 @@ def actualizar_profesional(
 
 
 @router.delete("/profesionales/{prof_id}")
-def eliminar_profesional(prof_id: int, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.PROFESIONALES_GESTIONAR))):
-    prof = db.query(Profesional).filter(Profesional.id == prof_id).first()
-    if not prof:
-        raise HTTPException(status_code=404, detail="Profesional no encontrado")
-    citas = db.query(Cita).filter(Cita.profesional_id == prof_id, Cita.estado == "pendiente").all()
+def eliminar_profesional(
+    prof_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(
+        require_effective_permission(
+            Permission.PROFESIONALES_GESTIONAR
+        )
+    ),
+):
+    alcance = obtener_alcance_administrativo_efectivo(
+        db,
+        current_user,
+    )
+
+    if alcance is None:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes acceso al alcance solicitado.",
+        )
+
+    prof = (
+        db.query(Profesional)
+        .filter(
+            Profesional.id == prof_id
+        )
+        .first()
+    )
+
+    if (
+        not prof
+        or not especialidad_permitida_por_alcance(
+            alcance,
+            prof.especialidad,
+        )
+    ):
+        # No revelar profesionales pertenecientes
+        # a otra especialidad administrativa.
+        raise HTTPException(
+            status_code=404,
+            detail="Profesional no encontrado",
+        )
+
+    citas = (
+        db.query(Cita)
+        .filter(
+            Cita.profesional_id == prof_id,
+            Cita.estado == "pendiente",
+        )
+        .all()
+    )
+
     for cita in citas:
-        est = db.query(Usuario).filter(Usuario.id == cita.estudiante_id).first()
-        cita.estado = "cancelada"; cita.cancelada_por_admin = True
-        cita.motivo_cancelacion = "Profesional eliminado del sistema"
-        db.add(Notificacion(usuario_id=cita.estudiante_id,
-            mensaje=f"Tu cita del {cita.fecha} a las {cita.hora} fue cancelada porque el profesional ya no está disponible en SESAES.",
-            tipo="cancelacion"))
-        simular_envio_correo(db, destinatario=est.correo if est else "—",
-            asunto="SESAES — Cancelación de cita",
-            cuerpo=f"Tu cita del {cita.fecha} a las {cita.hora} fue cancelada.",
-            tipo="cancelacion", referencia_id=cita.id)
+        est = (
+            db.query(Usuario)
+            .filter(
+                Usuario.id == cita.estudiante_id
+            )
+            .first()
+        )
+
+        cita.estado = "cancelada"
+        cita.cancelada_por_admin = True
+        cita.motivo_cancelacion = (
+            "Profesional eliminado del sistema"
+        )
+
+        db.add(
+            Notificacion(
+                usuario_id=cita.estudiante_id,
+                mensaje=(
+                    f"Tu cita del {cita.fecha} a las "
+                    f"{cita.hora} fue cancelada porque el "
+                    "profesional ya no est? disponible en SESAES."
+                ),
+                tipo="cancelacion",
+            )
+        )
+
+        simular_envio_correo(
+            db,
+            destinatario=(
+                est.correo
+                if est
+                else "?"
+            ),
+            asunto="SESAES ? Cancelaci?n de cita",
+            cuerpo=(
+                f"Tu cita del {cita.fecha} a las "
+                f"{cita.hora} fue cancelada."
+            ),
+            tipo="cancelacion",
+            referencia_id=cita.id,
+        )
+
     if prof.usuario_id:
-        usuario = db.query(Usuario).filter(Usuario.id == prof.usuario_id).first()
-        if usuario: usuario.activo = False
+        usuario = (
+            db.query(Usuario)
+            .filter(
+                Usuario.id == prof.usuario_id
+            )
+            .first()
+        )
+
+        if usuario:
+            usuario.activo = False
+
     nombre_prof = prof.nombre
+
     db.delete(prof)
-    registrar_evento_auditoria(db, current_user, "Eliminó profesional",
-                                entidad="profesional", entidad_id=prof_id,
-                                detalle=f"{nombre_prof} — {len(citas)} citas canceladas")
+
+    registrar_evento_auditoria(
+        db,
+        current_user,
+        "Elimin? profesional",
+        entidad="profesional",
+        entidad_id=prof_id,
+        detalle=(
+            f"{nombre_prof} ? "
+            f"{len(citas)} citas canceladas"
+        ),
+    )
+
     db.commit()
-    return {"message": "Profesional eliminado correctamente"}
+
+    return {
+        "message": "Profesional eliminado correctamente"
+    }
 
 
 @router.patch("/profesionales/{prof_id}/estado")
