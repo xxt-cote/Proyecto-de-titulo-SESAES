@@ -148,8 +148,7 @@ fixture.detectChanges();
         accion: 'ACTUALIZAR',
         detalle: 'Cambio de configuración',
         entidad: 'configuracion',
-        entidad_id: 1,
-        seleccionada: false
+        entidad_id: 1
       }
     ]);
 
@@ -169,21 +168,58 @@ fixture.detectChanges();
     expect(pdfSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('debe emitir selección total y eliminación de auditoría seleccionada', () => {
-    const seleccionarSpy = vi.spyOn(
-      component.toggleSeleccionarTodaAuditoria,
-      'emit'
-    );
-    const eliminarSpy = vi.spyOn(
-      component.eliminarAuditoriaSeleccionada,
-      'emit'
-    );
+  // ── SA-5: auditoría append-only — regresión de UI destructiva ──────
+  it('no debe existir botón "Eliminar seleccionados" en auditoría', () => {
+    fixture.componentRef.setInput('configTabActiva', 'seguridad');
+    fixture.componentRef.setInput('auditoria', [
+      {
+        fecha: '2026-08-31T10:00:00',
+        accion: 'ACTUALIZAR',
+        detalle: 'Cambio de configuración',
+        entidad: 'configuracion',
+        entidad_id: 1
+      }
+    ]);
+    fixture.componentRef.setInput('puedeVerAuditoria', true);
+    fixture.detectChanges();
 
-    component.toggleSeleccionarTodaAuditoria.emit();
-    component.eliminarAuditoriaSeleccionada.emit();
+    expect(fixture.nativeElement.textContent).not.toContain(
+      'Eliminar seleccionados'
+    );
+    expect(
+      fixture.nativeElement.querySelector('.btn-eliminar-todo-auditoria')
+    ).toBeNull();
+  });
 
-    expect(seleccionarSpy).toHaveBeenCalledTimes(1);
-    expect(eliminarSpy).toHaveBeenCalledTimes(1);
+  it('no debe existir ningún checkbox de selección en la tabla de auditoría', () => {
+    fixture.componentRef.setInput('configTabActiva', 'seguridad');
+    fixture.componentRef.setInput('auditoria', [
+      {
+        fecha: '2026-08-31T10:00:00',
+        accion: 'ACTUALIZAR',
+        detalle: 'Cambio de configuración',
+        entidad: 'configuracion',
+        entidad_id: 1
+      }
+    ]);
+    fixture.componentRef.setInput('puedeVerAuditoria', true);
+    fixture.detectChanges();
+
+    const tabla = fixture.nativeElement.querySelector('.admin-tabla');
+    expect(tabla).not.toBeNull();
+    expect(tabla.querySelectorAll('input[type="checkbox"]').length).toBe(0);
+
+    const filasEncabezado = tabla.querySelectorAll('thead th');
+    expect(filasEncabezado.length).toBe(4);
+  });
+
+  it('no debe exponer inputs/outputs de selección o borrado de auditoría', () => {
+    expect((component as any).hayAuditoriaSeleccionada).toBeUndefined();
+    expect((component as any).auditoriaSeleccionada).toBeUndefined();
+    expect((component as any).todaAuditoriaSeleccionada).toBeUndefined();
+    expect((component as any).puedeGestionarAuditoria).toBeUndefined();
+    expect((component as any).eliminarAuditoriaSeleccionada).toBeUndefined();
+    expect((component as any).toggleSeleccionarTodaAuditoria).toBeUndefined();
   });
 
   it('debe mantener los filtros de auditoría enlazables con el shell', () => {

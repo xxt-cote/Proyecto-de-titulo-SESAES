@@ -1,7 +1,7 @@
 """
 SESAES — RBAC: catálogo de permisos y resolución (Fase 3.1)
 
-Catálogo de 18 permisos agrupados por dominio real del sistema
+Catálogo de 17 permisos agrupados por dominio real del sistema
 (administración, clínico/profesional, estudiante/autoservicio), y la
 tabla ROLE_DEFAULT_PERMISSIONS que define, para cada Role, el conjunto
 de permisos que tiene por defecto.
@@ -43,7 +43,7 @@ from app.rbac.roles import Role, normalizar_rol
 
 
 class Permission(str, enum.Enum):
-    """Catálogo de permisos de SESAES (18 permisos)."""
+    """Catálogo de permisos de SESAES (17 permisos)."""
 
     # ── Administración ──────────────────────────────────────────
     USUARIOS_GESTIONAR = "usuarios.gestionar"
@@ -53,7 +53,6 @@ class Permission(str, enum.Enum):
     REPORTES_VER = "reportes.ver"
     REPORTES_CGR_EXPORTAR = "reportes.cgr.exportar"
     AUDITORIA_VER = "auditoria.ver"
-    AUDITORIA_GESTIONAR = "auditoria.gestionar"
     ROLES_GESTIONAR = "roles.gestionar"
 
     # ── Clínico / Profesional ───────────────────────────────────
@@ -86,8 +85,11 @@ ROLE_DEFAULT_PERMISSIONS: Dict[Role, FrozenSet[Permission]] = {
             Permission.REPORTES_VER,
             Permission.REPORTES_CGR_EXPORTAR,
             Permission.AUDITORIA_VER,
-            Permission.AUDITORIA_GESTIONAR,
             Permission.ROLES_GESTIONAR,
+            # SA-5: AUDITORIA_GESTIONAR fue retirado del catálogo. La
+            # auditoría es append-only a nivel de aplicación — no existe
+            # ningún permiso de "gestión"/borrado de auditoría, ni para
+            # SUPERADMIN. Ver política SA-5.
             # Deliberadamente SIN permisos clínicos (ficha.*, atenciones.*):
             # ver principio de mínimo privilegio en el docstring del módulo.
         }

@@ -64,8 +64,8 @@ class RoleDefaultPermissionsTests(unittest.TestCase):
     def test_los_cuatro_roles_estan_definidos(self):
         self.assertEqual(set(ROLE_DEFAULT_PERMISSIONS.keys()), set(Role))
 
-    def test_catalogo_tiene_18_permisos(self):
-        self.assertEqual(len(list(Permission)), 18)
+    def test_catalogo_tiene_17_permisos(self):
+        self.assertEqual(len(list(Permission)), 17)
 
     def test_ningun_rol_tiene_permisos_duplicados_ni_desconocidos(self):
         for permisos in ROLE_DEFAULT_PERMISSIONS.values():

@@ -142,9 +142,6 @@
                 <button class="btn-filtrar" (click)="cargarAuditoria.emit()">Filtrar</button>
                 <button class="btn-exportar-excel" (click)="exportarAuditoriaExcel.emit()">↓ Excel</button>
                 <button class="btn-exportar-pdf" (click)="exportarAuditoriaPdf.emit()">↓ PDF</button>
-                <button class="btn-eliminar-todo-auditoria" *ngIf="puedeGestionarAuditoria && hayAuditoriaSeleccionada" (click)="eliminarAuditoriaSeleccionada.emit()">
-                  🗑️ Eliminar seleccionados ({{ auditoriaSeleccionada.length }})
-                </button>
               </div>
             </div>
             <p class="card-desc">Quién realizó cada acción, qué hizo, cuándo y sobre qué registro. Exportable.</p>
@@ -152,22 +149,18 @@
             <table class="admin-tabla" *ngIf="!cargandoAuditoria">
               <thead>
                 <tr>
-                  <th class="th-checkbox">
-                    <input type="checkbox" *ngIf="puedeGestionarAuditoria && auditoria.length > 0" [checked]="todaAuditoriaSeleccionada" (change)="toggleSeleccionarTodaAuditoria.emit()" />
-                  </th>
                   <th>FECHA / HORA</th><th>ACCIÓN</th><th>DETALLE</th><th>ENTIDAD</th>
                 </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let a of auditoria" [class.fila-seleccionada]="a.seleccionada">
-                  <td class="td-checkbox"><input *ngIf="puedeGestionarAuditoria" type="checkbox" [(ngModel)]="a.seleccionada" /></td>
+                <tr *ngFor="let a of auditoria">
                   <td>{{ a.fecha | date:'dd/MM/yyyy HH:mm' }}</td>
                   <td>{{ a.accion }}</td>
                   <td>{{ a.detalle }}</td>
                   <td>{{ a.entidad }}{{ a.entidad_id ? ' #' + a.entidad_id : '' }}</td>
                 </tr>
                 <tr *ngIf="auditoria.length === 0">
-                  <td colspan="5" class="tabla-vacia">Sin registros de actividad</td>
+                  <td colspan="4" class="tabla-vacia">Sin registros de actividad</td>
                 </tr>
               </tbody>
             </table>

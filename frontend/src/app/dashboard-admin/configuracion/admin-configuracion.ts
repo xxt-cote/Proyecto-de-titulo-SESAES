@@ -45,16 +45,12 @@ export class AdminConfiguracionComponent {
   @Output() auditFiltroHastaChange = new EventEmitter<string>();
 
   @Input() cargandoAuditoria = false;
-  @Input() hayAuditoriaSeleccionada = false;
-  @Input() auditoriaSeleccionada: any[] = [];
-  @Input() todaAuditoriaSeleccionada = false;
 
   @Input() puedeConfigGeneral = false;
   @Input() puedeConfigCitas = false;
   @Input() puedeConfigHorarios = false;
   @Input() puedeConfigUsuarios = false;
   @Input() puedeVerAuditoria = false;
-  @Input() puedeGestionarAuditoria = false;
 
   @Output() habilitarEdicionCentro = new EventEmitter<void>();
   @Output() cancelarEdicionCentro = new EventEmitter<void>();
@@ -69,8 +65,6 @@ export class AdminConfiguracionComponent {
   @Output() cargarAuditoria = new EventEmitter<void>();
   @Output() exportarAuditoriaExcel = new EventEmitter<void>();
   @Output() exportarAuditoriaPdf = new EventEmitter<void>();
-  @Output() eliminarAuditoriaSeleccionada = new EventEmitter<void>();
-  @Output() toggleSeleccionarTodaAuditoria = new EventEmitter<void>();
 
   cambiarTab(tab: ConfigTab): void {
     this.configTabActiva = tab;

@@ -162,10 +162,6 @@ toggleSidebarMovil(): void {
     return this.hasPermission('auditoria.ver');
   }
 
-  get puedeGestionarAuditoria(): boolean {
-    return this.hasPermission('auditoria.gestionar');
-  }
-
   puedeAccederSeccion(seccion: string): boolean {
     switch (seccion) {
       case 'inicio':
@@ -1756,7 +1752,7 @@ toggleSidebarMovil(): void {
     if (this.auditFiltroHasta) url += `fecha_fin=${this.auditFiltroHasta}&`;
     this.http.get<any[]>(url).subscribe({
       next: (data) => {
-        this.auditoria = (data ?? []).map(a => ({ ...a, seleccionada: false }));
+        this.auditoria = data ?? [];
         this.cargandoAuditoria = false;
         this.cdr.detectChanges();
       },
@@ -1764,47 +1760,11 @@ toggleSidebarMovil(): void {
     });
   }
 
-  eliminarAuditoria(id: number): void {
-    if (!this.hasPermission('auditoria.gestionar')) return;
-
-    this.http.delete(`${API}/admin/auditoria/${id}`).subscribe({
-      next: () => {
-        this.auditoria = this.auditoria.filter(a => a.id !== id);
-        this.cdr.detectChanges();
-      },
-      error: () => { this.mensajeError = 'No se pudo eliminar el registro.'; setTimeout(() => this.mensajeError = '', 3000); }
-    });
-  }
-
-  get auditoriaSeleccionada(): any[] { return this.auditoria.filter(a => a.seleccionada); }
-  get hayAuditoriaSeleccionada(): boolean { return this.auditoriaSeleccionada.length > 0; }
-  get todaAuditoriaSeleccionada(): boolean {
-    return this.auditoria.length > 0 && this.auditoria.every(a => a.seleccionada);
-  }
-
-  toggleSeleccionarTodaAuditoria(): void {
-    if (!this.hasPermission('auditoria.gestionar')) return;
-
-    const nuevoValor = !this.todaAuditoriaSeleccionada;
-    this.auditoria.forEach(a => a.seleccionada = nuevoValor);
-  }
-
-  eliminarAuditoriaSeleccionada(): void {
-    if (!this.hasPermission('auditoria.gestionar')) return;
-
-    const seleccionadas = this.auditoriaSeleccionada;
-    if (!seleccionadas.length) return;
-    if (!confirm(`¿Eliminar ${seleccionadas.length} registro(s) de auditoría seleccionados? Esta acción no se puede deshacer.`)) return;
-    seleccionadas.forEach(a => {
-      this.http.delete(`${API}/admin/auditoria/${a.id}`).subscribe({
-        next: () => {
-          this.auditoria = this.auditoria.filter(x => x.id !== a.id);
-          this.cdr.detectChanges();
-        },
-        error: () => { this.mensajeError = 'No se pudo eliminar uno de los registros.'; setTimeout(() => this.mensajeError = '', 3000); }
-      });
-    });
-  }
+  // SA-5: la auditoría es append-only. Se retiraron eliminarAuditoria(),
+  // auditoriaSeleccionada, hayAuditoriaSeleccionada,
+  // todaAuditoriaSeleccionada, toggleSeleccionarTodaAuditoria() y
+  // eliminarAuditoriaSeleccionada() — ya no existe ningún borrado ni
+  // selección de registros de auditoría en el dashboard.
 
   exportarAuditoriaExcel(): void {
     if (!this.hasPermission('auditoria.ver')) return;

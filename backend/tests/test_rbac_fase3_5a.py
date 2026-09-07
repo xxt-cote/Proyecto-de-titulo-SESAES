@@ -42,8 +42,6 @@ ENDPOINTS = [
     ("GET", "/admin/exportar/cgr", Permission.REPORTES_CGR_EXPORTAR),
     ("GET", "/admin/exportar/alumnos", Permission.REPORTES_CGR_EXPORTAR),
     ("GET", "/admin/auditoria", Permission.AUDITORIA_VER),
-    ("DELETE", "/admin/auditoria/{auditoria_id}", Permission.AUDITORIA_GESTIONAR),
-    ("DELETE", "/admin/auditoria", Permission.AUDITORIA_GESTIONAR),
     ("GET", "/admin/configuracion", Permission.CONFIGURACION_GESTIONAR),
     ("PATCH", "/admin/configuracion", Permission.CONFIGURACION_GESTIONAR),
 ]
@@ -94,13 +92,53 @@ def test_todas_las_rutas_admin_productivas_tienen_permiso_explicito():
         assert len(_captured_permissions(_route(method, path))) == 1
 
 
-def test_auditoria_gestionar_es_superadmin_y_no_admin():
-    assert has_permission("superadmin", Permission.AUDITORIA_GESTIONAR)
-    assert not has_permission("admin", Permission.AUDITORIA_GESTIONAR)
+# ══════════════════════════════════════════════════════════════════
+# SA-5 — auditoría append-only
+# ══════════════════════════════════════════════════════════════════
+# La auditoría de SESAES es append-only a nivel de aplicación: no debe
+# existir ningún endpoint DELETE/PATCH/PUT sobre /admin/auditoria, y el
+# permiso AUDITORIA_GESTIONAR ya no existe en el catálogo (ni siquiera
+# para SUPERADMIN).
+
+def _rutas_por_path(path: str) -> set[str]:
+    """Métodos HTTP realmente registrados para un path dado del router admin."""
+    metodos: set[str] = set()
+    for route in admin.router.routes:
+        if isinstance(route, APIRoute) and route.path == path:
+            metodos |= route.methods
+    return metodos
 
 
-def test_ver_auditoria_no_implica_gestionarla():
-    assert Permission.AUDITORIA_VER != Permission.AUDITORIA_GESTIONAR
+def test_no_existe_delete_auditoria_individual():
+    with pytest.raises(AssertionError):
+        _route("DELETE", "/admin/auditoria/{auditoria_id}")
+
+
+def test_no_existe_delete_auditoria_masivo():
+    metodos = _rutas_por_path("/admin/auditoria")
+    assert "DELETE" not in metodos
+
+
+def test_no_existe_patch_ni_put_auditoria():
+    for path in ("/admin/auditoria", "/admin/auditoria/{auditoria_id}"):
+        metodos = _rutas_por_path(path)
+        assert "PATCH" not in metodos
+        assert "PUT" not in metodos
+
+
+def test_get_auditoria_sigue_existiendo_y_exige_auditoria_ver():
+    route = _route("GET", "/admin/auditoria")
+    assert _captured_permissions(route) == [Permission.AUDITORIA_VER]
+
+
+def test_auditoria_gestionar_ya_no_existe_en_el_catalogo():
+    assert not hasattr(Permission, "AUDITORIA_GESTIONAR")
+    assert "auditoria.gestionar" not in {p.value for p in Permission}
+
+
+def test_superadmin_conserva_auditoria_ver_y_admin_sigue_sin_ella():
+    assert has_permission("superadmin", Permission.AUDITORIA_VER)
+    assert not has_permission("admin", Permission.AUDITORIA_VER)
 
 
 def test_historial_admin_no_expone_campos_clinicos():

@@ -832,20 +832,10 @@ def get_auditoria(fecha_inicio: str = None, fecha_fin: str = None, db: Session =
     ]
 
 
-@router.delete("/auditoria/{auditoria_id}")
-def eliminar_auditoria(auditoria_id: int, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.AUDITORIA_GESTIONAR))):
-    registro = db.query(Auditoria).filter(Auditoria.id == auditoria_id).first()
-    if registro:
-        db.delete(registro)
-        db.commit()
-    return {"message": "Registro eliminado"}
-
-
-@router.delete("/auditoria")
-def eliminar_toda_auditoria(db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.AUDITORIA_GESTIONAR))):
-    db.query(Auditoria).delete()
-    db.commit()
-    return {"message": "Toda la auditoría eliminada"}
+# SA-5: la auditoría es append-only a nivel de aplicación. No existen
+# endpoints DELETE/PATCH/PUT para /admin/auditoria. Una eventual retención
+# institucional futura deberá resolverse como proceso administrativo
+# separado, fuera de esta API.
 
 
 # ══════════════════════════════════════

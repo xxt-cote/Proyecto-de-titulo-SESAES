@@ -72,7 +72,6 @@ describe('Fase 3.5B — integración frontend RBAC', () => {
       'reportes.ver',
       'reportes.cgr.exportar',
       'auditoria.ver',
-      'auditoria.gestionar',
       'roles.gestionar'
     ]);
 
@@ -80,7 +79,6 @@ describe('Fase 3.5B — integración frontend RBAC', () => {
     expect(component.puedeConfigCitas).toBe(true);
     expect(component.puedeExportarCgr).toBe(true);
     expect(component.puedeVerAuditoria).toBe(true);
-    expect(component.puedeGestionarAuditoria).toBe(true);
   });
 
   it('no consulta auditoría si falta auditoria.ver', () => {
@@ -117,7 +115,6 @@ describe('Fase 3.5B — integración frontend RBAC', () => {
     const reportes = new AdminReportesComponent();
 
     expect(config.puedeVerAuditoria).toBe(false);
-    expect(config.puedeGestionarAuditoria).toBe(false);
     expect(historial.puedeExportarCgr).toBe(false);
     expect(reportes.puedeExportarCgr).toBe(false);
   });

@@ -13,9 +13,11 @@ app.rbac.permissions.
 El test 14 comprueba que SUPERADMIN no obtiene permisos clínicos por
 jerarquía y conserva únicamente sus permisos administrativos explícitos.
 
-El test 15 comprueba que ADMIN no posee AUDITORIA_VER ni
-AUDITORIA_GESTIONAR, que son los permisos exigidos por los endpoints
-de consulta y gestión de auditoría.
+El test 15 comprueba que ADMIN no posee AUDITORIA_VER, el permiso
+exigido por el único endpoint de auditoría que existe (GET). Desde
+SA-5 la auditoría es append-only a nivel de aplicación: no existen
+endpoints DELETE/PATCH/PUT de auditoría ni el permiso
+AUDITORIA_GESTIONAR (retirado del catálogo).
 """
 
 import pytest
@@ -189,7 +191,7 @@ def test_superadmin_no_gana_acceso_clinico():
 
 # ─── 15. ADMIN no posee permisos de auditoría ──────────────────────
 
-def test_admin_sin_permiso_auditoria_no_accede_a_get_ni_delete():
+def test_admin_sin_permiso_auditoria_no_accede_a_get():
     from app.rbac.permissions import has_permission, Permission
 
     admin = {"id": 99, "rol": "admin"}
@@ -197,8 +199,11 @@ def test_admin_sin_permiso_auditoria_no_accede_a_get_ni_delete():
     # GET /admin/auditoria exige AUDITORIA_VER.
     assert has_permission(admin, Permission.AUDITORIA_VER) is False
 
-    # Los DELETE de auditoría exigen AUDITORIA_GESTIONAR.
-    assert has_permission(admin, Permission.AUDITORIA_GESTIONAR) is False
+    # SA-5: ya no existe AUDITORIA_GESTIONAR ni ningún endpoint DELETE
+    # de auditoría — la auditoría es append-only. Ver
+    # test_rbac_fase3_5a.py para las pruebas de regresión
+    # específicas de esa política.
+    assert not hasattr(Permission, "AUDITORIA_GESTIONAR")
 
 # ─── 16. patrón rollback → evento error → commit ───────────────────
 
