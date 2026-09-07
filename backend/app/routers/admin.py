@@ -979,37 +979,164 @@ def eliminar_dia_cerrado(dia_id: int, db: Session = Depends(get_db), current_use
 
 @router.get("/historial")
 def get_historial_admin(
-    estudiante: str = None, fecha_inicio: str = None, fecha_fin: str = None,
-    especialidad: str = None, estado: str = None, profesional_id: int = None,
-    carrera: str = None, db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission(Permission.REPORTES_VER))
+    estudiante: str = None,
+    fecha_inicio: str = None,
+    fecha_fin: str = None,
+    especialidad: str = None,
+    estado: str = None,
+    profesional_id: int = None,
+    carrera: str = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(
+        require_effective_permission(Permission.REPORTES_VER)
+    ),
 ):
-    query = db.query(Cita)\
-        .join(Profesional, Cita.profesional_id == Profesional.id)\
-        .join(Usuario, Cita.estudiante_id == Usuario.id)
+    alcance = obtener_alcance_administrativo_efectivo(
+        db,
+        current_user,
+    )
+
+    if alcance is None:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes acceso al alcance solicitado.",
+        )
+
+    ids_profesionales = None
+
+    if not alcance.institucional:
+        ids_profesionales = _ids_profesionales_en_alcance(
+            db,
+            alcance,
+        )
+
+        if not ids_profesionales:
+            return []
+
+    query = (
+        db.query(Cita)
+        .join(
+            Profesional,
+            Cita.profesional_id == Profesional.id,
+        )
+        .join(
+            Usuario,
+            Cita.estudiante_id == Usuario.id,
+        )
+    )
+
+    # El alcance se aplica antes de cualquier filtro solicitado.
+    # Los filtros del request solo pueden reducir este conjunto.
+    if ids_profesionales is not None:
+        query = query.filter(
+            Cita.profesional_id.in_(
+                ids_profesionales
+            )
+        )
+
     if estudiante:
         q = f"%{estudiante}%"
-        query = query.filter((Usuario.nombre.ilike(q)) | (Usuario.rut.ilike(q)))
-    if fecha_inicio:   query = query.filter(Cita.fecha >= fecha_inicio)
-    if fecha_fin:      query = query.filter(Cita.fecha <= fecha_fin)
-    if especialidad:   query = query.filter(Profesional.especialidad == especialidad)
-    if estado:         query = query.filter(Cita.estado == estado)
-    if profesional_id: query = query.filter(Cita.profesional_id == profesional_id)
-    if carrera:        query = query.filter(Usuario.carrera.ilike(f"%{carrera}%"))
-    citas = query.order_by(Cita.fecha.desc()).all()
+        query = query.filter(
+            (Usuario.nombre.ilike(q))
+            | (Usuario.rut.ilike(q))
+        )
+
+    if fecha_inicio:
+        query = query.filter(
+            Cita.fecha >= fecha_inicio
+        )
+
+    if fecha_fin:
+        query = query.filter(
+            Cita.fecha <= fecha_fin
+        )
+
+    if especialidad:
+        query = query.filter(
+            Profesional.especialidad == especialidad
+        )
+
+    if estado:
+        query = query.filter(
+            Cita.estado == estado
+        )
+
+    if profesional_id:
+        query = query.filter(
+            Cita.profesional_id == profesional_id
+        )
+
+    if carrera:
+        query = query.filter(
+            Usuario.carrera.ilike(
+                f"%{carrera}%"
+            )
+        )
+
+    citas = (
+        query
+        .order_by(Cita.fecha.desc())
+        .all()
+    )
+
     result = []
+
     for c in citas:
-        prof = db.query(Profesional).filter(Profesional.id == c.profesional_id).first()
-        est  = db.query(Usuario).filter(Usuario.id == c.estudiante_id).first()
+        prof = (
+            db.query(Profesional)
+            .filter(
+                Profesional.id == c.profesional_id
+            )
+            .first()
+        )
+
+        est = (
+            db.query(Usuario)
+            .filter(
+                Usuario.id == c.estudiante_id
+            )
+            .first()
+        )
+
         result.append({
-            "id": c.id, "estudiante": est.nombre if est else "—",
-            "rut": est.rut if est else "—", "carrera": est.carrera if est else "—",
-            "especialidad": prof.especialidad if prof else "—",
-            "profesional": prof.nombre if prof else "—",
-            "iniciales": prof.iniciales if prof else "??",
-            "fecha": c.fecha, "hora": c.hora, "estado": c.estado,
-            "urgente": c.urgente or False, "tiene_pdf": c.estado == "completada"
+            "id": c.id,
+            "estudiante": (
+                est.nombre
+                if est
+                else "?"
+            ),
+            "rut": (
+                est.rut
+                if est
+                else "?"
+            ),
+            "carrera": (
+                est.carrera
+                if est
+                else "?"
+            ),
+            "especialidad": (
+                prof.especialidad
+                if prof
+                else "?"
+            ),
+            "profesional": (
+                prof.nombre
+                if prof
+                else "?"
+            ),
+            "iniciales": (
+                prof.iniciales
+                if prof
+                else "??"
+            ),
+            "fecha": c.fecha,
+            "hora": c.hora,
+            "estado": c.estado,
+            "urgente": c.urgente or False,
+            "tiene_pdf": c.estado == "completada",
         })
+
     return result
 
 
