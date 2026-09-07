@@ -414,12 +414,42 @@ def get_grafico_especialidad(
     mes: int = None, anio: int = None,
     profesional_id: int = None, especialidad: str = None, carrera: str = None,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission(Permission.REPORTES_VER))
+    current_user: dict = Depends(require_effective_permission(Permission.REPORTES_VER))
 ):
-    query = db.query(Profesional.especialidad, func.count(Cita.id))\
+    alcance = obtener_alcance_administrativo_efectivo(
+        db,
+        current_user,
+    )
+
+    if alcance is None:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes acceso al alcance solicitado.",
+        )
+
+    ids_profesionales = None
+
+    if not alcance.institucional:
+        ids_profesionales = _ids_profesionales_en_alcance(
+            db,
+            alcance,
+        )
+
+        if not ids_profesionales:
+            return []
+
+    query = db.query(
+        Profesional.especialidad,
+        func.count(Cita.id),
+    )\
         .join(Cita, Cita.profesional_id == Profesional.id)\
         .join(Usuario, Cita.estudiante_id == Usuario.id)\
-        .filter(Cita.estado.in_(["pendiente","completada"]))
+        .filter(Cita.estado.in_(["pendiente", "completada"]))
+
+    if ids_profesionales is not None:
+        query = query.filter(
+            Cita.profesional_id.in_(ids_profesionales)
+        )
     if mes and anio:
         query = query.filter(Cita.fecha.like(f"{anio}-{str(mes).zfill(2)}%"))
     elif anio:
