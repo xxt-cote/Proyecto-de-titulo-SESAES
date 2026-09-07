@@ -2,6 +2,7 @@ import os
 
 from app.database import Base, engine, SessionLocal
 from app.models.usuario import Usuario
+from app.models.acceso_administrativo import AccesoAdministrativo, AccesoAdminEspecialidad
 from app.models.profesional import Profesional
 from app.models.horario import HorarioDisponible
 from app.models.cita import Cita
