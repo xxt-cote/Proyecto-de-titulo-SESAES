@@ -89,9 +89,29 @@ def get_estadisticas(db: Session = Depends(get_db), current_user: dict = Depends
 # ══════════════════════════════════════
 
 @router.get("/resumen-dia")
-def get_resumen_dia(db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.AGENDA_GESTIONAR))):
+def get_resumen_dia(db: Session = Depends(get_db), current_user: dict = Depends(require_effective_permission(Permission.AGENDA_VER))):
     hoy = date.today().isoformat()
-    profs = db.query(Profesional).all()
+
+    alcance = obtener_alcance_administrativo_efectivo(
+        db,
+        current_user,
+    )
+
+    if alcance is None:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes acceso al alcance solicitado.",
+        )
+
+    profs = [
+        p
+        for p in db.query(Profesional).all()
+        if especialidad_permitida_por_alcance(
+            alcance,
+            p.especialidad,
+        )
+    ]
+
     result = []
     for p in profs:
         citas_hoy = db.query(Cita).filter(

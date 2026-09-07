@@ -182,7 +182,10 @@ def test_resumen_dia_incluye_tratamiento_y_color(db_session):
         db_session, FAKE_ADMIN
     )
 
-    resumen = get_resumen_dia(db_session, FAKE_ADMIN)
+    resumen = get_resumen_dia(
+        db_session,
+        {"id": -1, "rol": "superadmin"},
+    )
 
     por_nombre = {r["nombre"]: r for r in resumen}
     assert por_nombre["Eduardo Carvajal"]["tratamiento"] == "Dr."
