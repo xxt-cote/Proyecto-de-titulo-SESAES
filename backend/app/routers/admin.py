@@ -1221,42 +1221,134 @@ def cancelar_cita_admin(
 
 
 @router.patch("/citas/{cita_id}/prioridad")
-def cambiar_prioridad_cita(cita_id: int, body: dict, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.AGENDA_GESTIONAR))):
+def cambiar_prioridad_cita(
+    cita_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(
+        require_effective_permission(Permission.AGENDA_GESTIONAR)
+    ),
+):
     """
-    A diferencia de POST /citas/urgente (que crea una cita NUEVA ya marcada
-    urgente), este endpoint toma una cita EXISTENTE — pendiente o confirmada —
-    y le cambia la prioridad. Solo el administrador puede hacerlo; el
-    estudiante no puede autoasignarse prioridad urgente.
-    body: {"urgente": true} o {"urgente": false}
+    Cambia la prioridad administrativa de una cita existente.
+
+    La acci?n solo puede aplicarse a citas cuyo profesional se
+    encuentre dentro del alcance administrativo efectivo.
     """
-    cita = db.query(Cita).filter(Cita.id == cita_id).first()
-    if not cita:
-        raise HTTPException(status_code=404, detail="Cita no encontrada")
-    if cita.estado in ("cancelada", "completada"):
+    alcance = obtener_alcance_administrativo_efectivo(
+        db,
+        current_user,
+    )
+
+    if alcance is None:
         raise HTTPException(
-            status_code=400,
-            detail="No se puede cambiar la prioridad de una cita cancelada o ya completada."
+            status_code=403,
+            detail="No tienes acceso al alcance solicitado.",
         )
 
-    nuevo_valor = bool(body.get("urgente", False))
+    cita = (
+        db.query(Cita)
+        .filter(
+            Cita.id == cita_id
+        )
+        .first()
+    )
+
+    if not cita:
+        raise HTTPException(
+            status_code=404,
+            detail="Cita no encontrada",
+        )
+
+    prof = (
+        db.query(Profesional)
+        .filter(
+            Profesional.id == cita.profesional_id
+        )
+        .first()
+    )
+
+    if (
+        not prof
+        or not especialidad_permitida_por_alcance(
+            alcance,
+            prof.especialidad,
+        )
+    ):
+        # No revelar la existencia ni el estado de una cita
+        # perteneciente a otra especialidad.
+        raise HTTPException(
+            status_code=404,
+            detail="Cita no encontrada",
+        )
+
+    if cita.estado in (
+        "cancelada",
+        "completada",
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "No se puede cambiar la prioridad de una cita "
+                "cancelada o ya completada."
+            ),
+        )
+
+    nuevo_valor = bool(
+        body.get(
+            "urgente",
+            False,
+        )
+    )
+
     cita.urgente = nuevo_valor
 
-    est  = db.query(Usuario).filter(Usuario.id == cita.estudiante_id).first()
-    prof = db.query(Profesional).filter(Profesional.id == cita.profesional_id).first()
+    est = (
+        db.query(Usuario)
+        .filter(
+            Usuario.id == cita.estudiante_id
+        )
+        .first()
+    )
 
     if nuevo_valor:
-        db.add(Notificacion(usuario_id=cita.estudiante_id,
-            mensaje=f"Tu cita del {cita.fecha} a las {cita.hora} fue marcada como urgente por administración.",
-            tipo="urgente"))
+        db.add(
+            Notificacion(
+                usuario_id=cita.estudiante_id,
+                mensaje=(
+                    f"Tu cita del {cita.fecha} a las "
+                    f"{cita.hora} fue marcada como urgente "
+                    "por administraci?n."
+                ),
+                tipo="urgente",
+            )
+        )
 
     registrar_evento_auditoria(
-        db, current_user,
-        "Marcó cita como urgente" if nuevo_valor else "Quitó prioridad urgente a cita",
-        entidad="cita", entidad_id=cita_id,
-        detalle=f"Estudiante: {est.nombre if est else '—'} — {prof.nombre if prof else '—'} — {cita.fecha} {cita.hora}",
+        db,
+        current_user,
+        (
+            "Marc? cita como urgente"
+            if nuevo_valor
+            else "Quit? prioridad urgente a cita"
+        ),
+        entidad="cita",
+        entidad_id=cita_id,
+        detalle=(
+            f"Estudiante: "
+            f"{est.nombre if est else '?'} ? "
+            f"{prof.nombre} ? "
+            f"{cita.fecha} {cita.hora}"
+        ),
     )
+
     db.commit()
-    return {"id": cita.id, "urgente": cita.urgente, "estado": cita.estado}
+
+    return {
+        "id": cita.id,
+        "urgente": cita.urgente,
+        "estado": cita.estado,
+    }
 
 
 # ══════════════════════════════════════
