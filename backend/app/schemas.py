@@ -234,6 +234,32 @@ class UsuarioMeOut(BaseModel):
         from_attributes = True
 
 
+class AlcanceAdministrativoEfectivoOut(BaseModel):
+    tipo: Literal["institucional", "especialidades"]
+    especialidades: list[str]
+
+
+class AccesoAdministrativoEfectivoOut(BaseModel):
+    """
+    Contexto administrativo efectivo de la sesi?n actual.
+
+    Es informaci?n para UX; el backend sigue validando cada endpoint
+    independientemente.
+    """
+
+    rol: Literal["admin", "superadmin"]
+    perfil: Optional[
+        Literal[
+            "administrador_general",
+            "administrador_especialidad",
+            "secretaria_general",
+            "secretaria_especialidad",
+        ]
+    ] = None
+    permisos: list[str]
+    alcance: AlcanceAdministrativoEfectivoOut
+
+
 class UsuarioMeUpdate(BaseModel):
     """
     Actualización de Mi Perfil (SA-1.2). Únicos campos editables por el

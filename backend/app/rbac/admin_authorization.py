@@ -35,13 +35,14 @@ from app.models.acceso_administrativo import (
 )
 from app.models.usuario import Usuario
 from app.rbac.admin_access import (
+    EspecialidadAlcance,
     PerfilAccesoAdmin,
     TipoAlcanceAdmin,
     normalizar_especialidad,
     permisos_permitidos_para_perfil,
     validar_configuracion_acceso_admin,
 )
-from app.rbac.permissions import Permission, has_permission
+from app.rbac.permissions import Permission, ROLE_DEFAULT_PERMISSIONS, has_permission
 from app.rbac.roles import Role, normalizar_rol
 
 
@@ -51,6 +52,26 @@ class ContextoAutorizacionAdmin:
     perfil: PerfilAccesoAdmin
     tipo_alcance: TipoAlcanceAdmin
     especialidades_normalizadas: frozenset[str]
+    # Conserva las mismas especialidades visibles que YA fueron
+    # normalizadas y validadas por validar_configuracion_acceso_admin().
+    # El endpoint SA-10 nunca reconstruye nombres desde claves guardadas.
+    especialidades: tuple[EspecialidadAlcance, ...] = ()
+
+
+@dataclass(frozen=True)
+class AccesoAdministrativoEfectivo:
+    """
+    Snapshot efectivo para presentar la autorización administrativa
+    actual al propio ADMIN/SUPERADMIN.
+
+    No concede permisos: resume reglas ya resueltas server-side.
+    """
+
+    rol: Role
+    perfil: PerfilAccesoAdmin | None
+    tipo_alcance: TipoAlcanceAdmin
+    especialidades: tuple[EspecialidadAlcance, ...]
+    permisos: frozenset[Permission]
 
 
 def _normalizar_permiso(
@@ -139,6 +160,7 @@ def _cargar_contexto_admin_desde_usuario(
             especialidad.normalizada
             for especialidad in especialidades
         ),
+        especialidades=especialidades,
     )
 
 
@@ -186,6 +208,48 @@ def _tiene_permiso_admin_con_contexto(
     )
 
     return registro is not None
+
+
+def _permisos_admin_efectivos_con_contexto(
+    db: Session,
+    contexto: ContextoAutorizacionAdmin,
+) -> frozenset[Permission]:
+    """
+    Lista todos los permisos ADMIN realmente efectivos del contexto.
+
+    Replica exactamente la semántica de
+    _tiene_permiso_admin_con_contexto:
+    - debe existir persistido;
+    - debe pertenecer al techo del perfil;
+    - valores desconocidos/inconsistentes fallan cerrado.
+    """
+    permitidos = permisos_permitidos_para_perfil(
+        contexto.perfil
+    )
+
+    filas = (
+        db.query(AccesoAdminPermiso)
+        .filter(
+            AccesoAdminPermiso.acceso_admin_id
+            == contexto.acceso_id
+        )
+        .all()
+    )
+
+    resultado: set[Permission] = set()
+
+    for fila in filas:
+        permiso = _normalizar_permiso(
+            fila.permiso
+        )
+
+        if (
+            permiso is not None
+            and permiso in permitidos
+        ):
+            resultado.add(permiso)
+
+    return frozenset(resultado)
 
 
 def tiene_permiso_admin(
@@ -371,6 +435,67 @@ def tiene_permiso_efectivo(
 # ??????????????????????????????????????????????????????????????????
 # SA-9.4 - Alcance administrativo efectivo para recursos
 # ??????????????????????????????????????????????????????????????????
+
+def obtener_acceso_administrativo_efectivo(
+    db: Session,
+    current_user: object,
+) -> AccesoAdministrativoEfectivo | None:
+    """
+    Resuelve el contexto administrativo completo para SA-10.
+
+    Usa siempre Usuario ACTUAL de BD:
+    - ADMIN requiere configuración v?lida y permisos persistidos;
+    - SUPERADMIN no depende de acceso_administrativo;
+    - otros roles no poseen contexto administrativo.
+
+    No introduce una segunda fuente de autorización.
+    """
+    if not isinstance(current_user, dict):
+        return None
+
+    usuario = _cargar_usuario_activo(
+        db,
+        current_user.get("id"),
+    )
+
+    if usuario is None:
+        return None
+
+    rol = normalizar_rol(usuario.rol)
+
+    if rol is Role.SUPERADMIN:
+        return AccesoAdministrativoEfectivo(
+            rol=rol,
+            perfil=None,
+            tipo_alcance=TipoAlcanceAdmin.INSTITUCIONAL,
+            especialidades=(),
+            permisos=ROLE_DEFAULT_PERMISSIONS[
+                Role.SUPERADMIN
+            ],
+        )
+
+    if rol is not Role.ADMIN:
+        return None
+
+    contexto = _cargar_contexto_admin_desde_usuario(
+        db,
+        usuario,
+    )
+
+    if contexto is None:
+        return None
+
+    return AccesoAdministrativoEfectivo(
+        rol=rol,
+        perfil=contexto.perfil,
+        tipo_alcance=contexto.tipo_alcance,
+        especialidades=contexto.especialidades,
+        permisos=_permisos_admin_efectivos_con_contexto(
+            db,
+            contexto,
+        ),
+    )
+
 
 @dataclass(frozen=True)
 class AlcanceAdministrativoEfectivo:

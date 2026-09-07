@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.usuario import Usuario
 from app.schemas import (
+    AccesoAdministrativoEfectivoOut,
     UsuarioAdministrativoCreate,
     UsuarioAdministrativoEstadoUpdate,
     UsuarioAdministrativoOut,
@@ -18,6 +19,9 @@ from app.schemas import (
 from app.auth_dependencies import get_current_user, verificar_rol
 from app.auditoria import registrar_evento_auditoria
 from app.bootstrap_superadmin import _password_cumple_politica_existente
+from app.rbac.admin_authorization import (
+    obtener_acceso_administrativo_efectivo,
+)
 from app.rbac.dependencies import require_permission
 from app.rbac.permissions import Permission
 from app.rbac.roles import Role
@@ -102,6 +106,64 @@ def actualizar_mi_perfil(
     db.refresh(usuario)
 
     return usuario
+
+
+@router.get(
+    "/me/acceso-administrativo",
+    response_model=AccesoAdministrativoEfectivoOut,
+)
+def obtener_mi_acceso_administrativo(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Entrega al propio ADMIN/SUPERADMIN su contexto administrativo
+    efectivo actual para representar correctamente la UX.
+
+    No reemplaza la autorizacion server-side de ningun endpoint.
+    Un ADMIN sin configuracion valida falla cerrado con 403.
+    """
+    verificar_rol(
+        current_user,
+        roles_permitidos=[
+            Role.ADMIN.value,
+            Role.SUPERADMIN.value,
+        ],
+    )
+
+    acceso = obtener_acceso_administrativo_efectivo(
+        db,
+        current_user,
+    )
+
+    if acceso is None:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Acceso administrativo no configurado "
+                "o invalido."
+            ),
+        )
+
+    return {
+        "rol": acceso.rol.value,
+        "perfil": (
+            acceso.perfil.value
+            if acceso.perfil is not None
+            else None
+        ),
+        "permisos": sorted(
+            permiso.value
+            for permiso in acceso.permisos
+        ),
+        "alcance": {
+            "tipo": acceso.tipo_alcance.value,
+            "especialidades": sorted(
+                especialidad.nombre
+                for especialidad in acceso.especialidades
+            ),
+        },
+    }
 
 
 # ══════════════════════════════════════════════════════════════════
