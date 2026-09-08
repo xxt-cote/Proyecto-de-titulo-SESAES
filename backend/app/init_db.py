@@ -7,6 +7,7 @@ from app.models.profesional import Profesional
 from app.models.horario import HorarioDisponible
 from app.models.cita import Cita
 from app.models.solicitud_horario import SolicitudHorario
+from app.models.especialidad_capability import EspecialidadCapability  # SA-11.2 — tabla nueva/aditiva
 from app.security import hash_password
 
 
