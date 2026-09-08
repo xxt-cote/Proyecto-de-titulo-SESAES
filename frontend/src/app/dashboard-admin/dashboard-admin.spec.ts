@@ -653,3 +653,141 @@ describe('DashboardAdminComponent - SA-6.2 salida de seccion tras perder permiso
     expect(component.seccionActiva).toBe('administradores');
   });
 });
+
+describe('DashboardAdminComponent — SA-10.2D matriz read-only vs gestionar', () => {
+  it('cada permiso *.ver abre solo su dominio y no concede permisos de gestión', () => {
+    const agenda = crearShellConPermisos(['agenda.ver']);
+    const profesionales = crearShellConPermisos(['profesionales.ver']);
+    const estudiantes = crearShellConPermisos(['usuarios.ver']);
+
+    expect(agenda.puedeAccederSeccion('horario')).toBe(true);
+    expect(agenda.puedeAccederSeccion('citas')).toBe(true);
+    expect(agenda.puedeAccederSeccion('profesional')).toBe(false);
+    expect(agenda.puedeAccederSeccion('estudiantes')).toBe(false);
+    expect(agenda.hasPermission('agenda.gestionar')).toBe(false);
+
+    expect(profesionales.puedeAccederSeccion('profesional')).toBe(true);
+    expect(profesionales.puedeAccederSeccion('horario')).toBe(false);
+    expect(profesionales.puedeAccederSeccion('citas')).toBe(false);
+    expect(profesionales.puedeAccederSeccion('estudiantes')).toBe(false);
+    expect(profesionales.hasPermission('profesionales.gestionar')).toBe(false);
+
+    expect(estudiantes.puedeAccederSeccion('estudiantes')).toBe(true);
+    expect(estudiantes.puedeAccederSeccion('horario')).toBe(false);
+    expect(estudiantes.puedeAccederSeccion('citas')).toBe(false);
+    expect(estudiantes.puedeAccederSeccion('profesional')).toBe(false);
+    expect(estudiantes.hasPermission('usuarios.gestionar')).toBe(false);
+  });
+
+  it('agenda.ver permite lecturas pero una invocación directa de handlers no produce mutaciones', () => {
+    const { component, http } = crearShellConPermisosYHttp(['agenda.ver']);
+
+    component.nuevaCita = {
+      fecha: '2026-09-22',
+      hora: '10:00',
+      estudiante_id: 10,
+      profesional_id: 20,
+      observaciones: '',
+      urgente: false,
+      sobrecupo: false
+    };
+    component.nuevoDiaCerrado = {
+      fecha: '2026-09-23',
+      motivo: 'Read-only'
+    };
+
+    component.marcarInasistencia({ id: 1 });
+    component.cancelarCitaAdmin({ id: 2 });
+    component.marcarPrioridadCita({ id: 3 }, true);
+    component.crearCitaDesdeHorario();
+    component.aprobarSolicitudHorario({ id: 4 });
+    component.rechazarSolicitudHorario({ id: 5 });
+    component.crearDiaCerrado();
+    component.reabrirDiaCerrado({ id: 6, fecha: '2026-09-23' });
+
+    expect(http.post).not.toHaveBeenCalled();
+    expect(http.patch).not.toHaveBeenCalled();
+    expect(http.delete).not.toHaveBeenCalled();
+  });
+
+  it('profesionales.ver permite lectura pero una invocación directa de CRUD no produce mutaciones', () => {
+    const { component, http } = crearShellConPermisosYHttp(['profesionales.ver']);
+    const profesional = { id: 7, nombre: 'Profesional Read-only' };
+
+    component.onCrearProfesional({ nombre: 'No crear' });
+    component.onCambiarEstadoProfesional({
+      profesional,
+      nuevoEstado: 'licencia',
+      motivo: 'test'
+    });
+    component.onCambiarDuracionProfesional({ profesional, duracionMin: 30 });
+    component.onCambiarTratamientoProfesional({ profesional, tratamiento: 'Dr.' });
+    component.onCambiarColorIdentificador({ profesional, color: '#123456' });
+    component.onEliminarProfesional(profesional);
+
+    expect(http.post).not.toHaveBeenCalled();
+    expect(http.patch).not.toHaveBeenCalled();
+    expect(http.delete).not.toHaveBeenCalled();
+  });
+
+  it('sin permisos *.ver los loaders directos de Agenda, Profesionales y Estudiantes no consultan esos módulos', () => {
+    const { component, http } = crearShellConPermisosYHttp([]);
+
+    component.filtroProfesionalId = '20';
+    component.cargarResumenDia();
+    component.cargarProximasCitas();
+    component.cargarDiasCerrados();
+    component.cargarHorarioProfesional();
+    component.cargarProfesionales();
+    (component as any).cargarProfesionalesAgenda();
+    component.cargarEstudiantes();
+    component.verPerfilEstudianteAdmin({ id: 10 });
+    component.busquedaGlobal = 'ana';
+    component.buscarGlobal();
+
+    const urls = http.get.mock.calls.map(call => String(call[0]));
+
+    expect(urls.some(url => url.includes('/admin/resumen-dia'))).toBe(false);
+    expect(urls.some(url => url.includes('/admin/proximas-citas'))).toBe(false);
+    expect(urls.some(url => url.includes('/admin/dias-cerrados'))).toBe(false);
+    expect(urls.some(url => url.includes('/agenda/profesional/'))).toBe(false);
+    expect(urls.some(url => url.includes('/admin/profesionales'))).toBe(false);
+    expect(urls.some(url => url.includes('/agenda/profesionales'))).toBe(false);
+    expect(urls.some(url => url.includes('/admin/estudiantes'))).toBe(false);
+  });
+
+  it('usuarios.ver permite listado, perfil y búsqueda de estudiantes sin usuarios.gestionar', () => {
+    const { component, http } = crearShellConPermisosYHttp(['usuarios.ver']);
+
+    component.cargarEstudiantes();
+    component.verPerfilEstudianteAdmin({ id: 10 });
+    component.busquedaGlobal = 'ana';
+    component.buscarGlobal();
+
+    const urls = http.get.mock.calls.map(call => String(call[0]));
+
+    expect(urls.some(url => url.includes('/admin/estudiantes/listado'))).toBe(true);
+    expect(urls.some(url => url.includes('/admin/estudiantes/10/perfil'))).toBe(true);
+    expect(urls.some(url => url.includes('/admin/estudiantes?q=ana'))).toBe(true);
+    expect(component.hasPermission('usuarios.gestionar')).toBe(false);
+  });
+
+  it('al perder el permiso de lectura de la sección activa vuelve a Inicio y limpia datos visibles', () => {
+    const { component } = crearShellConPermisosYHttp(['agenda.ver']);
+
+    component.navegarA('horario');
+    component.proximasCitas = [{ id: 1 }];
+    component.resumenDia = [{ id: 2 }];
+
+    const auth = (component as any).auth as {
+      hasPermission: ReturnType<typeof vi.fn>;
+    };
+    auth.hasPermission.mockReturnValue(false);
+
+    component.onSesionAdministrativaActualizada();
+
+    expect(component.seccionActiva).toBe('inicio');
+    expect(component.proximasCitas).toEqual([]);
+    expect(component.resumenDia).toEqual([]);
+  });
+});

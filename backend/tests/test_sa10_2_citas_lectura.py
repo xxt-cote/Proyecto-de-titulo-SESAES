@@ -574,3 +574,251 @@ def test_filtros_operacionales_reducen_resultado(
     ] == [
         cita_objetivo.id,
     ]
+
+
+def test_sa10_2d_matriz_backend_lecturas_y_mutaciones_exigen_permisos_exactos():
+    lecturas_agenda = [
+        agenda.listar_profesionales_agenda,
+        agenda.listar_citas_admin,
+        agenda.get_citas_profesional_admin,
+        admin.get_resumen_dia,
+        admin.get_proximas_citas,
+        admin.listar_dias_cerrados,
+        admin.citas_canceladas_por_dia_cerrado,
+    ]
+
+    for endpoint in lecturas_agenda:
+        assert _permiso_de(endpoint) is Permission.AGENDA_VER
+
+    mutaciones_agenda = [
+        admin.crear_cita_urgente,
+        admin.cancelar_cita_admin,
+        admin.cambiar_prioridad_cita,
+        admin.crear_dia_cerrado,
+        admin.eliminar_dia_cerrado,
+    ]
+
+    for endpoint in mutaciones_agenda:
+        assert _permiso_de(endpoint) is Permission.AGENDA_GESTIONAR
+
+    lecturas_profesionales = [
+        admin.get_profesionales_admin,
+        admin.get_historial_estados,
+    ]
+
+    for endpoint in lecturas_profesionales:
+        assert _permiso_de(endpoint) is Permission.PROFESIONALES_VER
+
+    mutaciones_profesionales = [
+        admin.crear_profesional,
+        admin.actualizar_profesional,
+        admin.eliminar_profesional,
+        admin.cambiar_estado_profesional,
+    ]
+
+    for endpoint in mutaciones_profesionales:
+        assert _permiso_de(endpoint) is Permission.PROFESIONALES_GESTIONAR
+
+    lecturas_estudiantes = [
+        admin.buscar_estudiantes,
+        admin.listar_estudiantes,
+        admin.perfil_estudiante_admin,
+    ]
+
+    for endpoint in lecturas_estudiantes:
+        assert _permiso_de(endpoint) is Permission.USUARIOS_VER
+
+
+def test_sa10_2d_agenda_ver_no_autoriza_dependencia_de_mutacion(
+    monkeypatch,
+):
+    dependencia = _dependencia_de(
+        admin.cancelar_cita_admin
+    )
+
+    permisos_consultados = []
+
+    def resolver(
+        db,
+        current_user,
+        permission,
+    ):
+        permisos_consultados.append(permission)
+        return permission is Permission.AGENDA_VER
+
+    monkeypatch.setattr(
+        "app.rbac.dependencies.tiene_permiso_efectivo",
+        resolver,
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        dependencia(
+            current_user={
+                "id": 50,
+                "rol": "admin",
+            },
+            db=object(),
+        )
+
+    assert exc.value.status_code == 403
+    assert permisos_consultados == [
+        Permission.AGENDA_GESTIONAR,
+    ]
+
+
+def test_sa10_2d_profesionales_ver_no_autoriza_dependencia_de_mutacion(
+    monkeypatch,
+):
+    dependencia = _dependencia_de(
+        admin.actualizar_profesional
+    )
+
+    permisos_consultados = []
+
+    def resolver(
+        db,
+        current_user,
+        permission,
+    ):
+        permisos_consultados.append(permission)
+        return permission is Permission.PROFESIONALES_VER
+
+    monkeypatch.setattr(
+        "app.rbac.dependencies.tiene_permiso_efectivo",
+        resolver,
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        dependencia(
+            current_user={
+                "id": 50,
+                "rol": "admin",
+            },
+            db=object(),
+        )
+
+    assert exc.value.status_code == 403
+    assert permisos_consultados == [
+        Permission.PROFESIONALES_GESTIONAR,
+    ]
+
+
+def test_sa10_2d_agenda_profesional_respeta_scope_y_no_expone_campos_clinicos(
+    db_session,
+    monkeypatch,
+):
+    estudiante = _usuario(
+        db_session,
+        correo="scope-prof-sa10-2d@utem.cl",
+        nombre="Estudiante Scope",
+        rut="66.666.666-6",
+    )
+
+    nutricion = _profesional(
+        db_session,
+        nombre="Nutricionista Scope",
+        especialidad="Nutricion",
+        iniciales="NS",
+    )
+
+    odontologia = _profesional(
+        db_session,
+        nombre="Odontologo Fuera Scope",
+        especialidad="Odontologia",
+        iniciales="OF",
+    )
+
+    _cita(
+        db_session,
+        estudiante_id=estudiante.id,
+        profesional_id=nutricion.id,
+        fecha="2026-09-21",
+        hora="09:00",
+        urgente=True,
+        sobrecupo=True,
+    )
+
+    db_session.commit()
+
+    monkeypatch.setattr(
+        agenda,
+        "obtener_alcance_administrativo_efectivo",
+        lambda db, current_user: _alcance_nutricion(),
+    )
+
+    resultado = agenda.get_citas_profesional_admin(
+        nutricion.id,
+        db=db_session,
+        current_user={
+            "id": 50,
+            "rol": "admin",
+        },
+    )
+
+    assert len(resultado) == 1
+    assert set(resultado[0]) == {
+        "id",
+        "estudiante",
+        "estudiante_id",
+        "especialidad",
+        "fecha",
+        "hora",
+        "estado",
+        "urgente",
+        "sobrecupo",
+    }
+
+    for campo in {
+        "medicamento",
+        "observaciones",
+        "observaciones_atencion",
+        "anamnesis",
+        "diagnostico",
+        "ficha",
+        "cuestionario",
+    }:
+        assert campo not in resultado[0]
+
+    with pytest.raises(HTTPException) as exc:
+        agenda.get_citas_profesional_admin(
+            odontologia.id,
+            db=db_session,
+            current_user={
+                "id": 50,
+                "rol": "admin",
+            },
+        )
+
+    assert exc.value.status_code == 403
+
+
+def test_sa10_2d_endpoints_agenda_fallan_cerrado_sin_scope(
+    db_session,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        agenda,
+        "obtener_alcance_administrativo_efectivo",
+        lambda db, current_user: None,
+    )
+
+    current_user = {
+        "id": 50,
+        "rol": "admin",
+    }
+
+    with pytest.raises(HTTPException) as exc_profesionales:
+        agenda.listar_profesionales_agenda(
+            db=db_session,
+            current_user=current_user,
+        )
+
+    assert exc_profesionales.value.status_code == 403
+
+    with pytest.raises(HTTPException) as exc_citas:
+        agenda.listar_citas_admin(
+            db=db_session,
+            current_user=current_user,
+        )
+
+    assert exc_citas.value.status_code == 403
