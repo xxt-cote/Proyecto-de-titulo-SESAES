@@ -15,6 +15,9 @@ from app.rbac.permissions import Permission, has_permission
 from app.rbac.admin_authorization import (
     tiene_permiso_admin_en_especialidad,
 )
+from app.rbac.clinical_capabilities import ClinicalCapability
+from app.services.clinical_capabilities_service import resolver_capacidades_efectivas
+from app.schemas import CompletarCitaBody
 from app.auditoria import registrar_evento_auditoria
 
 router = APIRouter(tags=["profesionales"])
@@ -332,19 +335,51 @@ def get_citas_profesional(
 def completar_cita(
     prof_id: int,
     cita_id: int,
-    body: dict,
+    body: CompletarCitaBody,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
+    # Orden obligatorio (SA-11.3B): autenticación (get_current_user, ya
+    # resuelta por la dependencia) -> ATENCIONES_REGISTRAR -> ownership
+    # -> normalizar body -> si hay medicamento real, resolver capability
+    # -> si falta la capability, 403 SIN mutar la cita -> recién ahí se
+    # modifica `cita` -> commit. No debe existir ninguna asignación a
+    # cita.estado/medicamento/observaciones_atencion antes de superar el
+    # chequeo de capability.
     _exigir_permiso_y_ownership_propio(current_user, prof_id, db, Permission.ATENCIONES_REGISTRAR)
     cita = db.query(Cita).filter(Cita.id == cita_id, Cita.profesional_id == prof_id).first()
     if not cita:
         raise HTTPException(status_code=404, detail="Cita no encontrada")
     if cita.fecha > date.today().isoformat():
         raise HTTPException(status_code=400, detail="No puedes completar una cita que todavía no ocurre")
+
+    # Normalización (SA-11.3B): None, "" y strings de solo espacios se
+    # tratan como "sin medicamento" tanto para decidir si se exige la
+    # capability como para lo que finalmente se persiste — un valor de
+    # solo espacios NUNCA debe esquivar el chequeo ni quedar guardado
+    # tal cual en Cita.medicamento. `observaciones_atencion` conserva el
+    # mismo criterio de compatibilidad que ya tenía el `dict.get(...) or
+    # None` anterior (ya trataba "" como None); acá se extiende el mismo
+    # strip() por consistencia, sin agregar ninguna regla de negocio
+    # nueva (p.ej. longitudes máximas siguen fuera de alcance).
+    medicamento = body.medicamento.strip() if body.medicamento else None
+    medicamento = medicamento or None
+    observaciones_atencion = body.observaciones_atencion.strip() if body.observaciones_atencion else None
+    observaciones_atencion = observaciones_atencion or None
+
+    if medicamento is not None:
+        prof = db.query(Profesional).filter(Profesional.id == prof_id).first()
+        especialidad = prof.especialidad if prof else None
+        capacidades = resolver_capacidades_efectivas(especialidad, db)
+        if ClinicalCapability.REGISTRAR_MEDICAMENTO_SUMINISTRADO.value not in capacidades:
+            raise HTTPException(
+                status_code=403,
+                detail="No tienes la capacidad clínica para registrar medicamento suministrado.",
+            )
+
     cita.estado                 = "completada"
-    cita.medicamento            = body.get("medicamento") or None
-    cita.observaciones_atencion = body.get("observaciones_atencion") or None
+    cita.medicamento            = medicamento
+    cita.observaciones_atencion = observaciones_atencion
     est = db.query(Usuario).filter(Usuario.id == cita.estudiante_id).first()
     registrar_evento_auditoria(db, current_user, "Profesional completó cita",
                                 entidad="cita", entidad_id=cita_id,

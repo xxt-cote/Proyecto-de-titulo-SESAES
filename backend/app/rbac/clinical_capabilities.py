@@ -39,22 +39,22 @@ class ClinicalCapability(str, Enum):
     cambio incompatible con las reglas ya persistidas).
     """
 
-    # NOTA (decisión de negocio pendiente, no resuelta en SA-11.2): el
-    # nombre asume una noción genérica de "indicación de medicamento"
-    # que todavía NO se ha conciliado con el significado real de
-    # Cita.medicamento en el código actual (que hoy se usa, en la
-    # práctica, más como "medicamento suministrado durante la atención"
-    # que como una indicación/prescripción formal — ver
-    # app/routers/citas.py y el PDF de resumen de atención). SA-11.2 NO
-    # integra esta capability con Cita.medicamento ni con ningún flujo
-    # productivo: es solo un identificador de catálogo, sin efecto aún.
-    # Alternativas a considerar en SA-11.3 si se confirma que
-    # "indicación" no es la semántica correcta:
-    # `registrar_medicamento_suministrado` (si es registro post-hoc de
-    # lo administrado) o `prescribir_medicamento` (si se confirma que
-    # es una prescripción formal distinta de lo suministrado). No se
-    # renombra acá sin confirmación del negocio — se deja documentado.
-    REGISTRAR_INDICACION_MEDICAMENTO = "registrar_indicacion_medicamento"
+    # NOTA (decisión de negocio resuelta en SA-11.3B, ver auditoría
+    # SA-11.3): se confirmó que Cita.medicamento representa
+    # exclusivamente "medicamento suministrado durante la atención", NO
+    # una receta, prescripción ni indicación previa (ver
+    # app/routers/profesionales.py:completar_cita y el PDF de
+    # resumen de atención en app/routers/citas.py). El miembro se
+    # renombró de REGISTRAR_INDICACION_MEDICAMENTO a este nombre para
+    # reflejar esa semántica real. Este rename es seguro porque SA-11.2
+    # no sembró reglas ni tuvo consumidores productivos de este valor
+    # (ver auditoría SA-11.3): no hay filas persistidas en
+    # EspecialidadCapability con el string antiguo que deban migrarse,
+    # y por eso tampoco se agrega un alias silencioso. Si en el futuro
+    # se confirma la necesidad de una prescripción formal distinta de
+    # lo suministrado, esa sería una capability nueva y separada (p.ej.
+    # `prescribir_medicamento`), no una reinterpretación de esta.
+    REGISTRAR_MEDICAMENTO_SUMINISTRADO = "registrar_medicamento_suministrado"
     EMITIR_RECETA = "emitir_receta"
     EMITIR_JUSTIFICATIVO = "emitir_justificativo"
     EMITIR_ORDEN_EXAMEN = "emitir_orden_examen"

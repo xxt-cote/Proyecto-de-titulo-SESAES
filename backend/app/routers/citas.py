@@ -464,10 +464,10 @@ def descargar_pdf_cita(
     campo(pdf, "Hora:", f" {cita.hora}")
     campo(pdf, "Motivo de consulta:", f" {cita.observaciones or 'No especificado'}")
 
-    # ── Indicaciones médicas / receta ──
+    # ── Registro de atención (NO es una receta; ver SA-11.3B) ──
     pdf.ln(6)
     pdf.set_font("Helvetica", "B", 13)
-    pdf.cell(0, 8, "Indicaciones Médicas", ln=True)
+    pdf.cell(0, 8, "Registro de atención", ln=True)
     pdf.set_draw_color(230, 230, 230)
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
     pdf.ln(4)

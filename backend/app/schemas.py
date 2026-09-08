@@ -18,6 +18,29 @@ class CitaCreate(BaseModel):
     sobrecupo:      Optional[bool] = False   # solo admin puede marcarla; se ignora si la manda cualquier otro rol
 
 
+class CompletarCitaBody(BaseModel):
+    """
+    SESAES — SA-11.3B: body explícito de
+    PATCH /profesional/{prof_id}/citas/{cita_id}/completar.
+
+    Reemplaza el `body: dict` sin tipar que tenía el endpoint. Ambos
+    campos son opcionales y aceptan `None` o campo omitido (mismo
+    comportamiento que el `dict.get(...)` anterior); lo que cambia es
+    que Pydantic ya no acepta objetos/listas/números como valor —
+    solo `str` o `null`. No se definen longitudes máximas de negocio
+    en este checkpoint (fuera de alcance de SA-11.3B).
+
+    `medicamento` es el medicamento SUMINISTRADO durante la atención
+    (no una receta/prescripción/indicación previa — ver
+    app/rbac/clinical_capabilities.py). Si viene con contenido no
+    vacío, completar_cita exige además la capability clínica
+    ClinicalCapability.REGISTRAR_MEDICAMENTO_SUMINISTRADO (ver
+    app/routers/profesionales.py).
+    """
+    medicamento:            Optional[str] = None
+    observaciones_atencion: Optional[str] = None
+
+
 # ══════════════════════════════════════
 # ESTUDIANTE
 # ══════════════════════════════════════

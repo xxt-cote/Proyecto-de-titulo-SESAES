@@ -34,6 +34,7 @@ from app.models.usuario import Usuario
 from app.rbac.permissions import Permission
 from app.routers import profesionales as m
 from app.auth_dependencies import verificar_acceso_profesional
+from app.schemas import CompletarCitaBody
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -274,7 +275,7 @@ def test_completar_profesional_ajeno_no_autorizado():
     })
     with pytest.raises(HTTPException) as exc:
         m.completar_cita(
-            prof_id=5, cita_id=7, body={}, db=db, current_user={"id": 999, "rol": "profesional"}
+            prof_id=5, cita_id=7, body=CompletarCitaBody(), db=db, current_user={"id": 999, "rol": "profesional"}
         )
     assert exc.value.status_code == 403
 
@@ -286,8 +287,9 @@ def test_completar_dueno_autoriza():
         Cita: [cita],
         Usuario: [_usuario(99, "estudiante", nombre="Ana")],
     })
-    m.completar_cita(prof_id=5, cita_id=7, body={}, db=db, current_user={"id": 10, "rol": "profesional"})
+    m.completar_cita(prof_id=5, cita_id=7, body=CompletarCitaBody(), db=db, current_user={"id": 10, "rol": "profesional"})
     assert cita.estado == "completada"
+    assert cita.medicamento is None
 
 
 # ══════════════════════════════════════════════════════════════════
