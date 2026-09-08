@@ -14,6 +14,7 @@ export interface HorarioBloqueClick {
   templateUrl: './admin-horario.html'
 })
 export class AdminHorarioComponent {
+  @Input() puedeGestionarAgenda = false;
   @Input() solicitudesHorarioAdmin: any[] = [];
 
   @Input() especialidades: string[] = [];
@@ -67,4 +68,24 @@ export class AdminHorarioComponent {
 
   @Output() bloqueClick = new EventEmitter<HorarioBloqueClick>();
   @Output() cancelarCita = new EventEmitter<any>();
+
+  onAprobarSolicitud(solicitud: any): void {
+    if (!this.puedeGestionarAgenda) return;
+    this.aprobarSolicitud.emit(solicitud);
+  }
+
+  onRechazarSolicitud(solicitud: any): void {
+    if (!this.puedeGestionarAgenda) return;
+    this.rechazarSolicitud.emit(solicitud);
+  }
+
+  onAbrirNuevaCita(): void {
+    if (!this.puedeGestionarAgenda) return;
+    this.abrirNuevaCita.emit();
+  }
+
+  onCancelarCita(cita: any): void {
+    if (!this.puedeGestionarAgenda) return;
+    this.cancelarCita.emit(cita);
+  }
 }

@@ -135,7 +135,7 @@
             <table class="admin-tabla">
               <thead>
                 <tr>
-                  <th>ESTUDIANTE</th><th>ESPECIALIDAD</th><th>PROFESIONAL</th><th>FECHA</th><th>HORARIO</th><th>ACCIONES</th>
+                  <th>ESTUDIANTE</th><th>ESPECIALIDAD</th><th>PROFESIONAL</th><th>FECHA</th><th>HORARIO</th><th *ngIf="puedeGestionarAgenda">ACCIONES</th>
                 </tr>
               </thead>
               <tbody>
@@ -150,7 +150,7 @@
                   <td>{{ cita.profesional }}</td>
                   <td><span class="fecha-cell">{{ formatearFecha(cita.fecha) }}</span></td>
                   <td><div class="horario-cell">{{ cita.hora }}</div></td>
-                  <td>
+                  <td *ngIf="puedeGestionarAgenda">
                     <div class="tabla-acciones">
                       <button class="btn-tabla inasistencia" (click)="marcarInasistencia(cita)" title="Marcar inasistencia"><span class="material-symbols-outlined">person_off</span></button>
                       <button class="btn-tabla cancelar" (click)="cancelarCitaAdmin(cita)" title="Cancelar cita"><span class="material-symbols-outlined">delete</span></button>
@@ -158,7 +158,7 @@
                   </td>
                 </tr>
                 <tr *ngIf="proximasCitas.length === 0">
-                  <td colspan="6" class="tabla-vacia">No hay citas próximas</td>
+                  <td [attr.colspan]="puedeGestionarAgenda ? 6 : 5" class="tabla-vacia">No hay citas próximas</td>
                 </tr>
               </tbody>
             </table>

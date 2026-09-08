@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { AdminProfesionalesComponent } from './admin-profesionales';
 
 /**
@@ -95,5 +95,55 @@ describe('AdminProfesionalesComponent — chips de las cards (datos reales, sin 
       { especialidad: 'Kinesiología' }
     ];
     expect(componente.especialidadesReales.length).toBe(2);
+  });
+});
+
+describe('AdminProfesionalesComponent — SA-10.2B read-only vs gestionar', () => {
+  it('read-only no abre modales de gestión', () => {
+    const componente = new AdminProfesionalesComponent();
+    componente.puedeGestionarProfesionales = false;
+
+    componente.abrirModalAgregar();
+    componente.abrirModalAcciones({ id: 1, nombre: 'Profesional', estado: 'activo', duracion_min: 45 });
+
+    expect(componente.modalProfAbierto).toBe(false);
+    expect(componente.modalAccionesAbierto).toBe(false);
+  });
+
+  it('read-only bloquea todos los handlers que emiten mutaciones', () => {
+    const componente = new AdminProfesionalesComponent();
+    const profesional = {
+      id: 2,
+      nombre: 'Profesional Read Only',
+      estado: 'activo',
+      nuevoEstado: 'licencia',
+      motivoCambio: 'test',
+      duracion_min: 45,
+      nuevoTratamiento: 'Dr.',
+      nuevoColor: '#4F8EF7'
+    };
+
+    const crearSpy = vi.spyOn(componente.crearProfesional, 'emit');
+    const estadoSpy = vi.spyOn(componente.cambiarEstado, 'emit');
+    const duracionSpy = vi.spyOn(componente.cambiarDuracion, 'emit');
+    const tratamientoSpy = vi.spyOn(componente.cambiarTratamiento, 'emit');
+    const colorSpy = vi.spyOn(componente.cambiarColorIdentificador, 'emit');
+    const eliminarSpy = vi.spyOn(componente.eliminarProfesional, 'emit');
+
+    componente.puedeGestionarProfesionales = false;
+    componente.profSeleccionado = profesional;
+    componente.confirmarCrearProf();
+    componente.guardarEstadoProfesional();
+    componente.guardarDuracionProfesional();
+    componente.guardarTratamientoProfesional();
+    componente.guardarColorProfesional();
+    componente.eliminarProfesionalDesdeModal();
+
+    expect(crearSpy).not.toHaveBeenCalled();
+    expect(estadoSpy).not.toHaveBeenCalled();
+    expect(duracionSpy).not.toHaveBeenCalled();
+    expect(tratamientoSpy).not.toHaveBeenCalled();
+    expect(colorSpy).not.toHaveBeenCalled();
+    expect(eliminarSpy).not.toHaveBeenCalled();
   });
 });

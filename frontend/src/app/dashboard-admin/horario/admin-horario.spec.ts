@@ -55,6 +55,7 @@ describe('AdminHorarioComponent', () => {
       fecha_solicitud: '2026-08-31T09:00:00'
     };
 
+    fixture.componentRef.setInput('puedeGestionarAgenda', true);
     fixture.componentRef.setInput('solicitudesHorarioAdmin', [solicitud]);
     fixture.detectChanges();
 
@@ -158,6 +159,7 @@ describe('AdminHorarioComponent', () => {
 
     fixture.componentRef.setInput('filtroProfesionalId', '10');
     fixture.componentRef.setInput('profesionalActualBloqueado', false);
+    fixture.componentRef.setInput('puedeGestionarAgenda', true);
     fixture.detectChanges();
 
     const botones = Array.from(
@@ -186,6 +188,7 @@ describe('AdminHorarioComponent', () => {
     fixture.componentRef.setInput('filtroProfesionalId', '10');
     fixture.componentRef.setInput('diaSeleccionado', '2026-08-31');
     fixture.componentRef.setInput('citasDiaSeleccionado', [cita]);
+    fixture.componentRef.setInput('puedeGestionarAgenda', true);
 
     fixture.detectChanges();
 
@@ -217,5 +220,58 @@ describe('AdminHorarioComponent', () => {
     cerrar.click();
 
     expect(diaSpy).toHaveBeenCalledWith(null);
+  });
+
+  it('read-only oculta solicitudes, Nueva Cita y cancelación', () => {
+    const solicitud = {
+      id: 30,
+      profesional_nombre: 'Profesional Read Only',
+      especialidad: 'Medicina',
+      tipo: 'jornada',
+      hora_inicio: '08:00',
+      hora_fin: '17:00',
+      fecha_solicitud: '2026-09-07T09:00:00'
+    };
+    const cita = {
+      id: 31,
+      estudiante: 'Estudiante Read Only',
+      especialidad: 'Medicina',
+      hora: '11:00',
+      estado: 'pendiente',
+      urgente: false
+    };
+
+    fixture.componentRef.setInput('puedeGestionarAgenda', false);
+    fixture.componentRef.setInput('solicitudesHorarioAdmin', [solicitud]);
+    fixture.componentRef.setInput('filtroProfesionalId', '10');
+    fixture.componentRef.setInput('diaSeleccionado', '2026-09-07');
+    fixture.componentRef.setInput('citasDiaSeleccionado', [cita]);
+    fixture.detectChanges();
+
+    const texto = fixture.nativeElement.textContent as string;
+    expect(texto).not.toContain('Aprobar');
+    expect(texto).not.toContain('Rechazar');
+    expect(texto).not.toContain('Nueva Cita');
+    expect(fixture.nativeElement.querySelector('.detalle-acciones')).toBeNull();
+  });
+
+  it('read-only bloquea handlers de mutación aunque se invoquen directamente', () => {
+    const solicitud = { id: 40 };
+    const cita = { id: 41, estado: 'pendiente' };
+    const aprobarSpy = vi.spyOn(component.aprobarSolicitud, 'emit');
+    const rechazarSpy = vi.spyOn(component.rechazarSolicitud, 'emit');
+    const nuevaSpy = vi.spyOn(component.abrirNuevaCita, 'emit');
+    const cancelarSpy = vi.spyOn(component.cancelarCita, 'emit');
+
+    component.puedeGestionarAgenda = false;
+    component.onAprobarSolicitud(solicitud);
+    component.onRechazarSolicitud(solicitud);
+    component.onAbrirNuevaCita();
+    component.onCancelarCita(cita);
+
+    expect(aprobarSpy).not.toHaveBeenCalled();
+    expect(rechazarSpy).not.toHaveBeenCalled();
+    expect(nuevaSpy).not.toHaveBeenCalled();
+    expect(cancelarSpy).not.toHaveBeenCalled();
   });
 });

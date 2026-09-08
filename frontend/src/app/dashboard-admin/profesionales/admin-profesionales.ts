@@ -26,6 +26,7 @@ import { normalizarTexto } from '../../shared/text-normalization';
   templateUrl: './admin-profesionales.html'
 })
 export class AdminProfesionalesComponent {
+  @Input() puedeGestionarProfesionales = false;
 
   // ── Datos recibidos del shell (fuente de verdad: DashboardAdminComponent) ──
   @Input() profesionales: any[] = [];
@@ -158,6 +159,7 @@ export class AdminProfesionalesComponent {
   }
 
   abrirModalAgregar(): void {
+    if (!this.puedeGestionarProfesionales) return;
     this.profNuevoDatos = { nombre: '', tratamiento: '', especialidad: '', especialidadNueva: '', correo: '', rut: '', estado: 'activo', password: 'prof123', color_identificador: null };
     this.duracionNumero = 45; this.duracionUnidad = 'minutos';
     this.mostrarConfirmacionProf = false; this.rutValido = true; this.correoValido = true;
@@ -186,6 +188,7 @@ export class AdminProfesionalesComponent {
    * que el shell los muestre (Corrección previa a aprobación, Fase 3.4C).
    */
   continuarCrearProf(): boolean {
+    if (!this.puedeGestionarProfesionales) return false;
     if (!this.profNuevoDatos.nombre.trim()) { this.errorValidacion.emit('El nombre es obligatorio.'); return false; }
     if (!this.profNuevoDatos.especialidad)  { this.errorValidacion.emit('Selecciona una especialidad.'); return false; }
     if (!this.profNuevoDatos.correo.trim()) { this.errorValidacion.emit('El correo es obligatorio.'); return false; }
@@ -199,6 +202,7 @@ export class AdminProfesionalesComponent {
 
   /** Emite la intención final al shell; el shell ejecuta el POST real. */
   confirmarCrearProf(): void {
+    if (!this.puedeGestionarProfesionales) return;
     const especialidadFinal = this.profNuevoDatos.especialidad === 'otra' ? this.profNuevoDatos.especialidadNueva : this.profNuevoDatos.especialidad;
     this.crearProfesional.emit({
       nombre: this.profNuevoDatos.nombre, tratamiento: this.profNuevoDatos.tratamiento || null,
@@ -219,6 +223,7 @@ export class AdminProfesionalesComponent {
   profSeleccionado: any = null;
 
   abrirModalAcciones(p: any): void {
+    if (!this.puedeGestionarProfesionales) return;
     this.profSeleccionado = { ...p, nuevoEstado: p.estado, motivoCambio: '', nuevoTratamiento: p.tratamiento || '', nuevoColor: p.color_identificador || null };
     this.duracionNumero = p.duracion_min <= 60 ? p.duracion_min : Math.round(p.duracion_min / 60);
     this.duracionUnidad = p.duracion_min > 60 ? 'horas' : 'minutos';
@@ -247,6 +252,7 @@ export class AdminProfesionalesComponent {
 
   /** Emite la intención al shell; el shell decide si confirma cancelación de citas y ejecuta el PATCH. */
   guardarEstadoProfesional(): void {
+    if (!this.puedeGestionarProfesionales) return;
     if (!this.profSeleccionado) return;
     this.cambiarEstado.emit({
       profesional: this.profSeleccionado,
@@ -257,6 +263,7 @@ export class AdminProfesionalesComponent {
 
   /** Emite la intención al shell; el shell ejecuta el PATCH real. */
   guardarDuracionProfesional(): void {
+    if (!this.puedeGestionarProfesionales) return;
     if (!this.profSeleccionado) return;
     this.cambiarDuracion.emit({ profesional: this.profSeleccionado, duracionMin: this.duracionEnMinutos });
   }
@@ -267,6 +274,7 @@ export class AdminProfesionalesComponent {
    * omitido, para que el backend pueda distinguir "limpiar" de "no tocar".
    */
   guardarTratamientoProfesional(): void {
+    if (!this.puedeGestionarProfesionales) return;
     if (!this.profSeleccionado) return;
     this.cambiarTratamiento.emit({
       profesional: this.profSeleccionado,
@@ -280,6 +288,7 @@ export class AdminProfesionalesComponent {
    * distinto de no tocar el campo.
    */
   guardarColorProfesional(): void {
+    if (!this.puedeGestionarProfesionales) return;
     if (!this.profSeleccionado) return;
     this.cambiarColorIdentificador.emit({
       profesional: this.profSeleccionado,
@@ -289,6 +298,7 @@ export class AdminProfesionalesComponent {
 
   /** Emite la intención al shell; el shell confirma y ejecuta el DELETE real. */
   eliminarProfesionalDesdeModal(): void {
+    if (!this.puedeGestionarProfesionales) return;
     if (!this.profSeleccionado) return;
     this.eliminarProfesional.emit(this.profSeleccionado);
   }

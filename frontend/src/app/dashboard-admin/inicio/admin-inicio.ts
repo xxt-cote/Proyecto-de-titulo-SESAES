@@ -25,6 +25,8 @@ Chart.register(...registerables);
   templateUrl: './admin-inicio.html'
 })
 export class AdminInicioComponent implements AfterViewInit, OnChanges, OnDestroy {
+  @Input() puedeGestionarAgenda = false;
+
   @Input() estadisticas = {
     reservas_hoy: 0,
     profesionales_activos: 0,
@@ -145,10 +147,12 @@ export class AdminInicioComponent implements AfterViewInit, OnChanges, OnDestroy
   }
 
   marcarInasistencia(cita: any): void {
+    if (!this.puedeGestionarAgenda) return;
     this.marcarInasistenciaCita.emit(cita);
   }
 
   cancelarCitaAdmin(cita: any): void {
+    if (!this.puedeGestionarAgenda) return;
     this.cancelarCita.emit(cita);
   }
 

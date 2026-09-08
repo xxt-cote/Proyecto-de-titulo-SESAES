@@ -195,6 +195,7 @@
       <!-- ══ INICIO ══ -->
       <app-admin-inicio
         *ngIf="seccionActiva==='inicio'"
+        [puedeGestionarAgenda]="hasPermission('agenda.gestionar')"
         [estadisticas]="estadisticas"
         [resumenDia]="resumenDia"
         [actualizandoDisponibilidad]="actualizandoDisponibilidad"
@@ -216,6 +217,7 @@
 <!-- ══ HORARIO ══ -->
       <app-admin-horario
         *ngIf="seccionActiva==='horario' && puedeAccederSeccion('horario')"
+        [puedeGestionarAgenda]="hasPermission('agenda.gestionar')"
         [solicitudesHorarioAdmin]="solicitudesHorarioAdmin"
         [especialidades]="especialidades"
         [profesionalesFiltrados]="profesionalesFiltrados"
@@ -249,6 +251,7 @@
 <!-- ══ CITAS ══ -->
       <app-admin-citas
         *ngIf="seccionActiva==='citas' && puedeAccederSeccion('citas')"
+        [puedeGestionarAgenda]="hasPermission('agenda.gestionar')"
         (verDetalle)="verDetalleCita($event)"
         (marcarPrioridad)="marcarPrioridadCita($event.cita, $event.urgente)"
         (cancelarCita)="cancelarCitaAdmin($event)"
@@ -258,6 +261,7 @@
       <!-- ══ PROFESIONALES ══ -->
       <app-admin-profesionales
         *ngIf="seccionActiva==='profesional' && puedeAccederSeccion('profesional')"
+        [puedeGestionarProfesionales]="hasPermission('profesionales.gestionar')"
         [profesionales]="profesionales"
         [especialidades]="especialidades"
         [profesionalesActivos]="profesionalesActivos"
@@ -409,16 +413,16 @@
       <div class="modal-footer">
         <button class="btn-cancelar-modal" (click)="cerrarModalDetalleCita()">Cerrar</button>
         <button class="btn-guardar-modal" *ngIf="citaDetalle?.tiene_pdf" (click)="descargarPdf(citaDetalle.id)">⬇ Descargar PDF</button>
-        <button class="btn-guardar-modal" *ngIf="citaDetalle?.estado === 'pendiente' && !citaDetalle?.urgente"
+        <button class="btn-guardar-modal" *ngIf="hasPermission('agenda.gestionar') && citaDetalle?.estado === 'pendiente' && !citaDetalle?.urgente"
                 (click)="marcarPrioridadCita(citaDetalle, true)">🚨 Marcar como urgente</button>
-        <button class="btn-cancelar-modal" *ngIf="citaDetalle?.estado === 'pendiente' && citaDetalle?.urgente"
+        <button class="btn-cancelar-modal" *ngIf="hasPermission('agenda.gestionar') && citaDetalle?.estado === 'pendiente' && citaDetalle?.urgente"
                 (click)="marcarPrioridadCita(citaDetalle, false)">↩️ Quitar prioridad urgente</button>
       </div>
     </div>
   </div>
 
   <!-- MODAL: NUEVA CITA -->
-  <div class="modal-overlay" *ngIf="modalCitaAbierto" (click)="cerrarModalCita()">
+  <div class="modal-overlay" *ngIf="modalCitaAbierto && hasPermission('agenda.gestionar')" (click)="cerrarModalCita()">
     <div class="modal" (click)="$event.stopPropagation()">
       <div class="modal-header">
         <h3>Nueva Cita{{ nuevaCita.urgente ? ' — URGENTE' : '' }}{{ nuevaCita.sobrecupo ? ' — SOBRECUPO' : '' }}</h3>
@@ -459,7 +463,7 @@
   </div>
 
   <!-- MODAL: CONFIRMAR SOBRECUPO -->
-  <div class="modal-overlay" *ngIf="sobrecupoConfirmAbierto" (click)="cancelarSobrecupo()">
+  <div class="modal-overlay" *ngIf="sobrecupoConfirmAbierto && hasPermission('agenda.gestionar')" (click)="cancelarSobrecupo()">
     <div class="modal" (click)="$event.stopPropagation()" style="max-width: 420px;">
       <div class="modal-header">
         <h3>🟣 Confirmar sobrecupo</h3>

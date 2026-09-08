@@ -1,4 +1,4 @@
-import { Component, EventEmitter, OnInit, Output, ChangeDetectorRef } from '@angular/core';
+import { Component, EventEmitter, Input, OnInit, Output, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -26,6 +26,7 @@ const API = environment.apiUrl;
   templateUrl: './admin-citas.html'
 })
 export class AdminCitasComponent implements OnInit {
+  @Input() puedeGestionarAgenda = false;
 
   @Output() verDetalle = new EventEmitter<any>();
   @Output() marcarPrioridad = new EventEmitter<{ cita: any; urgente: boolean }>();
@@ -101,14 +102,17 @@ export class AdminCitasComponent implements OnInit {
   }
 
   onMarcarPrioridad(cita: any, urgente: boolean): void {
+    if (!this.puedeGestionarAgenda) return;
     this.marcarPrioridad.emit({ cita, urgente });
   }
 
   onCancelarCita(cita: any): void {
+    if (!this.puedeGestionarAgenda) return;
     this.cancelarCita.emit(cita);
   }
 
   onIrAHorario(): void {
+    if (!this.puedeGestionarAgenda) return;
     this.irAHorario.emit();
   }
 }

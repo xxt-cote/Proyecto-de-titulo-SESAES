@@ -31,7 +31,7 @@
   <div class="historial-acciones">
     <button class="btn-filtrar" (click)="cargarCitas()">Aplicar Filtros</button>
     <button class="btn-limpiar" (click)="limpiarFiltrosCitas()">Limpiar</button>
-    <button class="btn-nueva-cita-top" (click)="onIrAHorario()">+ Agendar cita (en Agenda)</button>
+    <button *ngIf="puedeGestionarAgenda" class="btn-nueva-cita-top" (click)="onIrAHorario()">+ Agendar cita (en Agenda)</button>
   </div>
 
   <div *ngIf="citasCargando" class="tabla-vacia">Cargando...</div>
@@ -58,9 +58,9 @@
         <td>
           <div class="tabla-acciones">
             <button class="btn-tabla ver" (click)="onVerDetalle(c)" title="Ver detalle">👁️</button>
-            <button class="btn-tabla" *ngIf="!c.urgente && c.estado === 'pendiente'" (click)="onMarcarPrioridad(c, true)" title="Marcar como urgente">🚨</button>
-            <button class="btn-tabla" *ngIf="c.urgente && c.estado === 'pendiente'" (click)="onMarcarPrioridad(c, false)" title="Quitar prioridad urgente">↩️</button>
-            <button class="btn-tabla cancelar" *ngIf="c.estado === 'pendiente'" (click)="onCancelarCita(c)" title="Cancelar cita">🗑️</button>
+            <button class="btn-tabla" *ngIf="puedeGestionarAgenda && !c.urgente && c.estado === 'pendiente'" (click)="onMarcarPrioridad(c, true)" title="Marcar como urgente">🚨</button>
+            <button class="btn-tabla" *ngIf="puedeGestionarAgenda && c.urgente && c.estado === 'pendiente'" (click)="onMarcarPrioridad(c, false)" title="Quitar prioridad urgente">↩️</button>
+            <button class="btn-tabla cancelar" *ngIf="puedeGestionarAgenda && c.estado === 'pendiente'" (click)="onCancelarCita(c)" title="Cancelar cita">🗑️</button>
           </div>
         </td>
       </tr>

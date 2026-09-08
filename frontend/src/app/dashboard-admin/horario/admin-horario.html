@@ -1,5 +1,5 @@
 <!-- Solicits -->
-      <div class="card" *ngIf="solicitudesHorarioAdmin.length > 0">
+      <div class="card" *ngIf="puedeGestionarAgenda && solicitudesHorarioAdmin.length > 0">
           <div class="card-header">
             <h3 class="card-title">⏳ Solicitudes de Horario Pendientes ({{ solicitudesHorarioAdmin.length }})</h3>
           </div>
@@ -16,8 +16,8 @@
                 <td>{{ s.fecha_solicitud | date:'dd/MM/yyyy HH:mm' }}</td>
                 <td>
                   <div class="tabla-acciones">
-                    <button class="btn-tabla ver" (click)="aprobarSolicitud.emit(s)" title="Aprobar">✓ Aprobar</button>
-                    <button class="btn-tabla cancelar" (click)="rechazarSolicitud.emit(s)" title="Rechazar">✕ Rechazar</button>
+                    <button class="btn-tabla ver" (click)="onAprobarSolicitud(s)" title="Aprobar">✓ Aprobar</button>
+                    <button class="btn-tabla cancelar" (click)="onRechazarSolicitud(s)" title="Rechazar">✕ Rechazar</button>
                   </div>
                 </td>
               </tr>
@@ -40,7 +40,7 @@
             </select>
           </div>
           <div class="horario-acciones-top">
-            <button class="btn-nueva-cita-top" (click)="abrirNuevaCita.emit()" [disabled]="!filtroProfesionalId || profesionalActualBloqueado">
+            <button *ngIf="puedeGestionarAgenda" class="btn-nueva-cita-top" (click)="onAbrirNuevaCita()" [disabled]="!filtroProfesionalId || profesionalActualBloqueado">
               <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
@@ -119,8 +119,8 @@
                   <span *ngIf="cita.urgente" class="urgente-tag">URGENTE</span>
                 </div>
                 <span class="estado-badge" [ngClass]="cita.estado">{{ cita.estado }}</span>
-                <div class="detalle-acciones" *ngIf="cita.estado === 'pendiente'">
-                  <button class="btn-tabla cancelar" (click)="cancelarCita.emit(cita)" title="Cancelar">✕</button>
+                <div class="detalle-acciones" *ngIf="puedeGestionarAgenda && cita.estado === 'pendiente'">
+                  <button class="btn-tabla cancelar" (click)="onCancelarCita(cita)" title="Cancelar">✕</button>
                 </div>
               </div>
               <div *ngIf="citasDiaSeleccionado.length === 0" class="tabla-vacia">Sin citas este día</div>

@@ -427,6 +427,103 @@ function crearShellConPermisos(permisos: Permission[]) {
   return new DashboardAdminComponent(router, http, cdr, toast, auth);
 }
 
+function crearShellConPermisosYHttp(permisos: Permission[]) {
+  const permitidos = new Set<Permission>(permisos);
+
+  const auth = {
+    hasPermission: vi.fn((permission: Permission) => permitidos.has(permission)),
+    getNombre: vi.fn(() => null),
+    getFotoUrl: vi.fn(() => null),
+    getRol: vi.fn(() => null),
+    getUsuarioId: vi.fn(() => null),
+    cargarAccesoAdministrativo: vi.fn(() => of({}))
+  } as unknown as AuthService;
+
+  const http = {
+    get: vi.fn(),
+    post: vi.fn(),
+    patch: vi.fn(),
+    delete: vi.fn()
+  };
+  const toast = { success: vi.fn(), error: vi.fn() } as unknown as ToastService;
+  const router = {} as Router;
+  const cdr = { detectChanges: vi.fn() } as unknown as ChangeDetectorRef;
+
+  return {
+    component: new DashboardAdminComponent(
+      router,
+      http as unknown as HttpClient,
+      cdr,
+      toast,
+      auth
+    ),
+    http
+  };
+}
+
+describe('DashboardAdminComponent — SA-10.2B handlers fail-closed', () => {
+  it('sin agenda.gestionar, los handlers de Agenda/Inicio/Citas no producen POST/PATCH/DELETE', () => {
+    const { component, http } = crearShellConPermisosYHttp([]);
+
+    component.nuevaCita = {
+      fecha: '2026-09-08',
+      hora: '10:00',
+      estudiante_id: 10,
+      profesional_id: 20,
+      observaciones: '',
+      urgente: false,
+      sobrecupo: false
+    };
+    component.nuevoDiaCerrado = { fecha: '2026-09-18', motivo: 'Mantención' };
+
+    component.marcarInasistencia({ id: 1, estudiante: 'Ana' });
+    component.cancelarCitaAdmin({ id: 2, estudiante: 'Bruno' });
+    component.marcarPrioridadCita({ id: 3 }, true);
+    component.crearCitaDesdeHorario();
+    component.aprobarSolicitudHorario({ id: 4, profesional_nombre: 'Prof.' });
+    component.rechazarSolicitudHorario({ id: 5, profesional_nombre: 'Prof.' });
+    component.crearDiaCerrado();
+    component.reabrirDiaCerrado({ id: 6, fecha: '2026-09-18' });
+
+    expect(http.post).not.toHaveBeenCalled();
+    expect(http.patch).not.toHaveBeenCalled();
+    expect(http.delete).not.toHaveBeenCalled();
+  });
+
+  it('sin profesionales.gestionar, los handlers CRUD de profesionales no producen POST/PATCH/DELETE', () => {
+    const { component, http } = crearShellConPermisosYHttp([]);
+    const profesional = { id: 7, nombre: 'Profesional Read Only' };
+
+    component.onCrearProfesional({ nombre: 'Nuevo' });
+    component.onCambiarEstadoProfesional({ profesional, nuevoEstado: 'licencia', motivo: 'test' });
+    component.onCambiarDuracionProfesional({ profesional, duracionMin: 30 });
+    component.onCambiarTratamientoProfesional({ profesional, tratamiento: 'Dr.' });
+    component.onCambiarColorIdentificador({ profesional, color: '#4F8EF7' });
+    component.onEliminarProfesional(profesional);
+
+    expect(http.post).not.toHaveBeenCalled();
+    expect(http.patch).not.toHaveBeenCalled();
+    expect(http.delete).not.toHaveBeenCalled();
+  });
+
+  it('al invalidar el contexto se cierran los modales de mutación de Agenda', () => {
+    const { component } = crearShellConPermisosYHttp([]);
+    component.modalCitaAbierto = true;
+    component.sobrecupoConfirmAbierto = true;
+    component.sobrecupoPendiente = {
+      fecha: '2026-09-08',
+      hora: '10:00',
+      motivoTexto: 'el horario habitual de'
+    };
+
+    (component as any).limpiarDatosVisiblesDeAccesoAnterior();
+
+    expect(component.modalCitaAbierto).toBe(false);
+    expect(component.sobrecupoConfirmAbierto).toBe(false);
+    expect(component.sobrecupoPendiente).toBeNull();
+  });
+});
+
 describe('DashboardAdminComponent — SA-4 gating de "administradores" (roles.gestionar)', () => {
   // ── 1. Sin roles.gestionar: la sección no aparece en el menú ──────
   it('roles.gestionar=false -> puedeAccederSeccion(\'administradores\') es false (Administradores oculto)', () => {

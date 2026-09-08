@@ -262,6 +262,14 @@ toggleSidebarMovil(): void {
 
     this.historialAdmin = [];
     this.estadisticasEstudiante = null;
+
+    // Si el contexto efectivo cambia mientras había una acción de Agenda
+    // abierta, cerramos cualquier superficie de mutación antes de volver a
+    // evaluar permisos. Así un modal antiguo no sobrevive a una degradación
+    // de permisos durante la misma sesión.
+    this.modalCitaAbierto = false;
+    this.sobrecupoConfirmAbierto = false;
+    this.sobrecupoPendiente = null;
   }
 
   private cargarContextoAdministrativoEfectivo(): void {
@@ -676,6 +684,7 @@ toggleSidebarMovil(): void {
   }
 
   marcarInasistencia(cita: any): void {
+    if (!this.hasPermission('agenda.gestionar')) return;
     if (!confirm(`¿Marcar inasistencia del estudiante ${cita.estudiante}?`)) return;
     this.http.patch(`${API}/admin/citas/${cita.id}/cancelar`, { motivo: 'inasistencia' }).subscribe({
       next: () => {
@@ -691,6 +700,7 @@ toggleSidebarMovil(): void {
   }
 
   cancelarCitaAdmin(cita: any): void {
+    if (!this.hasPermission('agenda.gestionar')) return;
     if (!confirm(`¿Cancelar la cita de ${cita.estudiante}?`)) return;
     this.http.patch(`${API}/admin/citas/${cita.id}/cancelar`, { motivo: 'Cancelada por administrador' }).subscribe({
       next: () => {
@@ -1011,6 +1021,10 @@ toggleSidebarMovil(): void {
 
     this.diaSeleccionado = fecha;
 
+    // Un usuario con agenda.ver puede seleccionar
+    // el dia, pero no abrir citas ni sobrecupos.
+    if (!this.hasPermission('agenda.gestionar')) return;
+
     if (estado === 'disponible') {
       this.abrirModalNuevaCitaConFechaHora(fecha, hora, false);
     } else if (estado === 'colacion' || estado === 'fuera-horario') {
@@ -1030,6 +1044,10 @@ toggleSidebarMovil(): void {
   }
 
   confirmarSobrecupo(): void {
+    if (!this.hasPermission('agenda.gestionar')) {
+      this.cancelarSobrecupo();
+      return;
+    }
     if (!this.sobrecupoPendiente) return;
     const { fecha, hora } = this.sobrecupoPendiente;
     this.sobrecupoConfirmAbierto = false;
@@ -1040,6 +1058,7 @@ toggleSidebarMovil(): void {
   abrirModalNuevaCita(): void { this.abrirModalNuevaCitaConFechaHora(this.diaSeleccionado ?? '', '', false); }
 
   abrirModalNuevaCitaConFechaHora(fecha: string, hora: string, esSobrecupo: boolean = false): void {
+    if (!this.hasPermission('agenda.gestionar')) return;
     if (this.profesionalActualBloqueado) return;
     this.nuevaCita = {
       fecha, hora, estudiante_id: null, profesional_id: Number(this.filtroProfesionalId),
@@ -1084,6 +1103,7 @@ toggleSidebarMovil(): void {
   creandoCita = false;
 
   crearCitaDesdeHorario(): void {
+    if (!this.hasPermission('agenda.gestionar')) return;
     if (this.creandoCita) return; // evita doble envío por doble clic
     if (!this.nuevaCita.estudiante_id) {
       this.mensajeError = 'Debes seleccionar un estudiante.';
@@ -1139,6 +1159,10 @@ toggleSidebarMovil(): void {
   solicitudesHorarioAdmin: any[] = [];
 
   cargarSolicitudesHorarioAdmin(): void {
+    if (!this.hasPermission('agenda.gestionar')) {
+      this.solicitudesHorarioAdmin = [];
+      return;
+    }
     this.http.get<any[]>(`${API}/admin/solicitudes-horario?estado=pendiente`).subscribe({
       next: (data) => {
         this.solicitudesHorarioAdmin = data ?? [];
@@ -1149,6 +1173,7 @@ toggleSidebarMovil(): void {
   }
 
   aprobarSolicitudHorario(s: any): void {
+    if (!this.hasPermission('agenda.gestionar')) return;
     this.http.patch(`${API}/admin/solicitudes-horario/${s.id}/aprobar`, {}).subscribe({
       next: () => {
         this.solicitudesHorarioAdmin = this.solicitudesHorarioAdmin.filter(x => x.id !== s.id);
@@ -1166,6 +1191,7 @@ toggleSidebarMovil(): void {
   }
 
   rechazarSolicitudHorario(s: any): void {
+    if (!this.hasPermission('agenda.gestionar')) return;
     const motivo = prompt('Motivo del rechazo (opcional):') || '';
     this.http.patch(`${API}/admin/solicitudes-horario/${s.id}/rechazar`, { motivo }).subscribe({
       next: () => {
@@ -1217,6 +1243,7 @@ toggleSidebarMovil(): void {
   // ══════════════════════════════════════
 
   onCrearProfesional(payload: any): void {
+    if (!this.hasPermission('profesionales.gestionar')) return;
     this.http.post(`${API}/admin/profesionales`, payload).subscribe({
       next: () => {
         this.adminProfesionalesRef?.cerrarModal();
@@ -1230,6 +1257,7 @@ toggleSidebarMovil(): void {
   }
 
   onCambiarEstadoProfesional(payload: { profesional: any; nuevoEstado: string; motivo: string }): void {
+    if (!this.hasPermission('profesionales.gestionar')) return;
     const cancelarCitas = ['licencia','inasistencia'].includes(payload.nuevoEstado)
       ? confirm('¿Cancelar las citas de hoy y notificar estudiantes?') : false;
     this.http.patch(`${API}/admin/profesionales/${payload.profesional.id}/estado`, {
@@ -1247,6 +1275,7 @@ toggleSidebarMovil(): void {
   }
 
   onCambiarDuracionProfesional(payload: { profesional: any; duracionMin: number }): void {
+    if (!this.hasPermission('profesionales.gestionar')) return;
     this.http.patch(`${API}/admin/profesionales/${payload.profesional.id}`, { duracion_min: payload.duracionMin }).subscribe({
       next: () => {
         this.cargarProfesionales();
@@ -1262,6 +1291,7 @@ toggleSidebarMovil(): void {
    * para que el backend distinga "limpiar tratamiento" de "no tocarlo".
    */
   onCambiarTratamientoProfesional(payload: { profesional: any; tratamiento: string | null }): void {
+    if (!this.hasPermission('profesionales.gestionar')) return;
     this.http.patch(`${API}/admin/profesionales/${payload.profesional.id}`, { tratamiento: payload.tratamiento }).subscribe({
       next: () => {
         this.cargarProfesionales();
@@ -1281,6 +1311,7 @@ toggleSidebarMovil(): void {
    * sincronizado de inmediato.
    */
   onCambiarColorIdentificador(payload: { profesional: any; color: string | null }): void {
+    if (!this.hasPermission('profesionales.gestionar')) return;
     this.http.patch(`${API}/admin/profesionales/${payload.profesional.id}`, { color_identificador: payload.color }).subscribe({
       next: () => {
         this.cargarProfesionales();
@@ -1293,6 +1324,7 @@ toggleSidebarMovil(): void {
   }
 
   onEliminarProfesional(p: any): void {
+    if (!this.hasPermission('profesionales.gestionar')) return;
     if (!confirm(`¿Eliminar a ${p.nombre}?`)) return;
     if (!confirm('Se cancelarán TODAS sus citas pendientes y se notificará a los estudiantes. ¿Confirmar?')) return;
     this.http.delete(`${API}/admin/profesionales/${p.id}`).subscribe({
@@ -1325,6 +1357,7 @@ toggleSidebarMovil(): void {
   // Historial), comunicadas por AdminCitasComponent mediante Outputs.
 
   marcarPrioridadCita(cita: any, urgente: boolean): void {
+    if (!this.hasPermission('agenda.gestionar')) return;
     this.http.patch<any>(`${API}/admin/citas/${cita.id}/prioridad`, { urgente }).subscribe({
       next: (res) => {
         cita.urgente = res.urgente;
@@ -1786,6 +1819,7 @@ toggleSidebarMovil(): void {
   }
 
   crearDiaCerrado(): void {
+    if (!this.hasPermission('agenda.gestionar')) return;
     if (!this.nuevoDiaCerrado.fecha || !this.nuevoDiaCerrado.motivo || this.creandoDiaCerrado) return;
     this.creandoDiaCerrado = true;
     this.http.post<any>(`${API}/admin/dias-cerrados`, this.nuevoDiaCerrado).subscribe({
@@ -1822,6 +1856,7 @@ toggleSidebarMovil(): void {
   }
 
   reabrirDiaCerrado(dia: any): void {
+    if (!this.hasPermission('agenda.gestionar')) return;
     if (!confirm(`¿Reabrir el ${dia.fecha}? Las citas que ya se cancelaron NO se restauran automáticamente.`)) return;
     this.http.delete(`${API}/admin/dias-cerrados/${dia.id}`).subscribe({
       next: () => {

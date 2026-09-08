@@ -25,12 +25,12 @@
         <h3 class="card-title">Listado de Personal</h3>
         <div class="card-header-actions">
           <input class="search-input" placeholder="Buscar profesional..." [(ngModel)]="busquedaProfesional" />
-          <button class="btn-agregar" (click)="abrirModalAgregar()">+ Agregar profesional</button>
+          <button *ngIf="puedeGestionarProfesionales" class="btn-agregar" (click)="abrirModalAgregar()">+ Agregar profesional</button>
         </div>
       </div>
       <table class="admin-tabla">
         <thead>
-          <tr><th>PROFESIONAL</th><th>ESPECIALIDAD</th><th>RUT</th><th>ESTADO</th><th>ACCIONES</th></tr>
+          <tr><th>PROFESIONAL</th><th>ESPECIALIDAD</th><th>RUT</th><th>ESTADO</th><th *ngIf="puedeGestionarProfesionales">ACCIONES</th></tr>
         </thead>
         <tbody>
           <tr *ngFor="let p of profesionalesPaginados">
@@ -43,12 +43,12 @@
             <td><span class="esp-badge-color" [style.background]="colorDeProfesional(p) + '1a'" [style.color]="colorDeProfesional(p)" [style.borderColor]="colorDeProfesional(p) + '55'">{{ p.especialidad }}</span></td>
             <td>{{ p.rut || '—' }}</td>
             <td><span class="estado-badge" [ngClass]="p.estado">{{ p.estado }}</span></td>
-            <td>
+            <td *ngIf="puedeGestionarProfesionales">
               <button class="btn-tabla-acciones" (click)="abrirModalAcciones(p)">⋯ Gestionar</button>
             </td>
           </tr>
           <tr *ngIf="profesionalesPaginados.length === 0">
-            <td colspan="5" class="tabla-vacia">No hay profesionales registrados</td>
+            <td [attr.colspan]="puedeGestionarProfesionales ? 5 : 4" class="tabla-vacia">No hay profesionales registrados</td>
           </tr>
         </tbody>
       </table>
@@ -63,7 +63,7 @@
     </div>
 
     <!-- MODAL: NUEVO PROFESIONAL -->
-    <div class="modal-overlay" *ngIf="modalProfAbierto" (click)="cerrarModal()">
+    <div class="modal-overlay" *ngIf="puedeGestionarProfesionales && modalProfAbierto" (click)="cerrarModal()">
       <div class="modal" (click)="$event.stopPropagation()">
         <div *ngIf="!mostrarConfirmacionProf">
           <div class="modal-header">
@@ -183,7 +183,7 @@
     </div>
 
     <!-- MODAL: ACCIONES PROFESIONAL -->
-    <div class="modal-overlay" *ngIf="modalAccionesAbierto" (click)="cerrarModalAcciones()">
+    <div class="modal-overlay" *ngIf="puedeGestionarProfesionales && modalAccionesAbierto" (click)="cerrarModalAcciones()">
       <div class="modal modal-acciones" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <h3>Gestionar Profesional</h3>

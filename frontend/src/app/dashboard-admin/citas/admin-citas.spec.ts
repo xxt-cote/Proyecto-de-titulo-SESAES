@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
+import { vi } from 'vitest';
 
 import { AdminCitasComponent } from './admin-citas';
 
@@ -48,6 +49,7 @@ describe('AdminCitasComponent', () => {
     const req = httpMock.expectOne(req => req.url.includes('/admin/historial'));
     const cita = { id: 5, estudiante: 'Bruno Ríos', estado: 'pendiente', urgente: false };
     req.flush([cita]);
+    fixture.componentRef.setInput('puedeGestionarAgenda', true);
     fixture.detectChanges();
 
     let citaEmitida: any = null;
@@ -63,6 +65,7 @@ describe('AdminCitasComponent', () => {
     const req = httpMock.expectOne(req => req.url.includes('/admin/historial'));
     const cita = { id: 7, estudiante: 'Carla Díaz', estado: 'pendiente', urgente: false };
     req.flush([cita]);
+    fixture.componentRef.setInput('puedeGestionarAgenda', true);
     fixture.detectChanges();
 
     let payload: any = null;
@@ -88,5 +91,37 @@ describe('AdminCitasComponent', () => {
     expect(component.citasFiltroPrioridad).toBe('');
 
     httpMock.expectOne(req => req.url.includes('/admin/historial')).flush([]);
+  });
+
+  it('read-only oculta las acciones de mutación', () => {
+    const req = httpMock.expectOne(req => req.url.includes('/admin/historial'));
+    req.flush([
+      { id: 9, estudiante: 'Diego Mora', estado: 'pendiente', urgente: false }
+    ]);
+    fixture.componentRef.setInput('puedeGestionarAgenda', false);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.btn-nueva-cita-top')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.btn-tabla.cancelar')).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('.tabla-acciones .btn-tabla:not(.ver):not(.cancelar)')
+    ).toBeNull();
+  });
+
+  it('read-only bloquea handlers aunque se invoquen directamente', () => {
+    httpMock.expectOne(req => req.url.includes('/admin/historial')).flush([]);
+    const cita = { id: 10, estudiante: 'Elena Ruiz', estado: 'pendiente', urgente: false };
+    const cancelarSpy = vi.spyOn(component.cancelarCita, 'emit');
+    const prioridadSpy = vi.spyOn(component.marcarPrioridad, 'emit');
+    const horarioSpy = vi.spyOn(component.irAHorario, 'emit');
+
+    component.puedeGestionarAgenda = false;
+    component.onCancelarCita(cita);
+    component.onMarcarPrioridad(cita, true);
+    component.onIrAHorario();
+
+    expect(cancelarSpy).not.toHaveBeenCalled();
+    expect(prioridadSpy).not.toHaveBeenCalled();
+    expect(horarioSpy).not.toHaveBeenCalled();
   });
 });

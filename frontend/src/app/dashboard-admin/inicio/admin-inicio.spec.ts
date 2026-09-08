@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { AdminInicioComponent } from './admin-inicio';
 
 /**
@@ -63,5 +63,35 @@ describe('AdminInicioComponent.nombreConTratamiento', () => {
       tratamiento: 'Dra.'
     });
     expect(resultado).toBe('Dra. Ana Martínez');
+  });
+});
+
+describe('AdminInicioComponent — SA-10.2B read-only vs gestionar', () => {
+  it('sin agenda.gestionar no emite inasistencia ni cancelación aunque se invoquen los handlers', () => {
+    const componente = new AdminInicioComponent();
+    const cita = { id: 21, estudiante: 'Ana Soto' };
+    const inasistenciaSpy = vi.spyOn(componente.marcarInasistenciaCita, 'emit');
+    const cancelarSpy = vi.spyOn(componente.cancelarCita, 'emit');
+
+    componente.puedeGestionarAgenda = false;
+    componente.marcarInasistencia(cita);
+    componente.cancelarCitaAdmin(cita);
+
+    expect(inasistenciaSpy).not.toHaveBeenCalled();
+    expect(cancelarSpy).not.toHaveBeenCalled();
+  });
+
+  it('con agenda.gestionar sí emite las intenciones de inasistencia y cancelación', () => {
+    const componente = new AdminInicioComponent();
+    const cita = { id: 22, estudiante: 'Bruno Ríos' };
+    const inasistenciaSpy = vi.spyOn(componente.marcarInasistenciaCita, 'emit');
+    const cancelarSpy = vi.spyOn(componente.cancelarCita, 'emit');
+
+    componente.puedeGestionarAgenda = true;
+    componente.marcarInasistencia(cita);
+    componente.cancelarCitaAdmin(cita);
+
+    expect(inasistenciaSpy).toHaveBeenCalledWith(cita);
+    expect(cancelarSpy).toHaveBeenCalledWith(cita);
   });
 });
