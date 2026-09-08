@@ -169,11 +169,11 @@ toggleSidebarMovil(): void {
         return true;
       case 'horario':
       case 'citas':
-        return this.hasPermission('agenda.gestionar');
+        return this.hasPermission('agenda.ver');
       case 'profesional':
-        return this.hasPermission('profesionales.gestionar');
+        return this.hasPermission('profesionales.ver');
       case 'estudiantes':
-        return this.hasPermission('usuarios.gestionar');
+        return this.hasPermission('usuarios.ver');
       case 'historial':
       case 'reportes':
         return this.hasPermission('reportes.ver');
@@ -338,15 +338,20 @@ toggleSidebarMovil(): void {
       this.cargarHistorial();
     }
 
-    if (this.hasPermission('agenda.gestionar')) {
+    if (this.hasPermission('agenda.ver')) {
       this.cargarProximasCitas();
       this.cargarResumenDia();
-      this.cargarSolicitudesHorarioAdmin();
       this.cargarDiasCerrados();
     }
 
-    if (this.hasPermission('profesionales.gestionar')) {
+    if (this.hasPermission('agenda.gestionar')) {
+      this.cargarSolicitudesHorarioAdmin();
+    }
+
+    if (this.hasPermission('profesionales.ver')) {
       this.cargarProfesionales();
+    } else if (this.hasPermission('agenda.ver')) {
+      this.cargarProfesionalesAgenda();
     }
 
     if (this.hasPermission('usuarios.gestionar')) {
@@ -388,7 +393,7 @@ toggleSidebarMovil(): void {
     if (this.puedeVerAuditoria) this.cargarAuditoria();
   }
 
-  if (seccion === 'estudiantes' && this.hasPermission('usuarios.gestionar')) {
+  if (seccion === 'estudiantes' && this.hasPermission('usuarios.ver')) {
     this.cargarEstudiantes();
   }
 
@@ -416,7 +421,7 @@ toggleSidebarMovil(): void {
   buscarGlobal(): void {
     const q = this.busquedaGlobal.trim().toLowerCase();
     if (q.length < 2) { this.resultadosBusquedaGlobal = { profesionales: [], estudiantes: [] }; return; }
-    const profs = this.hasPermission('profesionales.gestionar')
+    const profs = this.hasPermission('profesionales.ver')
       ? this.profesionales.filter(p =>
           p.nombre?.toLowerCase().includes(q) || p.especialidad?.toLowerCase().includes(q)
         ).slice(0, 5)
@@ -424,7 +429,7 @@ toggleSidebarMovil(): void {
 
     this.resultadosBusquedaGlobal = { profesionales: profs, estudiantes: [] };
 
-    if (!this.hasPermission('usuarios.gestionar')) {
+    if (!this.hasPermission('usuarios.ver')) {
       this.buscandoGlobal = false;
       return;
     }
@@ -441,7 +446,7 @@ toggleSidebarMovil(): void {
   }
 
   irAProfesionalDesdeBusqueda(p: any): void {
-    if (!this.hasPermission('profesionales.gestionar')) return;
+    if (!this.hasPermission('profesionales.ver')) return;
     this.busquedaGlobal = '';
     this.resultadosBusquedaGlobal = { profesionales: [], estudiantes: [] };
     this.navegarA('profesional');
@@ -453,7 +458,7 @@ toggleSidebarMovil(): void {
   }
 
   irAEstudianteDesdeBusqueda(e: any): void {
-    if (!this.hasPermission('usuarios.gestionar')) return;
+    if (!this.hasPermission('usuarios.ver')) return;
     this.busquedaGlobal = '';
     this.resultadosBusquedaGlobal = { profesionales: [], estudiantes: [] };
     this.navegarA('estudiantes');
@@ -608,6 +613,11 @@ toggleSidebarMovil(): void {
   actualizandoDisponibilidad = false;
 
   cargarResumenDia(): void {
+    if (!this.hasPermission('agenda.ver')) {
+      this.resumenDia = [];
+      this.actualizandoDisponibilidad = false;
+      return;
+    }
     this.actualizandoDisponibilidad = true;
     this.http.get<any[]>(`${API}/admin/resumen-dia`).subscribe({
       next: (data) => {
@@ -674,6 +684,10 @@ toggleSidebarMovil(): void {
   proximasCitas: any[] = [];
 
   cargarProximasCitas(): void {
+    if (!this.hasPermission('agenda.ver')) {
+      this.proximasCitas = [];
+      return;
+    }
     this.http.get<any[]>(`${API}/admin/proximas-citas`).subscribe({
       next: (data) => {
         this.proximasCitas = data ?? [];
@@ -894,6 +908,10 @@ toggleSidebarMovil(): void {
   filtrarProfesionales(): void { this.filtroProfesionalId = ''; this.diaSeleccionado = null; }
 
   cargarHorarioProfesional(): void {
+    if (!this.hasPermission('agenda.ver')) {
+      this.citasHorario = [];
+      return;
+    }
     if (!this.filtroProfesionalId) return;
     this.http.get<any[]>(`${API}/agenda/profesional/${this.filtroProfesionalId}/citas`).subscribe({
       next: (data) => {
@@ -1226,12 +1244,32 @@ toggleSidebarMovil(): void {
   get profesionalesConIncidencia(): number { return this.profesionales.filter(p => ['enfermo','inasistencia','licencia'].includes(p.estado)).length; }
 
   cargarProfesionales(): void {
+    if (!this.hasPermission('profesionales.ver')) {
+      this.profesionales = [];
+      return;
+    }
+
     this.http.get<any[]>(`${API}/admin/profesionales`).subscribe({
       next: (data) => {
         this.profesionales = data ?? [];
         this.cdr.detectChanges();
       },
-      error: () => {}
+      error: () => { this.profesionales = []; }
+    });
+  }
+
+  private cargarProfesionalesAgenda(): void {
+    if (!this.hasPermission('agenda.ver')) {
+      this.profesionales = [];
+      return;
+    }
+
+    this.http.get<any[]>(`${API}/agenda/profesionales`).subscribe({
+      next: (data) => {
+        this.profesionales = data ?? [];
+        this.cdr.detectChanges();
+      },
+      error: () => { this.profesionales = []; }
     });
   }
 
@@ -1382,6 +1420,12 @@ toggleSidebarMovil(): void {
   fichaEstudianteSeleccionado: any   = null;
 
   cargarEstudiantes(): void {
+    if (!this.hasPermission('usuarios.ver')) {
+      this.estudiantesAdmin = [];
+      this.estudiantesTotal = 0;
+      this.estudiantesCargando = false;
+      return;
+    }
     this.estudiantesCargando = true;
     let url = `${API}/admin/estudiantes/listado?pagina=${this.estudiantesPagina}&por_pagina=${this.estudiantesPorPagina}&`;
     if (this.estudiantesFiltroQ)       url += `q=${encodeURIComponent(this.estudiantesFiltroQ)}&`;
@@ -1411,6 +1455,7 @@ toggleSidebarMovil(): void {
   }
 
   verPerfilEstudianteAdmin(est: any): void {
+    if (!this.hasPermission('usuarios.ver')) return;
     this.modalPerfilEstudianteAbierto = true;
     this.perfilEstudianteCargando = true;
     this.fichaEstudianteSeleccionado = null;
@@ -1812,6 +1857,10 @@ toggleSidebarMovil(): void {
   get hoyISO(): string { return new Date().toISOString().split('T')[0]; }
 
   cargarDiasCerrados(): void {
+    if (!this.hasPermission('agenda.ver')) {
+      this.diasCerrados = [];
+      return;
+    }
     this.http.get<any[]>(`${API}/admin/dias-cerrados`).subscribe({
       next: (data) => { this.diasCerrados = data ?? []; this.cdr.detectChanges(); },
       error: () => { this.diasCerrados = []; this.cdr.detectChanges(); }
@@ -1841,6 +1890,7 @@ toggleSidebarMovil(): void {
   }
 
   verCitasDiaCerrado(dia: any): void {
+    if (!this.hasPermission('agenda.ver')) return;
     this.diaCerradoSeleccionado = dia;
     this.modalCitasDiaCerradoAbierto = true;
     this.cargandoCitasDiaCerrado = true;

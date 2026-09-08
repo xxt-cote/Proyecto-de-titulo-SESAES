@@ -440,7 +440,7 @@ function crearShellConPermisosYHttp(permisos: Permission[]) {
   } as unknown as AuthService;
 
   const http = {
-    get: vi.fn(),
+    get: vi.fn((url: string) => of([])),
     post: vi.fn(),
     patch: vi.fn(),
     delete: vi.fn()
@@ -521,6 +521,58 @@ describe('DashboardAdminComponent — SA-10.2B handlers fail-closed', () => {
     expect(component.modalCitaAbierto).toBe(false);
     expect(component.sobrecupoConfirmAbierto).toBe(false);
     expect(component.sobrecupoPendiente).toBeNull();
+  });
+});
+
+describe('DashboardAdminComponent — SA-10.2C lectura *.ver', () => {
+  it('agenda.ver abre Agenda y Citas sin conceder agenda.gestionar', () => {
+    const component = crearShellConPermisos(['agenda.ver']);
+
+    expect(component.puedeAccederSeccion('horario')).toBe(true);
+    expect(component.puedeAccederSeccion('citas')).toBe(true);
+    expect(component.hasPermission('agenda.gestionar')).toBe(false);
+  });
+
+  it('profesionales.ver abre Profesionales y usuarios.ver abre Estudiantes', () => {
+    const profesionales = crearShellConPermisos(['profesionales.ver']);
+    const estudiantes = crearShellConPermisos(['usuarios.ver']);
+
+    expect(profesionales.puedeAccederSeccion('profesional')).toBe(true);
+    expect(profesionales.hasPermission('profesionales.gestionar')).toBe(false);
+    expect(estudiantes.puedeAccederSeccion('estudiantes')).toBe(true);
+    expect(estudiantes.hasPermission('usuarios.gestionar')).toBe(false);
+  });
+
+  it('agenda.ver carga datos de lectura y catálogo operacional, pero no solicitudes de horario', () => {
+    const { component, http } = crearShellConPermisosYHttp(['agenda.ver']);
+
+    component.cargarDatos();
+
+    const urls = http.get.mock.calls.map(call => String(call[0]));
+    expect(urls.some(url => url.includes('/admin/proximas-citas'))).toBe(true);
+    expect(urls.some(url => url.includes('/admin/resumen-dia'))).toBe(true);
+    expect(urls.some(url => url.includes('/admin/dias-cerrados'))).toBe(true);
+    expect(urls.some(url => url.includes('/agenda/profesionales'))).toBe(true);
+    expect(urls.some(url => url.includes('/admin/solicitudes-horario'))).toBe(false);
+  });
+
+  it('profesionales.ver usa /admin/profesionales y no el catálogo mínimo de Agenda', () => {
+    const { component, http } = crearShellConPermisosYHttp(['profesionales.ver']);
+
+    component.cargarDatos();
+
+    const urls = http.get.mock.calls.map(call => String(call[0]));
+    expect(urls.some(url => url.includes('/admin/profesionales'))).toBe(true);
+    expect(urls.some(url => url.includes('/agenda/profesionales'))).toBe(false);
+  });
+
+  it('usuarios.ver permite búsqueda global de estudiantes sin usuarios.gestionar', () => {
+    const { component, http } = crearShellConPermisosYHttp(['usuarios.ver']);
+    component.busquedaGlobal = 'ana';
+
+    component.buscarGlobal();
+
+    expect(http.get).toHaveBeenCalledWith(expect.stringContaining('/admin/estudiantes?q=ana'));
   });
 });
 

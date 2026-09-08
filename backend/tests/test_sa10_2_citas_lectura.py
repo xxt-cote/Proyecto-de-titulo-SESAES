@@ -159,6 +159,70 @@ def _alcance_nutricion():
     )
 
 
+def test_listar_profesionales_agenda_exige_exactamente_agenda_ver():
+    assert (
+        _permiso_de(
+            agenda.listar_profesionales_agenda
+        )
+        is Permission.AGENDA_VER
+    )
+
+
+def test_listar_profesionales_agenda_devuelve_campos_minimos_y_scope(
+    db_session,
+    monkeypatch,
+):
+    nutricion = _profesional(
+        db_session,
+        nombre="Nutricionista Agenda",
+        especialidad="Nutricion",
+        iniciales="NA",
+    )
+    nutricion.tratamiento = "Nut."
+    nutricion.duracion_min = 45
+    nutricion.color_identificador = "#123456"
+
+    _profesional(
+        db_session,
+        nombre="Odontologo Fuera Scope",
+        especialidad="Odontologia",
+        iniciales="OD",
+    )
+    db_session.commit()
+
+    monkeypatch.setattr(
+        agenda,
+        "obtener_alcance_administrativo_efectivo",
+        lambda db, current_user: (
+            _alcance_nutricion()
+        ),
+    )
+
+    resultado = agenda.listar_profesionales_agenda(
+        db=db_session,
+        current_user={
+            "id": 50,
+            "rol": "admin",
+        },
+    )
+
+    assert len(resultado) == 1
+    assert resultado[0]["id"] == nutricion.id
+    assert set(resultado[0]) == {
+        "id",
+        "nombre",
+        "tratamiento",
+        "especialidad",
+        "iniciales",
+        "duracion_min",
+        "estado",
+        "color_identificador",
+    }
+    assert "correo" not in resultado[0]
+    assert "rut" not in resultado[0]
+    assert "usuario_id" not in resultado[0]
+
+
 def test_listar_citas_admin_exige_exactamente_agenda_ver():
     assert (
         _permiso_de(

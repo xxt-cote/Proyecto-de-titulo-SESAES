@@ -95,3 +95,32 @@ describe('AdminInicioComponent — SA-10.2B read-only vs gestionar', () => {
     expect(cancelarSpy).toHaveBeenCalledWith(cita);
   });
 });
+
+describe('AdminInicioComponent — SA-10.2C agenda.ver', () => {
+  it('sin agenda.ver no emite navegación ni refresh de disponibilidad', () => {
+    const componente = new AdminInicioComponent();
+    const agendaSpy = vi.spyOn(componente.verAgenda, 'emit');
+    const refreshSpy = vi.spyOn(componente.actualizarDisponibilidad, 'emit');
+
+    componente.puedeVerAgenda = false;
+    componente.navegarA('horario');
+    componente.refrescarDisponibilidad();
+
+    expect(agendaSpy).not.toHaveBeenCalled();
+    expect(refreshSpy).not.toHaveBeenCalled();
+  });
+
+  it('con agenda.ver permite navegación y refresh sin requerir agenda.gestionar', () => {
+    const componente = new AdminInicioComponent();
+    const agendaSpy = vi.spyOn(componente.verAgenda, 'emit');
+    const refreshSpy = vi.spyOn(componente.actualizarDisponibilidad, 'emit');
+
+    componente.puedeVerAgenda = true;
+    componente.puedeGestionarAgenda = false;
+    componente.navegarA('horario');
+    componente.refrescarDisponibilidad();
+
+    expect(agendaSpy).toHaveBeenCalledTimes(1);
+    expect(refreshSpy).toHaveBeenCalledTimes(1);
+  });
+});

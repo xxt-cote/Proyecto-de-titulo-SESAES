@@ -25,6 +25,7 @@ Chart.register(...registerables);
   templateUrl: './admin-inicio.html'
 })
 export class AdminInicioComponent implements AfterViewInit, OnChanges, OnDestroy {
+  @Input() puedeVerAgenda = false;
   @Input() puedeGestionarAgenda = false;
 
   @Input() estadisticas = {
@@ -118,6 +119,7 @@ export class AdminInicioComponent implements AfterViewInit, OnChanges, OnDestroy
   }
 
   refrescarDisponibilidad(): void {
+    if (!this.puedeVerAgenda) return;
     this.actualizarDisponibilidad.emit();
   }
 
@@ -141,7 +143,7 @@ export class AdminInicioComponent implements AfterViewInit, OnChanges, OnDestroy
   }
 
   navegarA(seccion: string): void {
-    if (seccion === 'horario') {
+    if (seccion === 'horario' && this.puedeVerAgenda) {
       this.verAgenda.emit();
     }
   }

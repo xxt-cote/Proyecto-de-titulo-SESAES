@@ -49,7 +49,7 @@ export class AdminCitasComponent implements OnInit {
 
   cargarCitas(): void {
     this.citasCargando = true;
-    let url = `${API}/admin/historial?`;
+    let url = `${API}/agenda/citas?`;
     if (this.citasFiltroEstudiante) url += `estudiante=${encodeURIComponent(this.citasFiltroEstudiante)}&`;
     if (this.citasFiltroEstado)     url += `estado=${this.citasFiltroEstado}&`;
 
@@ -94,8 +94,8 @@ export class AdminCitasComponent implements OnInit {
 
   minVal(a: number, b: number): number { return Math.min(a, b); }
 
-  // Permission esperado: agenda.gestionar
-  // (documentado únicamente; el guard de permisos no se conecta en esta fase)
+  // Lectura: agenda.ver (el shell controla el render de la sección).
+  // Mutaciones: agenda.gestionar, reforzado también en estos handlers.
 
   onVerDetalle(cita: any): void {
     this.verDetalle.emit(cita);

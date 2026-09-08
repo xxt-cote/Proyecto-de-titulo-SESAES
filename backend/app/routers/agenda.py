@@ -28,6 +28,56 @@ from app.rbac.admin_authorization import (
 router = APIRouter(prefix="/agenda", tags=["agenda"])
 
 
+@router.get("/profesionales")
+def listar_profesionales_agenda(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(
+        require_effective_permission(
+            Permission.AGENDA_VER
+        )
+    ),
+):
+    """
+    Catálogo operacional mínimo para seleccionar profesionales en Agenda.
+
+    Requiere agenda.ver y respeta el alcance administrativo efectivo.
+    No reutiliza /admin/profesionales porque esa ruta pertenece al módulo
+    de Profesionales y exige profesionales.ver.
+    """
+    alcance = obtener_alcance_administrativo_efectivo(
+        db,
+        current_user,
+    )
+
+    if alcance is None:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes acceso al alcance solicitado.",
+        )
+
+    profesionales = [
+        profesional
+        for profesional in db.query(Profesional).all()
+        if especialidad_permitida_por_alcance(
+            alcance,
+            profesional.especialidad,
+        )
+    ]
+
+    return [
+        {
+            "id": profesional.id,
+            "nombre": profesional.nombre,
+            "tratamiento": profesional.tratamiento,
+            "especialidad": profesional.especialidad,
+            "iniciales": profesional.iniciales,
+            "duracion_min": profesional.duracion_min,
+            "estado": profesional.estado or "activo",
+            "color_identificador": profesional.color_identificador,
+        }
+        for profesional in profesionales
+    ]
+
 
 @router.get("/citas")
 def listar_citas_admin(

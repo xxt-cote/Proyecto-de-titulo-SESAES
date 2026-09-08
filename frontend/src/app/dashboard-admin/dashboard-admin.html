@@ -195,6 +195,7 @@
       <!-- ══ INICIO ══ -->
       <app-admin-inicio
         *ngIf="seccionActiva==='inicio'"
+        [puedeVerAgenda]="hasPermission('agenda.ver')"
         [puedeGestionarAgenda]="hasPermission('agenda.gestionar')"
         [estadisticas]="estadisticas"
         [resumenDia]="resumenDia"
