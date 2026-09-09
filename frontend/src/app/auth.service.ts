@@ -63,6 +63,13 @@ export class AuthService {
   // profesional en otra) sin que una pise los datos de la otra.
   guardarSesion(data: LoginResponse): void {
     this.contextoAccesoAdministrativo = null;
+
+    // CLEAN SP-INT-3A: elimina identidad legacy que versiones antiguas
+    // persistían globalmente entre pestañas. Las preferencias visuales
+    // (p. ej. prof_tema_oscuro) permanecen intactas.
+    localStorage.removeItem('prof_db_id');
+    localStorage.removeItem('correo');
+
     sessionStorage.setItem('access_token', data.access_token);
     sessionStorage.setItem('rol', data.rol);
     sessionStorage.setItem('id', String(data.id));
@@ -149,6 +156,10 @@ export class AuthService {
   logout(): void {
     this.contextoAccesoAdministrativo = null;
     sessionStorage.clear();
+
+    // Limpieza de claves legacy sin borrar preferencias visuales locales.
+    localStorage.removeItem('prof_db_id');
+    localStorage.removeItem('correo');
   }
 
   isLoggedIn(): boolean {

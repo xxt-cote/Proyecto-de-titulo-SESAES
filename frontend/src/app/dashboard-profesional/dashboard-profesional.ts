@@ -12,6 +12,7 @@ import { ToastService } from '../shared/toast/toast.service';
 import { ProfessionalAyudaComponent } from './ayuda/professional-ayuda';
 import { evaluarPassword, type PasswordChecklist } from '../shared/password-validation';
 import { coincideBusqueda } from '../shared/text-normalization';
+import { AuthService } from '../auth.service';
 
 const API = environment.apiUrl;
 
@@ -41,9 +42,12 @@ toggleSidebarMovil(): void {
   set mensajeError(valor: string) { this._mensajeError = valor; if (valor) this.toast.error(valor); }
   get mensajeError(): string { return this._mensajeError; }
 
-  // prof_db_id: id en tabla profesional (guardado en localStorage al hacer login)
+  // Profesional.id se resuelve desde la identidad Usuario de la sesión.
+  // Nunca se persiste en localStorage: evita mezclar identidades entre pestañas.
+  private profesionalId = 0;
+
   get profDbId(): number {
-    return Number(localStorage.getItem('prof_db_id')) || 0;
+    return this.profesionalId;
   }
 
   perfil: any = {
@@ -77,14 +81,54 @@ toggleSidebarMovil(): void {
     private router: Router,
     private http: HttpClient,
     private cdr: ChangeDetectorRef,
-    private toast: ToastService
+    private toast: ToastService,
+    private auth: AuthService
   ) {}
 
   ngOnInit(): void {
     const temaGuardado = localStorage.getItem('prof_tema_oscuro');
     if (temaGuardado === 'true') this.temaOscuro = true;
-    this.cargarDatos();
-    this.cargarCitasSinCerrar();
+
+    this.resolverIdentidadProfesional();
+  }
+
+  private resolverIdentidadProfesional(): void {
+    const usuarioId = this.auth.getUsuarioId();
+
+    if (
+      this.auth.getRol() !== 'profesional' ||
+      usuarioId === null
+    ) {
+      this.mensajeError = 'No se pudo validar la sesión profesional.';
+      this.auth.logout();
+      void this.router.navigate(['/login']);
+      return;
+    }
+
+    this.http.get<{ id: number }>(
+      `${API}/profesional/buscar-por-usuario/${usuarioId}`
+    ).subscribe({
+      next: (profesional) => {
+        const profesionalId = Number(profesional?.id);
+
+        if (
+          !Number.isInteger(profesionalId) ||
+          profesionalId <= 0
+        ) {
+          this.mensajeError = 'La cuenta profesional no tiene un perfil válido asociado.';
+          return;
+        }
+
+        this.profesionalId = profesionalId;
+        this.cargarDatos();
+        this.cargarCitasSinCerrar();
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.mensajeError = 'Tu cuenta de profesional no está vinculada correctamente. Contacta al administrador.';
+        this.cdr.detectChanges();
+      }
+    });
   }
 
   // ══════════════════════════════════════
@@ -131,7 +175,10 @@ toggleSidebarMovil(): void {
     this.cargarSolicitudesHorario();
   }
 }
-  cerrarSesion(): void { localStorage.clear(); window.location.href = '/login'; }
+  cerrarSesion(): void {
+    this.auth.logout();
+    void this.router.navigate(['/login']);
+  }
 
   toggleTema(): void {
     this.temaOscuro = !this.temaOscuro;

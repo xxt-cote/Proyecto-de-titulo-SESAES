@@ -282,4 +282,45 @@ describe('AuthService — identidad de sesión', () => {
   });
 
 
+
+  it('guardarSesion elimina identidad legacy sin borrar preferencias visuales', () => {
+    localStorage.setItem('prof_db_id', '99');
+    localStorage.setItem('correo', 'legacy@utem.cl');
+    localStorage.setItem('prof_tema_oscuro', 'true');
+
+    service.guardarSesion({
+      message: 'ok',
+      access_token: 'token-prueba',
+      token_type: 'bearer',
+      rol: 'profesional',
+      id: 15,
+      nombre: 'Profesional',
+      foto_url: null,
+      debe_cambiar_password: false
+    });
+
+    expect(localStorage.getItem('prof_db_id')).toBeNull();
+    expect(localStorage.getItem('correo')).toBeNull();
+    expect(localStorage.getItem('prof_tema_oscuro')).toBe('true');
+    expect(service.getUsuarioId()).toBe(15);
+  });
+
+  it('logout elimina sesión e identidad legacy sin borrar tema profesional', () => {
+    sessionStorage.setItem('access_token', 'token-prueba');
+    sessionStorage.setItem('rol', 'profesional');
+    sessionStorage.setItem('usuario_id', '15');
+    localStorage.setItem('prof_db_id', '99');
+    localStorage.setItem('correo', 'legacy@utem.cl');
+    localStorage.setItem('prof_tema_oscuro', 'true');
+
+    service.logout();
+
+    expect(service.getToken()).toBeNull();
+    expect(service.getUsuarioId()).toBeNull();
+    expect(localStorage.getItem('prof_db_id')).toBeNull();
+    expect(localStorage.getItem('correo')).toBeNull();
+    expect(localStorage.getItem('prof_tema_oscuro')).toBe('true');
+  });
+
+
 });
