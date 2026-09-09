@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from datetime import date, datetime
+from datetime import date
 from pydantic import BaseModel
 
 from app.database import get_db
@@ -14,7 +14,6 @@ from app.models.cita import Cita
 from app.models.profesional import Profesional
 from app.models.usuario import Usuario
 from app.models.notificacion import Notificacion
-from app.models.historial_estado_profesional import HistorialEstadoProfesional
 from app.routers.correos import simular_envio_correo
 from app.auth_dependencies import get_current_user, verificar_acceso_profesional
 from app.rbac.permissions import Permission, has_permission
@@ -477,121 +476,6 @@ def marcar_inasistencia(
                                 detalle=f"Estudiante: {est.nombre if est else '—'} — {cita.fecha} {cita.hora}")
     db.commit()
     return {"message": "Inasistencia registrada"}
-
-
-# ══════════════════════════════════════
-# REPORTAR AUSENCIA
-# ══════════════════════════════════════
-# Tres modos, según "tipo":
-#   - "temporal":     mismo día, cancela solo las citas dentro de [hora_inicio, hora_fin]
-#   - "dia_completo":  cancela todas las citas pendientes del día indicado
-#   - "licencia":      cancela todas las citas pendientes entre fecha_inicio y fecha_fin
-#
-# En los tres casos: se cancelan las citas afectadas, se notifica a cada estudiante
-# y al admin, y se registra en el historial de estado. La reactivación del profesional
-# (volver a "activo") queda a criterio manual del admin — no hay reactivación automática.
-
-def _hora_a_minutos(hora_str: str) -> int:
-    """Convierte 'HH:MM AM/PM' o 'HH:MM' a minutos desde medianoche, para poder comparar rangos."""
-    hora_str = (hora_str or "").strip()
-    for fmt in ("%I:%M %p", "%H:%M"):
-        try:
-            t = datetime.strptime(hora_str, fmt)
-            return t.hour * 60 + t.minute
-        except ValueError:
-            continue
-    return -1
-
-
-@router.post("/profesional/{prof_id}/reportar-ausencia")
-def reportar_ausencia(
-    prof_id: int,
-    body: dict,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    _exigir_permiso_y_ownership_propio(current_user, prof_id, db, Permission.AGENDA_GESTIONAR_PROPIA)
-    prof = db.query(Profesional).filter(Profesional.id == prof_id).first()
-    if not prof:
-        raise HTTPException(status_code=404, detail="Profesional no encontrado")
-
-    tipo   = body.get("tipo", "dia_completo")
-    motivo = body.get("motivo") or "Sin motivo especificado"
-    estado_anterior = prof.estado or "activo"
-
-    if tipo == "temporal":
-        fecha       = body.get("fecha", date.today().isoformat())
-        hora_inicio = _hora_a_minutos(body.get("hora_inicio"))
-        hora_fin    = _hora_a_minutos(body.get("hora_fin"))
-        if hora_inicio < 0 or hora_fin < 0 or hora_inicio >= hora_fin:
-            raise HTTPException(status_code=400, detail="Rango de horas inválido")
-        citas_afectadas = [
-            c for c in db.query(Cita).filter(
-                Cita.profesional_id == prof_id, Cita.fecha == fecha, Cita.estado == "pendiente"
-            ).all()
-            if hora_inicio <= _hora_a_minutos(c.hora) < hora_fin
-        ]
-        estado_nuevo = estado_anterior  # una salida temporal no cambia el estado general del profesional
-        rango_desc = f"el {fecha} entre {body.get('hora_inicio')} y {body.get('hora_fin')}"
-
-    elif tipo == "licencia":
-        fecha_inicio = body.get("fecha_inicio", date.today().isoformat())
-        fecha_fin    = body.get("fecha_fin", fecha_inicio)
-        citas_afectadas = db.query(Cita).filter(
-            Cita.profesional_id == prof_id, Cita.estado == "pendiente",
-            Cita.fecha >= fecha_inicio, Cita.fecha <= fecha_fin
-        ).all()
-        estado_nuevo = "licencia"
-        rango_desc = f"del {fecha_inicio} al {fecha_fin}"
-
-    else:  # dia_completo
-        fecha = body.get("fecha", date.today().isoformat())
-        citas_afectadas = db.query(Cita).filter(
-            Cita.profesional_id == prof_id, Cita.fecha == fecha, Cita.estado == "pendiente"
-        ).all()
-        estado_nuevo = "inasistencia"
-        rango_desc = f"el {fecha}"
-
-    prof.estado = estado_nuevo
-
-    for cita in citas_afectadas:
-        cita.estado = "cancelada"
-        est = db.query(Usuario).filter(Usuario.id == cita.estudiante_id).first()
-        if est:
-            db.add(Notificacion(
-                usuario_id=est.id,
-                mensaje=f"Tu cita del {cita.fecha} a las {cita.hora} fue cancelada por fuerza mayor. "
-                        f"Puedes reagendar tu hora cuando lo desees desde tu dashboard.",
-                tipo="cancelacion"
-            ))
-            simular_envio_correo(db,
-                destinatario=est.correo or "",
-                asunto="SESAES — Tu cita fue cancelada",
-                cuerpo=f"Tu cita del {cita.fecha} a las {cita.hora} con {prof.nombre} fue cancelada por fuerza mayor.",
-                tipo="cancelacion", referencia_id=cita.id
-            )
-
-    db.add(HistorialEstadoProfesional(
-        profesional_id=prof_id, estado_anterior=estado_anterior,
-        estado_nuevo=estado_nuevo, motivo=motivo, registrado_por=current_user["id"]
-    ))
-
-    _notificar_con_agenda_gestionar(
-        db,
-        prof.especialidad,
-        mensaje=f"{prof.nombre} reportó ausencia {rango_desc}. Motivo: {motivo}. "
-                f"Se cancelaron {len(citas_afectadas)} cita(s) automáticamente.",
-        tipo="advertencia",
-        email_asunto=f"SESAES — {prof.nombre} reportó ausencia",
-        email_cuerpo=f"{prof.nombre} ({prof.especialidad}) reportó ausencia {rango_desc}. Motivo: {motivo}.",
-        email_referencia_id=None,
-    )
-
-    registrar_evento_auditoria(db, current_user, "Profesional reportó ausencia",
-                                entidad="profesional", entidad_id=prof_id,
-                                detalle=f"{prof.nombre} — {tipo} — {rango_desc}: {motivo} ({len(citas_afectadas)} citas canceladas)")
-    db.commit()
-    return {"message": f"Ausencia reportada. {len(citas_afectadas)} cita(s) cancelada(s) y notificadas."}
 
 
 # ══════════════════════════════════════

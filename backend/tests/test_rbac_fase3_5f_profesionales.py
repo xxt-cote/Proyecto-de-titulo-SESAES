@@ -9,8 +9,6 @@ Cubre únicamente lo migrado en este bloque:
   - get_estadisticas_dia           -> AGENDA_VER_PROFESIONAL + ownership
   - get_citas_sin_cerrar           -> AGENDA_VER_PROFESIONAL + ownership
   - get_perfil / cambiar_password  -> ownership estricto (sin permiso nuevo)
-  - reportar_ausencia              -> AGENDA_GESTIONAR_PROPIA + ownership
-                                       + registrado_por = current_user["id"]
   - notificaciones administrativas -> resueltas por has_permission(...,
                                        AGENDA_GESTIONAR), no por rol=="admin"
 
@@ -365,76 +363,11 @@ def test_notificaciones_profesional_rechaza_otro_profesional():
 
 
 # ══════════════════════════════════════════════════════════════════
-# reportar_ausencia
+# Flujo legacy de ausencia retirado
 # ══════════════════════════════════════════════════════════════════
-def test_reportar_ausencia_exige_agenda_gestionar_propia():
-    source = inspect.getsource(m.reportar_ausencia)
-    assert "Permission.AGENDA_GESTIONAR_PROPIA" in source
-
-
-def test_reportar_ausencia_rechaza_otro_profesional():
-    db = FakeDB({Profesional: [_prof(5, usuario_id=10)]})
-    with pytest.raises(HTTPException) as exc:
-        m.reportar_ausencia(
-            prof_id=5, body={"tipo": "dia_completo"}, db=db,
-            current_user={"id": 999, "rol": "profesional"},
-        )
-    assert exc.value.status_code == 403
-
-
-def test_reportar_ausencia_guarda_registrado_por_como_current_user_id(
-    monkeypatch,
-):
-    db = FakeDB({
-        Profesional: [
-            _prof(5, usuario_id=10),
-        ],
-        Cita: [],
-        Usuario: [
-            _usuario(
-                1,
-                "admin",
-                correo="admin@utem.cl",
-            ),
-        ],
-    })
-
-    # El objetivo de este test es la trazabilidad registrado_por.
-    monkeypatch.setattr(
-        m,
-        "_notificar_con_agenda_gestionar",
-        lambda *args, **kwargs: None,
-    )
-
-    m.reportar_ausencia(
-        prof_id=5,
-        body={
-            "tipo": "dia_completo",
-            "motivo": "gripe",
-        },
-        db=db,
-        current_user={
-            "id": 10,
-            "rol": "profesional",
-        },
-    )
-
-    historiales = [
-        o
-        for o in db.added
-        if type(o).__name__
-        == "HistorialEstadoProfesional"
-    ]
-
-    assert len(historiales) == 1
-    assert historiales[0].registrado_por == 10
-
-    assert (
-        "registrado_por=None"
-        not in inspect.getsource(
-            m.reportar_ausencia
-        )
-    )
+def test_reportar_ausencia_legacy_ya_no_existe_en_router_profesional():
+    """La ausencia ya no se registra/cancela automáticamente desde este router."""
+    assert not hasattr(m, "reportar_ausencia")
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -509,11 +442,5 @@ def test_notificar_con_agenda_gestionar_incluye_superadmin_no_solo_admin(
 
 def test_marcar_inasistencia_notifica_por_permiso_no_por_rol_admin_string():
     source = inspect.getsource(m.marcar_inasistencia)
-    assert 'Usuario.rol == "admin"' not in source
-    assert "_notificar_con_agenda_gestionar" in source
-
-
-def test_reportar_ausencia_notifica_por_permiso_no_por_rol_admin_string():
-    source = inspect.getsource(m.reportar_ausencia)
     assert 'Usuario.rol == "admin"' not in source
     assert "_notificar_con_agenda_gestionar" in source

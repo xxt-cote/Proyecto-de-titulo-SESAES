@@ -129,13 +129,6 @@ body { margin: 0; font-family: 'Inter', 'Manrope', system-ui, sans-serif; backgr
 .profile-name { font-size: 12px; font-weight: 600; color: #1E2B23; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .profile-role { font-size: 10px; color: #5C6B60; }
 
-.btn-ausencia {
-  padding: 8px 10px; background: #FBF1E1; border: 1.5px solid #F0D9AE;
-  border-radius: 8px; color: #C9822A; font-size: 11.5px; font-weight: 600;
-  cursor: pointer; text-align: center; transition: all .15s;
-}
-.btn-ausencia:hover { background: #FBF1E1; }
-.btn-ausencia:disabled { opacity: .4; cursor: not-allowed; }
 
 .logout-btn { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border: 1.5px solid #E6E0D2; border-radius: 8px; background: #fff; color: #C0453A; font-size: 12px; cursor: pointer; justify-content: center; transition: all .15s; }
 .logout-btn:hover { background: #FBEBE9; border-color: #F0C4C0; }
@@ -635,47 +628,6 @@ body { margin: 0; font-family: 'Inter', 'Manrope', system-ui, sans-serif; backgr
 .modal-desc { font-size: 13px; color: #5C6B60; margin: 0 0 16px; }
 .modal-footer-prof { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 
-/* -- 13.2 Modal Reportar Ausencia (selector segmentado) -- */
-.ausencia-selector-label {
-  display: block;
-  font-size: 11px;
-  font-weight: 600;
-  color: #5C6B60;
-  margin: 4px 0 8px;
-}
-
-.ausencia-tipos-selector {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-.ausencia-tipo-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 12px 6px;
-  border-radius: 10px;
-  border: 1.5px solid #E6E0D2;
-  background: white;
-  cursor: pointer;
-  transition: all .15s;
-}
-.ausencia-tipo-btn:hover { border-color: #2C5A45; }
-.ausencia-tipo-btn.selected { border-color: #2C5A45; background: #E6F0E7; }
-
-.ausencia-tipo-icono { font-size: 18px; }
-.ausencia-tipo-label { font-size: 11.5px; font-weight: 600; color: #5C6B60; text-align: center; }
-.ausencia-tipo-btn.selected .ausencia-tipo-label { color: #2C5A45; }
-
-.ausencia-panel-campos { background: #F7F4EC; border-radius: 10px; padding: 14px; margin-bottom: 14px; }
-.ausencia-panel-desc { display: block; font-size: 11.5px; color: #5C6B60; margin-bottom: 10px; }
-.ausencia-panel-campos .form-grid { margin-bottom: 0; }
-
-.btn-reportar { padding: 9px 20px; background: #C9822A; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
-
 /* -- 13.3 Modal Completar Atención -- */
 .cita-resumen-modal { background: #E6F0E7; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; }
 .cita-resumen-modal strong { display: block; font-size: 14px; color: #1E2B23; }
@@ -743,7 +695,6 @@ body { margin: 0; font-family: 'Inter', 'Manrope', system-ui, sans-serif; backgr
   .notif-panel { right: 16px; left: 16px; width: auto; top: 60px; }
 
   .modal-prof { padding: 20px; width: 92vw; }
-  .ausencia-tipos-selector { grid-template-columns: 1fr; }
   .form-grid { grid-template-columns: 1fr; }
 
   .atenciones-filtros { flex-direction: column; }
@@ -794,7 +745,6 @@ body { margin: 0; font-family: 'Inter', 'Manrope', system-ui, sans-serif; backgr
 .dashboard-prof.tema-oscuro .profile-name { color: #f3f7fb; }
 .dashboard-prof.tema-oscuro .profile-role { color: #8ea3b7; }
 .dashboard-prof.tema-oscuro .logout-btn { background: #13253a; border-color: #29435f; color: #ef5a55; }
-.dashboard-prof.tema-oscuro .btn-ausencia { background: rgba(234,88,12,0.1); border-color: rgba(234,88,12,0.3); color: #ff8b26; }
 .dashboard-prof.tema-oscuro .btn-hamburguesa { background: #13253a; border-color: #29435f; color: #8ea3b7; }
 
 /* -- Topbar  -- */
@@ -945,14 +895,6 @@ body { margin: 0; font-family: 'Inter', 'Manrope', system-ui, sans-serif; backgr
 .dashboard-prof.tema-oscuro .modal-cerrar-prof { color: #8ea3b7; }
 .dashboard-prof.tema-oscuro .cita-resumen-modal { background: rgba(13,148,136,0.1); }
 .dashboard-prof.tema-oscuro .cita-resumen-modal strong { color: #dbe6ef; }
-.dashboard-prof.tema-oscuro .ausencia-selector-label { color: #8ea3b7; }
-.dashboard-prof.tema-oscuro .ausencia-tipo-btn { background: #10263b; border-color: #29435f; }
-.dashboard-prof.tema-oscuro .ausencia-tipo-btn:hover { border-color: #10c6b2; }
-.dashboard-prof.tema-oscuro .ausencia-tipo-btn.selected { border-color: #10c6b2; background: rgba(13,148,136,0.15); }
-.dashboard-prof.tema-oscuro .ausencia-tipo-label { color: #8ea3b7; }
-.dashboard-prof.tema-oscuro .ausencia-tipo-btn.selected .ausencia-tipo-label { color: #16d7c1; }
-.dashboard-prof.tema-oscuro .ausencia-panel-campos { background: #091624; }
-.dashboard-prof.tema-oscuro .ausencia-panel-desc { color: #8ea3b7; }
 
 /* Aviso: cuestionario respondido por el estudiante, pendiente de revisión */
 .cuestionario-aviso-prof {

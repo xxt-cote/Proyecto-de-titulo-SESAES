@@ -238,19 +238,15 @@ def test_notificadores_admin_respetan_permiso_scope_y_activo(
     }
 
 
-def test_reportar_ausencia_no_confunde_profesional_con_cita():
-    source = inspect.getsource(
-        profesionales.reportar_ausencia
-    )
+def test_reportar_ausencia_legacy_no_esta_registrado_como_endpoint():
+    paths = {
+        route.path
+        for route in profesionales.router.routes
+    }
 
     assert (
-        "email_referencia_id=prof_id"
-        not in source
-    )
-
-    assert (
-        "email_referencia_id=None"
-        in source
+        "/profesional/{prof_id}/reportar-ausencia"
+        not in paths
     )
 
 

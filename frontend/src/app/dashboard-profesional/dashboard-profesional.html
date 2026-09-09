@@ -65,9 +65,6 @@
     </nav>
 
     <div class="sidebar-footer">
-      <button class="btn-ausencia" (click)="abrirModalAusencia()">
-        📅 Reportar ausencia
-      </button>
       <button class="logout-btn" (click)="cerrarSesion()">
         <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
@@ -1144,67 +1141,6 @@
       </div>
 
     </main>
-  </div>
-
-  <!-- MODAL: REPORTAR AUSENCIA -->
-  <div class="modal-overlay-prof" *ngIf="modalAusenciaAbierto" (click)="cerrarModalAusencia()">
-    <div class="modal-prof" (click)="$event.stopPropagation()">
-      <div class="modal-header-prof">
-        <h3>⚠️ Reportar ausencia</h3>
-        <button class="modal-cerrar-prof" (click)="cerrarModalAusencia()">✕</button>
-      </div>
-      <p class="modal-desc">Las citas afectadas se cancelarán automáticamente y se notificará a los estudiantes.</p>
-
-      <!-- Selector segmentado -->
-      <label class="ausencia-selector-label">Tipo de ausencia</label>
-      <div class="ausencia-tipos-selector">
-        <button *ngFor="let t of ausenciaTipos"
-                type="button"
-                class="ausencia-tipo-btn"
-                [class.selected]="ausenciaTipo === t.valor"
-                (click)="ausenciaTipo = t.valor">
-          <span class="ausencia-tipo-icono">{{ t.icono }}</span>
-          <span class="ausencia-tipo-label">{{ t.label }}</span>
-        </button>
-      </div>
-
-      <!-- Panel de campos según el tipo elegido -->
-      <div class="ausencia-panel-campos">
-        <span class="ausencia-panel-desc">{{ ausenciaTipoActual?.desc }}</span>
-
-        <div class="form-grid" *ngIf="ausenciaTipo === 'temporal'">
-          <div class="campo-grupo-prof">
-            <label>Desde</label>
-            <input type="time" [(ngModel)]="ausenciaHoraInicio" />
-          </div>
-          <div class="campo-grupo-prof">
-            <label>Hasta</label>
-            <input type="time" [(ngModel)]="ausenciaHoraFin" />
-          </div>
-        </div>
-
-        <div class="form-grid" *ngIf="ausenciaTipo === 'licencia'">
-          <div class="campo-grupo-prof">
-            <label>Desde</label>
-            <input type="date" [(ngModel)]="ausenciaFechaInicio" />
-          </div>
-          <div class="campo-grupo-prof">
-            <label>Hasta</label>
-            <input type="date" [(ngModel)]="ausenciaFechaFin" />
-          </div>
-        </div>
-      </div>
-
-      <div class="campo-grupo-prof">
-        <label>Motivo <span class="opcional">(opcional)</span></label>
-        <input [(ngModel)]="ausenciaMotivo" placeholder="Ej: Malestar general, cita médica..." />
-      </div>
-
-      <div class="modal-footer-prof">
-        <button class="btn-cancelar-modal-prof" (click)="cerrarModalAusencia()">Cancelar</button>
-        <button class="btn-reportar" [disabled]="!ausenciaFormularioValido || enviandoAusencia" (click)="reportarAusencia()">{{ enviandoAusencia ? 'Enviando…' : '⚠️ Reportar y notificar' }}</button>
-      </div>
-    </div>
   </div>
 
   <!-- MODAL: COMPLETAR ATENCIÓN -->
