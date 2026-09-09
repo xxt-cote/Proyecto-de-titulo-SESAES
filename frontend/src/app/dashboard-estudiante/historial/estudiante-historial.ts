@@ -25,7 +25,8 @@ import { normalizarTexto } from '../../shared/text-normalization';
   selector: 'app-estudiante-historial',
   standalone: true,
   imports: [CommonModule, FormsModule],
-  templateUrl: './estudiante-historial.html'
+  templateUrl: './estudiante-historial.html',
+  styleUrl: './estudiante-historial.css'
 })
 export class EstudianteHistorialComponent implements OnChanges {
 

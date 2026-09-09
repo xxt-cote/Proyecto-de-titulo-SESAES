@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewEncapsulation, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -22,8 +22,7 @@ const API = environment.apiUrl;
   standalone: true,
   imports: [CommonModule, FormsModule, PhotoCropperComponent, PhotoViewerComponent, EstudianteHistorialComponent, EstudianteCitasProximasComponent],
   templateUrl: './dashboard-estudiante.html',
-  styleUrl: './dashboard-estudiante.css',
-  encapsulation: ViewEncapsulation.None
+  styleUrl: './dashboard-estudiante.css'
 })
 export class DashboardEstudianteComponent implements OnInit {
   seccionActiva  = 'inicio';

@@ -16,7 +16,8 @@ import { CommonModule } from '@angular/common';
   selector: 'app-estudiante-citas-proximas',
   standalone: true,
   imports: [CommonModule],
-  templateUrl: './estudiante-citas-proximas.html'
+  templateUrl: './estudiante-citas-proximas.html',
+  styleUrl: './estudiante-citas-proximas.css'
 })
 export class EstudianteCitasProximasComponent {
 
