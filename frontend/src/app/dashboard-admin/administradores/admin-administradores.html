@@ -92,6 +92,15 @@
               <div class="tabla-acciones">
                 <button
                   class="btn-tabla"
+                  *ngIf="a.rol === 'admin'"
+                  [disabled]="procesandoId === a.id"
+                  (click)="abrirAccesoAdministrativo(a)"
+                  title="Configurar permisos y alcance"
+                  aria-label="Configurar permisos y alcance"
+                ><span class="material-symbols-outlined" aria-hidden="true">tune</span></button>
+
+                <button
+                  class="btn-tabla"
                   *ngIf="a.activo"
                   [disabled]="procesandoId === a.id"
                   (click)="pedirConfirmacionDesactivar(a)"
@@ -156,6 +165,15 @@
         <div class="admins-mobile-card-acciones tabla-acciones">
           <button
             class="btn-tabla"
+            *ngIf="a.rol === 'admin'"
+            [disabled]="procesandoId === a.id"
+            (click)="abrirAccesoAdministrativo(a)"
+            title="Configurar permisos y alcance"
+            aria-label="Configurar permisos y alcance"
+          ><span class="material-symbols-outlined" aria-hidden="true">tune</span></button>
+
+          <button
+            class="btn-tabla"
             *ngIf="a.activo"
             [disabled]="procesandoId === a.id"
             (click)="pedirConfirmacionDesactivar(a)"
@@ -193,6 +211,12 @@
     </div>
   </ng-container>
 </div>
+
+<app-admin-acceso-administrativo
+  *ngIf="adminAccesoSeleccionado as adminAcceso"
+  [admin]="adminAcceso"
+  (cerrar)="cerrarAccesoAdministrativo()"
+></app-admin-acceso-administrativo>
 
 <!-- ══ MODAL: CONFIRMACIÓN DE ACCIÓN SENSIBLE (SA-4) ══ -->
 <div class="modal-overlay" *ngIf="modalConfirmAbierto" (click)="cancelarConfirmacion()">

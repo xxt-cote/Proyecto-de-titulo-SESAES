@@ -5,6 +5,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { environment } from '../../config';
 import { ToastService } from '../../shared/toast/toast.service';
 import { AuthService } from '../../auth.service';
+import { AdminAccesoAdministrativoComponent } from './acceso/admin-acceso-administrativo';
 
 const API = environment.apiUrl;
 
@@ -65,7 +66,7 @@ interface NuevoAdministradorForm {
 @Component({
   selector: 'app-admin-administradores',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AdminAccesoAdministrativoComponent],
   templateUrl: './admin-administradores.html'
 })
 export class AdminAdministradoresComponent implements OnInit {
@@ -101,6 +102,9 @@ export class AdminAdministradoresComponent implements OnInit {
   modalConfirmAbierto = false;
   tipoConfirmacion: TipoConfirmacion | null = null;
   adminEnConfirmacion: AdministradorOut | null = null;
+
+  // SA-12B: target ADMIN cuyo perfil/permisos/alcance se está editando.
+  adminAccesoSeleccionado: AdministradorOut | null = null;
 
   constructor(
     private http: HttpClient,
@@ -243,6 +247,19 @@ export class AdminAdministradoresComponent implements OnInit {
   }
 
   // ══════════════════════════════════════
+  // PERMISOS Y ALCANCE (SA-12B)
+  // ══════════════════════════════════════
+
+  abrirAccesoAdministrativo(admin: AdministradorOut): void {
+    if (admin.rol !== 'admin' || this.procesandoId !== null) return;
+    this.adminAccesoSeleccionado = admin;
+  }
+
+  cerrarAccesoAdministrativo(): void {
+    this.adminAccesoSeleccionado = null;
+  }
+
+  // ══════════════════════════════════════
   // CONFIRMACIÓN (desactivar / promover / degradar)
   // ══════════════════════════════════════
   //
@@ -305,9 +322,9 @@ export class AdminAdministradoresComponent implements OnInit {
       case 'desactivar':
         return 'Esta cuenta dejará de poder acceder al sistema.';
       case 'promover':
-        return 'Esta cuenta obtendrá privilegios de gobernanza administrativa: podrá gestionar otras cuentas administrativas (crear, activar, desactivar y cambiar su rol).';
+        return 'Esta cuenta obtendrá privilegios de gobernanza administrativa. Su configuración ADMIN de permisos y alcance se eliminará al promoverla.';
       case 'degradar':
-        return 'Esta cuenta perderá sus privilegios de gobernanza administrativa: ya no podrá gestionar otras cuentas administrativas.';
+        return 'Esta cuenta volverá al rol Administrador sin permisos ni alcance configurados. Deberás asignarlos explícitamente después de degradarla.';
       default:
         return '';
     }

@@ -818,3 +818,67 @@ describe('AdminAdministradoresComponent - SA-6.2 refresco de sesion tras cambio 
     expect(toast.success).toHaveBeenCalled();
   });
 });
+
+describe('AdminAdministradoresComponent - SA-12B apertura de acceso', () => {
+  let component: AdminAdministradoresComponent;
+  let fixture: ComponentFixture<AdminAdministradoresComponent>;
+  let httpMock: HttpTestingController;
+
+  beforeEach(async () => {
+    sessionStorage.clear();
+    localStorage.clear();
+    sessionStorage.setItem('rol', 'superadmin');
+    sessionStorage.setItem('usuario_id', '99');
+
+    await TestBed.configureTestingModule({
+      imports: [AdminAdministradoresComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        {
+          provide: ToastService,
+          useValue: { success: vi.fn(), error: vi.fn() }
+        }
+      ]
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(AdminAdministradoresComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+    httpMock = TestBed.inject(HttpTestingController);
+
+    httpMock.expectOne(
+      req => req.url.includes(URL_LISTADO) && req.method === 'GET'
+    ).flush([]);
+    cargarContextoSuperadmin(httpMock);
+  });
+
+  afterEach(() => {
+    httpMock.verify();
+    sessionStorage.clear();
+    localStorage.clear();
+  });
+
+  it('abre configuración solo para una cuenta ADMIN', () => {
+    const target = admin({ id: 7, rol: 'admin' });
+
+    component.abrirAccesoAdministrativo(target);
+
+    expect(component.adminAccesoSeleccionado?.id).toBe(7);
+  });
+
+  it('no abre configuración AccesoAdministrativo para SUPERADMIN', () => {
+    component.abrirAccesoAdministrativo(
+      admin({ id: 7, rol: 'superadmin' })
+    );
+
+    expect(component.adminAccesoSeleccionado).toBeNull();
+  });
+
+  it('cerrarAccesoAdministrativo limpia el target seleccionado', () => {
+    component.abrirAccesoAdministrativo(admin({ id: 7, rol: 'admin' }));
+    component.cerrarAccesoAdministrativo();
+
+    expect(component.adminAccesoSeleccionado).toBeNull();
+  });
+});
