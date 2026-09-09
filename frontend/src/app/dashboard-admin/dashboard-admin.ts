@@ -62,7 +62,7 @@ toggleSidebarMovil(): void {
 
   get tituloSeccion(): string {
     const map: Record<string, string> = {
-      inicio: 'Panel Administrativo SESAES', horario: 'Agenda',
+      inicio: 'Panel Administrativo SESAES', horario: 'Agenda / Calendario clínico',
       citas: 'Gestión de Citas', profesional: 'Gestión de Profesionales',
       estudiantes: 'Estudiantes', historial: 'Historial de Atenciones',
       reportes: 'Reportes', configuracion: 'Configuración del Sistema',
@@ -74,7 +74,7 @@ toggleSidebarMovil(): void {
   get subtituloSeccion(): string {
     const map: Record<string, string> = {
       inicio: 'Gestiona profesionales, horarios y reservas de bienestar estudiantil.',
-      horario: 'Controla cuándo puede atender cada profesional: disponibilidad, bloqueos y sobrecupos.',
+      horario: 'Visualización de citas, disponibilidad y resumen operativo.',
       citas: 'Revisa, prioriza y cancela las citas agendadas en el centro.',
       profesional: 'Administra el personal médico, psicólogos y especialistas del centro de salud.',
       estudiantes: 'Consulta estudiantes por nombre, RUT o carrera y revisa su ficha.',
@@ -892,6 +892,10 @@ toggleSidebarMovil(): void {
     return !!p && p.estado && p.estado !== 'activo';
   }
 
+  get citasHorarioAgenda(): any[] {
+    return this.citasHorario;
+  }
+
   private citasHorario: any[] = [];
 
   busquedaEstudiante          = '';
@@ -938,8 +942,18 @@ toggleSidebarMovil(): void {
       return { nombre: nombres[i], num: d.getDate(), fecha: f, esHoy: f === hoyStr };
     });
     const mesesN = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-    const [anio, mes] = this.semanaActual[0].fecha.split('-').map(Number);
-    this.semanaLabel  = `${mesesN[mes-1]} ${anio}`;
+    const inicio = this.parseDateStrLocal(this.semanaActual[0].fecha);
+    const fin = this.parseDateStrLocal(this.semanaActual[6].fecha);
+    const mesInicio = mesesN[inicio.getMonth()];
+    const mesFin = mesesN[fin.getMonth()];
+
+    if (inicio.getFullYear() === fin.getFullYear() && inicio.getMonth() === fin.getMonth()) {
+      this.semanaLabel = `Semana ${inicio.getDate()} – ${fin.getDate()} ${mesInicio} ${inicio.getFullYear()}`;
+    } else if (inicio.getFullYear() === fin.getFullYear()) {
+      this.semanaLabel = `Semana ${inicio.getDate()} ${mesInicio} – ${fin.getDate()} ${mesFin} ${inicio.getFullYear()}`;
+    } else {
+      this.semanaLabel = `Semana ${inicio.getDate()} ${mesInicio} ${inicio.getFullYear()} – ${fin.getDate()} ${mesFin} ${fin.getFullYear()}`;
+    }
   }
 
   private toDateStr(d: Date): string {

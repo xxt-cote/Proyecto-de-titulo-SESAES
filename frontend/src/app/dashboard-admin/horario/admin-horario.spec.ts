@@ -144,8 +144,8 @@ describe('AdminHorarioComponent', () => {
       fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>
     );
 
-    botones.find(b => b.textContent?.trim() === '‹')!.click();
-    botones.find(b => b.textContent?.trim() === '›')!.click();
+    botones.find(b => b.getAttribute('aria-label') === 'Semana anterior')!.click();
+    botones.find(b => b.getAttribute('aria-label') === 'Semana siguiente')!.click();
     botones.find(b => b.textContent?.trim() === 'Hoy')!.click();
 
     expect(anteriorSpy).toHaveBeenCalledTimes(1);
@@ -166,8 +166,8 @@ describe('AdminHorarioComponent', () => {
       fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>
     );
 
-    botones.find(b => b.textContent?.includes('Nueva Cita'))!.click();
-    botones.find(b => b.textContent?.includes('Imprimir Agenda'))!.click();
+    botones.find(b => b.textContent?.includes('Nueva cita'))!.click();
+    botones.find(b => b.textContent?.includes('Imprimir'))!.click();
 
     expect(nuevaSpy).toHaveBeenCalledTimes(1);
     expect(imprimirSpy).toHaveBeenCalledTimes(1);
@@ -253,6 +253,67 @@ describe('AdminHorarioComponent', () => {
     expect(texto).not.toContain('Rechazar');
     expect(texto).not.toContain('Nueva Cita');
     expect(fixture.nativeElement.querySelector('.detalle-acciones')).toBeNull();
+  });
+
+  it('AGENDA-A mantiene Semana como única vista habilitada', () => {
+    fixture.detectChanges();
+
+    const botones = Array.from(
+      fixture.nativeElement.querySelectorAll('.agenda-view-switch button') as NodeListOf<HTMLButtonElement>
+    );
+
+    expect(botones.map(b => b.textContent?.trim())).toEqual(['Día', 'Semana', 'Mes']);
+    expect(botones[0].disabled).toBe(true);
+    expect(botones[1].disabled).toBe(false);
+    expect(botones[1].classList.contains('active')).toBe(true);
+    expect(botones[2].disabled).toBe(true);
+  });
+
+  it('AGENDA-A calcula KPIs semanales solo con datos operativos reales', () => {
+    fixture.componentRef.setInput('filtroProfesionalId', '10');
+    fixture.componentRef.setInput('semanaActual', [
+      { fecha: '2026-09-07' },
+      { fecha: '2026-09-08' },
+      { fecha: '2026-09-09' },
+      { fecha: '2026-09-10' },
+      { fecha: '2026-09-11' },
+      { fecha: '2026-09-12' },
+      { fecha: '2026-09-13' }
+    ]);
+    fixture.componentRef.setInput('citasHorario', [
+      { fecha: '2026-09-07', estado: 'pendiente', urgente: false, sobrecupo: false },
+      { fecha: '2026-09-08', estado: 'completada', urgente: false, sobrecupo: false },
+      { fecha: '2026-09-09', estado: 'pendiente', urgente: true, sobrecupo: false },
+      { fecha: '2026-09-10', estado: 'pendiente', urgente: false, sobrecupo: true },
+      { fecha: '2026-09-11', estado: 'cancelada', urgente: true, sobrecupo: true },
+      { fecha: '2026-09-12', estado: 'inasistencia', urgente: false, sobrecupo: false },
+      { fecha: '2026-09-20', estado: 'completada', urgente: true, sobrecupo: true }
+    ]);
+    fixture.componentRef.setInput('diasCerrados', [
+      { fecha: '2026-09-10' },
+      { fecha: '2026-09-10' },
+      { fecha: '2026-09-25' }
+    ]);
+
+    fixture.detectChanges();
+
+    expect(component.citasProgramadasSemana).toBe(4);
+    expect(component.atencionesRealizadasSemana).toBe(1);
+    expect(component.urgenciasSemana).toBe(1);
+    expect(component.sobrecuposSemana).toBe(1);
+    expect(component.bloqueosSemana).toBe(1);
+  });
+
+  it('AGENDA-A no inventa KPIs antes de seleccionar profesional', () => {
+    fixture.componentRef.setInput('filtroProfesionalId', '');
+    fixture.componentRef.setInput('citasHorario', [
+      { fecha: '2026-09-07', estado: 'completada' }
+    ]);
+    fixture.detectChanges();
+
+    expect(component.citasProgramadasSemana).toBeNull();
+    expect(component.atencionesRealizadasSemana).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Selecciona un profesional');
   });
 
   it('read-only bloquea handlers de mutación aunque se invoquen directamente', () => {
