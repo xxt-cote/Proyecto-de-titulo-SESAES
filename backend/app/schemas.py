@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from typing import Literal, Optional
 from datetime import datetime
 import re
@@ -281,6 +281,67 @@ class AccesoAdministrativoEfectivoOut(BaseModel):
     ] = None
     permisos: list[str]
     alcance: AlcanceAdministrativoEfectivoOut
+
+
+PerfilAdministrativoLiteral = Literal[
+    "administrador_general",
+    "administrador_especialidad",
+    "secretaria_general",
+    "secretaria_especialidad",
+]
+
+TipoAlcanceAdministrativoLiteral = Literal[
+    "institucional",
+    "especialidades",
+]
+
+
+class AlcanceAdministrativoGestionIn(BaseModel):
+    """Alcance completo que SUPERADMIN asigna a una cuenta ADMIN."""
+
+    model_config = {"extra": "forbid"}
+
+    tipo: TipoAlcanceAdministrativoLiteral
+    especialidades: list[str] = Field(default_factory=list)
+
+
+class AccesoAdministrativoGestionUpdate(BaseModel):
+    """
+    Reemplazo completo de la configuración administrativa de una cuenta
+    ADMIN.
+
+    No acepta permisos reservados ni campos parciales. La capa de
+    dominio valida perfil + alcance + permisos como una sola unidad.
+    """
+
+    model_config = {"extra": "forbid"}
+
+    perfil: PerfilAdministrativoLiteral
+    permisos: list[str] = Field(default_factory=list)
+    alcance: AlcanceAdministrativoGestionIn
+
+
+class AlcanceAdministrativoGestionOut(BaseModel):
+    tipo: Optional[TipoAlcanceAdministrativoLiteral] = None
+    especialidades: list[str] = Field(default_factory=list)
+
+
+class AccesoAdministrativoGestionOut(BaseModel):
+    usuario_id: int
+    configurado: bool
+    perfil: Optional[PerfilAdministrativoLiteral] = None
+    permisos: list[str] = Field(default_factory=list)
+    alcance: AlcanceAdministrativoGestionOut
+
+
+class PerfilAccesoAdministrativoCatalogoOut(BaseModel):
+    perfil: PerfilAdministrativoLiteral
+    tipo_alcance: TipoAlcanceAdministrativoLiteral
+    permisos_permitidos: list[str]
+
+
+class CatalogoAccesoAdministrativoOut(BaseModel):
+    perfiles: list[PerfilAccesoAdministrativoCatalogoOut]
 
 
 class UsuarioMeUpdate(BaseModel):

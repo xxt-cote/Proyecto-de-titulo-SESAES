@@ -6,9 +6,17 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.models.acceso_administrativo import (
+    AccesoAdministrativo,
+    AccesoAdminEspecialidad,
+    AccesoAdminPermiso,
+)
 from app.models.usuario import Usuario
 from app.schemas import (
     AccesoAdministrativoEfectivoOut,
+    AccesoAdministrativoGestionOut,
+    AccesoAdministrativoGestionUpdate,
+    CatalogoAccesoAdministrativoOut,
     UsuarioAdministrativoCreate,
     UsuarioAdministrativoEstadoUpdate,
     UsuarioAdministrativoOut,
@@ -19,6 +27,14 @@ from app.schemas import (
 from app.auth_dependencies import get_current_user, verificar_rol
 from app.auditoria import registrar_evento_auditoria
 from app.bootstrap_superadmin import _password_cumple_politica_existente
+from app.rbac.admin_access import (
+    PERFILES_INSTITUCIONALES,
+    PerfilAccesoAdmin,
+    TipoAlcanceAdmin,
+    permisos_permitidos_para_perfil,
+    validar_configuracion_acceso_admin,
+    validar_permisos_para_perfil,
+)
 from app.rbac.admin_authorization import (
     obtener_acceso_administrativo_efectivo,
 )
@@ -245,6 +261,181 @@ def _registrar_error_best_effort(db: Session, current_user: dict, accion: str, d
         db.rollback()
 
 
+def _registrar_denegado_best_effort(
+    db: Session,
+    current_user: dict,
+    accion: str,
+    *,
+    entidad_id: int | None = None,
+    detalle: str,
+) -> None:
+    """
+    Registra un intento denegado sin reemplazar el HTTPException del
+    caller si la auditoría secundaria falla.
+    """
+    try:
+        registrar_evento_auditoria(
+            db,
+            current_user,
+            accion,
+            resultado="denegado",
+            entidad="usuario" if entidad_id is not None else None,
+            entidad_id=entidad_id,
+            detalle=detalle,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
+def _obtener_target_admin_para_acceso(
+    db: Session,
+    usuario_id: int,
+    *,
+    bloquear: bool = False,
+) -> Usuario:
+    """
+    Devuelve una cuenta administrativa existente y exige que su rol
+    ACTUAL sea ADMIN. SUPERADMIN no usa AccesoAdministrativo.
+    """
+    query = db.query(Usuario).filter(Usuario.id == usuario_id)
+
+    if bloquear:
+        query = query.with_for_update()
+
+    target = query.first()
+
+    if target is None or target.rol not in _ROLES_ADMINISTRATIVOS:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+
+    if target.rol != Role.ADMIN.value:
+        raise HTTPException(
+            status_code=409,
+            detail="La configuración de acceso administrativo solo aplica a cuentas ADMIN.",
+        )
+
+    return target
+
+
+def _obtener_acceso_persistido(
+    db: Session,
+    usuario_id: int,
+) -> AccesoAdministrativo | None:
+    return (
+        db.query(AccesoAdministrativo)
+        .filter(AccesoAdministrativo.usuario_id == usuario_id)
+        .first()
+    )
+
+
+def _eliminar_acceso_administrativo_persistido(
+    db: Session,
+    usuario_id: int,
+) -> bool:
+    """
+    Elimina configuración y relaciones delegables de una cuenta ADMIN.
+
+    Se borran hijos explícitamente para no depender del soporte de
+    ON DELETE CASCADE del motor de pruebas.
+    """
+    acceso = _obtener_acceso_persistido(db, usuario_id)
+
+    if acceso is None:
+        return False
+
+    (
+        db.query(AccesoAdminPermiso)
+        .filter(AccesoAdminPermiso.acceso_admin_id == acceso.id)
+        .delete(synchronize_session=False)
+    )
+    (
+        db.query(AccesoAdminEspecialidad)
+        .filter(AccesoAdminEspecialidad.acceso_admin_id == acceso.id)
+        .delete(synchronize_session=False)
+    )
+    db.delete(acceso)
+    db.flush()
+
+    return True
+
+
+def _serializar_acceso_administrativo_gestion(
+    db: Session,
+    usuario_id: int,
+) -> dict:
+    acceso = _obtener_acceso_persistido(db, usuario_id)
+
+    if acceso is None:
+        return {
+            "usuario_id": usuario_id,
+            "configurado": False,
+            "perfil": None,
+            "permisos": [],
+            "alcance": {
+                "tipo": None,
+                "especialidades": [],
+            },
+        }
+
+    especialidades = (
+        db.query(AccesoAdminEspecialidad)
+        .filter(AccesoAdminEspecialidad.acceso_admin_id == acceso.id)
+        .order_by(AccesoAdminEspecialidad.especialidad_normalizada)
+        .all()
+    )
+    permisos = (
+        db.query(AccesoAdminPermiso)
+        .filter(AccesoAdminPermiso.acceso_admin_id == acceso.id)
+        .order_by(AccesoAdminPermiso.permiso)
+        .all()
+    )
+
+    try:
+        perfil, tipo_alcance, especialidades_validadas = (
+            validar_configuracion_acceso_admin(
+                rol_usuario=Role.ADMIN.value,
+                perfil=acceso.perfil,
+                tipo_alcance=acceso.tipo_alcance,
+                especialidades=[
+                    fila.especialidad
+                    for fila in especialidades
+                ],
+            )
+        )
+        permisos_validados = validar_permisos_para_perfil(
+            perfil=perfil,
+            permisos=[
+                fila.permiso
+                for fila in permisos
+            ],
+        )
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "La configuración administrativa persistida es inválida "
+                "y debe reemplazarse."
+            ),
+        ) from exc
+
+    return {
+        "usuario_id": usuario_id,
+        "configurado": True,
+        "perfil": perfil.value,
+        "permisos": sorted(
+            permiso.value
+            for permiso in permisos_validados
+        ),
+        "alcance": {
+            "tipo": tipo_alcance.value,
+            "especialidades": sorted(
+                especialidad.nombre
+                for especialidad in especialidades_validadas
+            ),
+        },
+    }
+
+
 @router.get("/administradores", response_model=List[UsuarioAdministrativoOut])
 def listar_administradores(
     db: Session = Depends(get_db),
@@ -257,6 +448,243 @@ def listar_administradores(
         .filter(Usuario.rol.in_(_ROLES_ADMINISTRATIVOS))
         .order_by(Usuario.id)
         .all()
+    )
+
+
+@router.get(
+    "/administradores/catalogo-acceso",
+    response_model=CatalogoAccesoAdministrativoOut,
+)
+def obtener_catalogo_acceso_administrativo(
+    current_user: dict = Depends(
+        require_permission(Permission.ROLES_GESTIONAR)
+    ),
+):
+    """
+    Catálogo server-side para construir la UI de perfiles/permisos.
+
+    No concede nada: expone únicamente el techo delegable definido en
+    app.rbac.admin_access. Las especialidades no forman parte de este
+    catálogo porque aún no existe un catálogo institucional único en el
+    modelo actual.
+    """
+    perfiles = []
+
+    for perfil in PerfilAccesoAdmin:
+        tipo_alcance = (
+            TipoAlcanceAdmin.INSTITUCIONAL
+            if perfil in PERFILES_INSTITUCIONALES
+            else TipoAlcanceAdmin.ESPECIALIDADES
+        )
+
+        perfiles.append(
+            {
+                "perfil": perfil.value,
+                "tipo_alcance": tipo_alcance.value,
+                "permisos_permitidos": sorted(
+                    permiso.value
+                    for permiso in permisos_permitidos_para_perfil(perfil)
+                ),
+            }
+        )
+
+    return {
+        "perfiles": perfiles,
+    }
+
+
+@router.get(
+    "/administradores/{usuario_id}/acceso-administrativo",
+    response_model=AccesoAdministrativoGestionOut,
+)
+def obtener_acceso_administrativo_de_admin(
+    usuario_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(
+        require_permission(Permission.ROLES_GESTIONAR)
+    ),
+):
+    """
+    Lee la configuración persistida de una cuenta ADMIN.
+
+    Una cuenta ADMIN sin configuración devuelve `configurado=false`
+    en vez de inventar permisos o defaults. SUPERADMIN no usa estas
+    tablas y por eso no es un target válido de este endpoint.
+    """
+    _obtener_target_admin_para_acceso(
+        db,
+        usuario_id,
+        bloquear=False,
+    )
+
+    return _serializar_acceso_administrativo_gestion(
+        db,
+        usuario_id,
+    )
+
+
+@router.put(
+    "/administradores/{usuario_id}/acceso-administrativo",
+    response_model=AccesoAdministrativoGestionOut,
+)
+def reemplazar_acceso_administrativo_de_admin(
+    usuario_id: int,
+    datos: AccesoAdministrativoGestionUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(
+        require_permission(Permission.ROLES_GESTIONAR)
+    ),
+):
+    """
+    Reemplaza de forma completa y transaccional perfil + permisos +
+    alcance de una cuenta ADMIN.
+
+    El target se bloquea antes de validar/persistir para impedir que un
+    cambio concurrente de rol deje permisos ADMIN asociados a una cuenta
+    que ya pasó a SUPERADMIN.
+    """
+    try:
+        target = _obtener_target_admin_para_acceso(
+            db,
+            usuario_id,
+            bloquear=True,
+        )
+    except HTTPException as exc:
+        if exc.status_code == 409:
+            _registrar_denegado_best_effort(
+                db,
+                current_user,
+                "Intentó configurar acceso administrativo en target inválido",
+                entidad_id=usuario_id,
+                detalle="target_no_es_admin",
+            )
+        raise
+
+    try:
+        perfil, tipo_alcance, especialidades = (
+            validar_configuracion_acceso_admin(
+                rol_usuario=target.rol,
+                perfil=datos.perfil,
+                tipo_alcance=datos.alcance.tipo,
+                especialidades=datos.alcance.especialidades,
+            )
+        )
+        permisos = validar_permisos_para_perfil(
+            perfil=perfil,
+            permisos=datos.permisos,
+        )
+    except (TypeError, ValueError) as exc:
+        db.rollback()
+        _registrar_denegado_best_effort(
+            db,
+            current_user,
+            "Intentó guardar acceso administrativo inválido",
+            entidad_id=target.id,
+            detalle="configuracion_acceso_invalida",
+        )
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc),
+        ) from exc
+
+    try:
+        acceso = _obtener_acceso_persistido(
+            db,
+            target.id,
+        )
+
+        if acceso is None:
+            acceso = AccesoAdministrativo(
+                usuario_id=target.id,
+                perfil=perfil.value,
+                tipo_alcance=tipo_alcance.value,
+            )
+            db.add(acceso)
+            db.flush()
+        else:
+            acceso.perfil = perfil.value
+            acceso.tipo_alcance = tipo_alcance.value
+
+            (
+                db.query(AccesoAdminPermiso)
+                .filter(
+                    AccesoAdminPermiso.acceso_admin_id
+                    == acceso.id
+                )
+                .delete(synchronize_session=False)
+            )
+            (
+                db.query(AccesoAdminEspecialidad)
+                .filter(
+                    AccesoAdminEspecialidad.acceso_admin_id
+                    == acceso.id
+                )
+                .delete(synchronize_session=False)
+            )
+            db.flush()
+
+        for especialidad in especialidades:
+            db.add(
+                AccesoAdminEspecialidad(
+                    acceso_admin_id=acceso.id,
+                    especialidad=especialidad.nombre,
+                    especialidad_normalizada=(
+                        especialidad.normalizada
+                    ),
+                )
+            )
+
+        for permiso in sorted(
+            permisos,
+            key=lambda item: item.value,
+        ):
+            db.add(
+                AccesoAdminPermiso(
+                    acceso_admin_id=acceso.id,
+                    permiso=permiso.value,
+                )
+            )
+
+        registrar_evento_auditoria(
+            db,
+            current_user,
+            "Configuró acceso administrativo",
+            resultado="exito",
+            entidad="usuario",
+            entidad_id=target.id,
+            detalle=(
+                f"perfil={perfil.value}; "
+                f"alcance={tipo_alcance.value}; "
+                f"permisos={len(permisos)}; "
+                f"especialidades={len(especialidades)}"
+            ),
+        )
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        _registrar_error_best_effort(
+            db,
+            current_user,
+            "Error al configurar acceso administrativo",
+            "integridad_acceso_administrativo",
+        )
+        raise HTTPException(
+            status_code=409,
+            detail="No fue posible guardar la configuración administrativa.",
+        )
+    except SQLAlchemyError:
+        db.rollback()
+        _registrar_error_best_effort(
+            db,
+            current_user,
+            "Error al configurar acceso administrativo",
+            "error_bd_configurar_acceso_administrativo",
+        )
+        raise
+
+    return _serializar_acceso_administrativo_gestion(
+        db,
+        target.id,
     )
 
 
@@ -471,9 +899,17 @@ def actualizar_rol_administrador(
             db.rollback()
         raise HTTPException(status_code=409, detail="No es posible degradar al último SUPERADMIN activo.")
 
-    target.rol = rol_nuevo
-
     try:
+        acceso_reiniciado = False
+
+        if rol_nuevo != rol_anterior:
+            acceso_reiniciado = _eliminar_acceso_administrativo_persistido(
+                db,
+                target.id,
+            )
+
+        target.rol = rol_nuevo
+
         registrar_evento_auditoria(
             db,
             current_user,
@@ -481,7 +917,11 @@ def actualizar_rol_administrador(
             resultado="exito",
             entidad="usuario",
             entidad_id=target.id,
-            detalle=f"rol_anterior={rol_anterior}; rol_nuevo={rol_nuevo}",
+            detalle=(
+                f"rol_anterior={rol_anterior}; "
+                f"rol_nuevo={rol_nuevo}; "
+                f"acceso_admin_reiniciado={'si' if acceso_reiniciado else 'no'}"
+            ),
         )
         db.commit()
     except SQLAlchemyError:

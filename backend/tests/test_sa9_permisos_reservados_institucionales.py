@@ -224,8 +224,19 @@ def test_endpoints_institucionales_siguen_en_dependency_legacy(
     )
 
 
-def test_gobernanza_conserva_cuatro_endpoints_roles_gestionar():
-    encontrados = []
+RUTAS_GOBERNANZA_ROLES_GESTIONAR = frozenset({
+    ("GET", "/usuarios/administradores"),
+    ("POST", "/usuarios/administradores"),
+    ("PATCH", "/usuarios/administradores/{usuario_id}/estado"),
+    ("PATCH", "/usuarios/administradores/{usuario_id}/rol"),
+    ("GET", "/usuarios/administradores/catalogo-acceso"),
+    ("GET", "/usuarios/administradores/{usuario_id}/acceso-administrativo"),
+    ("PUT", "/usuarios/administradores/{usuario_id}/acceso-administrativo"),
+})
+
+
+def _rutas_con_roles_gestionar():
+    encontrados = set()
 
     for route in usuarios.router.routes:
         if not isinstance(route, APIRoute):
@@ -235,67 +246,54 @@ def test_gobernanza_conserva_cuatro_endpoints_roles_gestionar():
 
         if (
             "current_user"
-            not in inspect.signature(
-                endpoint
-            ).parameters
+            not in inspect.signature(endpoint).parameters
         ):
             continue
 
-        dependency = _dependency(
-            endpoint
-        )
-
-        closure = inspect.getclosurevars(
-            dependency
-        )
-
-        permiso = closure.nonlocals.get(
-            "permission"
-        )
-
-        if permiso == Permission.ROLES_GESTIONAR:
-            encontrados.append(
-                route
-            )
-
-    assert len(encontrados) == 4
-
-
-def test_gobernanza_roles_gestionar_sigue_fuera_del_resolver_admin():
-    encontrados = []
-
-    for route in usuarios.router.routes:
-        if not isinstance(route, APIRoute):
-            continue
-
-        endpoint = route.endpoint
-
-        if (
-            "current_user"
-            not in inspect.signature(
-                endpoint
-            ).parameters
-        ):
-            continue
-
-        dependency = _dependency(
-            endpoint
-        )
-
-        closure = inspect.getclosurevars(
-            dependency
-        )
-
-        permiso = closure.nonlocals.get(
-            "permission"
-        )
+        dependency = _dependency(endpoint)
+        closure = inspect.getclosurevars(dependency)
+        permiso = closure.nonlocals.get("permission")
 
         if permiso != Permission.ROLES_GESTIONAR:
             continue
 
-        encontrados.append(
-            route
-        )
+        for method in route.methods:
+            encontrados.add((method, route.path))
+
+    return encontrados
+
+
+def test_gobernanza_conserva_endpoints_roles_gestionar_acordados():
+    assert (
+        _rutas_con_roles_gestionar()
+        == RUTAS_GOBERNANZA_ROLES_GESTIONAR
+    )
+
+
+def test_gobernanza_roles_gestionar_sigue_fuera_del_resolver_admin():
+    encontrados = set()
+
+    for route in usuarios.router.routes:
+        if not isinstance(route, APIRoute):
+            continue
+
+        endpoint = route.endpoint
+
+        if (
+            "current_user"
+            not in inspect.signature(endpoint).parameters
+        ):
+            continue
+
+        dependency = _dependency(endpoint)
+        closure = inspect.getclosurevars(dependency)
+        permiso = closure.nonlocals.get("permission")
+
+        if permiso != Permission.ROLES_GESTIONAR:
+            continue
+
+        for method in route.methods:
+            encontrados.add((method, route.path))
 
         assert (
             "has_permission"
@@ -307,4 +305,4 @@ def test_gobernanza_roles_gestionar_sigue_fuera_del_resolver_admin():
             not in dependency.__code__.co_names
         )
 
-    assert len(encontrados) == 4
+    assert encontrados == RUTAS_GOBERNANZA_ROLES_GESTIONAR

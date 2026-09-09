@@ -22,6 +22,11 @@ from app.auditoria import registrar_evento_auditoria
 from app.auth_dependencies import get_current_user
 from app.database import Base
 from app.models.auditoria import Auditoria
+from app.models.acceso_administrativo import (
+    AccesoAdministrativo,
+    AccesoAdminEspecialidad,
+    AccesoAdminPermiso,
+)
 from app.models.usuario import Usuario
 from app.rbac.dependencies import require_permission
 from app.rbac.permissions import Permission, has_permission
@@ -46,7 +51,16 @@ PASSWORD_VALIDA = "Password123!"
 @pytest.fixture()
 def db_session():
     engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
-    Base.metadata.create_all(bind=engine, tables=[Usuario.__table__, Auditoria.__table__])
+    Base.metadata.create_all(
+        bind=engine,
+        tables=[
+            Usuario.__table__,
+            Auditoria.__table__,
+            AccesoAdministrativo.__table__,
+            AccesoAdminEspecialidad.__table__,
+            AccesoAdminPermiso.__table__,
+        ],
+    )
     TestingSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     session = TestingSessionLocal()
     try:
@@ -411,6 +425,102 @@ def test_admin_a_superadmin_ejecutado_por_superadmin_funciona(db_session):
         admin.id, UsuarioAdministrativoRolUpdate(rol="superadmin"), db_session, _current_user_de(superadmin)
     )
     assert resultado.rol == "superadmin"
+
+
+def test_admin_a_superadmin_elimina_acceso_administrativo_previo(db_session):
+    superadmin = _crear_usuario(
+        db_session,
+        correo="ejecutor-limpieza@utem.cl",
+        rol="superadmin",
+    )
+    admin = _crear_usuario(
+        db_session,
+        correo="ascenso-limpieza@utem.cl",
+        rol="admin",
+    )
+
+    acceso = AccesoAdministrativo(
+        usuario_id=admin.id,
+        perfil="secretaria_especialidad",
+        tipo_alcance="especialidades",
+    )
+    db_session.add(acceso)
+    db_session.flush()
+    db_session.add(
+        AccesoAdminEspecialidad(
+            acceso_admin_id=acceso.id,
+            especialidad="Odontología",
+            especialidad_normalizada="odontología",
+        )
+    )
+    db_session.add(
+        AccesoAdminPermiso(
+            acceso_admin_id=acceso.id,
+            permiso="agenda.ver",
+        )
+    )
+    db_session.commit()
+
+    actualizar_rol_administrador(
+        admin.id,
+        UsuarioAdministrativoRolUpdate(rol="superadmin"),
+        db_session,
+        _current_user_de(superadmin),
+    )
+
+    assert (
+        db_session.query(AccesoAdministrativo)
+        .filter(AccesoAdministrativo.usuario_id == admin.id)
+        .count()
+        == 0
+    )
+    assert db_session.query(AccesoAdminEspecialidad).count() == 0
+    assert db_session.query(AccesoAdminPermiso).count() == 0
+
+
+def test_superadmin_a_admin_no_reactiva_acceso_administrativo_residual(db_session):
+    ejecutor = _crear_usuario(
+        db_session,
+        correo="ejecutor-degradacion@utem.cl",
+        rol="superadmin",
+    )
+    target = _crear_usuario(
+        db_session,
+        correo="target-degradacion@utem.cl",
+        rol="superadmin",
+    )
+
+    # Simula una fila residual heredada de una versión anterior.
+    acceso = AccesoAdministrativo(
+        usuario_id=target.id,
+        perfil="administrador_general",
+        tipo_alcance="institucional",
+    )
+    db_session.add(acceso)
+    db_session.flush()
+    db_session.add(
+        AccesoAdminPermiso(
+            acceso_admin_id=acceso.id,
+            permiso="agenda.gestionar",
+        )
+    )
+    db_session.commit()
+
+    resultado = actualizar_rol_administrador(
+        target.id,
+        UsuarioAdministrativoRolUpdate(rol="admin"),
+        db_session,
+        _current_user_de(ejecutor),
+    )
+
+    assert resultado.rol == "admin"
+    assert (
+        db_session.query(AccesoAdministrativo)
+        .filter(AccesoAdministrativo.usuario_id == target.id)
+        .count()
+        == 0
+    )
+    assert db_session.query(AccesoAdminPermiso).count() == 0
 
 
 def test_reactivar_conserva_rol_e_historial(db_session):
