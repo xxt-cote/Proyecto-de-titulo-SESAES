@@ -9,4 +9,6 @@ from app.models.configuracion_centro import ConfiguracionCentro
 from app.models.historial_estado_profesional import HistorialEstadoProfesional
 from app.models.correo_log import CorreoLog
 from app.models.dia_cerrado import DiaCerrado
-from app.models.especialidad_capability import EspecialidadCapability  # noqa: F401 — SA-11.2
+from app.models.solicitud_horario import SolicitudHorario
+from app.models.bloque_horario_semanal import BloqueHorarioSemanal
+from app.models.ausencia_profesional import AusenciaProfesional

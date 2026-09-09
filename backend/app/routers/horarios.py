@@ -6,10 +6,16 @@ from app.database import get_db
 from app.models.profesional import Profesional
 from app.models.cita import Cita
 from app.models.dia_cerrado import DiaCerrado
+from app.models.bloque_horario_semanal import BloqueHorarioSemanal
+from app.models.ausencia_profesional import AusenciaProfesional
 from app.auth_dependencies import get_current_user
+from app.reglas_horario import rango_institucional_dia, es_fin_de_semana, parsear_hora_24h
 
 router = APIRouter(tags=["horarios"])
 
+# Rango histórico usado como fallback amplio cuando no aplica el rango
+# institucional (no debería alcanzarse en la práctica porque get_disponibilidad
+# ya descarta fines de semana antes de llegar a generar bloques).
 HORA_INICIO = time(8, 0)
 HORA_FIN    = time(18, 0)
 
@@ -25,25 +31,15 @@ def listar_dias_cerrados_publico(db: Session = Depends(get_db), current_user: di
     return [{"fecha": d.fecha, "motivo": d.motivo} for d in dias]
 
 
-def _generar_bloques(duracion_min: int) -> list:
-    """Genera la lista de horas posibles entre 08:00 y 18:00, según duración del bloque."""
+def _generar_bloques(duracion_min: int, hora_inicio: time = HORA_INICIO, hora_fin: time = HORA_FIN) -> list:
+    """Genera la lista de horas posibles entre hora_inicio y hora_fin, según duración del bloque."""
     bloques = []
-    actual = datetime.combine(date.today(), HORA_INICIO)
-    fin    = datetime.combine(date.today(), HORA_FIN)
+    actual = datetime.combine(date.today(), hora_inicio)
+    fin    = datetime.combine(date.today(), hora_fin)
     while actual < fin:
         bloques.append(actual.time())
         actual += timedelta(minutes=duracion_min)
     return bloques
-
-
-def _parsear_hora_24h(hora_str: str):
-    """Convierte 'HH:MM' (24h) a objeto time. Devuelve None si es inválido o vacío."""
-    if not hora_str:
-        return None
-    try:
-        return datetime.strptime(hora_str, "%H:%M").time()
-    except ValueError:
-        return None
 
 
 @router.get("/disponibilidad/{profesional_id}")
@@ -70,9 +66,14 @@ def get_disponibilidad(
     hoy = date.today()
     ventana_maxima = hoy + timedelta(days=7)
 
-    # Fuera de la ventana válida (pasado, muy futuro, o fin de semana)
-    if fecha_obj < hoy or fecha_obj > ventana_maxima or fecha_obj.weekday() >= 5:
+    # Fuera de la ventana válida (pasado o muy futuro)
+    if fecha_obj < hoy or fecha_obj > ventana_maxima:
         return {"horas": [], "mensaje": "Sin horas disponibles"}
+
+    # Fin de semana: el centro nunca atiende sábado ni domingo (regla institucional).
+    dia_semana = fecha_obj.weekday()
+    if es_fin_de_semana(dia_semana):
+        return {"horas": [], "mensaje": "No se atiende sábado ni domingo."}
 
     dia_cerrado = db.query(DiaCerrado).filter(DiaCerrado.fecha == fecha).first()
     if dia_cerrado:
@@ -82,25 +83,86 @@ def get_disponibilidad(
     if not prof:
         return {"horas": [], "mensaje": "Profesional no encontrado"}
 
+    ausencia = db.query(AusenciaProfesional).filter(
+        AusenciaProfesional.profesional_id == profesional_id,
+        AusenciaProfesional.fecha == fecha
+    ).first()
+    if ausencia:
+        return {"horas": [], "mensaje": f"El profesional no atiende este día. {ausencia.motivo or ''}".strip()}
+
+    # Rango institucional del día (Lun-Jue 09:00-17:30, Vie 09:00-16:30).
+    rango_institucional = rango_institucional_dia(dia_semana)
+    inst_inicio, inst_fin = rango_institucional
+
     duracion = prof.duracion_min or 45
-    bloques = _generar_bloques(duracion)
+
+    # El profesional usa UNO de los dos sistemas, decidido una sola vez (no
+    # por día): si tiene AL MENOS UN bloque semanal cargado (en cualquier
+    # día), está en modo "agenda por bloques" y ya no se usa el horario
+    # simple como respaldo — aunque no tenga bloques para ESTE día en
+    # particular (eso solo significa que no trabaja ese día).
+    #
+    # Antes esto se decidía por día (bloques_semana filtrado a dia_semana),
+    # lo que mezclaba ambos sistemas: un profesional que migró a bloques
+    # pero no trabaja los martes caía al horario simple de respaldo para el
+    # martes, y como horario_inicio/horario_fin suelen quedar vacíos tras
+    # migrar a bloques, a veces ofrecía todo el rango institucional donde no
+    # debía, y otras veces (según los datos) terminaba sin nada.
+    usa_bloques = any(b.dia_semana is not None for b in prof.bloques_semanales)
+
+    if usa_bloques:
+        bloques_semana = [b for b in prof.bloques_semanales if b.dia_semana == dia_semana]
+        # El profesional está en modo bloques pero no tiene ninguno para
+        # este día de la semana en particular → simplemente no atiende ese
+        # día (no se cae al horario simple).
+        if not bloques_semana:
+            return {"horas": [], "mensaje": "El profesional no atiende este día de la semana."}
+
+        bloques = []
+        for b in bloques_semana:
+            if b.tipo != "disponible":
+                continue
+            b_inicio = parsear_hora_24h(b.hora_inicio)
+            b_fin    = parsear_hora_24h(b.hora_fin)
+            if not b_inicio or not b_fin:
+                continue
+            efectivo_inicio = max(b_inicio, inst_inicio)
+            efectivo_fin    = min(b_fin, inst_fin)
+            if efectivo_inicio >= efectivo_fin:
+                continue
+            bloques.extend(_generar_bloques(duracion, efectivo_inicio, efectivo_fin))
+        bloques = sorted(set(bloques))
+
+        # Excluir explícitamente cualquier bloque "colacion" definido para ese día
+        # (por si se solapa con un bloque "disponible" cargado en otro momento).
+        colaciones = [b for b in bloques_semana if b.tipo == "colacion"]
+        for c in colaciones:
+            c_inicio = parsear_hora_24h(c.hora_inicio)
+            c_fin    = parsear_hora_24h(c.hora_fin)
+            if c_inicio and c_fin:
+                bloques = [b for b in bloques if not (c_inicio <= b < c_fin)]
+    else:
+        # Profesional que aún no migró a agenda por bloques: usa el rango
+        # simple horario_inicio/horario_fin + colación (comportamiento
+        # previo), siempre acotado al rango institucional del día.
+        jornada_inicio = parsear_hora_24h(prof.horario_inicio) or inst_inicio
+        jornada_fin    = parsear_hora_24h(prof.horario_fin)    or inst_fin
+        efectivo_inicio = max(jornada_inicio, inst_inicio)
+        efectivo_fin    = min(jornada_fin, inst_fin)
+        if efectivo_inicio >= efectivo_fin:
+            return {"horas": [], "mensaje": "Sin horas disponibles por esta semana"}
+
+        bloques = _generar_bloques(duracion, efectivo_inicio, efectivo_fin)
+
+        almuerzo_inicio = parsear_hora_24h(prof.hora_almuerzo_inicio)
+        almuerzo_fin    = parsear_hora_24h(prof.hora_almuerzo_fin)
+        if almuerzo_inicio and almuerzo_fin:
+            bloques = [b for b in bloques if not (almuerzo_inicio <= b < almuerzo_fin)]
 
     # Si la fecha es hoy, descartar horas ya pasadas
     if fecha_obj == hoy:
         ahora = datetime.now().time()
         bloques = [b for b in bloques if b > ahora]
-
-    # Descartar el bloque de almuerzo del profesional, si lo tiene definido
-    almuerzo_inicio = _parsear_hora_24h(prof.hora_almuerzo_inicio)
-    almuerzo_fin    = _parsear_hora_24h(prof.hora_almuerzo_fin)
-    if almuerzo_inicio and almuerzo_fin:
-        bloques = [b for b in bloques if not (almuerzo_inicio <= b < almuerzo_fin)]
-
-    # Descartar horas fuera de la jornada laboral del profesional, si la tiene definida
-    jornada_inicio = _parsear_hora_24h(prof.horario_inicio)
-    jornada_fin    = _parsear_hora_24h(prof.horario_fin)
-    if jornada_inicio and jornada_fin:
-        bloques = [b for b in bloques if jornada_inicio <= b < jornada_fin]
 
     # Descartar bloques ya ocupados por una cita activa (pendiente o completada)
     ocupadas_raw = db.query(Cita.hora).filter(

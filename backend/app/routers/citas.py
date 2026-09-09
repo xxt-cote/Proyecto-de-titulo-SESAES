@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from datetime import datetime
+from datetime import datetime, date
 import io
 import os
 
@@ -14,14 +14,15 @@ from app.models.historial_paciente import HistorialPaciente
 from app.models.notificacion import Notificacion
 from app.schemas import CitaCreate
 from app.auth_dependencies import get_current_user, verificar_acceso
-from app.rbac.permissions import Permission
-from app.rbac.admin_authorization import (
-    tiene_permiso_efectivo,
-    obtener_alcance_administrativo_efectivo,
-    especialidad_permitida_por_alcance,
-)
+from app.models.ausencia_profesional import AusenciaProfesional
+from app.models.auditoria import Auditoria
+from app.reglas_horario import validar_fecha_agendable, rango_institucional_dia, parsear_hora_24h
 
 router = APIRouter(tags=["citas"])
+
+
+def registrar_auditoria(db, accion, detalle=None, entidad=None, entidad_id=None, usuario_id=None):
+    db.add(Auditoria(accion=accion, detalle=detalle, entidad=entidad, entidad_id=entidad_id, usuario_id=usuario_id))
 
 
 def _cita_a_datetime(cita: Cita) -> datetime:
@@ -29,115 +30,49 @@ def _cita_a_datetime(cita: Cita) -> datetime:
     return datetime.strptime(f"{cita.fecha} {cita.hora}", "%Y-%m-%d %I:%M %p")
 
 
-def _puede_gestionar_agenda(
-    current_user: dict,
-    db: Session,
-) -> bool:
+def _normalizar_hora_24h(hora_str: str) -> str:
     """
-    Resuelve agenda.gestionar contra el estado actual de la BD.
-
-    ADMIN depende de su configuracion administrativa efectiva.
-    SUPERADMIN conserva sus permisos explicitos de rol a traves
-    del mismo resolver.
+    CitaCreate.hora acepta dos formatos según quién agende: 'HH:MM' 24h
+    (lo que entrega /disponibilidad, usado por Estudiante) o 'HH:MM AM/PM'
+    (compatibilidad con flujos antiguos, ej. admin/urgente). Normaliza
+    ambos a 'HH:MM' 24h para poder compararlos contra el rango institucional.
+    Si no calza con ningún formato conocido, devuelve el string tal cual
+    (la validación de rango simplemente no aplicará sobre un valor no
+    parseable, en vez de romper el flujo de agendamiento).
     """
-    return tiene_permiso_efectivo(
-        db,
-        current_user,
-        Permission.AGENDA_GESTIONAR,
-    )
+    hora_str = (hora_str or "").strip()
+    if not hora_str:
+        return hora_str
+    if "AM" in hora_str.upper() or "PM" in hora_str.upper():
+        try:
+            t = datetime.strptime(hora_str.upper(), "%I:%M %p")
+            return t.strftime("%H:%M")
+        except ValueError:
+            return hora_str
+    return hora_str
 
 
-def _verificar_propietario_o_agenda(
-    current_user: dict,
-    estudiante_id: int,
-    db: Session,
-) -> bool:
+def _verificar_acceso_a_cita(cita: Cita, current_user: dict, db: Session) -> None:
     """
-    Permite:
-      - estudiante operando sobre su propio Usuario.id, o
-      - usuario con agenda.gestionar efectivo.
+    Un recurso 'cita' puede ser accedido por: el estudiante dueño de la cita,
+    el profesional que la atiende, o un admin. Cualquier otro caso -> 403.
 
-    Devuelve True cuando la operacion usa capacidad administrativa.
-    """
-    puede_gestionar = _puede_gestionar_agenda(
-        current_user,
-        db,
-    )
-
-    if puede_gestionar:
-        return True
-
-    verificar_acceso(
-        current_user,
-        id_esperado=estudiante_id,
-        roles_permitidos=["estudiante"],
-    )
-
-    return False
-
-
-
-def _verificar_alcance_profesional_agenda(
-    db: Session,
-    current_user: dict,
-    profesional: Profesional | None,
-) -> None:
-    """
-    Comprueba el alcance administrativo sobre el profesional objetivo.
-
-    Un profesional inexistente o fuera del alcance se trata como 404
-    para no revelar recursos pertenecientes a otro alcance.
-    """
-    alcance = obtener_alcance_administrativo_efectivo(
-        db,
-        current_user,
-    )
-
-    if (
-        alcance is None
-        or profesional is None
-        or not especialidad_permitida_por_alcance(
-            alcance,
-            profesional.especialidad,
-        )
-    ):
-        raise HTTPException(
-            status_code=404,
-            detail="Profesional no encontrado",
-        )
-
-
-def _verificar_acceso_a_cita(
-    cita: Cita,
-    current_user: dict,
-    db: Session,
-) -> None:
-    """
-    Acceso privado a una cita: estudiante dueño o profesional asignado.
-
-    ADMIN y SUPERADMIN no reciben bypass clínico por este helper.
-    agenda.gestionar se evalúa solamente en operaciones administrativas
-    concretas, como crear o cancelar una cita.
+    OJO: Cita.profesional_id apunta a Profesional.id, que es una PK distinta
+    de Usuario.id (el id que va en el JWT). Por eso hay que resolver primero
+    el Profesional y comparar su usuario_id, no comparar directo contra
+    cita.profesional_id.
     """
     rol = current_user["rol"]
     uid = current_user["id"]
-
+    if rol == "admin":
+        return
     if rol == "estudiante" and cita.estudiante_id == uid:
         return
-
     if rol == "profesional":
-        prof = (
-            db.query(Profesional)
-            .filter(Profesional.id == cita.profesional_id)
-            .first()
-        )
+        prof = db.query(Profesional).filter(Profesional.id == cita.profesional_id).first()
         if prof and prof.usuario_id == uid:
             return
-
-    raise HTTPException(
-        status_code=403,
-        detail="No tienes permiso para acceder a esta cita.",
-    )
+    raise HTTPException(status_code=403, detail="No tienes permiso para acceder a esta cita.")
 
 
 @router.get("/citas/estudiante/{estudiante_id}")
@@ -146,7 +81,7 @@ def get_citas_estudiante(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    _verificar_propietario_o_agenda(current_user, estudiante_id)
+    verificar_acceso(current_user, id_esperado=estudiante_id, roles_permitidos=["estudiante", "admin"])
     citas = db.query(Cita).filter(
         Cita.estudiante_id == estudiante_id,
         Cita.estado == "pendiente"
@@ -174,11 +109,7 @@ def get_historial(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    verificar_acceso(
-        current_user,
-        id_esperado=estudiante_id,
-        roles_permitidos=["estudiante"],
-    )
+    verificar_acceso(current_user, id_esperado=estudiante_id, roles_permitidos=["estudiante", "admin"])
     # Solo estados ya resueltos: completada, cancelada, inasistencia
     citas = db.query(Cita).filter(
         Cita.estudiante_id == estudiante_id,
@@ -201,6 +132,7 @@ def get_historial(
             "medicamento":            c.medicamento            if c.estado == "completada" else None,
             "observaciones_atencion": c.observaciones_atencion if c.estado == "completada" else None,
             "motivo_cancelacion":     c.motivo_cancelacion,
+            "rechazada_por_profesional": c.rechazada_por_profesional or False,
         })
     return result
 
@@ -213,11 +145,7 @@ def crear_cita(
 ):
     # Un estudiante solo puede agendar para sí mismo; un admin puede agendar
     # a nombre de cualquier estudiante (ej. citas urgentes desde recepción).
-    puede_gestionar_agenda = _verificar_propietario_o_agenda(
-        current_user,
-        cita.estudiante_id,
-        db,
-    )
+    verificar_acceso(current_user, id_esperado=cita.estudiante_id, roles_permitidos=["estudiante", "admin"])
 
     # Un día marcado como "cerrado" (centro completo sin atención) bloquea
     # el agendamiento sin excepción, incluso para el admin — ningún
@@ -226,20 +154,34 @@ def crear_cita(
     if db.query(DiaCerrado).filter(DiaCerrado.fecha == cita.fecha).first():
         raise HTTPException(status_code=400, detail="El centro permanece cerrado ese día. Elige otra fecha.")
 
-    prof = (
-        db.query(Profesional)
-        .filter(
-            Profesional.id == cita.profesional_id
-        )
-        .first()
-    )
+    # Regla institucional dura, sin excepción de sobrecupo: nadie agenda en
+    # sábado/domingo, en una fecha ya pasada, ni fuera del rango horario que
+    # la universidad tiene habilitado ese día de la semana. El "sobrecupo"
+    # del admin solo excusa el horario PERSONAL del profesional (colación o
+    # fuera de su jornada propia), nunca el horario institucional completo.
+    error_fecha = validar_fecha_agendable(cita.fecha)
+    if error_fecha:
+        raise HTTPException(status_code=400, detail=error_fecha)
 
-    if puede_gestionar_agenda:
-        _verificar_alcance_profesional_agenda(
-            db,
-            current_user,
-            prof,
-        )
+    fecha_obj = datetime.strptime(cita.fecha, "%Y-%m-%d").date()
+    rango_institucional = rango_institucional_dia(fecha_obj.weekday())
+    hora_normalizada = parsear_hora_24h(_normalizar_hora_24h(cita.hora))
+    if rango_institucional and hora_normalizada:
+        inst_inicio, inst_fin = rango_institucional
+        if not (inst_inicio <= hora_normalizada < inst_fin):
+            raise HTTPException(
+                status_code=400,
+                detail="Ese horario está fuera del rango de atención institucional para ese día."
+            )
+
+    if fecha_obj == date.today() and hora_normalizada and hora_normalizada <= datetime.now().time():
+        raise HTTPException(status_code=400, detail="No se puede agendar una hora que ya pasó.")
+
+    if db.query(AusenciaProfesional).filter(
+        AusenciaProfesional.profesional_id == cita.profesional_id,
+        AusenciaProfesional.fecha == cita.fecha
+    ).first():
+        raise HTTPException(status_code=400, detail="El profesional no atiende ese día. Elige otra fecha.")
 
     # El "paciente" de una cita SIEMPRE debe ser una cuenta con rol estudiante.
     # Sin este chequeo, un admin podría —por error, ej. escribiendo mal un
@@ -252,6 +194,7 @@ def crear_cita(
             detail="El paciente seleccionado no corresponde a una cuenta de estudiante."
         )
 
+    prof = db.query(Profesional).filter(Profesional.id == cita.profesional_id).first()
 
     if prof:
         # Una cita "pendiente" solo debe bloquear un nuevo agendamiento si
@@ -278,6 +221,25 @@ def crear_cita(
                 duplicada = c
                 break
         if duplicada:
+            if duplicada.profesional_id == cita.profesional_id:
+                # Acaparamiento: el mismo estudiante intenta tomar una SEGUNDA
+                # hora con el MISMO profesional teniendo ya una pendiente.
+                # No se explica el motivo real (evita que alguien "tantee" el
+                # sistema para descubrir la regla); se responde como si
+                # simplemente no hubiera disponibilidad, y queda registrado
+                # en auditoría — visible para el Admin — como intento de
+                # acaparamiento, distinto de un "sin disponibilidad" real.
+                est = db.query(Usuario).filter(Usuario.id == cita.estudiante_id).first()
+                registrar_auditoria(
+                    db, "Intento de acaparamiento detectado",
+                    f"{est.nombre if est else cita.estudiante_id} intentó tomar una segunda hora "
+                    f"con {prof.nombre if prof else cita.profesional_id} ({cita.fecha} {cita.hora}) "
+                    f"teniendo ya una cita pendiente con el mismo profesional.",
+                    "cita", duplicada.id, cita.estudiante_id
+                )
+                db.commit()
+                raise HTTPException(status_code=400,
+                    detail="Esa hora ya no está disponible. Intenta con otro horario.")
             raise HTTPException(status_code=400,
                 detail="Ya tienes una cita pendiente en esta especialidad")
 
@@ -287,18 +249,10 @@ def crear_cita(
         fecha          = cita.fecha,
         hora           = cita.hora,
         observaciones  = cita.observaciones,
-        # Estas marcas son administrativas: el estudiante no puede
-        # elevar prioridad ni crear sobrecupo manipulando el body.
-        urgente        = (
-            bool(cita.urgente)
-            if puede_gestionar_agenda
-            else False
-        ),
-        sobrecupo      = (
-            bool(cita.sobrecupo)
-            if puede_gestionar_agenda
-            else False
-        ),
+        urgente        = cita.urgente or False,
+        # sobrecupo solo puede activarlo un admin, sin importar lo que
+        # mande el body — así un estudiante no puede autoasignarse la marca.
+        sobrecupo      = bool(cita.sobrecupo) if current_user["rol"] == "admin" else False,
         estado         = "pendiente"
     )
     db.add(nueva)
@@ -338,7 +292,7 @@ def crear_cita(
         "profesional":  prof.nombre       if prof else "",
         "fecha":        nueva.fecha,
         "hora":         nueva.hora,
-        "urgente":      nueva.urgente or False,
+        "urgente":      False,
         "aviso":        "Cancelación hasta 5 horas antes",
         "estado":       nueva.estado
     }
@@ -354,31 +308,7 @@ def cancelar_cita(
     if not cita:
         raise HTTPException(status_code=404, detail="Cita no encontrada")
 
-    puede_gestionar_agenda = _puede_gestionar_agenda(
-        current_user,
-        db,
-    )
-
-    if puede_gestionar_agenda:
-        prof = (
-            db.query(Profesional)
-            .filter(
-                Profesional.id == cita.profesional_id
-            )
-            .first()
-        )
-
-        _verificar_alcance_profesional_agenda(
-            db,
-            current_user,
-            prof,
-        )
-    else:
-        _verificar_acceso_a_cita(
-            cita,
-            current_user,
-            db,
-        )
+    _verificar_acceso_a_cita(cita, current_user, db)
 
     if cita.estado != "pendiente":
         raise HTTPException(status_code=400, detail="Esta cita no se puede cancelar")
@@ -390,7 +320,7 @@ def cancelar_cita(
 
     # Un admin puede cancelar sin la restricción de las 5 horas (ej. por
     # ausencia del profesional o motivos operativos).
-    if fecha_hora_cita and not puede_gestionar_agenda:
+    if fecha_hora_cita and current_user["rol"] != "admin":
         horas_restantes = (fecha_hora_cita - datetime.now()).total_seconds() / 3600
         # La restricción de "mínimo 5 horas antes" solo tiene sentido si la
         # cita todavía está por venir. Si ya pasó la fecha/hora (horas_restantes
@@ -464,10 +394,10 @@ def descargar_pdf_cita(
     campo(pdf, "Hora:", f" {cita.hora}")
     campo(pdf, "Motivo de consulta:", f" {cita.observaciones or 'No especificado'}")
 
-    # ── Registro de atención (NO es una receta; ver SA-11.3B) ──
+    # ── Indicaciones médicas / receta ──
     pdf.ln(6)
     pdf.set_font("Helvetica", "B", 13)
-    pdf.cell(0, 8, "Registro de atención", ln=True)
+    pdf.cell(0, 8, "Indicaciones Médicas", ln=True)
     pdf.set_draw_color(230, 230, 230)
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
     pdf.ln(4)

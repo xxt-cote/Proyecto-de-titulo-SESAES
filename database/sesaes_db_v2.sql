@@ -466,7 +466,11 @@ CREATE TABLE public.profesional (
     estado character varying DEFAULT 'activo'::character varying,
     correo character varying,
     rut character varying,
-    foto_url character varying
+    foto_url character varying,
+    hora_almuerzo_inicio time without time zone,
+    hora_almuerzo_fin time without time zone,
+    horario_inicio time without time zone,
+    horario_fin time without time zone
 );
 
 
@@ -505,6 +509,7 @@ ALTER SEQUENCE public.profesional_id_seq OWNED BY public.profesional.id;
 CREATE TABLE public.usuario (
     id integer NOT NULL,
     correo character varying,
+    correo_secundario character varying,
     password character varying,
     rol character varying,
     foto_url text,
@@ -513,7 +518,8 @@ CREATE TABLE public.usuario (
     tema_oscuro boolean DEFAULT false,
     carrera character varying,
     rut character varying,
-    activo boolean DEFAULT true
+    activo boolean DEFAULT true,
+    debe_cambiar_password boolean DEFAULT false
 );
 
 

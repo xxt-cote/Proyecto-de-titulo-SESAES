@@ -15,58 +15,31 @@ from app.models.usuario import Usuario
 from app.models.notificacion import Notificacion
 from app.models.configuracion import ConfiguracionSistema
 from app.models.auditoria import Auditoria
-from app.auditoria import registrar_evento_auditoria
 from app.models.historial_estado_profesional import HistorialEstadoProfesional
 from app.models.correo_log import CorreoLog
 from app.models.dia_cerrado import DiaCerrado
+from app.models.bloque_horario_semanal import BloqueHorarioSemanal
 from app.routers.correos import simular_envio_correo
 from app.schemas import (
     ProfesionalCreate, ProfesionalUpdate, ProfesionalOut,
-    ConfiguracionOut, ConfiguracionUpdate, CitaCreate,
-    color_identificador_es_valido
+    ConfiguracionOut, ConfiguracionUpdate, CitaCreate
 )
-from app.auth_dependencies import get_current_user
-from app.rbac.dependencies import (
-    require_permission,
-    require_effective_permission,
-)
-from app.rbac.permissions import Permission
-from app.rbac.admin_authorization import (
-    obtener_alcance_administrativo_efectivo,
-    especialidad_permitida_por_alcance,
-)
+from app.auth_dependencies import get_current_user, verificar_rol
 
 
+def solo_admin(current_user: dict = Depends(get_current_user)) -> dict:
+    """
+    Dependencia a nivel de router: TODO lo que cuelga de /admin/* es
+    exclusivo del rol admin. Se aplica una sola vez acá abajo en vez de
+    repetirla en cada uno de los ~25 endpoints de este archivo.
+    """
+    verificar_rol(current_user, roles_permitidos=["admin"])
+    return current_user
 
-router = APIRouter(prefix="/admin", tags=["administrador"])
+
+router = APIRouter(prefix="/admin", tags=["administrador"], dependencies=[Depends(solo_admin)])
 
 RUTS_EXCLUIDOS_CGR = {"16.458.880-7", "19.741.131-7"}
-
-
-def _ids_profesionales_en_alcance(
-    db: Session,
-    alcance,
-) -> list[int]:
-    """
-    Devuelve los IDs de profesionales visibles para un alcance limitado.
-
-    Para alcance institucional no se utiliza este helper: el endpoint
-    conserva la consulta global sin introducir un IN innecesario.
-
-    La comparaci?n usa la misma normalizaci?n SA-8/SA-9 del resto
-    de la autorizaci?n administrativa.
-    """
-    if alcance is None or alcance.institucional:
-        return []
-
-    return [
-        profesional.id
-        for profesional in db.query(Profesional).all()
-        if especialidad_permitida_por_alcance(
-            alcance,
-            profesional.especialidad,
-        )
-    ]
 
 
 def validar_rut(rut: str) -> bool:
@@ -85,10 +58,8 @@ def validar_rut(rut: str) -> bool:
     return dv == dv_calc
 
 
-# SA-2: el helper local registrar_auditoria(...) se eliminó. Todo este
-# router usa ahora app.auditoria.registrar_evento_auditoria, que deriva el
-# actor (usuario_id, actor_rol) EXCLUSIVAMENTE de current_user y nunca
-# hace commit/rollback por sí mismo — ver docstring de app/auditoria.py.
+def registrar_auditoria(db, accion, detalle=None, entidad=None, entidad_id=None, usuario_id=None):
+    db.add(Auditoria(usuario_id=usuario_id, accion=accion, detalle=detalle, entidad=entidad, entidad_id=entidad_id))
 
 
 # ══════════════════════════════════════
@@ -96,88 +67,18 @@ def validar_rut(rut: str) -> bool:
 # ══════════════════════════════════════
 
 @router.get("/estadisticas")
-def get_estadisticas(db: Session = Depends(get_db), current_user: dict = Depends(require_effective_permission(Permission.REPORTES_VER))):
+def get_estadisticas(db: Session = Depends(get_db)):
     hoy = date.today().isoformat()
-
-    alcance = obtener_alcance_administrativo_efectivo(
-        db,
-        current_user,
-    )
-
-    if alcance is None:
-        raise HTTPException(
-            status_code=403,
-            detail="No tienes acceso al alcance solicitado.",
-        )
-
-    ids_profesionales = None
-
-    if not alcance.institucional:
-        ids_profesionales = _ids_profesionales_en_alcance(
-            db,
-            alcance,
-        )
-
-        if not ids_profesionales:
-            return {
-                "reservas_hoy": 0,
-                "profesionales_activos": 0,
-                "horas_disponibles": 0,
-                "urgentes": 0,
-            }
-
-    reservas_query = db.query(Cita).filter(
-        Cita.fecha == hoy,
-        Cita.estado == "pendiente",
-    )
-
-    profesionales_query = db.query(Profesional).filter(
-        Profesional.estado == "activo"
-    )
-
-    citas_hoy_query = db.query(Cita).filter(
-        Cita.fecha == hoy,
-        Cita.estado.in_(["pendiente", "completada"]),
-    )
-
-    urgentes_query = db.query(Cita).filter(
-        Cita.urgente == True,  # noqa: E712
-        Cita.estado == "pendiente",
-    )
-
-    if ids_profesionales is not None:
-        reservas_query = reservas_query.filter(
-            Cita.profesional_id.in_(ids_profesionales)
-        )
-
-        profesionales_query = profesionales_query.filter(
-            Profesional.id.in_(ids_profesionales)
-        )
-
-        citas_hoy_query = citas_hoy_query.filter(
-            Cita.profesional_id.in_(ids_profesionales)
-        )
-
-        urgentes_query = urgentes_query.filter(
-            Cita.profesional_id.in_(ids_profesionales)
-        )
-
-    reservas_hoy = reservas_query.count()
-    profesionales_activos = profesionales_query.count()
-    citas_hoy = citas_hoy_query.count()
-
-    horas_disponibles = max(
-        0,
-        (profesionales_activos * 10) - citas_hoy,
-    )
-
-    urgentes = urgentes_query.count()
-
+    reservas_hoy = db.query(Cita).filter(Cita.fecha == hoy, Cita.estado == "pendiente").count()
+    profesionales_activos = db.query(Profesional).filter(Profesional.estado == "activo").count()
+    citas_hoy = db.query(Cita).filter(Cita.fecha == hoy, Cita.estado.in_(["pendiente","completada"])).count()
+    horas_disponibles = max(0, (profesionales_activos * 10) - citas_hoy)
+    urgentes = db.query(Cita).filter(Cita.urgente == True, Cita.estado == "pendiente").count()
     return {
         "reservas_hoy": reservas_hoy,
         "profesionales_activos": profesionales_activos,
         "horas_disponibles": horas_disponibles,
-        "urgentes": urgentes,
+        "urgentes": urgentes
     }
 
 
@@ -186,29 +87,9 @@ def get_estadisticas(db: Session = Depends(get_db), current_user: dict = Depends
 # ══════════════════════════════════════
 
 @router.get("/resumen-dia")
-def get_resumen_dia(db: Session = Depends(get_db), current_user: dict = Depends(require_effective_permission(Permission.AGENDA_VER))):
+def get_resumen_dia(db: Session = Depends(get_db)):
     hoy = date.today().isoformat()
-
-    alcance = obtener_alcance_administrativo_efectivo(
-        db,
-        current_user,
-    )
-
-    if alcance is None:
-        raise HTTPException(
-            status_code=403,
-            detail="No tienes acceso al alcance solicitado.",
-        )
-
-    profs = [
-        p
-        for p in db.query(Profesional).all()
-        if especialidad_permitida_por_alcance(
-            alcance,
-            p.especialidad,
-        )
-    ]
-
+    profs = db.query(Profesional).all()
     result = []
     for p in profs:
         citas_hoy = db.query(Cita).filter(
@@ -219,9 +100,7 @@ def get_resumen_dia(db: Session = Depends(get_db), current_user: dict = Depends(
         result.append({
             "profesional_id": p.id,
             "nombre": p.nombre,
-            "tratamiento": p.tratamiento,
             "especialidad": p.especialidad,
-            "color_identificador": p.color_identificador,
             "estado": p.estado or "activo",
             "citas_hoy": citas_hoy
         })
@@ -233,47 +112,11 @@ def get_resumen_dia(db: Session = Depends(get_db), current_user: dict = Depends(
 # ══════════════════════════════════════
 
 @router.get("/proximas-citas")
-def get_proximas_citas(db: Session = Depends(get_db), current_user: dict = Depends(require_effective_permission(Permission.AGENDA_VER))):
+def get_proximas_citas(db: Session = Depends(get_db)):
     hoy = date.today().isoformat()
-
-    alcance = obtener_alcance_administrativo_efectivo(
-        db,
-        current_user,
-    )
-
-    if alcance is None:
-        raise HTTPException(
-            status_code=403,
-            detail="No tienes acceso al alcance solicitado.",
-        )
-
-    query = db.query(Cita).filter(
-        Cita.fecha >= hoy,
-        Cita.estado == "pendiente",
-    )
-
-    if not alcance.institucional:
-        ids_profesionales = _ids_profesionales_en_alcance(
-            db,
-            alcance,
-        )
-
-        if not ids_profesionales:
-            return []
-
-        # El alcance se aplica ANTES de order_by/limit para que el
-        # limite de 20 corresponda a citas realmente visibles.
-        query = query.filter(
-            Cita.profesional_id.in_(ids_profesionales)
-        )
-
-    citas = (
-        query
-        .order_by(Cita.fecha, Cita.hora)
-        .limit(20)
-        .all()
-    )
-
+    citas = db.query(Cita).filter(
+        Cita.fecha >= hoy, Cita.estado == "pendiente"
+    ).order_by(Cita.fecha, Cita.hora).limit(20).all()
     result = []
     for c in citas:
         prof = db.query(Profesional).filter(Profesional.id == c.profesional_id).first()
@@ -298,221 +141,60 @@ def get_proximas_citas(db: Session = Depends(get_db), current_user: dict = Depen
 # ══════════════════════════════════════
 
 @router.get("/estudiantes")
-def buscar_estudiantes(
-    q: str = "",
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(
-        require_effective_permission(Permission.USUARIOS_VER)
-    ),
-):
-    alcance = obtener_alcance_administrativo_efectivo(
-        db,
-        current_user,
-    )
-
-    if alcance is None:
-        raise HTTPException(
-            status_code=403,
-            detail="No tienes acceso al alcance solicitado.",
-        )
-
-    if len(q) < 2:
-        return []
-
-    query = db.query(Usuario).filter(
+def buscar_estudiantes(q: str = "", db: Session = Depends(get_db)):
+    if len(q) < 2: return []
+    estudiantes = db.query(Usuario).filter(
         Usuario.rol == "estudiante",
-        (
-            Usuario.nombre.ilike(f"%{q}%")
-            | Usuario.rut.ilike(f"%{q}%")
-        ),
-    )
-
-    if not alcance.institucional:
-        ids_profesionales = _ids_profesionales_en_alcance(
-            db,
-            alcance,
-        )
-
-        if not ids_profesionales:
-            return []
-
-        query = (
-            query
-            .join(
-                Cita,
-                Cita.estudiante_id == Usuario.id,
-            )
-            .filter(
-                Cita.profesional_id.in_(
-                    ids_profesionales
-                )
-            )
-            .distinct()
-        )
-
-    estudiantes = (
-        query
-        .limit(10)
-        .all()
-    )
-
+        (Usuario.nombre.ilike(f"%{q}%")) | (Usuario.rut.ilike(f"%{q}%"))
+    ).limit(10).all()
     return [
-        {
-            "id": e.id,
-            "nombre": e.nombre or "?",
-            "rut": e.rut or "?",
-            "carrera": e.carrera or "?",
-            "correo": e.correo,
-        }
+        {"id": e.id, "nombre": e.nombre or "—", "rut": e.rut or "—",
+         "carrera": e.carrera or "—", "correo": e.correo}
         for e in estudiantes
     ]
 
 
 @router.get("/estudiantes/listado")
 def listar_estudiantes(
-    q: str = "",
-    carrera: str = "",
-    pagina: int = 1,
-    por_pagina: int = 20,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(
-        require_effective_permission(Permission.USUARIOS_VER)
-    ),
+    q: str = "", carrera: str = "", pagina: int = 1, por_pagina: int = 20,
+    db: Session = Depends(get_db)
 ):
     """
-    Listado completo de estudiantes con paginaci?n.
-
-    Para alcances administrativos limitados, tanto la visibilidad
-    del estudiante como sus m?tricas se restringen a citas con
-    profesionales incluidos en el alcance efectivo.
+    Listado completo de estudiantes (con paginación), a diferencia de
+    /estudiantes que solo sirve para autocompletar una búsqueda puntual.
+    Incluye el conteo de citas totales y atendidas de cada estudiante,
+    calculado con una sola consulta agregada para no golpear la base
+    de datos una vez por estudiante.
     """
-    alcance = obtener_alcance_administrativo_efectivo(
-        db,
-        current_user,
-    )
-
-    if alcance is None:
-        raise HTTPException(
-            status_code=403,
-            detail="No tienes acceso al alcance solicitado.",
-        )
-
-    ids_profesionales = None
-
-    if not alcance.institucional:
-        ids_profesionales = _ids_profesionales_en_alcance(
-            db,
-            alcance,
-        )
-
-        if not ids_profesionales:
-            return {
-                "total": 0,
-                "pagina": pagina,
-                "por_pagina": por_pagina,
-                "estudiantes": [],
-            }
-
-    query = db.query(Usuario).filter(
-        Usuario.rol == "estudiante"
-    )
-
-    if ids_profesionales is not None:
-        query = (
-            query
-            .join(
-                Cita,
-                Cita.estudiante_id == Usuario.id,
-            )
-            .filter(
-                Cita.profesional_id.in_(
-                    ids_profesionales
-                )
-            )
-            .distinct()
-        )
-
+    query = db.query(Usuario).filter(Usuario.rol == "estudiante")
     if q:
         query = query.filter(
-            (
-                Usuario.nombre.ilike(f"%{q}%")
-                | Usuario.rut.ilike(f"%{q}%")
-            )
+            (Usuario.nombre.ilike(f"%{q}%")) | (Usuario.rut.ilike(f"%{q}%"))
         )
-
     if carrera:
-        query = query.filter(
-            Usuario.carrera.ilike(
-                f"%{carrera}%"
-            )
-        )
+        query = query.filter(Usuario.carrera.ilike(f"%{carrera}%"))
 
     total = query.count()
-
     estudiantes = (
-        query
-        .order_by(Usuario.nombre)
-        .offset(
-            (pagina - 1) * por_pagina
-        )
+        query.order_by(Usuario.nombre)
+        .offset((pagina - 1) * por_pagina)
         .limit(por_pagina)
         .all()
     )
 
     ids = [e.id for e in estudiantes]
-
-    conteos = {}
-
-    if ids:
-        conteos_query = (
-            db.query(
-                Cita.estudiante_id,
-                func.count(Cita.id),
-            )
-            .filter(
-                Cita.estudiante_id.in_(ids)
-            )
-        )
-
-        if ids_profesionales is not None:
-            conteos_query = conteos_query.filter(
-                Cita.profesional_id.in_(
-                    ids_profesionales
-                )
-            )
-
-        conteos = dict(
-            conteos_query
-            .group_by(Cita.estudiante_id)
-            .all()
-        )
-
-    atendidas = {}
-
-    if ids:
-        atendidas_query = (
-            db.query(
-                Cita.estudiante_id,
-                func.count(Cita.id),
-            )
-            .filter(
-                Cita.estudiante_id.in_(ids),
-                Cita.estado == "completada",
-            )
-        )
-
-        if ids_profesionales is not None:
-            atendidas_query = atendidas_query.filter(
-                Cita.profesional_id.in_(
-                    ids_profesionales
-                )
-            )
-
-        atendidas = dict(
-            atendidas_query
-            .group_by(Cita.estudiante_id)
-            .all()
-        )
+    conteos = dict(
+        db.query(Cita.estudiante_id, func.count(Cita.id))
+        .filter(Cita.estudiante_id.in_(ids))
+        .group_by(Cita.estudiante_id)
+        .all()
+    ) if ids else {}
+    atendidas = dict(
+        db.query(Cita.estudiante_id, func.count(Cita.id))
+        .filter(Cita.estudiante_id.in_(ids), Cita.estado == "completada")
+        .group_by(Cita.estudiante_id)
+        .all()
+    ) if ids else {}
 
     return {
         "total": total,
@@ -520,11 +202,8 @@ def listar_estudiantes(
         "por_pagina": por_pagina,
         "estudiantes": [
             {
-                "id": e.id,
-                "nombre": e.nombre or "?",
-                "rut": e.rut or "?",
-                "carrera": e.carrera or "?",
-                "correo": e.correo,
+                "id": e.id, "nombre": e.nombre or "—", "rut": e.rut or "—",
+                "carrera": e.carrera or "—", "correo": e.correo,
                 "citas_totales": conteos.get(e.id, 0),
                 "citas_atendidas": atendidas.get(e.id, 0),
             }
@@ -534,159 +213,37 @@ def listar_estudiantes(
 
 
 @router.get("/estudiantes/{estudiante_id}/perfil")
-def perfil_estudiante_admin(
-    estudiante_id: int,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(
-        require_effective_permission(Permission.USUARIOS_VER)
-    ),
-):
-    """
-    Ficha administrativa de un estudiante.
-
-    En alcance limitado, la visibilidad del estudiante y todas
-    las m?tricas derivadas de citas se restringen a profesionales
-    incluidos en el alcance efectivo.
-    """
-    alcance = obtener_alcance_administrativo_efectivo(
-        db,
-        current_user,
-    )
-
-    if alcance is None:
-        raise HTTPException(
-            status_code=403,
-            detail="No tienes acceso al alcance solicitado.",
-        )
-
-    ids_profesionales = None
-
-    if not alcance.institucional:
-        ids_profesionales = _ids_profesionales_en_alcance(
-            db,
-            alcance,
-        )
-
-        if not ids_profesionales:
-            raise HTTPException(
-                status_code=404,
-                detail="Estudiante no encontrado",
-            )
-
-    est = (
-        db.query(Usuario)
-        .filter(
-            Usuario.id == estudiante_id,
-            Usuario.rol == "estudiante",
-        )
-        .first()
-    )
-
+def perfil_estudiante_admin(estudiante_id: int, db: Session = Depends(get_db)):
+    """Ficha de un estudiante puntual: sus datos + sus últimas atenciones."""
+    est = db.query(Usuario).filter(Usuario.id == estudiante_id, Usuario.rol == "estudiante").first()
     if not est:
-        raise HTTPException(
-            status_code=404,
-            detail="Estudiante no encontrado",
-        )
-
-    total_query = db.query(
-        func.count(Cita.id)
-    ).filter(
-        Cita.estudiante_id == estudiante_id
-    )
-
-    if ids_profesionales is not None:
-        total_query = total_query.filter(
-            Cita.profesional_id.in_(
-                ids_profesionales
-            )
-        )
-
-    total = total_query.scalar() or 0
-
-    # Para alcance limitado, una ficha administrativa solo es
-    # visible si existe al menos una cita dentro del scope.
-    if (
-        ids_profesionales is not None
-        and total == 0
-    ):
-        raise HTTPException(
-            status_code=404,
-            detail="Estudiante no encontrado",
-        )
-
-    citas_query = (
-        db.query(Cita)
-        .filter(
-            Cita.estudiante_id == estudiante_id
-        )
-    )
-
-    if ids_profesionales is not None:
-        citas_query = citas_query.filter(
-            Cita.profesional_id.in_(
-                ids_profesionales
-            )
-        )
+        raise HTTPException(status_code=404, detail="Estudiante no encontrado")
 
     citas = (
-        citas_query
+        db.query(Cita)
+        .filter(Cita.estudiante_id == estudiante_id)
         .order_by(Cita.fecha.desc())
         .limit(10)
         .all()
     )
-
     ultimas = []
-
     for c in citas:
-        prof = (
-            db.query(Profesional)
-            .filter(
-                Profesional.id == c.profesional_id
-            )
-            .first()
-        )
-
+        prof = db.query(Profesional).filter(Profesional.id == c.profesional_id).first()
         ultimas.append({
-            "id": c.id,
-            "fecha": c.fecha,
-            "hora": c.hora,
-            "estado": c.estado,
-            "especialidad": (
-                prof.especialidad
-                if prof
-                else "?"
-            ),
-            "profesional": (
-                prof.nombre
-                if prof
-                else "?"
-            ),
+            "id": c.id, "fecha": c.fecha, "hora": c.hora, "estado": c.estado,
+            "especialidad": prof.especialidad if prof else "—",
+            "profesional": prof.nombre if prof else "—",
         })
 
-    atendidas_query = db.query(
-        func.count(Cita.id)
-    ).filter(
-        Cita.estudiante_id == estudiante_id,
-        Cita.estado == "completada",
-    )
-
-    if ids_profesionales is not None:
-        atendidas_query = atendidas_query.filter(
-            Cita.profesional_id.in_(
-                ids_profesionales
-            )
-        )
-
-    atendidas = atendidas_query.scalar() or 0
+    total = db.query(func.count(Cita.id)).filter(Cita.estudiante_id == estudiante_id).scalar()
+    atendidas = db.query(func.count(Cita.id)).filter(
+        Cita.estudiante_id == estudiante_id, Cita.estado == "completada"
+    ).scalar()
 
     return {
-        "id": est.id,
-        "nombre": est.nombre or "?",
-        "rut": est.rut or "?",
-        "carrera": est.carrera or "?",
-        "correo": est.correo,
-        "citas_totales": total,
-        "citas_atendidas": atendidas,
+        "id": est.id, "nombre": est.nombre or "—", "rut": est.rut or "—",
+        "carrera": est.carrera or "—", "correo": est.correo,
+        "citas_totales": total, "citas_atendidas": atendidas,
         "ultimas_atenciones": ultimas,
     }
 
@@ -699,43 +256,12 @@ def perfil_estudiante_admin(
 def get_grafico_especialidad(
     mes: int = None, anio: int = None,
     profesional_id: int = None, especialidad: str = None, carrera: str = None,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(require_effective_permission(Permission.REPORTES_VER))
+    db: Session = Depends(get_db)
 ):
-    alcance = obtener_alcance_administrativo_efectivo(
-        db,
-        current_user,
-    )
-
-    if alcance is None:
-        raise HTTPException(
-            status_code=403,
-            detail="No tienes acceso al alcance solicitado.",
-        )
-
-    ids_profesionales = None
-
-    if not alcance.institucional:
-        ids_profesionales = _ids_profesionales_en_alcance(
-            db,
-            alcance,
-        )
-
-        if not ids_profesionales:
-            return []
-
-    query = db.query(
-        Profesional.especialidad,
-        func.count(Cita.id),
-    )\
+    query = db.query(Profesional.especialidad, func.count(Cita.id))\
         .join(Cita, Cita.profesional_id == Profesional.id)\
         .join(Usuario, Cita.estudiante_id == Usuario.id)\
-        .filter(Cita.estado.in_(["pendiente", "completada"]))
-
-    if ids_profesionales is not None:
-        query = query.filter(
-            Cita.profesional_id.in_(ids_profesionales)
-        )
+        .filter(Cita.estado.in_(["pendiente","completada"]))
     if mes and anio:
         query = query.filter(Cita.fecha.like(f"{anio}-{str(mes).zfill(2)}%"))
     elif anio:
@@ -749,74 +275,17 @@ def get_grafico_especialidad(
 
 
 @router.get("/graficos/semana")
-def get_grafico_semana(
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(
-        require_effective_permission(Permission.REPORTES_VER)
-    ),
-):
+def get_grafico_semana(db: Session = Depends(get_db)):
     hoy = date.today()
     lunes = hoy - timedelta(days=hoy.weekday())
-    dias = ["Lun", "Mar", "Mi?", "Jue", "Vie", "S?b", "Dom"]
-
-    alcance = obtener_alcance_administrativo_efectivo(
-        db,
-        current_user,
-    )
-
-    if alcance is None:
-        raise HTTPException(
-            status_code=403,
-            detail="No tienes acceso al alcance solicitado.",
-        )
-
-    ids_profesionales = None
-
-    if not alcance.institucional:
-        ids_profesionales = _ids_profesionales_en_alcance(
-            db,
-            alcance,
-        )
-
-        if not ids_profesionales:
-            return [
-                {
-                    "dia": dias[i],
-                    "fecha": (
-                        lunes + timedelta(days=i)
-                    ).isoformat(),
-                    "cantidad": 0,
-                }
-                for i in range(7)
-            ]
-
+    dias = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"]
     result = []
-
     for i in range(7):
         dia = lunes + timedelta(days=i)
-
-        query = db.query(Cita).filter(
-            Cita.fecha == dia.isoformat(),
-            Cita.estado.in_(
-                ["pendiente", "completada"]
-            ),
-        )
-
-        if ids_profesionales is not None:
-            query = query.filter(
-                Cita.profesional_id.in_(
-                    ids_profesionales
-                )
-            )
-
-        cantidad = query.count()
-
-        result.append({
-            "dia": dias[i],
-            "fecha": dia.isoformat(),
-            "cantidad": cantidad,
-        })
-
+        count = db.query(Cita).filter(
+            Cita.fecha == dia.isoformat(), Cita.estado.in_(["pendiente","completada"])
+        ).count()
+        result.append({"dia": dias[i], "fecha": dia.isoformat(), "cantidad": count})
     return result
 
 
@@ -825,658 +294,157 @@ def get_grafico_semana(
 # ══════════════════════════════════════
 
 @router.get("/profesionales")
-def get_profesionales_admin(db: Session = Depends(get_db), current_user: dict = Depends(require_effective_permission(Permission.PROFESIONALES_VER))):
-    alcance = obtener_alcance_administrativo_efectivo(
-        db,
-        current_user,
-    )
-
-    if alcance is None:
-        raise HTTPException(
-            status_code=403,
-            detail="No tienes acceso al alcance solicitado.",
-        )
-
-    profesionales = [
-        p
-        for p in db.query(Profesional).all()
-        if especialidad_permitida_por_alcance(
-            alcance,
-            p.especialidad,
-        )
-    ]
-
-    return [
-        {
-            "id": p.id, "nombre": p.nombre, "tratamiento": p.tratamiento,
-            "especialidad": p.especialidad,
+def get_profesionales_admin(db: Session = Depends(get_db)):
+    resultado = []
+    for p in db.query(Profesional).all():
+        resultado.append({
+            "id": p.id, "nombre": p.nombre, "especialidad": p.especialidad,
             "iniciales": p.iniciales, "descripcion": p.descripcion,
             "duracion_min": p.duracion_min, "estado": p.estado or "activo",
             "correo": p.correo, "rut": p.rut, "usuario_id": p.usuario_id,
-            "foto_url": p.foto_url, "color_identificador": p.color_identificador
-        }
-        for p in profesionales
-    ]
+            "foto_url": p.foto_url,
+            # Horario simple (jornada legado) — antes NO se enviaba, por lo
+            # que la grilla de Agenda nunca podía distinguir disponible de
+            # fuera-de-horario/colación y se veía toda verde.
+            "horario_inicio":       p.horario_inicio,
+            "horario_fin":          p.horario_fin,
+            "hora_almuerzo_inicio": p.hora_almuerzo_inicio,
+            "hora_almuerzo_fin":    p.hora_almuerzo_fin,
+            # Agenda semanal por bloques (si el profesional ya migró a eso,
+            # tiene prioridad sobre el horario simple de arriba — ver
+            # dashboard-admin.ts: esFueraDeHorarioProfesional / esHoraDeAlmuerzo).
+            "bloques_semanales": [
+                {"dia_semana": b.dia_semana, "hora_inicio": b.hora_inicio, "hora_fin": b.hora_fin, "tipo": b.tipo}
+                for b in p.bloques_semanales
+            ],
+        })
+    return resultado
 
 
 @router.post("/profesionales")
-def crear_profesional(
-    datos: ProfesionalCreate,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(
-        require_effective_permission(
-            Permission.PROFESIONALES_GESTIONAR
-        )
-    ),
-):
-    alcance = obtener_alcance_administrativo_efectivo(
-        db,
-        current_user,
-    )
-
-    if alcance is None:
-        raise HTTPException(
-            status_code=403,
-            detail="No tienes acceso al alcance solicitado.",
-        )
-
-    if not especialidad_permitida_por_alcance(
-        alcance,
-        datos.especialidad,
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail=(
-                "No tienes permiso para gestionar "
-                "profesionales de esta especialidad."
-            ),
-        )
-
+def crear_profesional(datos: ProfesionalCreate, db: Session = Depends(get_db)):
     if datos.rut and not validar_rut(datos.rut):
-        raise HTTPException(
-            status_code=400,
-            detail="El RUT ingresado no es v?lido",
-        )
-
-    if not color_identificador_es_valido(
-        datos.color_identificador
-    ):
-        raise HTTPException(
-            status_code=400,
-            detail="Color identificador no permitido",
-        )
-
+        raise HTTPException(status_code=400, detail="El RUT ingresado no es válido")
     iniciales = datos.iniciales
-
     if not iniciales and datos.nombre:
         partes = datos.nombre.split()
-        iniciales = (
-            (partes[0][0] + partes[1][0]).upper()
-            if len(partes) >= 2
-            else datos.nombre[:2].upper()
-        )
-
-    nuevo_usuario = Usuario(
-        correo=datos.correo,
-        password=hash_password(
-            datos.password or "prof123"
-        ),
-        rol="profesional",
-        nombre=datos.nombre,
-        activo=True,
-    )
-
+        iniciales = (partes[0][0] + partes[1][0]).upper() if len(partes) >= 2 else datos.nombre[:2].upper()
+    nuevo_usuario = Usuario(correo=datos.correo, password=hash_password(datos.password or "prof123"),
+                            rol="profesional", nombre=datos.nombre, activo=True)
     db.add(nuevo_usuario)
-
-    # Obtener nuevo_usuario.id SIN commit, para poder crear
-    # Profesional con el FK correcto.
-    db.flush()
-
-    nuevo_prof = Profesional(
-        nombre=datos.nombre,
-        tratamiento=datos.tratamiento,
-        especialidad=datos.especialidad,
-        iniciales=iniciales,
-        descripcion=datos.descripcion or "",
-        duracion_min=datos.duracion_min or 45,
-        correo=datos.correo,
-        rut=datos.rut,
-        estado="activo",
-        usuario_id=nuevo_usuario.id,
-        color_identificador=datos.color_identificador,
-    )
-
-    db.add(nuevo_prof)
-
-    # Obtener nuevo_prof.id SIN commit para la auditor?a.
-    db.flush()
-
-    registrar_evento_auditoria(
-        db,
-        current_user,
-        "Agreg? profesional",
-        entidad="profesional",
-        entidad_id=nuevo_prof.id,
-        detalle=(
-            f"{datos.nombre} ? "
-            f"{datos.especialidad}"
-        ),
-    )
-
-    # ?NICO commit: Usuario + Profesional + auditor?a,
-    # misma transacci?n.
     db.commit()
-
+    db.refresh(nuevo_usuario)
+    nuevo_prof = Profesional(
+        nombre=datos.nombre, especialidad=datos.especialidad, iniciales=iniciales,
+        descripcion=datos.descripcion or "", duracion_min=datos.duracion_min or 45,
+        correo=datos.correo, rut=datos.rut, estado="activo", usuario_id=nuevo_usuario.id
+    )
+    db.add(nuevo_prof)
+    db.commit()
     db.refresh(nuevo_prof)
-
+    registrar_auditoria(db, "Agregó profesional", f"{datos.nombre} — {datos.especialidad}", "profesional", nuevo_prof.id)
+    db.commit()
     return nuevo_prof
 
 
 @router.patch("/profesionales/{prof_id}")
-def actualizar_profesional(
-    prof_id: int,
-    datos: ProfesionalUpdate,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(
-        require_effective_permission(
-            Permission.PROFESIONALES_GESTIONAR
-        )
-    ),
-):
-    alcance = obtener_alcance_administrativo_efectivo(
-        db,
-        current_user,
-    )
-
-    if alcance is None:
-        raise HTTPException(
-            status_code=403,
-            detail="No tienes acceso al alcance solicitado.",
-        )
-
-    prof = (
-        db.query(Profesional)
-        .filter(
-            Profesional.id == prof_id
-        )
-        .first()
-    )
-
-    if (
-        not prof
-        or not especialidad_permitida_por_alcance(
-            alcance,
-            prof.especialidad,
-        )
-    ):
-        # No revelar profesionales pertenecientes
-        # a otra especialidad administrativa.
-        raise HTTPException(
-            status_code=404,
-            detail="Profesional no encontrado",
-        )
-
-    if (
-        datos.especialidad is not None
-        and not especialidad_permitida_por_alcance(
-            alcance,
-            datos.especialidad,
-        )
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail=(
-                "No tienes permiso para mover al profesional "
-                "a esta especialidad."
-            ),
-        )
-
+def actualizar_profesional(prof_id: int, datos: ProfesionalUpdate, db: Session = Depends(get_db)):
+    prof = db.query(Profesional).filter(Profesional.id == prof_id).first()
+    if not prof:
+        raise HTTPException(status_code=404, detail="Profesional no encontrado")
     if datos.rut and not validar_rut(datos.rut):
-        raise HTTPException(
-            status_code=400,
-            detail="El RUT ingresado no es v?lido",
-        )
-
-    if (
-        "color_identificador" in datos.model_fields_set
-        and not color_identificador_es_valido(
-            datos.color_identificador
-        )
-    ):
-        raise HTTPException(
-            status_code=400,
-            detail="Color identificador no permitido",
-        )
-
-    if datos.nombre is not None:
-        prof.nombre = datos.nombre
-
-    # tratamiento y color_identificador distinguen entre
-    # "no enviado" y "enviado expl?citamente como null".
-    if "tratamiento" in datos.model_fields_set:
-        prof.tratamiento = datos.tratamiento
-
-    if "color_identificador" in datos.model_fields_set:
-        prof.color_identificador = datos.color_identificador
-
-    if datos.especialidad is not None:
-        prof.especialidad = datos.especialidad
-
-    if datos.iniciales is not None:
-        prof.iniciales = datos.iniciales
-
-    if datos.descripcion is not None:
-        prof.descripcion = datos.descripcion
-
-    if datos.duracion_min is not None:
-        prof.duracion_min = datos.duracion_min
-
-    if datos.correo is not None:
-        prof.correo = datos.correo
-
-    if datos.rut is not None:
-        prof.rut = datos.rut
-
-    if datos.estado is not None:
-        prof.estado = datos.estado
-
+        raise HTTPException(status_code=400, detail="El RUT ingresado no es válido")
+    if datos.nombre       is not None: prof.nombre       = datos.nombre
+    if datos.especialidad is not None: prof.especialidad = datos.especialidad
+    if datos.iniciales    is not None: prof.iniciales    = datos.iniciales
+    if datos.descripcion  is not None: prof.descripcion  = datos.descripcion
+    if datos.duracion_min is not None: prof.duracion_min = datos.duracion_min
+    if datos.correo       is not None: prof.correo       = datos.correo
+    if datos.rut          is not None: prof.rut          = datos.rut
+    if datos.estado       is not None: prof.estado       = datos.estado
     if datos.nombre and prof.usuario_id:
-        usuario = (
-            db.query(Usuario)
-            .filter(
-                Usuario.id == prof.usuario_id
-            )
-            .first()
-        )
-
-        if usuario:
-            usuario.nombre = datos.nombre
-
-    registrar_evento_auditoria(
-        db,
-        current_user,
-        "Edit? profesional",
-        entidad="profesional",
-        entidad_id=prof_id,
-        detalle=prof.nombre,
-    )
-
+        usuario = db.query(Usuario).filter(Usuario.id == prof.usuario_id).first()
+        if usuario: usuario.nombre = datos.nombre
+    registrar_auditoria(db, "Editó profesional", prof.nombre, "profesional", prof_id)
     db.commit()
     db.refresh(prof)
-
     return prof
 
 
 @router.delete("/profesionales/{prof_id}")
-def eliminar_profesional(
-    prof_id: int,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(
-        require_effective_permission(
-            Permission.PROFESIONALES_GESTIONAR
-        )
-    ),
-):
-    alcance = obtener_alcance_administrativo_efectivo(
-        db,
-        current_user,
-    )
-
-    if alcance is None:
-        raise HTTPException(
-            status_code=403,
-            detail="No tienes acceso al alcance solicitado.",
-        )
-
-    prof = (
-        db.query(Profesional)
-        .filter(
-            Profesional.id == prof_id
-        )
-        .first()
-    )
-
-    if (
-        not prof
-        or not especialidad_permitida_por_alcance(
-            alcance,
-            prof.especialidad,
-        )
-    ):
-        # No revelar profesionales pertenecientes
-        # a otra especialidad administrativa.
-        raise HTTPException(
-            status_code=404,
-            detail="Profesional no encontrado",
-        )
-
-    citas = (
-        db.query(Cita)
-        .filter(
-            Cita.profesional_id == prof_id,
-            Cita.estado == "pendiente",
-        )
-        .all()
-    )
-
+def eliminar_profesional(prof_id: int, db: Session = Depends(get_db)):
+    prof = db.query(Profesional).filter(Profesional.id == prof_id).first()
+    if not prof:
+        raise HTTPException(status_code=404, detail="Profesional no encontrado")
+    citas = db.query(Cita).filter(Cita.profesional_id == prof_id, Cita.estado == "pendiente").all()
     for cita in citas:
-        est = (
-            db.query(Usuario)
-            .filter(
-                Usuario.id == cita.estudiante_id
-            )
-            .first()
-        )
-
-        cita.estado = "cancelada"
-        cita.cancelada_por_admin = True
-        cita.motivo_cancelacion = (
-            "Profesional eliminado del sistema"
-        )
-
-        db.add(
-            Notificacion(
-                usuario_id=cita.estudiante_id,
-                mensaje=(
-                    f"Tu cita del {cita.fecha} a las "
-                    f"{cita.hora} fue cancelada porque el "
-                    "profesional ya no est? disponible en SESAES."
-                ),
-                tipo="cancelacion",
-            )
-        )
-
-        simular_envio_correo(
-            db,
-            destinatario=(
-                est.correo
-                if est
-                else "?"
-            ),
-            asunto="SESAES ? Cancelaci?n de cita",
-            cuerpo=(
-                f"Tu cita del {cita.fecha} a las "
-                f"{cita.hora} fue cancelada."
-            ),
-            tipo="cancelacion",
-            referencia_id=cita.id,
-        )
-
+        est = db.query(Usuario).filter(Usuario.id == cita.estudiante_id).first()
+        cita.estado = "cancelada"; cita.cancelada_por_admin = True
+        cita.motivo_cancelacion = "Profesional eliminado del sistema"
+        db.add(Notificacion(usuario_id=cita.estudiante_id,
+            mensaje=f"Tu cita del {cita.fecha} a las {cita.hora} fue cancelada porque el profesional ya no está disponible en SESAES.",
+            tipo="cancelacion"))
+        simular_envio_correo(db, destinatario=est.correo if est else "—",
+            asunto="SESAES — Cancelación de cita",
+            cuerpo=f"Tu cita del {cita.fecha} a las {cita.hora} fue cancelada.",
+            tipo="cancelacion", referencia_id=cita.id)
     if prof.usuario_id:
-        usuario = (
-            db.query(Usuario)
-            .filter(
-                Usuario.id == prof.usuario_id
-            )
-            .first()
-        )
-
-        if usuario:
-            usuario.activo = False
-
+        usuario = db.query(Usuario).filter(Usuario.id == prof.usuario_id).first()
+        if usuario: usuario.activo = False
     nombre_prof = prof.nombre
-
     db.delete(prof)
-
-    registrar_evento_auditoria(
-        db,
-        current_user,
-        "Elimin? profesional",
-        entidad="profesional",
-        entidad_id=prof_id,
-        detalle=(
-            f"{nombre_prof} ? "
-            f"{len(citas)} citas canceladas"
-        ),
-    )
-
+    registrar_auditoria(db, "Eliminó profesional", f"{nombre_prof} — {len(citas)} citas canceladas", "profesional", prof_id)
     db.commit()
-
-    return {
-        "message": "Profesional eliminado correctamente"
-    }
+    return {"message": "Profesional eliminado correctamente"}
 
 
 @router.patch("/profesionales/{prof_id}/estado")
-def cambiar_estado_profesional(
-    prof_id: int,
-    body: dict,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(
-        require_effective_permission(
-            Permission.PROFESIONALES_GESTIONAR
-        )
-    ),
-):
-    alcance = obtener_alcance_administrativo_efectivo(
-        db,
-        current_user,
-    )
-
-    if alcance is None:
-        raise HTTPException(
-            status_code=403,
-            detail="No tienes acceso al alcance solicitado.",
-        )
-
-    prof = (
-        db.query(Profesional)
-        .filter(
-            Profesional.id == prof_id
-        )
-        .first()
-    )
-
-    if (
-        not prof
-        or not especialidad_permitida_por_alcance(
-            alcance,
-            prof.especialidad,
-        )
-    ):
-        # No revelar profesionales fuera del alcance
-        # administrativo efectivo.
-        raise HTTPException(
-            status_code=404,
-            detail="Profesional no encontrado",
-        )
-
+def cambiar_estado_profesional(prof_id: int, body: dict, db: Session = Depends(get_db)):
+    prof = db.query(Profesional).filter(Profesional.id == prof_id).first()
+    if not prof:
+        raise HTTPException(status_code=404, detail="Profesional no encontrado")
     estado_anterior = prof.estado or "activo"
-    estado_nuevo = body.get(
-        "estado",
-        "activo",
-    )
-    cancelar_citas = body.get(
-        "cancelar_citas",
-        False,
-    )
-    fecha_afectada = body.get(
-        "fecha",
-        date.today().isoformat(),
-    )
-    motivo = body.get("motivo")
-
+    estado_nuevo    = body.get("estado", "activo")
+    cancelar_citas  = body.get("cancelar_citas", False)
+    fecha_afectada  = body.get("fecha", date.today().isoformat())
+    motivo          = body.get("motivo")
     prof.estado = estado_nuevo
-
-    db.add(
-        HistorialEstadoProfesional(
-            profesional_id=prof_id,
-            estado_anterior=estado_anterior,
-            estado_nuevo=estado_nuevo,
-            motivo=motivo,
-            registrado_por=None,
-        )
-    )
-
-    registrar_evento_auditoria(
-        db,
-        current_user,
-        "Cambi? estado de profesional",
-        entidad="profesional",
-        entidad_id=prof_id,
-        detalle=(
-            f"{prof.nombre}: "
-            f"{estado_anterior} ? {estado_nuevo}"
-        ),
-    )
-
-    # Se conserva el commit hist?rico previo a la eventual
-    # cancelaci?n masiva de citas.
+    db.add(HistorialEstadoProfesional(
+        profesional_id=prof_id, estado_anterior=estado_anterior,
+        estado_nuevo=estado_nuevo, motivo=motivo, registrado_por=None
+    ))
+    registrar_auditoria(db, "Cambió estado de profesional",
+                        f"{prof.nombre}: {estado_anterior} → {estado_nuevo}", "profesional", prof_id)
     db.commit()
-
     if cancelar_citas:
-        citas = (
-            db.query(Cita)
-            .filter(
-                Cita.profesional_id == prof_id,
-                Cita.fecha == fecha_afectada,
-                Cita.estado == "pendiente",
-            )
-            .all()
-        )
-
+        citas = db.query(Cita).filter(
+            Cita.profesional_id == prof_id, Cita.fecha == fecha_afectada, Cita.estado == "pendiente"
+        ).all()
         for cita in citas:
-            est = (
-                db.query(Usuario)
-                .filter(
-                    Usuario.id == cita.estudiante_id
-                )
-                .first()
-            )
-
-            cita.estado = "cancelada"
-            cita.cancelada_por_admin = True
-            cita.motivo_cancelacion = (
-                f"Profesional: {estado_nuevo}"
-            )
-
-            db.add(
-                Notificacion(
-                    usuario_id=cita.estudiante_id,
-                    mensaje=(
-                        "Tu cita fue cancelada por fuerza mayor. "
-                        "Puedes reagendar tu hora cuando lo desees "
-                        "desde tu dashboard."
-                    ),
-                    tipo="cancelacion",
-                )
-            )
-
-            simular_envio_correo(
-                db,
-                destinatario=(
-                    est.correo
-                    if est
-                    else "?"
-                ),
-                asunto="SESAES ? Tu cita fue cancelada",
-                cuerpo=(
-                    f"Tu cita del {cita.fecha} a las "
-                    f"{cita.hora} fue cancelada por fuerza mayor."
-                ),
-                tipo="cancelacion",
-                referencia_id=cita.id,
-            )
-
-        registrar_evento_auditoria(
-            db,
-            current_user,
-            "Cancel? citas masivas",
-            entidad="profesional",
-            entidad_id=prof_id,
-            detalle=(
-                f"{prof.nombre} ? "
-                f"{len(citas)} citas el {fecha_afectada}"
-            ),
-        )
-
+            est = db.query(Usuario).filter(Usuario.id == cita.estudiante_id).first()
+            cita.estado = "cancelada"; cita.cancelada_por_admin = True
+            cita.motivo_cancelacion = f"Profesional: {estado_nuevo}"
+            db.add(Notificacion(usuario_id=cita.estudiante_id,
+                mensaje="Tu cita fue cancelada por fuerza mayor. Puedes reagendar tu hora cuando lo desees desde tu dashboard.",
+                tipo="cancelacion"))
+            simular_envio_correo(db, destinatario=est.correo if est else "—",
+                asunto="SESAES — Tu cita fue cancelada",
+                cuerpo=f"Tu cita del {cita.fecha} a las {cita.hora} fue cancelada por fuerza mayor.",
+                tipo="cancelacion", referencia_id=cita.id)
+        registrar_auditoria(db, "Canceló citas masivas",
+                            f"{prof.nombre} — {len(citas)} citas el {fecha_afectada}", "profesional", prof_id)
         db.commit()
-
-        return {
-            "message": (
-                f"Estado '{estado_nuevo}'. "
-                f"{len(citas)} citas canceladas."
-            ),
-            "citas_canceladas": len(citas),
-        }
-
-    return {
-        "message": (
-            f"Estado actualizado a '{estado_nuevo}'"
-        )
-    }
+        return {"message": f"Estado '{estado_nuevo}'. {len(citas)} citas canceladas.", "citas_canceladas": len(citas)}
+    return {"message": f"Estado actualizado a '{estado_nuevo}'"}
 
 
 @router.get("/profesionales/{prof_id}/historial-estados")
-def get_historial_estados(
-    prof_id: int,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(
-        require_effective_permission(Permission.PROFESIONALES_VER)
-    ),
-):
-    """
-    Devuelve el historial administrativo de estados de un
-    profesional visible dentro del alcance efectivo.
-    """
-    alcance = obtener_alcance_administrativo_efectivo(
-        db,
-        current_user,
-    )
-
-    if alcance is None:
-        raise HTTPException(
-            status_code=403,
-            detail="No tienes acceso al alcance solicitado.",
-        )
-
-    prof = (
-        db.query(Profesional)
-        .filter(
-            Profesional.id == prof_id
-        )
-        .first()
-    )
-
-    if (
-        not prof
-        or not especialidad_permitida_por_alcance(
-            alcance,
-            prof.especialidad,
-        )
-    ):
-        # No revelar si existe un profesional perteneciente
-        # a otra especialidad administrativa.
-        raise HTTPException(
-            status_code=404,
-            detail="Profesional no encontrado",
-        )
-
-    registros = (
-        db.query(HistorialEstadoProfesional)
-        .filter(
-            HistorialEstadoProfesional.profesional_id == prof_id
-        )
-        .order_by(
-            HistorialEstadoProfesional.fecha.desc()
-        )
-        .all()
-    )
-
-    return [
-        {
-            "id": r.id,
-            "estado_anterior": r.estado_anterior,
-            "estado_nuevo": r.estado_nuevo,
-            "motivo": r.motivo,
-            "fecha": (
-                r.fecha.isoformat()
-                if r.fecha
-                else None
-            ),
-        }
-        for r in registros
-    ]
+def get_historial_estados(prof_id: int, db: Session = Depends(get_db)):
+    registros = db.query(HistorialEstadoProfesional).filter(
+        HistorialEstadoProfesional.profesional_id == prof_id
+    ).order_by(HistorialEstadoProfesional.fecha.desc()).all()
+    return [{"id": r.id, "estado_anterior": r.estado_anterior, "estado_nuevo": r.estado_nuevo,
+             "motivo": r.motivo, "fecha": r.fecha.isoformat() if r.fecha else None} for r in registros]
 
 
 # ══════════════════════════════════════
@@ -1484,38 +452,12 @@ def get_historial_estados(
 # ══════════════════════════════════════
 
 @router.post("/citas/urgente")
-def crear_cita_urgente(cita: CitaCreate, db: Session = Depends(get_db), current_user: dict = Depends(require_effective_permission(Permission.AGENDA_GESTIONAR))):
-    alcance = obtener_alcance_administrativo_efectivo(
-        db,
-        current_user,
-    )
-
-    if alcance is None:
-        raise HTTPException(
-            status_code=403,
-            detail="No tienes acceso al alcance solicitado.",
-        )
-
+def crear_cita_urgente(cita: CitaCreate, db: Session = Depends(get_db)):
     if db.query(DiaCerrado).filter(DiaCerrado.fecha == cita.fecha).first():
         raise HTTPException(status_code=400, detail="El centro permanece cerrado ese día. Elige otra fecha.")
 
     prof = db.query(Profesional).filter(Profesional.id == cita.profesional_id).first()
-    if not prof:
-        raise HTTPException(
-            status_code=404,
-            detail="Profesional no encontrado",
-        )
-
-    if not especialidad_permitida_por_alcance(
-        alcance,
-        prof.especialidad,
-    ):
-        # No revelar que existe un profesional fuera del
-        # alcance administrativo del usuario.
-        raise HTTPException(
-            status_code=404,
-            detail="Profesional no encontrado",
-        )
+    if not prof: raise HTTPException(status_code=404, detail="Profesional no encontrado")
     est = db.query(Usuario).filter(Usuario.id == cita.estudiante_id).first()
     if not est or est.rol != "estudiante":
         raise HTTPException(
@@ -1527,305 +469,85 @@ def crear_cita_urgente(cita: CitaCreate, db: Session = Depends(get_db), current_
                  estado="pendiente", urgente=True)
     db.add(nueva)
     try:
-        # SA-2 — transaccionalidad: flush() envía el INSERT de `nueva` a la
-        # base de datos SIN hacer commit todavía. Esto basta para obtener
-        # nueva.id (necesario para el correo y la auditoría) y para que
-        # cualquier IntegrityError real de este INSERT (p. ej. violación de
-        # FK) se detecte antes de continuar, sin partir la transacción en
-        # dos commits separados.
-        #
-        # AVISO EXPLÍCITO — este except NO es protección contra doble
-        # reserva: el modelo Cita (app/models/cita.py) no tiene ningún
-        # UniqueConstraint, unique=True ni Index único sobre
-        # profesional_id + fecha + hora (confirmado en la revisión SA-2;
-        # grep sin coincidencias sobre unique/constraint/Index en todo el
-        # módulo). Bajo el esquema actual, dos citas urgentes idénticas en
-        # profesional_id + fecha + hora pueden coexistir sin que esto
-        # lance ningún error. Se decidió NO agregar esa constraint en
-        # SA-2 porque Cita contempla `sobrecupo`, y una constraint simple
-        # de (profesional_id, fecha, hora) rompería reglas legítimas de
-        # Agenda. Este bloque se conserva solo por compatibilidad de
-        # alcance (y por si en el futuro se agrega una constraint real).
-        # La prevención real de doble reserva/concurrencia — considerando
-        # sobrecupo, disponibilidad, un posible índice/constraint parcial
-        # y locking — queda como deuda separada del módulo Agenda, fuera
-        # del alcance de SA-2.
-        db.flush()
+        db.commit()
     except IntegrityError:
         db.rollback()
         raise HTTPException(
             status_code=409,
             detail="Esa hora acaba de ser reservada por otra persona. Por favor elige otra."
         )
-
+    db.refresh(nueva)
     simular_envio_correo(db, destinatario=est.correo if est else "—",
         asunto="SESAES — Cita urgente agendada",
         cuerpo=f"Se agendó una cita URGENTE para el {cita.fecha} a las {cita.hora} con {prof.nombre}.",
         tipo="urgente", referencia_id=nueva.id)
-
-    registrar_evento_auditoria(
-        db, current_user, "Creó cita urgente",
-        entidad="cita", entidad_id=nueva.id,
-        detalle=f"Estudiante: {est.nombre if est else cita.estudiante_id} — {prof.nombre} ({cita.fecha} {cita.hora})",
-    )
-
-    db.commit()  # ÚNICO commit: Cita + log de correo (correo_log) + auditoría, misma transacción
-    db.refresh(nueva)
+    registrar_auditoria(db, "Creó cita urgente",
+                        f"Estudiante: {est.nombre if est else cita.estudiante_id} — {prof.nombre} ({cita.fecha} {cita.hora})",
+                        "cita", nueva.id)
+    db.commit()
     return {"id": nueva.id, "profesional": prof.nombre, "especialidad": prof.especialidad,
             "fecha": nueva.fecha, "hora": nueva.hora, "urgente": True, "estado": nueva.estado}
 
 
 @router.patch("/citas/{cita_id}/cancelar")
-def cancelar_cita_admin(
-    cita_id: int,
-    body: dict,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(
-        require_effective_permission(Permission.AGENDA_GESTIONAR)
-    ),
-):
-    alcance = obtener_alcance_administrativo_efectivo(
-        db,
-        current_user,
-    )
-
-    if alcance is None:
-        raise HTTPException(
-            status_code=403,
-            detail="No tienes acceso al alcance solicitado.",
-        )
-
-    cita = (
-        db.query(Cita)
-        .filter(
-            Cita.id == cita_id
-        )
-        .first()
-    )
-
-    if not cita:
-        raise HTTPException(
-            status_code=404,
-            detail="Cita no encontrada",
-        )
-
-    prof = (
-        db.query(Profesional)
-        .filter(
-            Profesional.id == cita.profesional_id
-        )
-        .first()
-    )
-
-    if (
-        not prof
-        or not especialidad_permitida_por_alcance(
-            alcance,
-            prof.especialidad,
-        )
-    ):
-        # No revelar la existencia de citas pertenecientes
-        # a profesionales fuera del alcance administrativo.
-        raise HTTPException(
-            status_code=404,
-            detail="Cita no encontrada",
-        )
-
-    est = (
-        db.query(Usuario)
-        .filter(
-            Usuario.id == cita.estudiante_id
-        )
-        .first()
-    )
-
-    motivo = body.get(
-        "motivo",
-        "Cancelada por administrador",
-    )
-
-    cita.estado = "cancelada"
-    cita.cancelada_por_admin = True
-    cita.motivo_cancelacion = motivo
-
-    db.add(
-        Notificacion(
-            usuario_id=cita.estudiante_id,
-            mensaje=(
-                "Tu cita fue cancelada por fuerza mayor. "
-                "Puedes reagendar tu hora cuando lo desees "
-                "desde tu dashboard."
-            ),
-            tipo="cancelacion",
-        )
-    )
-
-    simular_envio_correo(
-        db,
-        destinatario=(
-            est.correo
-            if est
-            else "?"
-        ),
-        asunto="SESAES ? Tu cita fue cancelada",
-        cuerpo=(
-            f"Tu cita del {cita.fecha} a las {cita.hora} "
-            f"con {prof.nombre} fue cancelada."
-        ),
-        tipo="cancelacion",
-        referencia_id=cita_id,
-    )
-
-    registrar_evento_auditoria(
-        db,
-        current_user,
-        "Cancel? cita",
-        entidad="cita",
-        entidad_id=cita_id,
-        detalle=(
-            f"Estudiante: "
-            f"{est.nombre if est else '?'} ? "
-            f"{prof.nombre} ? "
-            f"{cita.fecha} {cita.hora}"
-        ),
-    )
-
+def cancelar_cita_admin(cita_id: int, body: dict, db: Session = Depends(get_db)):
+    cita = db.query(Cita).filter(Cita.id == cita_id).first()
+    if not cita: raise HTTPException(status_code=404, detail="Cita no encontrada")
+    est  = db.query(Usuario).filter(Usuario.id == cita.estudiante_id).first()
+    prof = db.query(Profesional).filter(Profesional.id == cita.profesional_id).first()
+    motivo = body.get("motivo", "Cancelada por administrador")
+    cita.estado = "cancelada"; cita.cancelada_por_admin = True; cita.motivo_cancelacion = motivo
+    db.add(Notificacion(usuario_id=cita.estudiante_id,
+        mensaje="Tu cita fue cancelada por fuerza mayor. Puedes reagendar tu hora cuando lo desees desde tu dashboard.",
+        tipo="cancelacion"))
+    simular_envio_correo(db, destinatario=est.correo if est else "—",
+        asunto="SESAES — Tu cita fue cancelada",
+        cuerpo=f"Tu cita del {cita.fecha} a las {cita.hora} con {prof.nombre if prof else ''} fue cancelada.",
+        tipo="cancelacion", referencia_id=cita_id)
+    registrar_auditoria(db, "Canceló cita",
+                        f"Estudiante: {est.nombre if est else '—'} — {prof.nombre if prof else '—'} — {cita.fecha} {cita.hora}",
+                        "cita", cita_id)
     db.commit()
-
-    return {
-        "message": "Cita cancelada y estudiante notificado"
-    }
+    return {"message": "Cita cancelada y estudiante notificado"}
 
 
 @router.patch("/citas/{cita_id}/prioridad")
-def cambiar_prioridad_cita(
-    cita_id: int,
-    body: dict,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(
-        require_effective_permission(Permission.AGENDA_GESTIONAR)
-    ),
-):
+def cambiar_prioridad_cita(cita_id: int, body: dict, db: Session = Depends(get_db)):
     """
-    Cambia la prioridad administrativa de una cita existente.
-
-    La acci?n solo puede aplicarse a citas cuyo profesional se
-    encuentre dentro del alcance administrativo efectivo.
+    A diferencia de POST /citas/urgente (que crea una cita NUEVA ya marcada
+    urgente), este endpoint toma una cita EXISTENTE — pendiente o confirmada —
+    y le cambia la prioridad. Solo el administrador puede hacerlo; el
+    estudiante no puede autoasignarse prioridad urgente.
+    body: {"urgente": true} o {"urgente": false}
     """
-    alcance = obtener_alcance_administrativo_efectivo(
-        db,
-        current_user,
-    )
-
-    if alcance is None:
-        raise HTTPException(
-            status_code=403,
-            detail="No tienes acceso al alcance solicitado.",
-        )
-
-    cita = (
-        db.query(Cita)
-        .filter(
-            Cita.id == cita_id
-        )
-        .first()
-    )
-
+    cita = db.query(Cita).filter(Cita.id == cita_id).first()
     if not cita:
-        raise HTTPException(
-            status_code=404,
-            detail="Cita no encontrada",
-        )
-
-    prof = (
-        db.query(Profesional)
-        .filter(
-            Profesional.id == cita.profesional_id
-        )
-        .first()
-    )
-
-    if (
-        not prof
-        or not especialidad_permitida_por_alcance(
-            alcance,
-            prof.especialidad,
-        )
-    ):
-        # No revelar la existencia ni el estado de una cita
-        # perteneciente a otra especialidad.
-        raise HTTPException(
-            status_code=404,
-            detail="Cita no encontrada",
-        )
-
-    if cita.estado in (
-        "cancelada",
-        "completada",
-    ):
+        raise HTTPException(status_code=404, detail="Cita no encontrada")
+    if cita.estado in ("cancelada", "completada"):
         raise HTTPException(
             status_code=400,
-            detail=(
-                "No se puede cambiar la prioridad de una cita "
-                "cancelada o ya completada."
-            ),
+            detail="No se puede cambiar la prioridad de una cita cancelada o ya completada."
         )
 
-    nuevo_valor = bool(
-        body.get(
-            "urgente",
-            False,
-        )
-    )
-
+    nuevo_valor = bool(body.get("urgente", False))
     cita.urgente = nuevo_valor
 
-    est = (
-        db.query(Usuario)
-        .filter(
-            Usuario.id == cita.estudiante_id
-        )
-        .first()
-    )
+    est  = db.query(Usuario).filter(Usuario.id == cita.estudiante_id).first()
+    prof = db.query(Profesional).filter(Profesional.id == cita.profesional_id).first()
 
     if nuevo_valor:
-        db.add(
-            Notificacion(
-                usuario_id=cita.estudiante_id,
-                mensaje=(
-                    f"Tu cita del {cita.fecha} a las "
-                    f"{cita.hora} fue marcada como urgente "
-                    "por administraci?n."
-                ),
-                tipo="urgente",
-            )
-        )
+        db.add(Notificacion(usuario_id=cita.estudiante_id,
+            mensaje=f"Tu cita del {cita.fecha} a las {cita.hora} fue marcada como urgente por administración.",
+            tipo="urgente"))
 
-    registrar_evento_auditoria(
+    registrar_auditoria(
         db,
-        current_user,
-        (
-            "Marc? cita como urgente"
-            if nuevo_valor
-            else "Quit? prioridad urgente a cita"
-        ),
-        entidad="cita",
-        entidad_id=cita_id,
-        detalle=(
-            f"Estudiante: "
-            f"{est.nombre if est else '?'} ? "
-            f"{prof.nombre} ? "
-            f"{cita.fecha} {cita.hora}"
-        ),
+        "Marcó cita como urgente" if nuevo_valor else "Quitó prioridad urgente a cita",
+        f"Estudiante: {est.nombre if est else '—'} — {prof.nombre if prof else '—'} — {cita.fecha} {cita.hora}",
+        "cita", cita_id
     )
-
     db.commit()
-
-    return {
-        "id": cita.id,
-        "urgente": cita.urgente,
-        "estado": cita.estado,
-    }
+    return {"id": cita.id, "urgente": cita.urgente, "estado": cita.estado}
 
 
 # ══════════════════════════════════════
@@ -1837,55 +559,16 @@ def cambiar_prioridad_cita(
 # automáticamente cualquier cita que ya existiera para esa fecha.
 
 @router.get("/dias-cerrados")
-def listar_dias_cerrados(
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(
-        require_effective_permission(Permission.AGENDA_VER)
-    ),
-):
-    """
-    Devuelve los d?as en que el centro completo est? cerrado.
-
-    Esta informaci?n es institucional y no se filtra por
-    especialidad: cualquier administrador con permiso de lectura
-    de agenda necesita conocer los cierres que afectan al centro.
-    """
-    dias = (
-        db.query(DiaCerrado)
-        .order_by(DiaCerrado.fecha)
-        .all()
-    )
-
+def listar_dias_cerrados(db: Session = Depends(get_db)):
+    dias = db.query(DiaCerrado).order_by(DiaCerrado.fecha).all()
     return [
-        {
-            "id": d.id,
-            "fecha": d.fecha,
-            "motivo": d.motivo,
-            "fecha_creacion": d.fecha_creacion,
-        }
+        {"id": d.id, "fecha": d.fecha, "motivo": d.motivo, "fecha_creacion": d.fecha_creacion}
         for d in dias
     ]
 
 
 @router.post("/dias-cerrados")
-def crear_dia_cerrado(body: dict, db: Session = Depends(get_db), current_user: dict = Depends(require_effective_permission(Permission.AGENDA_GESTIONAR))):
-    alcance = obtener_alcance_administrativo_efectivo(
-        db,
-        current_user,
-    )
-
-    if (
-        alcance is None
-        or not alcance.institucional
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail=(
-                "Esta operaci?n requiere alcance "
-                "administrativo institucional."
-            ),
-        )
-
+def crear_dia_cerrado(body: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     fecha  = body.get("fecha")
     motivo = body.get("motivo") or "El centro permanecerá cerrado este día."
     if not fecha:
@@ -1935,9 +618,9 @@ def crear_dia_cerrado(body: dict, db: Session = Depends(get_db), current_user: d
             tipo="cancelacion", referencia_id=cita.id
         )
 
-    registrar_evento_auditoria(db, current_user, "Cerró el centro un día completo",
-                                entidad="dia_cerrado", entidad_id=None,
-                                detalle=f"{fecha} — {motivo} ({len(citas_afectadas)} citas canceladas y notificadas)")
+    registrar_auditoria(db, "Cerró el centro un día completo",
+                        f"{fecha} — {motivo} ({len(citas_afectadas)} citas canceladas y notificadas)",
+                        "dia_cerrado", None)
     db.commit()
     db.refresh(dia)
     return {
@@ -1949,146 +632,43 @@ def crear_dia_cerrado(body: dict, db: Session = Depends(get_db), current_user: d
 
 
 @router.get("/dias-cerrados/{dia_id}/citas")
-def citas_canceladas_por_dia_cerrado(
-    dia_id: int,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(
-        require_effective_permission(Permission.AGENDA_VER)
-    ),
-):
+def citas_canceladas_por_dia_cerrado(dia_id: int, db: Session = Depends(get_db)):
     """
-    Detalle administrativo de las citas canceladas en un d?a
-    de cierre institucional.
-
-    El cierre es informaci?n global, pero las personas y citas
-    mostradas respetan el alcance administrativo efectivo.
+    Detalle de las citas que se cancelaron cuando se cerró este día —
+    para que el admin lo tenga a mano si el estudiante llama a preguntar
+    o pedir que le reagenden.
     """
-    alcance = obtener_alcance_administrativo_efectivo(
-        db,
-        current_user,
-    )
-
-    if alcance is None:
-        raise HTTPException(
-            status_code=403,
-            detail="No tienes acceso al alcance solicitado.",
-        )
-
-    dia = (
-        db.query(DiaCerrado)
-        .filter(
-            DiaCerrado.id == dia_id
-        )
-        .first()
-    )
-
+    dia = db.query(DiaCerrado).filter(DiaCerrado.id == dia_id).first()
     if not dia:
-        raise HTTPException(
-            status_code=404,
-            detail="D?a cerrado no encontrado",
-        )
+        raise HTTPException(status_code=404, detail="Día cerrado no encontrado")
 
-    ids_profesionales = None
-
-    if not alcance.institucional:
-        ids_profesionales = _ids_profesionales_en_alcance(
-            db,
-            alcance,
-        )
-
-        if not ids_profesionales:
-            return []
-
-    query = db.query(Cita).filter(
+    citas = db.query(Cita).filter(
         Cita.fecha == dia.fecha,
-        Cita.cancelada_por_admin == True,  # noqa: E712
-    )
-
-    if ids_profesionales is not None:
-        query = query.filter(
-            Cita.profesional_id.in_(
-                ids_profesionales
-            )
-        )
-
-    citas = query.all()
+        Cita.cancelada_por_admin == True  # noqa: E712
+    ).all()
 
     resultado = []
-
     for cita in citas:
-        est = (
-            db.query(Usuario)
-            .filter(
-                Usuario.id == cita.estudiante_id
-            )
-            .first()
-        )
-
-        prof = (
-            db.query(Profesional)
-            .filter(
-                Profesional.id == cita.profesional_id
-            )
-            .first()
-        )
-
+        est = db.query(Usuario).filter(Usuario.id == cita.estudiante_id).first()
+        prof = db.query(Profesional).filter(Profesional.id == cita.profesional_id).first()
         resultado.append({
             "cita_id": cita.id,
-            "estudiante": (
-                est.nombre
-                if est
-                else "?"
-            ),
-            "rut": (
-                est.rut
-                if est
-                else "?"
-            ),
-            "correo": (
-                est.correo
-                if est
-                else "?"
-            ),
-            "profesional": (
-                prof.nombre
-                if prof
-                else "?"
-            ),
-            "especialidad": (
-                prof.especialidad
-                if prof
-                else "?"
-            ),
+            "estudiante": est.nombre if est else "—",
+            "rut": est.rut if est else "—",
+            "correo": est.correo if est else "—",
+            "profesional": prof.nombre if prof else "—",
+            "especialidad": prof.especialidad if prof else "—",
             "hora": cita.hora,
         })
-
     return resultado
 
 
 @router.delete("/dias-cerrados/{dia_id}")
-def eliminar_dia_cerrado(dia_id: int, db: Session = Depends(get_db), current_user: dict = Depends(require_effective_permission(Permission.AGENDA_GESTIONAR))):
-    alcance = obtener_alcance_administrativo_efectivo(
-        db,
-        current_user,
-    )
-
-    if (
-        alcance is None
-        or not alcance.institucional
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail=(
-                "Esta operaci?n requiere alcance "
-                "administrativo institucional."
-            ),
-        )
-
+def eliminar_dia_cerrado(dia_id: int, db: Session = Depends(get_db)):
     dia = db.query(DiaCerrado).filter(DiaCerrado.id == dia_id).first()
     if not dia:
         raise HTTPException(status_code=404, detail="Día cerrado no encontrado")
-    registrar_evento_auditoria(db, current_user, "Reabrió un día previamente cerrado",
-                                entidad="dia_cerrado", entidad_id=dia_id, detalle=dia.fecha)
+    registrar_auditoria(db, "Reabrió un día previamente cerrado", dia.fecha, "dia_cerrado", dia_id)
     db.delete(dia)
     db.commit()
     return {"message": "Día reabierto correctamente. Las citas ya canceladas no se restauran automáticamente."}
@@ -2100,164 +680,37 @@ def eliminar_dia_cerrado(dia_id: int, db: Session = Depends(get_db), current_use
 
 @router.get("/historial")
 def get_historial_admin(
-    estudiante: str = None,
-    fecha_inicio: str = None,
-    fecha_fin: str = None,
-    especialidad: str = None,
-    estado: str = None,
-    profesional_id: int = None,
-    carrera: str = None,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(
-        require_effective_permission(Permission.REPORTES_VER)
-    ),
+    estudiante: str = None, fecha_inicio: str = None, fecha_fin: str = None,
+    especialidad: str = None, estado: str = None, profesional_id: int = None,
+    carrera: str = None, db: Session = Depends(get_db)
 ):
-    alcance = obtener_alcance_administrativo_efectivo(
-        db,
-        current_user,
-    )
-
-    if alcance is None:
-        raise HTTPException(
-            status_code=403,
-            detail="No tienes acceso al alcance solicitado.",
-        )
-
-    ids_profesionales = None
-
-    if not alcance.institucional:
-        ids_profesionales = _ids_profesionales_en_alcance(
-            db,
-            alcance,
-        )
-
-        if not ids_profesionales:
-            return []
-
-    query = (
-        db.query(Cita)
-        .join(
-            Profesional,
-            Cita.profesional_id == Profesional.id,
-        )
-        .join(
-            Usuario,
-            Cita.estudiante_id == Usuario.id,
-        )
-    )
-
-    # El alcance se aplica antes de cualquier filtro solicitado.
-    # Los filtros del request solo pueden reducir este conjunto.
-    if ids_profesionales is not None:
-        query = query.filter(
-            Cita.profesional_id.in_(
-                ids_profesionales
-            )
-        )
-
+    query = db.query(Cita)\
+        .join(Profesional, Cita.profesional_id == Profesional.id)\
+        .join(Usuario, Cita.estudiante_id == Usuario.id)
     if estudiante:
         q = f"%{estudiante}%"
-        query = query.filter(
-            (Usuario.nombre.ilike(q))
-            | (Usuario.rut.ilike(q))
-        )
-
-    if fecha_inicio:
-        query = query.filter(
-            Cita.fecha >= fecha_inicio
-        )
-
-    if fecha_fin:
-        query = query.filter(
-            Cita.fecha <= fecha_fin
-        )
-
-    if especialidad:
-        query = query.filter(
-            Profesional.especialidad == especialidad
-        )
-
-    if estado:
-        query = query.filter(
-            Cita.estado == estado
-        )
-
-    if profesional_id:
-        query = query.filter(
-            Cita.profesional_id == profesional_id
-        )
-
-    if carrera:
-        query = query.filter(
-            Usuario.carrera.ilike(
-                f"%{carrera}%"
-            )
-        )
-
-    citas = (
-        query
-        .order_by(Cita.fecha.desc())
-        .all()
-    )
-
+        query = query.filter((Usuario.nombre.ilike(q)) | (Usuario.rut.ilike(q)))
+    if fecha_inicio:   query = query.filter(Cita.fecha >= fecha_inicio)
+    if fecha_fin:      query = query.filter(Cita.fecha <= fecha_fin)
+    if especialidad:   query = query.filter(Profesional.especialidad == especialidad)
+    if estado:         query = query.filter(Cita.estado == estado)
+    if profesional_id: query = query.filter(Cita.profesional_id == profesional_id)
+    if carrera:        query = query.filter(Usuario.carrera.ilike(f"%{carrera}%"))
+    citas = query.order_by(Cita.fecha.desc()).all()
     result = []
-
     for c in citas:
-        prof = (
-            db.query(Profesional)
-            .filter(
-                Profesional.id == c.profesional_id
-            )
-            .first()
-        )
-
-        est = (
-            db.query(Usuario)
-            .filter(
-                Usuario.id == c.estudiante_id
-            )
-            .first()
-        )
-
+        prof = db.query(Profesional).filter(Profesional.id == c.profesional_id).first()
+        est  = db.query(Usuario).filter(Usuario.id == c.estudiante_id).first()
         result.append({
-            "id": c.id,
-            "estudiante": (
-                est.nombre
-                if est
-                else "?"
-            ),
-            "rut": (
-                est.rut
-                if est
-                else "?"
-            ),
-            "carrera": (
-                est.carrera
-                if est
-                else "?"
-            ),
-            "especialidad": (
-                prof.especialidad
-                if prof
-                else "?"
-            ),
-            "profesional": (
-                prof.nombre
-                if prof
-                else "?"
-            ),
-            "iniciales": (
-                prof.iniciales
-                if prof
-                else "??"
-            ),
-            "fecha": c.fecha,
-            "hora": c.hora,
-            "estado": c.estado,
-            "urgente": c.urgente or False,
-            "tiene_pdf": c.estado == "completada",
+            "id": c.id, "estudiante": est.nombre if est else "—",
+            "rut": est.rut if est else "—", "carrera": est.carrera if est else "—",
+            "especialidad": prof.especialidad if prof else "—",
+            "profesional": prof.nombre if prof else "—",
+            "iniciales": prof.iniciales if prof else "??",
+            "fecha": c.fecha, "hora": c.hora, "estado": c.estado,
+            "urgente": c.urgente or False, "tiene_pdf": c.estado == "completada",
+            "medicamento": c.medicamento, "observaciones_atencion": c.observaciones_atencion
         })
-
     return result
 
 
@@ -2266,44 +719,15 @@ def get_historial_admin(
 # ══════════════════════════════════════
 
 @router.get("/notificaciones")
-def get_notificaciones_admin(
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """
-    Devuelve ?nicamente las notificaciones de la cuenta
-    autenticada que est? usando el dashboard administrativo.
-
-    Es una operaci?n self-service: no requiere permisos para
-    consultar o gestionar cuentas de terceros y no depende del
-    alcance administrativo por especialidad.
-    """
-    usuario_id = current_user["id"]
-
-    notifs = (
-        db.query(Notificacion)
-        .filter(
-            Notificacion.usuario_id == usuario_id
-        )
-        .order_by(
-            Notificacion.fecha_creacion.desc()
-        )
-        .limit(100)
-        .all()
-    )
-
+def get_notificaciones_admin(db: Session = Depends(get_db)):
+    admin = db.query(Usuario).filter(Usuario.rol == "admin").first()
+    if not admin: return []
+    notifs = db.query(Notificacion).filter(
+        Notificacion.usuario_id == admin.id
+    ).order_by(Notificacion.fecha_creacion.desc()).limit(100).all()
     return [
-        {
-            "id": n.id,
-            "mensaje": n.mensaje,
-            "tipo": n.tipo,
-            "leida": n.leida,
-            "fecha_creacion": (
-                n.fecha_creacion.isoformat()
-                if n.fecha_creacion
-                else None
-            ),
-        }
+        {"id": n.id, "mensaje": n.mensaje, "tipo": n.tipo, "leida": n.leida,
+         "fecha_creacion": n.fecha_creacion.isoformat() if n.fecha_creacion else None}
         for n in notifs
     ]
 
@@ -2316,7 +740,7 @@ def get_notificaciones_admin(
 # (pendiente) que todavía no se realizan.
 
 @router.get("/exportar/cgr")
-def exportar_cgr(anio: int, fecha_fin: str = None, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.REPORTES_CGR_EXPORTAR))):
+def exportar_cgr(anio: int, fecha_fin: str = None, db: Session = Depends(get_db)):
     query = db.query(Cita)\
         .join(Profesional, Cita.profesional_id == Profesional.id)\
         .join(Usuario, Cita.estudiante_id == Usuario.id)\
@@ -2343,7 +767,7 @@ def exportar_cgr(anio: int, fecha_fin: str = None, db: Session = Depends(get_db)
 
 
 @router.get("/exportar/alumnos")
-def exportar_listado_alumnos(db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.REPORTES_CGR_EXPORTAR))):
+def exportar_listado_alumnos(db: Session = Depends(get_db)):
     estudiantes = db.query(Usuario).filter(Usuario.rol == "estudiante").order_by(Usuario.nombre).all()
     filas = ["Nombre Completo\tRUT\tCarrera\tCorreo"]
     for e in estudiantes:
@@ -2360,7 +784,7 @@ def exportar_listado_alumnos(db: Session = Depends(get_db), current_user: dict =
 # ══════════════════════════════════════
 
 @router.get("/auditoria")
-def get_auditoria(fecha_inicio: str = None, fecha_fin: str = None, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.AUDITORIA_VER))):
+def get_auditoria(fecha_inicio: str = None, fecha_fin: str = None, db: Session = Depends(get_db)):
     query = db.query(Auditoria).order_by(Auditoria.fecha.desc())
     if fecha_inicio:
         query = query.filter(Auditoria.fecha >= datetime.strptime(fecha_inicio, "%Y-%m-%d"))
@@ -2368,18 +792,27 @@ def get_auditoria(fecha_inicio: str = None, fecha_fin: str = None, db: Session =
         query = query.filter(Auditoria.fecha <= datetime.strptime(fecha_fin, "%Y-%m-%d").replace(hour=23, minute=59, second=59))
     registros = query.limit(200).all()
     return [
-        {"id": r.id, "usuario_id": r.usuario_id, "actor_rol": r.actor_rol,
-         "accion": r.accion, "resultado": r.resultado, "detalle": r.detalle,
+        {"id": r.id, "accion": r.accion, "detalle": r.detalle,
          "entidad": r.entidad, "entidad_id": r.entidad_id,
          "fecha": r.fecha.isoformat() if r.fecha else None}
         for r in registros
     ]
 
 
-# SA-5: la auditoría es append-only a nivel de aplicación. No existen
-# endpoints DELETE/PATCH/PUT para /admin/auditoria. Una eventual retención
-# institucional futura deberá resolverse como proceso administrativo
-# separado, fuera de esta API.
+@router.delete("/auditoria/{auditoria_id}")
+def eliminar_auditoria(auditoria_id: int, db: Session = Depends(get_db)):
+    registro = db.query(Auditoria).filter(Auditoria.id == auditoria_id).first()
+    if registro:
+        db.delete(registro)
+        db.commit()
+    return {"message": "Registro eliminado"}
+
+
+@router.delete("/auditoria")
+def eliminar_toda_auditoria(db: Session = Depends(get_db)):
+    db.query(Auditoria).delete()
+    db.commit()
+    return {"message": "Toda la auditoría eliminada"}
 
 
 # ══════════════════════════════════════
@@ -2387,7 +820,7 @@ def get_auditoria(fecha_inicio: str = None, fecha_fin: str = None, db: Session =
 # ══════════════════════════════════════
 
 @router.get("/configuracion", response_model=ConfiguracionOut)
-def get_configuracion(db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.CONFIGURACION_GESTIONAR))):
+def get_configuracion(db: Session = Depends(get_db)):
     config = db.query(ConfiguracionSistema).first()
     if not config:
         # La tabla nunca se siembra en init_db.py — se crea con los
@@ -2399,7 +832,7 @@ def get_configuracion(db: Session = Depends(get_db), current_user: dict = Depend
 
 
 @router.patch("/configuracion", response_model=ConfiguracionOut)
-def actualizar_configuracion(datos: ConfiguracionUpdate, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.CONFIGURACION_GESTIONAR))):
+def actualizar_configuracion(datos: ConfiguracionUpdate, db: Session = Depends(get_db)):
     config = db.query(ConfiguracionSistema).first()
     if not config:
         config = ConfiguracionSistema()
