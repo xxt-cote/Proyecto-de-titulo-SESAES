@@ -35,10 +35,4 @@
     </tbody>
   </table>
 
-  <div class="paginacion">
-    <span>Mostrando {{ historialMostrado.length }} de {{ totalCitas }} registros</span>
-    <div>
-      <button class="btn-pag" disabled>Anterior</button>
-      <button class="btn-pag active" [disabled]="totalCitas <= 10">Siguiente</button>
-    </div>
-  </div>
+  <p class="historial-conteo">Mostrando {{ historialMostrado.length }} de {{ totalCitas }} registros</p>

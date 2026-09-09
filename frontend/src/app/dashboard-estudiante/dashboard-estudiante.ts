@@ -11,7 +11,6 @@ import { PhotoViewerComponent } from '../shared/photo-viewer/photo-viewer';
 import { obtenerFeriado } from '../shared/feriados-chile';
 import { obtenerDiasInternacionales } from '../shared/dias-internacionales';
 import { ToastService } from '../shared/toast/toast.service';
-import { LucideDynamicIcon, LucideEye, LucideEyeOff } from '@lucide/angular';
 import { EstudianteHistorialComponent } from './historial/estudiante-historial';
 import { EstudianteCitasProximasComponent } from './citas-proximas/estudiante-citas-proximas';
 import { evaluarPassword, type PasswordChecklist } from '../shared/password-validation';
@@ -21,18 +20,15 @@ const API = environment.apiUrl;
 @Component({
   selector: 'app-dashboard-estudiante',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideDynamicIcon, PhotoCropperComponent, PhotoViewerComponent, EstudianteHistorialComponent, EstudianteCitasProximasComponent],
+  imports: [CommonModule, FormsModule, PhotoCropperComponent, PhotoViewerComponent, EstudianteHistorialComponent, EstudianteCitasProximasComponent],
   templateUrl: './dashboard-estudiante.html',
   styleUrl: './dashboard-estudiante.css',
   encapsulation: ViewEncapsulation.None
 })
 export class DashboardEstudianteComponent implements OnInit {
-  readonly iconEye = LucideEye;
-  readonly iconEyeOff = LucideEyeOff;
-
   seccionActiva  = 'inicio';
   sidebarMovilAbierto = false;
-  toggleSidebarMovil(): void {  
+  toggleSidebarMovil(): void {
   this.sidebarMovilAbierto = !this.sidebarMovilAbierto;
 }
   pasoAgendar    = 1;
@@ -75,7 +71,6 @@ export class DashboardEstudianteComponent implements OnInit {
     return map[this.citasTab] ?? 'Mis Citas';
   }
   const map: Record<string, string> = {
-    documentos:    'Mis Documentos',
     configuracion: 'Mi Perfil',
     ayuda:         'Ayuda'
   };
@@ -93,7 +88,6 @@ get subtituloSeccionEst(): string {
   }
   const map: Record<string, string> = {
     inicio:        'Gestiona tus atenciones en SESAES.',
-    documentos:    'Certificados, indicaciones y documentos compartidos contigo.',
     configuracion: 'Gestiona tu información personal y seguridad de tu cuenta.',
     ayuda:         'Mapa de SESAES, preguntas frecuentes y contacto.'
   };
@@ -122,8 +116,6 @@ get subtituloSeccionEst(): string {
     this.cargarInfoCentro();
     this.cargarCuestionariosPendientes();
     this.cargarDiasCerrados();
-    this.cargarProximasCitas();
-    this.cargarHistorial();
 
     // Cuenta creada con contraseña temporal (ej. carga masiva) — se le
     // pide cambiarla o mantenerla antes de dejarlo usar el resto del sistema.
@@ -261,10 +253,10 @@ get subtituloSeccionEst(): string {
 
   infoCentro: any = {
     nombre_centro:    'SESAES',
-    direccion:        'José Pedro Alessandri 1200, Ñuñoa',
+    direccion:        '',
     telefono:         '',
     correo_contacto:  '',
-    horario_atencion: 'Lunes a Viernes 08:00–18:00'
+    horario_atencion: ''
   };
 
   cargarInfoCentro(): void {
@@ -396,12 +388,10 @@ get subtituloSeccionEst(): string {
   cargarProfesionales(): void {
     this.http.get<any[]>(`${API}/profesionales`).subscribe({
       next: (data) => {
-        if (data?.length) {
-          this.profesionales = data.map(p => ({
-            ...p,
-            iniciales: p.iniciales ?? this.calcularIniciales(p.nombre)
-          }));
-        }
+        this.profesionales = (data ?? []).map(p => ({
+          ...p,
+          iniciales: p.iniciales ?? this.calcularIniciales(p.nombre)
+        }));
         this.cdr.detectChanges();
       },
       error: () => {}
@@ -813,44 +803,10 @@ get subtituloSeccionEst(): string {
     this.cdr.detectChanges();
   }
 
-  historialResumen() {
-    return this.historialCompleto.slice(0, 3);
-  }
 
   get totalCitas()       { return this.historialCompleto.length; }
   get citasCompletadas() { return this.historialCompleto.filter(h => h.estado === 'completada').length; }
   get citasCanceladas()  { return this.historialCompleto.filter(h => h.estado === 'cancelada').length; }
-
-  // "¿Cómo estás hoy?" — cada opción dispara una acción real.
-  animoHoy: 'bien' | 'regular' | 'mal' | 'orientacion' | null = null;
-  registrarAnimo(estado: 'bien' | 'regular' | 'mal' | 'orientacion'): void {
-    this.animoHoy = estado;
-    switch (estado) {
-      case 'bien':
-        this.mensajeExito = '¡Qué bueno! Aquí tienes recursos preventivos para ti 💚';
-        this.irARecursos();
-        break;
-      case 'regular':
-        this.mensajeExito = 'Gracias por contarnos. Aquí tienes recursos y servicios que pueden ayudarte.';
-        this.irARecursos();
-        break;
-      case 'mal':
-        this.navegarA('citas', 'solicitar');
-        this.mensajeExito = 'Vamos a ayudarte a agendar una hora cuanto antes.';
-        break;
-      case 'orientacion':
-        this.navegarA('ayuda');
-        this.tabAyuda = 'contacto';
-        this.mensajeExito = 'Te dejamos el contacto y las preguntas frecuentes de SESAES.';
-        break;
-    }
-  }
-
-  // Bien / Regular se quedan en Inicio y desplazan la vista hasta
-  // "Recursos para ti", en vez de sacar al estudiante de la pantalla.
-  private irARecursos(): void {
-    document.getElementById('recursos-para-ti')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
 
   // ══════════════════════════════════════
   // CONFIGURACIÓN
@@ -867,7 +823,7 @@ get subtituloSeccionEst(): string {
   imagenParaRecortar: string | null = null;
   verFotoAmpliada = false;
   temaOscuro           = false;
-  
+
 faqs = [
   { pregunta: '¿Cómo cancelar una cita?', respuesta: 'Ve a "Mis Citas", busca la cita que deseas cancelar y presiona el botón "Cancelar". Puedes cancelar hasta 5 horas antes de la hora agendada.', abierta: false },
   { pregunta: '¿Cómo reprogramar una cita?', respuesta: 'En "Mis Citas", presiona el botón "Reagendar" junto a la cita. Esto te llevará al flujo de agendamiento con el mismo profesional para elegir una nueva fecha y hora.', abierta: false },
@@ -883,7 +839,7 @@ toggleFaq(faq: any): void {
   // ══════════════════════════════════════
   // AYUDA (Mapa de SESAES + Preguntas Frecuentes)
   // ══════════════════════════════════════
-  tabAyuda: 'faq' | 'mapa' | 'contacto' | 'soporte' = 'faq';
+  tabAyuda: 'faq' | 'mapa' | 'contacto' = 'faq';
   get perfilModificado(): boolean {
     return this.celularEditable !== this.celularOriginal
         || this.correoSecundarioEditable !== this.correoSecundarioOriginal
@@ -1106,10 +1062,6 @@ toggleFaq(faq: any): void {
     return info;
   }
 
-  // Placeholders de funciones aún sin backend.
-  mostrarProximamente(mensaje: string): void {
-    alert(mensaje);
-  }
 
   toggleTema(oscuro: boolean): void {
     this.temaOscuro = oscuro;
@@ -1157,12 +1109,17 @@ toggleFaq(faq: any): void {
   }
 
   abrirComoLlegar(): void {
-    const destino = encodeURIComponent(this.infoCentro.direccion || 'José Pedro Alessandri 1200, Ñuñoa, Chile');
-    window.open(`https://www.google.com/maps/dir/?api=1&destination=${destino}`, '_blank');
+    const direccion = (this.infoCentro.direccion || '').trim();
+    if (!direccion) {
+      this.mensajeError = 'La ubicación de SESAES no está configurada actualmente.';
+      return;
+    }
+    const destino = encodeURIComponent(direccion);
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${destino}`, '_blank', 'noopener,noreferrer');
   }
 
   getMapaUrl(): SafeResourceUrl {
-    const q = encodeURIComponent(this.infoCentro.direccion || 'José Pedro Alessandri 1200, Ñuñoa, Chile');
+    const q = encodeURIComponent((this.infoCentro.direccion || '').trim());
     const url = `https://maps.google.com/maps?q=${q}&t=&z=16&ie=UTF8&iwloc=&output=embed`;
     return this.sanitizer.bypassSecurityTrustResourceUrl(url);
   }
