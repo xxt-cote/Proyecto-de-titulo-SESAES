@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewEncapsulation, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -21,8 +21,7 @@ const API = environment.apiUrl;
   standalone: true,
   imports: [CommonModule, FormsModule, DatePipe, PhotoCropperComponent, PhotoViewerComponent, ProfessionalAyudaComponent],
   templateUrl: './dashboard-profesional.html',
-  styleUrl: './dashboard-profesional.css',
-  encapsulation: ViewEncapsulation.None
+  styleUrl: './dashboard-profesional.css'
 })
 export class DashboardProfesionalComponent implements OnInit {
 

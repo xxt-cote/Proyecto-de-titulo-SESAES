@@ -5,7 +5,8 @@ import { CommonModule } from '@angular/common';
   selector: 'app-professional-ayuda',
   standalone: true,
   imports: [CommonModule],
-  templateUrl: './professional-ayuda.html'
+  templateUrl: './professional-ayuda.html',
+  styleUrl: './professional-ayuda.css'
 })
 export class ProfessionalAyudaComponent {
 
