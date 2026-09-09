@@ -1,0 +1,12 @@
+@import './styles/tokens.css';
+
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-family-base);
+  background-color: var(--surface-bg);
+  color: var(--text-primary);
+}
