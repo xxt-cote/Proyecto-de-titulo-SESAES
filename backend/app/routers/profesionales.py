@@ -1,9 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import date, datetime
+from pydantic import BaseModel
 
 from app.database import get_db
-from app.security import verify_password, hash_password
+from app.security import (
+    PASSWORD_POLICY_MESSAGE,
+    hash_password,
+    password_cumple_politica,
+    verify_password,
+)
 from app.models.cita import Cita
 from app.models.profesional import Profesional
 from app.models.usuario import Usuario
@@ -21,6 +27,11 @@ from app.schemas import CompletarCitaBody
 from app.auditoria import registrar_evento_auditoria
 
 router = APIRouter(tags=["profesionales"])
+
+
+class CambiarPasswordProfesionalIn(BaseModel):
+    contrasena_actual: str
+    contrasena_nueva: str
 
 # SA-2: el helper local registrar_auditoria(...) se eliminó. Este router
 # usa ahora app.auditoria.registrar_evento_auditoria, que deriva el actor
@@ -215,7 +226,7 @@ def actualizar_perfil(
 @router.patch("/profesional/{prof_id}/cambiar-password")
 def cambiar_password(
     prof_id: int,
-    body: dict,
+    body: CambiarPasswordProfesionalIn,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
@@ -223,12 +234,46 @@ def cambiar_password(
     prof = db.query(Profesional).filter(Profesional.id == prof_id).first()
     if not prof:
         raise HTTPException(status_code=404, detail="Profesional no encontrado")
+
     usuario = db.query(Usuario).filter(Usuario.id == prof.usuario_id).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    if not verify_password(body.get("contrasena_actual"), usuario.password):
-        raise HTTPException(status_code=400, detail="La contraseña actual es incorrecta")
-    usuario.password = hash_password(body.get("contrasena_nueva"))
+
+    # FastAPI entrega CambiarPasswordProfesionalIn; se tolera dict en llamadas
+    # directas de tests unitarios antiguos para no romper cobertura de ownership.
+    if isinstance(body, dict):
+        contrasena_actual = body.get("contrasena_actual")
+        contrasena_nueva = body.get("contrasena_nueva")
+    else:
+        contrasena_actual = body.contrasena_actual
+        contrasena_nueva = body.contrasena_nueva
+
+    if not contrasena_actual or not contrasena_nueva:
+        raise HTTPException(
+            status_code=400,
+            detail="Debes ingresar la contraseña actual y la nueva.",
+        )
+
+    if not password_cumple_politica(contrasena_nueva):
+        raise HTTPException(
+            status_code=400,
+            detail=PASSWORD_POLICY_MESSAGE,
+        )
+
+    if not verify_password(contrasena_actual, usuario.password):
+        raise HTTPException(
+            status_code=400,
+            detail="La contraseña actual es incorrecta.",
+        )
+
+    if verify_password(contrasena_nueva, usuario.password):
+        raise HTTPException(
+            status_code=400,
+            detail="La nueva contraseña debe ser diferente a la actual.",
+        )
+
+    usuario.password = hash_password(contrasena_nueva)
+    usuario.debe_cambiar_password = False
     db.commit()
     return {"message": "Contraseña actualizada correctamente"}
 

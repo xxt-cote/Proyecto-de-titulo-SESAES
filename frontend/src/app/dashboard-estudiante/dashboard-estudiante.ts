@@ -14,6 +14,8 @@ import { ToastService } from '../shared/toast/toast.service';
 import { LucideDynamicIcon, LucideEye, LucideEyeOff } from '@lucide/angular';
 import { EstudianteHistorialComponent } from './historial/estudiante-historial';
 import { EstudianteCitasProximasComponent } from './citas-proximas/estudiante-citas-proximas';
+import { evaluarPassword, type PasswordChecklist } from '../shared/password-validation';
+import { coincideBusqueda } from '../shared/text-normalization';
 const API = environment.apiUrl;
 
 @Component({
@@ -167,12 +169,13 @@ get subtituloSeccionEst(): string {
   }
 
   cambiarPasswordPrimerAcceso(): void {
-    const nueva = this.nuevaPasswordPrimerAcceso.trim();
-    if (nueva.length < 6) {
-      this.errorPrimerAcceso = 'La contraseña debe tener al menos 6 caracteres.';
+    const nueva = this.nuevaPasswordPrimerAcceso;
+    if (!evaluarPassword(nueva).valida) {
+      this.errorPrimerAcceso =
+        'La nueva contraseña no cumple todos los requisitos de seguridad.';
       return;
     }
-    if (nueva !== this.confirmarPasswordPrimerAcceso.trim()) {
+    if (nueva !== this.confirmarPasswordPrimerAcceso) {
       this.errorPrimerAcceso = 'Las contraseñas no coinciden.';
       return;
     }
@@ -455,11 +458,10 @@ get subtituloSeccionEst(): string {
 
   // Filtrado + paginación de profesionales
   get profesionalesFiltradosTotal(): any[] {
-    return this.profesionales.filter(p => {
-      const q = this.busqueda.toLowerCase();
-      return (p.nombre.toLowerCase().includes(q) || p.especialidad.toLowerCase().includes(q))
-        && (this.filtroArea === '' || p.especialidad === this.filtroArea);
-    });
+    return this.profesionales.filter(p =>
+      coincideBusqueda(this.busqueda, p.nombre, p.especialidad)
+      && (this.filtroArea === '' || p.especialidad === this.filtroArea)
+    );
   }
 
   profesionalesFiltrados(): any[] {
@@ -907,37 +909,36 @@ toggleFaq(faq: any): void {
   mostrarPasswordNueva = false;
   mostrarPasswordConfirmacion = false;
 
+  get passwordChecklist(): PasswordChecklist {
+    return evaluarPassword(this.passwordNueva);
+  }
+
   get passwordMinimo8(): boolean {
-    return this.passwordNueva.length >= 8;
+    return this.passwordChecklist.minimo8;
   }
 
   get passwordTieneMayuscula(): boolean {
-    return /[A-ZÁÉÍÓÚÑ]/.test(this.passwordNueva);
+    return this.passwordChecklist.mayuscula;
   }
 
   get passwordTieneMinuscula(): boolean {
-    return /[a-záéíóúñ]/.test(this.passwordNueva);
+    return this.passwordChecklist.minuscula;
   }
 
   get passwordTieneNumero(): boolean {
-    return /[0-9]/.test(this.passwordNueva);
+    return this.passwordChecklist.numero;
   }
 
   get passwordTieneEspecial(): boolean {
-    return /[^A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s]/.test(this.passwordNueva);
+    return this.passwordChecklist.especial;
   }
 
   get passwordSinEspacios(): boolean {
-    return !/\s/.test(this.passwordNueva);
+    return this.passwordChecklist.sinEspacios;
   }
 
   get passwordCumpleReglas(): boolean {
-    return this.passwordMinimo8
-      && this.passwordTieneMayuscula
-      && this.passwordTieneMinuscula
-      && this.passwordTieneNumero
-      && this.passwordTieneEspecial
-      && this.passwordSinEspacios;
+    return this.passwordChecklist.valida;
   }
 
   abrirModalCambiarPassword(): void {

@@ -6,7 +6,12 @@ from typing import Optional
 from app.database import get_db
 from app.models.usuario import Usuario
 from app.schemas import EstudianteOut, EstudianteUpdate
-from app.security import hash_password, verify_password
+from app.security import (
+    PASSWORD_POLICY_MESSAGE,
+    hash_password,
+    password_cumple_politica,
+    verify_password,
+)
 from app.routers.correos import simular_envio_correo
 from app.auth_dependencies import get_current_user, verificar_acceso
 
@@ -107,22 +112,10 @@ def cambiar_password_estudiante(
             detail="Debes ingresar la contraseña actual y la nueva."
         )
     nueva = datos.contrasena_nueva
-    password_valida = (
-        len(nueva) >= 8
-        and any(c.isupper() for c in nueva)
-        and any(c.islower() for c in nueva)
-        and any(c.isdigit() for c in nueva)
-        and any((not c.isalnum()) and (not c.isspace()) for c in nueva)
-        and not any(c.isspace() for c in nueva)
-    )
-    if not password_valida:
+    if not password_cumple_politica(nueva):
         raise HTTPException(
             status_code=400,
-            detail=(
-                "La nueva contraseña debe tener al menos 8 caracteres, "
-                "una mayúscula, una minúscula, un número y un carácter especial, "
-                "sin espacios."
-            )
+            detail=PASSWORD_POLICY_MESSAGE,
         )
     if not verify_password(datos.contrasena_actual, usuario.password):
         raise HTTPException(
@@ -183,9 +176,12 @@ def resolver_primer_acceso(
             detail="El primer acceso de esta cuenta ya fue resuelto."
         )
     if datos.nueva_password and datos.nueva_password.strip():
-        if len(datos.nueva_password.strip()) < 6:
-            raise HTTPException(status_code=400, detail="La nueva contraseña debe tener al menos 6 caracteres.")
-        usuario.password = hash_password(datos.nueva_password.strip())
+        if not password_cumple_politica(datos.nueva_password):
+            raise HTTPException(
+                status_code=400,
+                detail=PASSWORD_POLICY_MESSAGE,
+            )
+        usuario.password = hash_password(datos.nueva_password)
 
     usuario.debe_cambiar_password = False
     db.commit()

@@ -10,6 +10,8 @@ import { obtenerFeriado } from '../shared/feriados-chile';
 import { obtenerDiasInternacionales } from '../shared/dias-internacionales';
 import { ToastService } from '../shared/toast/toast.service';
 import { ProfessionalAyudaComponent } from './ayuda/professional-ayuda';
+import { evaluarPassword, type PasswordChecklist } from '../shared/password-validation';
+import { coincideBusqueda } from '../shared/text-normalization';
 
 const API = environment.apiUrl;
 
@@ -295,6 +297,14 @@ eliminarSeleccionadas(): void {
     return !!this.configPerfil.contrasena_actual
         || !!this.configPerfil.contrasena_nueva
         || !!this.configPerfil.contrasena_conf;
+  }
+
+  get passwordChecklist(): PasswordChecklist {
+    return evaluarPassword(this.configPerfil.contrasena_nueva);
+  }
+
+  get passwordCumpleReglas(): boolean {
+    return this.passwordChecklist.valida;
   }
 
   // ══════════════════════════════════════
@@ -858,11 +868,13 @@ limpiarFiltrosAtenciones(): void {
   this.cargarAtenciones();
 }
   get atencionesFiltradas(): any[] {
-    const q = this.filtroBusquedaAt.toLowerCase();
-    return !q ? this.atenciones : this.atenciones.filter(a =>
-      a.estudiante.toLowerCase().includes(q) ||
-      (a.rut || '').toLowerCase().includes(q) ||
-      (a.carrera || '').toLowerCase().includes(q)
+    return this.atenciones.filter(a =>
+      coincideBusqueda(
+        this.filtroBusquedaAt,
+        a.estudiante,
+        a.rut,
+        a.carrera,
+      )
     );
   }
 
@@ -1067,6 +1079,8 @@ guardarHorarioAlmuerzo(): void {
     if (!this.passwordModificada) return;
     if (!this.configPerfil.contrasena_actual) { this.mensajeError = 'Ingresa tu contraseña actual.'; setTimeout(() => this.mensajeError = '', 3000); return; }
     if (!this.configPerfil.contrasena_nueva)  { this.mensajeError = 'Ingresa la nueva contraseña.'; setTimeout(() => this.mensajeError = '', 3000); return; }
+    if (!this.passwordCumpleReglas) { this.mensajeError = 'La nueva contraseña no cumple todos los requisitos de seguridad.'; setTimeout(() => this.mensajeError = '', 3000); return; }
+    if (this.configPerfil.contrasena_nueva === this.configPerfil.contrasena_actual) { this.mensajeError = 'La nueva contraseña debe ser diferente a la contraseña actual.'; setTimeout(() => this.mensajeError = '', 3000); return; }
     if (this.configPerfil.contrasena_nueva !== this.configPerfil.contrasena_conf) { this.mensajeError = 'Las contraseñas no coinciden.'; setTimeout(() => this.mensajeError = '', 3000); return; }
     this.http.patch(`${API}/profesional/${this.profDbId}/cambiar-password`, {
       contrasena_actual: this.configPerfil.contrasena_actual, contrasena_nueva: this.configPerfil.contrasena_nueva
@@ -1229,13 +1243,15 @@ eliminarSolicitudesSeleccionadas(): void {
   }
 
   get pacientesHistorialFiltrados(): any[] {
-    const q = this.busquedaPaciente.trim().toLowerCase();
     let lista = this.pacientesHistorial;
-    if (q) {
+    if (this.busquedaPaciente.trim()) {
       lista = lista.filter(p =>
-        (p.nombre || '').toLowerCase().includes(q) ||
-        (p.rut || '').toLowerCase().includes(q) ||
-        (p.correo || '').toLowerCase().includes(q)
+        coincideBusqueda(
+          this.busquedaPaciente,
+          p.nombre,
+          p.rut,
+          p.correo,
+        )
       );
     }
     if (this.filtroEstadoHistorial === 'completa')      lista = lista.filter(p => p.tiene_ficha);

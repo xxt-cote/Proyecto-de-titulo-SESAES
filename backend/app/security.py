@@ -5,6 +5,37 @@ from jose import jwt, JWTError
 
 _HASH_PREFIXES = ("$2a$", "$2b$", "$2y$")
 
+PASSWORD_POLICY_MESSAGE = (
+    "La nueva contraseña debe tener al menos 8 caracteres, "
+    "una mayúscula, una minúscula, un número y un carácter especial, "
+    "sin espacios."
+)
+
+
+def evaluar_politica_password(password) -> dict[str, bool]:
+    """
+    Evalúa la política única de contraseñas SESAES.
+
+    Mantener esta función como fuente de verdad del backend. El frontend
+    replica estas reglas únicamente para dar feedback inmediato; el backend
+    siempre vuelve a validarlas antes de persistir un cambio.
+    """
+    value = password if isinstance(password, str) else ""
+    checks = {
+        "minimo8": len(value) >= 8,
+        "mayuscula": any(c.isupper() for c in value),
+        "minuscula": any(c.islower() for c in value),
+        "numero": any(c.isdigit() for c in value),
+        "especial": any((not c.isalnum()) and (not c.isspace()) for c in value),
+        "sin_espacios": not any(c.isspace() for c in value),
+    }
+    return checks
+
+
+def password_cumple_politica(password) -> bool:
+    """True solo cuando la contraseña cumple todas las reglas SESAES."""
+    return all(evaluar_politica_password(password).values())
+
 # ══════════════════════════════════════════════════════════
 # JWT
 # ══════════════════════════════════════════════════════════
