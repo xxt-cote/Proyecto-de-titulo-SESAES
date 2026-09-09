@@ -1,0 +1,168 @@
+<div class="config-tabs">
+          <button class="config-tab" *ngIf="puedeConfigGeneral" [class.active]="configTabActiva==='general'" (click)="cambiarTab('general')">⚙️ General</button>
+          <button class="config-tab" *ngIf="puedeConfigCitas" [class.active]="configTabActiva==='citas'" (click)="cambiarTab('citas')">📋 Citas</button>
+          <button class="config-tab" *ngIf="puedeConfigHorarios" [class.active]="configTabActiva==='horarios'" (click)="cambiarTab('horarios')">🕐 Horarios</button>
+          <button class="config-tab" *ngIf="puedeConfigUsuarios" [class.active]="configTabActiva==='usuarios'" (click)="cambiarTab('usuarios')">👥 Usuarios y roles</button>
+          <button class="config-tab" *ngIf="puedeVerAuditoria" [class.active]="configTabActiva==='seguridad'" (click)="cambiarTab('seguridad')">🔐 Seguridad</button>
+        </div>
+
+        <!-- TAB GENERAL -->
+        <div class="config-nueva-layout" *ngIf="configTabActiva==='general' && puedeConfigGeneral">
+          <div class="card config-card">
+            <div class="card-header">
+              <h3 class="card-title">Información del Centro SESAES</h3>
+              <button class="btn-editar-perfil" *ngIf="!centroEnEdicion" (click)="habilitarEdicionCentro.emit()">✎ Editar</button>
+            </div>
+            <p class="card-desc">Estos datos son visibles para los estudiantes y se usan en los PDFs.</p>
+            <div class="form-grid">
+              <div class="campo-grupo"><label>Nombre del centro</label><input [(ngModel)]="configCentro.nombre_centro" [disabled]="!centroEnEdicion" /></div>
+              <div class="campo-grupo"><label>Teléfono de contacto</label><input [(ngModel)]="configCentro.telefono" [disabled]="!centroEnEdicion" placeholder="+56 2 XXXX XXXX" /></div>
+              <div class="campo-grupo" style="grid-column: 1 / -1"><label>Dirección</label><input [(ngModel)]="configCentro.direccion" [disabled]="!centroEnEdicion" /></div>
+              <div class="campo-grupo"><label>Correo de contacto</label><input [(ngModel)]="configCentro.correo_contacto" [disabled]="!centroEnEdicion" placeholder="sesaes@utem.cl" /></div>
+              <div class="campo-grupo"><label>Horario de atención</label><input [(ngModel)]="configCentro.horario_atencion" [disabled]="!centroEnEdicion" placeholder="Lunes a Viernes 08:00–18:00" /></div>
+            </div>
+            <div class="perfil-acciones-edicion" *ngIf="centroEnEdicion">
+              <button class="btn-cancelar-modal" (click)="cancelarEdicionCentro.emit()">Cancelar</button>
+              <button class="btn-guardar-config" [disabled]="!centroModificado || guardandoConfig" (click)="guardarInfoCentro.emit()">
+                {{ guardandoConfig ? 'Guardando...' : 'Guardar cambios' }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB CITAS -->
+        <div class="config-nueva-layout" *ngIf="configTabActiva==='citas' && puedeConfigCitas">
+          <div class="card config-card">
+            <div class="card-header"><h3 class="card-title">Reglas de citas</h3></div>
+            <p class="card-desc">La duración de atención se define por profesional (ver módulo Profesionales). Aquí se configuran las reglas generales del servicio.</p>
+            <div class="form-grid">
+              <div class="campo-grupo">
+                <label>Duración de turno por defecto (min)</label>
+                <input type="number" min="5" [(ngModel)]="configCitas.duracion_turno_min" />
+              </div>
+              <div class="campo-grupo">
+                <label>Cupos por turno</label>
+                <input type="number" min="1" [(ngModel)]="configCitas.cupos_por_turno" />
+              </div>
+              <div class="campo-grupo toggle-row" style="grid-column: 1 / -1">
+                <span>Permitir agendamiento por pacientes</span>
+                <div class="toggle" [class.on]="configCitas.agendamiento_por_pacientes" (click)="configCitas.agendamiento_por_pacientes = !configCitas.agendamiento_por_pacientes"></div>
+              </div>
+              <div class="campo-grupo toggle-row" style="grid-column: 1 / -1">
+                <span>Permitir cancelación instantánea</span>
+                <div class="toggle" [class.on]="configCitas.cancelacion_instantanea" (click)="configCitas.cancelacion_instantanea = !configCitas.cancelacion_instantanea"></div>
+              </div>
+              <div class="campo-grupo toggle-row" style="grid-column: 1 / -1">
+                <span>Sobrecupos habilitados</span>
+                <div class="toggle" [class.on]="configCitas.sobreturnos_habilitados" (click)="configCitas.sobreturnos_habilitados = !configCitas.sobreturnos_habilitados"></div>
+              </div>
+            </div>
+            <div class="perfil-acciones-edicion">
+              <button class="btn-guardar-config" [disabled]="guardandoConfigCitas" (click)="guardarConfiguracionCitas.emit()">
+                {{ guardandoConfigCitas ? 'Guardando...' : 'Guardar cambios' }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB HORARIOS -->
+        <div class="config-nueva-layout" *ngIf="configTabActiva==='horarios' && puedeConfigHorarios">
+          <div class="card config-card">
+            <div class="card-header">
+              <h3 class="card-title">Días en que el centro no atiende</h3>
+            </div>
+            <p class="card-desc">
+              A diferencia de un feriado normal (que solo se marca visualmente), un día cerrado
+              bloquea por completo el agendamiento para cualquier profesional. Las citas que ya
+              existieran ese día se cancelan y se notifica automáticamente a los estudiantes.
+            </p>
+
+            <div class="form-grid">
+              <div class="campo-grupo">
+                <label>Fecha a cerrar</label>
+                <input type="date" [(ngModel)]="nuevoDiaCerrado.fecha" [min]="hoyISO" />
+              </div>
+              <div class="campo-grupo" style="grid-column: 1 / -1">
+                <label>Motivo</label>
+                <input type="text" [(ngModel)]="nuevoDiaCerrado.motivo" placeholder="Ej: Feriado irrenunciable, aniversario UTEM…" />
+              </div>
+            </div>
+            <div class="perfil-acciones-edicion">
+              <button class="btn-guardar-config" [disabled]="!nuevoDiaCerrado.fecha || !nuevoDiaCerrado.motivo || creandoDiaCerrado" (click)="crearDiaCerrado.emit()">
+                {{ creandoDiaCerrado ? 'Cerrando día...' : '🔒 Cerrar este día' }}
+              </button>
+            </div>
+
+            <table class="admin-tabla" style="margin-top: 18px;" *ngIf="diasCerrados.length > 0">
+              <thead>
+                <tr><th>Fecha</th><th>Motivo</th><th></th></tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let d of diasCerrados">
+                  <td><strong>{{ d.fecha }}</strong></td>
+                  <td>{{ d.motivo }}</td>
+                  <td style="text-align: right; white-space: nowrap;">
+                    <button class="btn-editar-perfil" style="padding: 5px 12px; font-size: 12px;" (click)="verCitasDiaCerrado.emit(d)">Ver citas canceladas</button>
+                    <button class="btn-eliminar-todo-auditoria" style="padding: 5px 12px; font-size: 12px; margin-left: 6px;" (click)="reabrirDiaCerrado.emit(d)">Reabrir</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="tabla-vacia" *ngIf="diasCerrados.length === 0">No hay días cerrados programados.</p>
+          </div>
+        </div>
+
+        <!-- TAB USUARIOS Y ROLES -->
+        <div class="config-nueva-layout" *ngIf="configTabActiva==='usuarios' && puedeConfigUsuarios">
+          <div class="card config-card">
+            <div class="card-header"><h3 class="card-title">Usuarios y roles</h3></div>
+            <p class="card-desc">Estudiante, Profesional y Administrador tienen distintos permisos. Solo el administrador puede marcar una cita como urgente.</p>
+            <table class="admin-tabla">
+              <thead><tr><th>USUARIO</th><th>ROL</th><th>ESTADO</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let u of usuariosDelSistema">
+                  <td>{{ u.nombre }}</td>
+                  <td>{{ u.rol }}</td>
+                  <td><span class="estado-badge" [ngClass]="u.estado">{{ u.estado }}</span></td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="card-desc" style="margin-top:14px">Los estudiantes se gestionan desde el módulo <strong>Estudiantes</strong> y no requieren asignación de rol manual.</p>
+          </div>
+        </div>
+
+        <!-- TAB SEGURIDAD -->
+        <div class="config-nueva-layout" *ngIf="configTabActiva==='seguridad' && puedeVerAuditoria">
+          <div class="card config-card auditoria-card">
+            <div class="card-header">
+              <h3 class="card-title">Registro de actividad</h3>
+              <div class="auditoria-filtros">
+                <input type="date" [(ngModel)]="auditFiltroDesde" (ngModelChange)="auditFiltroDesdeChange.emit($event)" />
+                <input type="date" [(ngModel)]="auditFiltroHasta" (ngModelChange)="auditFiltroHastaChange.emit($event)" />
+                <button class="btn-filtrar" (click)="cargarAuditoria.emit()">Filtrar</button>
+                <button class="btn-exportar-excel" (click)="exportarAuditoriaExcel.emit()">↓ Excel</button>
+                <button class="btn-exportar-pdf" (click)="exportarAuditoriaPdf.emit()">↓ PDF</button>
+              </div>
+            </div>
+            <p class="card-desc">Quién realizó cada acción, qué hizo, cuándo y sobre qué registro. Exportable.</p>
+            <div *ngIf="cargandoAuditoria" class="tabla-vacia">Cargando...</div>
+            <table class="admin-tabla" *ngIf="!cargandoAuditoria">
+              <thead>
+                <tr>
+                  <th>FECHA / HORA</th><th>ACCIÓN</th><th>DETALLE</th><th>ENTIDAD</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let a of auditoria">
+                  <td>{{ a.fecha | date:'dd/MM/yyyy HH:mm' }}</td>
+                  <td>{{ a.accion }}</td>
+                  <td>{{ a.detalle }}</td>
+                  <td>{{ a.entidad }}{{ a.entidad_id ? ' #' + a.entidad_id : '' }}</td>
+                </tr>
+                <tr *ngIf="auditoria.length === 0">
+                  <td colspan="4" class="tabla-vacia">Sin registros de actividad</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
