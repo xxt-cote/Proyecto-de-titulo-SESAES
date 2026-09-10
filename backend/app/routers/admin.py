@@ -1482,6 +1482,12 @@ def get_historial_estados(
 # ══════════════════════════════════════
 # CITAS URGENTES
 # ══════════════════════════════════════
+#
+# A.2 — decisión explícita: este endpoint NO pasa por
+# evaluar_disponibilidad_slot() (app.services.agenda_disponibilidad_service).
+# A.2 conserva la semántica actual de urgencias y no la redefine; su
+# relación definitiva con disponibilidad se decidirá en la fase
+# específica de urgencias/emergencias.
 
 @router.post("/citas/urgente")
 def crear_cita_urgente(cita: CitaCreate, db: Session = Depends(get_db), current_user: dict = Depends(require_effective_permission(Permission.AGENDA_GESTIONAR))):

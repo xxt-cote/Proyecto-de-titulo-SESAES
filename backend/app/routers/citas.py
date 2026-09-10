@@ -20,6 +20,10 @@ from app.rbac.admin_authorization import (
     obtener_alcance_administrativo_efectivo,
     especialidad_permitida_por_alcance,
 )
+from app.services.agenda_disponibilidad_service import (
+    evaluar_disponibilidad_slot,
+    excede_ventana_agendamiento_estudiante,
+)
 
 router = APIRouter(tags=["citas"])
 
@@ -252,6 +256,54 @@ def crear_cita(
             detail="El paciente seleccionado no corresponde a una cuenta de estudiante."
         )
 
+    # A.2 (corrección v2, punto 2) — la ventana de 7 días es una
+    # política de agendamiento propia de Estudiante, no una regla
+    # estructural del slot (ver docstring de agenda_disponibilidad_service).
+    # Se re-aplica acá explícitamente SOLO cuando quien agenda es el
+    # propio estudiante (sin agenda.gestionar): así una llamada directa
+    # a POST /citas no le permite saltarse una restricción que
+    # GET /disponibilidad ya le oculta en la UI. No se aplica cuando
+    # quien agenda tiene capacidad administrativa, para no romper la
+    # futura Agenda Admin, que necesita poder navegar/agendar semanas
+    # posteriores a esta ventana.
+    if not puede_gestionar_agenda and excede_ventana_agendamiento_estudiante(cita.fecha):
+        raise HTTPException(
+            status_code=400,
+            detail="Esa fecha está fuera del rango de agendamiento disponible.",
+        )
+
+    # A.2 — antes de esto, fecha/hora no se validaban contra jornada,
+    # colación, grilla real, DiaCerrado ni ocupación real: bastaba con
+    # que el cliente enviara cualquier valor. evaluar_disponibilidad_slot()
+    # es la misma fuente que usa GET /disponibilidad/{id} (Estudiante)
+    # y que debería usar la grilla de Agenda Admin.
+    #
+    # sobrecupo=True (solo posible si puede_gestionar_agenda; ver
+    # arriba) puede superar únicamente los motivos marcados como
+    # overridable_con_sobrecupo — fuera de jornada o en colación.
+    # Nunca supera centro cerrado, fin de semana, fecha/hora pasada,
+    # profesional inactivo/inexistente, un horario fuera de grilla ni
+    # un slot ya ocupado por otra cita: eso replica la semántica que
+    # ya tenía el frontend (clickBloque() solo ofrece sobrecupo para
+    # 'fuera-horario' y 'colacion'). El diseño definitivo de
+    # autorización/auditoría de sobrecupo queda para A.4.
+    resultado_disponibilidad = evaluar_disponibilidad_slot(
+        db,
+        profesional_id=cita.profesional_id,
+        fecha=cita.fecha,
+        hora=cita.hora,
+    )
+    if not resultado_disponibilidad.disponible:
+        sobrecupo_autoriza = (
+            puede_gestionar_agenda
+            and bool(cita.sobrecupo)
+            and resultado_disponibilidad.overridable_con_sobrecupo
+        )
+        if not sobrecupo_autoriza:
+            raise HTTPException(
+                status_code=400,
+                detail=resultado_disponibilidad.mensaje or "Esa hora no está disponible.",
+            )
 
     if prof:
         # Una cita "pendiente" solo debe bloquear un nuevo agendamiento si
