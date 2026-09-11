@@ -168,6 +168,62 @@ Alcance explícito de A.2 (ver auditoría previa de Agenda V2):
   fecha_inicio/fecha_fin genéricos (con un máximo defensivo de
   `MAX_DIAS_RANGO_DISPONIBILIDAD` días inclusive) para poder
   reutilizarse después en Día/Mes sin crear una tercera fuente.
+
+── Corrección v6 (A.2C) — hardening de duración completa ──
+
+  Hasta acá, `_evaluar_slot_en_contexto()` (y por lo tanto todo lo que
+  se apoya en él) evaluaba casi exclusivamente la HORA DE INICIO de una
+  cita. Como Cita no tiene `duracion_min` ni `hora_fin` propios — la
+  única fuente de duración sigue siendo `Profesional.duracion_min`, vía
+  `_duracion_efectiva()` — era posible que una cita "empezara" en un
+  slot válido pero su intervalo real terminara dentro de la colación,
+  después de la jornada del profesional, después del cierre del centro,
+  o solapado con otra cita cuyo inicio era distinto al suyo.
+
+  Esta corrección evalúa el intervalo SEMIABIERTO [inicio, fin), con
+  fin = inicio + _duracion_efectiva(profesional):
+
+    - `hora_fuera_de_grilla` sigue evaluándose solo sobre el INICIO:
+      no existe "media cita", así que el inicio debe seguir siendo un
+      bloque real de la grilla cruda del centro (sin cambios).
+    - NUEVO motivo `excede_cierre_centro` (no overridable): el
+      intervalo completo no puede terminar después de
+      HORA_FIN_CENTRO, aunque el inicio sí pertenezca a la grilla. Es
+      un límite del CENTRO, no del profesional, así que sobrecupo
+      nunca puede superarlo — ver "Cierres absolutos" del bloque de
+      hardening. Se evalúa junto a `hora_fuera_de_grilla`, antes que
+      ocupación y que jornada/colación, por ser del mismo tipo
+      (estructural, del centro).
+    - `slot_ocupado` (no overridable) ahora compara superposición de
+      INTERVALOS completos entre la cita nueva y cada cita activa
+      existente del profesional/fecha, no solo igualdad de hora de
+      inicio — una cita existente 10:00–10:45 y una nueva 09:30–10:15
+      ahora sí se detectan como conflicto.
+    - `fuera_de_jornada` / `en_colacion` (overridable con sobrecupo,
+      sin cambio de política) ahora se calculan sobre superposición
+      de intervalos en vez de sobre el punto de inicio — ver
+      `_evaluar_reglas_jornada()`.
+
+  Todos los límites SEMIABIERTOS: un intervalo que termina exactamente
+  cuando empieza colación/jornada/cierre del centro es válido (no hay
+  superposición); uno que la excede aunque sea por un minuto, no.
+
+  `_bloques_grilla_profesional()` (que alimenta `listar_horas_disponibles()`,
+  consumida por GET /disponibilidad/{id} de Estudiante) recibió el
+  mismo criterio de intervalo completo — antes de esta corrección
+  quedaba desalineada de `evaluar_disponibilidad_slot()` (POST /citas):
+  ambas ya evaluaban jornada/colación, pero una por punto y otra (tras
+  v1-v5) seguía también por punto, así que coincidían por construcción;
+  esta corrección las mantiene coincidentes ahora que una de las dos
+  pasa a intervalo completo. Sin este ajuste, Estudiante podía ver una
+  hora como "disponible" en la lista y que POST /citas la rechazara al
+  intentar agendarla — una contradicción que este hardening habría
+  introducido de no corregirse acá también.
+
+  A.3 (concurrencia/doble-reserva) sigue completamente fuera de este
+  bloque: detectar superposición en una lectura no es protección
+  transaccional contra dos peticiones simultáneas — eso se resuelve
+  explícitamente en A.3, no acá.
 """
 
 from __future__ import annotations
@@ -309,6 +365,46 @@ def _parsear_fecha(fecha_str: str | None) -> date | None:
         return None
 
 
+def _fin_intervalo(hora_obj: time, duracion_min: int) -> tuple[time, bool]:
+    """
+    Hora de término del intervalo semiabierto [hora_obj, hora_obj +
+    duracion_min) — hardening de duración completa (A.2C).
+
+    `time` no sabe sumar minutos directamente, así que el cálculo se
+    hace combinando con una fecha arbitraria (hoy) y sumando un
+    timedelta; solo se usa el resultado, nunca la fecha de apoyo.
+
+    Devuelve (hora_fin, cruza_medianoche). `cruza_medianoche` es True
+    si el intervalo se extendería más allá de las 23:59 del mismo día.
+    Ningún profesional real debería alcanzar este caso (el centro
+    cierra a HORA_FIN_CENTRO), pero se señala explícitamente para que
+    quien llama no compare por error `hora_fin.time()` — que "envuelve"
+    a una hora pequeña del día siguiente — contra HORA_FIN_CENTRO como
+    si fuera una hora temprana válida. Quien llama debe tratar
+    cruza_medianoche=True como "excede el cierre operativo del centro"
+    sin más cálculo.
+    """
+    base = datetime.combine(date.today(), hora_obj)
+    fin = base + timedelta(minutes=duracion_min)
+    return fin.time(), fin.date() != base.date()
+
+
+def _intervalos_se_superponen(
+    inicio_a: time, fin_a: time, inicio_b: time, fin_b: time,
+) -> bool:
+    """
+    True si los intervalos semiabiertos [inicio_a, fin_a) y
+    [inicio_b, fin_b) se superponen en algún punto — hardening de
+    duración completa (A.2C).
+
+    Semántica semiabierta: un intervalo que termina exactamente cuando
+    el otro empieza NO se considera superposición (p. ej. una cita
+    12:15–13:00 no invade una colación 13:00–14:00; ver ejemplos del
+    bloque de hardening).
+    """
+    return inicio_a < fin_b and fin_a > inicio_b
+
+
 def generar_bloques_jornada(duracion_min: int) -> list[time]:
     """
     Genera la lista de horas posibles entre HORA_INICIO_CENTRO y
@@ -347,17 +443,41 @@ def _evaluar_reglas_jornada(
     *,
     profesional: Profesional,
     hora_obj: time,
+    fin_obj: time,
 ) -> tuple[bool, str | None, str | None, bool]:
     """
-    Reglas de jornada/colación contra un profesional y una hora ya
-    parseada. No toca la base de datos — se puede llamar en loop sin
-    costo de queries adicionales.
+    Reglas de jornada/colación contra un profesional y el INTERVALO
+    completo [hora_obj, fin_obj) de la cita — hardening de duración
+    completa (A.2C). Antes de este hardening solo se comprobaba
+    hora_obj (el instante de inicio); ahora una cita que empieza dentro
+    de jornada/fuera de colación pero cuya duración la hace terminar
+    después de la jornada, o invadir la colación, también se rechaza.
+    No toca la base de datos — se puede llamar en loop sin costo de
+    queries adicionales.
+
+    - fuera_de_jornada: el intervalo empieza antes de que el
+      profesional entre (hora_obj < jornada_inicio) O termina después
+      de que sale (fin_obj > jornada_fin). Se generaliza el chequeo
+      anterior de "hora_obj fuera de [jornada_inicio, jornada_fin)":
+      cualquier hora_obj que antes violaba esa condición sigue
+      violando esta (fin_obj > hora_obj siempre, por duración > 0), así
+      que ningún caso previamente rechazado pasa a aceptarse.
+    - en_colacion: el intervalo se superpone en cualquier punto con
+      [almuerzo_inicio, almuerzo_fin), no solo si hora_obj cae dentro.
+      Un intervalo que termina justo cuando empieza la colación (o que
+      empieza justo cuando esta termina) NO se considera invasión —
+      ver _intervalos_se_superponen().
+
+    Ambos motivos siguen siendo overridable_con_sobrecupo=True, sin
+    cambios de política respecto a antes del hardening — solo cambia
+    QUÉ intervalo se evalúa, no qué motivos existen ni si son
+    superables por sobrecupo.
 
     Devuelve (disponible, motivo, mensaje, overridable_con_sobrecupo).
     """
     jornada_inicio = _parsear_hora_24h(profesional.horario_inicio)
     jornada_fin = _parsear_hora_24h(profesional.horario_fin)
-    if jornada_inicio and jornada_fin and not (jornada_inicio <= hora_obj < jornada_fin):
+    if jornada_inicio and jornada_fin and (hora_obj < jornada_inicio or fin_obj > jornada_fin):
         return (
             False,
             "fuera_de_jornada",
@@ -367,7 +487,9 @@ def _evaluar_reglas_jornada(
 
     almuerzo_inicio = _parsear_hora_24h(profesional.hora_almuerzo_inicio)
     almuerzo_fin = _parsear_hora_24h(profesional.hora_almuerzo_fin)
-    if almuerzo_inicio and almuerzo_fin and almuerzo_inicio <= hora_obj < almuerzo_fin:
+    if almuerzo_inicio and almuerzo_fin and _intervalos_se_superponen(
+        hora_obj, fin_obj, almuerzo_inicio, almuerzo_fin,
+    ):
         return (
             False,
             "en_colacion",
@@ -385,13 +507,30 @@ def _bloques_grilla_profesional(profesional: Profesional) -> list[time]:
     propias reglas de jornada/colación. Esta es la lista de "horas que
     existen" para el profesional — tanto para publicarlas (listar) como
     para validar que una hora puntual pertenezca a ella (evaluar).
+
+    Hardening de duración completa (A.2C): un bloque solo se publica si
+    su intervalo COMPLETO [b, b+duracion) cabe dentro del cierre
+    operativo del centro y de la jornada/colación del profesional — no
+    solo si su hora de inicio lo hace. Antes de este cambio, esta
+    función (que alimenta listar_horas_disponibles(), consumida por
+    Estudiante) seguía filtrando solo por hora de inicio aunque
+    evaluar_disponibilidad_slot() (POST /citas) ya evaluara el
+    intervalo completo: Estudiante podía ver una hora como "disponible"
+    en la lista y que, al intentar agendarla, POST /citas la rechazara
+    por invadir colación/jornada o exceder el cierre del centro. Ambas
+    rutas comparten ahora exactamente el mismo criterio de intervalo
+    completo (ver _evaluar_reglas_jornada, _fin_intervalo).
     """
-    duracion = profesional.duracion_min or 45
+    duracion = _duracion_efectiva(profesional)
     bloques = generar_bloques_jornada(duracion)
-    return [
-        b for b in bloques
-        if _evaluar_reglas_jornada(profesional=profesional, hora_obj=b)[0]
-    ]
+    disponibles = []
+    for b in bloques:
+        fin_obj, cruza_medianoche = _fin_intervalo(b, duracion)
+        if cruza_medianoche or fin_obj > HORA_FIN_CENTRO:
+            continue
+        if _evaluar_reglas_jornada(profesional=profesional, hora_obj=b, fin_obj=fin_obj)[0]:
+            disponibles.append(b)
+    return disponibles
 
 
 def _horas_ocupadas_normalizadas(
@@ -554,28 +693,83 @@ def _evaluar_slot_en_contexto(
             False,
         )
 
-    # Ocupación (corrección v4): un slot ya ocupado por otra cita activa
-    # es un bloqueo ABSOLUTO, así que debe comprobarse ANTES que
-    # jornada/colación (que son overridable_con_sobrecupo=True). Si se
-    # comprobara después, un slot fuera de jornada Y ya ocupado devolvía
-    # primero "fuera_de_jornada" (overridable) y sobrecupo=True lo
-    # autorizaba sin llegar nunca a ver que la hora ya estaba tomada —
-    # ver docstring del módulo, sección "Corrección v4". La política
+    # ── Hardening de duración completa (A.2C) ──
+    #
+    # A partir de acá se evalúa el INTERVALO SEMIABIERTO completo
+    # [hora_obj, fin_obj) de la cita — fin_obj = hora_obj +
+    # _duracion_efectiva(profesional) — y no solo su instante de
+    # inicio. La pertenencia a la grilla (arriba) sigue evaluándose
+    # solo sobre hora_obj a propósito: no existe "media cita", así que
+    # el INICIO debe seguir alineado a un bloque real; lo que antes no
+    # se comprobaba es que el resto del intervalo respete jornada,
+    # colación, ocupación y el cierre operativo del centro. Ver
+    # objetivo del bloque de hardening en el contexto de continuidad
+    # del proyecto.
+    fin_obj, cruza_medianoche = _fin_intervalo(hora_obj, duracion)
+
+    # Cierre operativo ABSOLUTO del centro: aunque hora_obj pertenezca
+    # a la grilla, el intervalo completo no puede extenderse más allá
+    # de HORA_FIN_CENTRO. A diferencia de "fuera_de_jornada" (que es la
+    # jornada particular de ESTE profesional y sí es overridable), este
+    # es un límite físico del centro mismo — el centro no atiende
+    # después de esa hora sin importar quién pida sobrecupo. Por eso NO
+    # es overridable: el sobrecupo existe para forzar la jornada/
+    # colación de un profesional, nunca para "abrir el centro" más allá
+    # de su cierre (ver "Cierres absolutos" del bloque de hardening).
+    # Semiabierto: un intervalo que termina EXACTAMENTE a
+    # HORA_FIN_CENTRO es válido (no se pide fin_obj <= HORA_FIN_CENTRO
+    # en vez de >, para permitir ese límite exacto — ver "límites
+    # exactos válidos" en las reglas funcionales del hardening).
+    # Se comprueba antes de ocupación/jornada/colación por ser, igual
+    # que hora_fuera_de_grilla, un límite estructural del centro y no
+    # del profesional ni de otra cita.
+    if cruza_medianoche or fin_obj > HORA_FIN_CENTRO:
+        return (
+            False,
+            "excede_cierre_centro",
+            "La duración de la cita excede el horario de atención del centro.",
+            False,
+        )
+
+    # Ocupación (corrección v4, ahora sobre el INTERVALO completo): un
+    # slot ya ocupado por otra cita activa es un bloqueo ABSOLUTO, así
+    # que debe comprobarse ANTES que jornada/colación (que son
+    # overridable_con_sobrecupo=True). Si se comprobara después, un
+    # slot fuera de jornada Y ya ocupado devolvía primero
+    # "fuera_de_jornada" (overridable) y sobrecupo=True lo autorizaba
+    # sin llegar nunca a ver que la hora ya estaba tomada — ver
+    # docstring del módulo, sección "Corrección v4". La política
     # vigente es: slot ocupado = bloqueo absoluto; fuera de
     # jornada/colación = temporalmente overridable por sobrecupo. El
     # orden de evaluación debe reflejar esa jerarquía, no solo el hecho
     # de que ambos terminan en "no disponible".
-    if hora_obj in ocupadas:
-        return (
-            False,
-            "slot_ocupado",
-            "Esa hora ya está reservada.",
-            False,
-        )
+    #
+    # Antes del hardening, "ocupado" comparaba solo la hora de inicio
+    # exacta (hora_obj in ocupadas), así que dos citas con inicios
+    # distintos pero intervalos solapados (p. ej. una existente
+    # 10:00–10:45 y una nueva 09:30–10:15) no se detectaban como
+    # conflicto. Ahora se compara superposición de intervalos
+    # completos. `ocupadas` son horas de inicio de OTRAS citas activas
+    # de este mismo profesional/fecha (ver _horas_ocupadas_normalizadas
+    # y listar_disponibilidad_rango): su duración efectiva es la misma
+    # _duracion_efectiva(profesional) que la del slot que se evalúa,
+    # porque Cita no guarda su propia duración — la única fuente de
+    # duración sigue siendo Profesional.duracion_min (ver diagnóstico
+    # del bloque de hardening); esto no es nuevo, ya era así antes.
+    for ocupada in ocupadas:
+        ocupada_fin, _ = _fin_intervalo(ocupada, duracion)
+        if _intervalos_se_superponen(hora_obj, fin_obj, ocupada, ocupada_fin):
+            return (
+                False,
+                "slot_ocupado",
+                "Esa hora ya está reservada.",
+                False,
+            )
 
     disponible, motivo, mensaje, overridable = _evaluar_reglas_jornada(
         profesional=profesional,
         hora_obj=hora_obj,
+        fin_obj=fin_obj,
     )
     if not disponible:
         return (False, motivo, mensaje, overridable)
@@ -753,9 +947,21 @@ def listar_horas_disponibles(
         db, profesional_id=profesional_id, fecha=fecha,
     )
 
-    horas_disponibles = [
-        b.strftime("%H:%M") for b in bloques if b not in ocupadas
-    ]
+    # Hardening de duración completa (A.2C): superposición de
+    # intervalos completos, no solo igualdad de hora de inicio — mismo
+    # criterio que _evaluar_slot_en_contexto() (ver su comentario sobre
+    # "Ocupación"), para que una hora que se solapa parcialmente con
+    # otra cita ya no aparezca como "disponible" en esta lista.
+    duracion = _duracion_efectiva(profesional)
+    horas_disponibles = []
+    for b in bloques:
+        fin_b, _ = _fin_intervalo(b, duracion)
+        ocupado = any(
+            _intervalos_se_superponen(b, fin_b, o, _fin_intervalo(o, duracion)[0])
+            for o in ocupadas
+        )
+        if not ocupado:
+            horas_disponibles.append(b.strftime("%H:%M"))
 
     if not horas_disponibles:
         return [], "Sin horas disponibles por esta semana"
