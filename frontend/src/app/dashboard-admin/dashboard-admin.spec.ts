@@ -2,7 +2,7 @@ import { ChangeDetectorRef } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { describe, expect, it, vi } from 'vitest';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 
 import { AuthService } from '../auth.service';
 import { Permission } from '../shared/auth/permission.model';
@@ -789,5 +789,472 @@ describe('DashboardAdminComponent — SA-10.2D matriz read-only vs gestionar', (
     expect(component.seccionActiva).toBe('inicio');
     expect(component.proximasCitas).toEqual([]);
     expect(component.resumenDia).toEqual([]);
+  });
+});
+
+
+describe('DashboardAdminComponent — A.2B.2 Angular Semana', () => {
+  const setSemana = (component: DashboardAdminComponent, inicio = '2026-09-07'): void => {
+    const [anio, mes, dia] = inicio.split('-').map(Number);
+    const lunes = new Date(anio, mes - 1, dia);
+    component.semanaActual = Array.from({ length: 7 }, (_, i) => {
+      const fecha = new Date(lunes);
+      fecha.setDate(lunes.getDate() + i);
+      const f = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}-${String(fecha.getDate()).padStart(2, '0')}`;
+      return { fecha: f };
+    });
+  };
+
+  const respuestaRango = (
+    profesionalId: number,
+    fechaInicio: string,
+    fechaFin: string,
+    slots: Array<{ fecha: string; hora: string; disponible: boolean; motivo: string | null }>
+  ) => ({
+    profesional_id: profesionalId,
+    fecha_inicio: fechaInicio,
+    fecha_fin: fechaFin,
+    duracion_min: 60,
+    dias: Array.from(new Set(slots.map(slot => slot.fecha))).map(fecha => ({
+      fecha,
+      slots: slots
+        .filter(slot => slot.fecha === fecha)
+        .map(slot => ({
+          hora: slot.hora,
+          disponible: slot.disponible,
+          motivo: slot.motivo,
+          overridable_con_sobrecupo: slot.motivo === 'en_colacion' || slot.motivo === 'fuera_de_jornada'
+        }))
+    }))
+  });
+
+  it('consulta una sola disponibilidad por profesional y rango semanal exacto', () => {
+    const { component, http } = crearShellConPermisosYHttp(['agenda.ver']);
+    component.filtroProfesionalId = '20';
+    setSemana(component);
+
+    (http.get as any).mockImplementation((url: string) => {
+      if (url.includes('/disponibilidad')) {
+        return of(respuestaRango(20, '2026-09-07', '2026-09-13', [
+          { fecha: '2026-09-07', hora: '08:00', disponible: true, motivo: null }
+        ]));
+      }
+      return of([]);
+    });
+
+    component.cargarHorarioProfesional();
+
+    const urlsDisponibilidad = http.get.mock.calls
+      .map(call => String(call[0]))
+      .filter(url => url.includes('/disponibilidad'));
+
+    expect(urlsDisponibilidad).toHaveLength(1);
+    expect(urlsDisponibilidad[0]).toContain('/agenda/profesional/20/disponibilidad');
+    expect(urlsDisponibilidad[0]).toContain('fecha_inicio=2026-09-07');
+    expect(urlsDisponibilidad[0]).toContain('fecha_fin=2026-09-13');
+  });
+
+  it('al cambiar de semana consulta el nuevo rango y no hace requests por celda', () => {
+    const { component, http } = crearShellConPermisosYHttp(['agenda.ver']);
+    component.filtroProfesionalId = '20';
+    setSemana(component);
+
+    (http.get as any).mockImplementation((url: string) => {
+      if (url.includes('/disponibilidad')) {
+        const inicio = url.includes('2026-09-14') ? '2026-09-14' : '2026-09-07';
+        const fin = inicio === '2026-09-14' ? '2026-09-20' : '2026-09-13';
+        return of(respuestaRango(20, inicio, fin, []));
+      }
+      return of([]);
+    });
+
+    component.cargarHorarioProfesional();
+    component.semanaSiguiente();
+
+    const urlsDisponibilidad = http.get.mock.calls
+      .map(call => String(call[0]))
+      .filter(url => url.includes('/disponibilidad'));
+
+    expect(urlsDisponibilidad).toHaveLength(2);
+    expect(urlsDisponibilidad[0]).toContain('fecha_inicio=2026-09-07');
+    expect(urlsDisponibilidad[0]).toContain('fecha_fin=2026-09-13');
+    expect(urlsDisponibilidad[1]).toContain('fecha_inicio=2026-09-14');
+    expect(urlsDisponibilidad[1]).toContain('fecha_fin=2026-09-20');
+  });
+
+  it('prioriza una cita real sobre el estado de disponibilidad backend', () => {
+    const { component, http } = crearShellConPermisosYHttp(['agenda.ver']);
+    component.filtroProfesionalId = '20';
+    setSemana(component);
+
+    (http.get as any).mockImplementation((url: string) => {
+      if (url.includes('/citas')) {
+        return of([{ id: 1, fecha: '2026-09-07', hora: '08:00', estado: 'pendiente', urgente: true, sobrecupo: false, estudiante: 'Ana' }]);
+      }
+      if (url.includes('/disponibilidad')) {
+        return of(respuestaRango(20, '2026-09-07', '2026-09-13', [
+          { fecha: '2026-09-07', hora: '08:00', disponible: true, motivo: null }
+        ]));
+      }
+      return of([]);
+    });
+
+    component.cargarHorarioProfesional();
+
+    expect(component.getBloqueEstado('2026-09-07', '08:00')).toBe('urgente');
+    expect(component.getBloqueInfo('2026-09-07', '08:00')).toBe('Ana');
+  });
+
+  it('mapea únicamente presentación desde motivos backend y no inventa disponibilidad', () => {
+    const { component, http } = crearShellConPermisosYHttp(['agenda.ver']);
+    component.filtroProfesionalId = '20';
+    setSemana(component);
+
+    (http.get as any).mockImplementation((url: string) => {
+      if (url.includes('/disponibilidad')) {
+        return of(respuestaRango(20, '2026-09-07', '2026-09-13', [
+          { fecha: '2026-09-07', hora: '08:00', disponible: true, motivo: null },
+          { fecha: '2026-09-07', hora: '09:00', disponible: false, motivo: 'en_colacion' },
+          { fecha: '2026-09-07', hora: '10:00', disponible: false, motivo: 'fuera_de_jornada' },
+          { fecha: '2026-09-07', hora: '11:00', disponible: false, motivo: 'dia_cerrado' },
+          { fecha: '2026-09-07', hora: '12:00', disponible: false, motivo: 'profesional_inactivo' },
+          { fecha: '2026-09-07', hora: '13:00', disponible: false, motivo: 'slot_ocupado' }
+        ]));
+      }
+      return of([]);
+    });
+
+    component.cargarHorarioProfesional();
+
+    expect(component.getBloqueEstado('2026-09-07', '08:00')).toBe('disponible');
+    expect(component.getBloqueEstado('2026-09-07', '09:00')).toBe('colacion');
+    expect(component.getBloqueEstado('2026-09-07', '10:00')).toBe('fuera-horario');
+    expect(component.getBloqueEstado('2026-09-07', '11:00')).toBe('cerrado-centro');
+    expect(component.getBloqueEstado('2026-09-07', '12:00')).toBe('bloqueado');
+    expect(component.getBloqueEstado('2026-09-07', '13:00')).toBe('ocupado');
+    expect(component.getBloqueEstado('2026-09-07', '14:00')).toBe('sin-datos');
+    expect(component.getBloqueInfo('2026-09-07', '09:00')).toBe('Colación');
+  });
+
+  it('mientras carga y si falla disponibilidad permanece fail-closed en sin-datos', () => {
+    const { component, http } = crearShellConPermisosYHttp(['agenda.ver']);
+    const disponibilidad$ = new Subject<any>();
+    component.filtroProfesionalId = '20';
+    setSemana(component);
+
+    (http.get as any).mockImplementation((url: string) => {
+      if (url.includes('/disponibilidad')) return disponibilidad$;
+      return of([]);
+    });
+
+    component.cargarHorarioProfesional();
+
+    expect(component.disponibilidadCargando).toBe(true);
+    expect(component.getBloqueEstado('2026-09-07', '08:00')).toBe('sin-datos');
+
+    disponibilidad$.error(new Error('backend no disponible'));
+
+    expect(component.disponibilidadCargando).toBe(false);
+    expect(component.disponibilidadError).toBe(true);
+    expect(component.getBloqueEstado('2026-09-07', '08:00')).toBe('sin-datos');
+  });
+
+  it('ignora una respuesta stale de profesional anterior', () => {
+    const { component, http } = crearShellConPermisosYHttp(['agenda.ver']);
+    const primera$ = new Subject<any>();
+    const segunda$ = new Subject<any>();
+    component.filtroProfesionalId = '20';
+    setSemana(component);
+
+    (http.get as any).mockImplementation((url: string) => {
+      if (url.includes('/disponibilidad')) {
+        return url.includes('/20/') ? primera$ : segunda$;
+      }
+      return of([]);
+    });
+
+    component.cargarHorarioProfesional();
+    component.filtroProfesionalId = '21';
+    component.cargarHorarioProfesional();
+
+    segunda$.next(respuestaRango(21, '2026-09-07', '2026-09-13', [
+      { fecha: '2026-09-07', hora: '08:00', disponible: true, motivo: null }
+    ]));
+    segunda$.complete();
+
+    expect(component.getBloqueEstado('2026-09-07', '08:00')).toBe('disponible');
+
+    primera$.next(respuestaRango(20, '2026-09-07', '2026-09-13', [
+      { fecha: '2026-09-07', hora: '08:00', disponible: false, motivo: 'en_colacion' }
+    ]));
+    primera$.complete();
+
+    expect(component.getBloqueEstado('2026-09-07', '08:00')).toBe('disponible');
+  });
+
+
+  it('ignora una respuesta stale de la semana anterior', () => {
+    const { component, http } = crearShellConPermisosYHttp(['agenda.ver']);
+    const primera$ = new Subject<any>();
+    const segunda$ = new Subject<any>();
+    component.filtroProfesionalId = '20';
+    setSemana(component);
+
+    let disponibilidadIndex = 0;
+    (http.get as any).mockImplementation((url: string) => {
+      if (url.includes('/disponibilidad')) {
+        disponibilidadIndex += 1;
+        return disponibilidadIndex === 1 ? primera$ : segunda$;
+      }
+      return of([]);
+    });
+
+    component.cargarHorarioProfesional();
+    component.semanaSiguiente();
+
+    segunda$.next(respuestaRango(20, '2026-09-14', '2026-09-20', [
+      { fecha: '2026-09-14', hora: '08:00', disponible: true, motivo: null }
+    ]));
+    segunda$.complete();
+
+    expect(component.getBloqueEstado('2026-09-14', '08:00')).toBe('disponible');
+
+    primera$.next(respuestaRango(20, '2026-09-07', '2026-09-13', [
+      { fecha: '2026-09-07', hora: '08:00', disponible: false, motivo: 'dia_cerrado' }
+    ]));
+    primera$.complete();
+
+    expect(component.getBloqueEstado('2026-09-14', '08:00')).toBe('disponible');
+    expect(component.getBloqueEstado('2026-09-07', '08:00')).toBe('sin-datos');
+  });
+
+
+  it('sin agenda.ver no consulta citas ni disponibilidad', () => {
+    const { component, http } = crearShellConPermisosYHttp([]);
+    component.filtroProfesionalId = '20';
+    setSemana(component);
+
+    component.cargarHorarioProfesional();
+
+    const urls = http.get.mock.calls.map(call => String(call[0]));
+    expect(urls.some(url => url.includes('/agenda/profesional/20/citas'))).toBe(false);
+    expect(urls.some(url => url.includes('/agenda/profesional/20/disponibilidad'))).toBe(false);
+    expect(component.getBloqueEstado('2026-09-07', '08:00')).toBe('sin-datos');
+  });
+
+  it('sin-datos no abre cita ni sobrecupo aunque exista agenda.gestionar', () => {
+    const { component } = crearShellConPermisosYHttp(['agenda.ver', 'agenda.gestionar']);
+    component.filtroProfesionalId = '20';
+    setSemana(component);
+    const abrirSpy = vi.spyOn(component, 'abrirModalNuevaCitaConFechaHora');
+
+    component.clickBloque('2026-09-07', '08:00');
+
+    expect(abrirSpy).not.toHaveBeenCalled();
+    expect(component.sobrecupoConfirmAbierto).toBe(false);
+    expect(component.diaSeleccionado).toBeNull();
+  });
+});
+
+describe('DashboardAdminComponent — A.2B v2: correcciones de smoke visual', () => {
+  const setSemana = (component: DashboardAdminComponent, inicio = '2026-09-07'): void => {
+    const [anio, mes, dia] = inicio.split('-').map(Number);
+    const lunes = new Date(anio, mes - 1, dia);
+    component.semanaActual = Array.from({ length: 7 }, (_, i) => {
+      const fecha = new Date(lunes);
+      fecha.setDate(lunes.getDate() + i);
+      const f = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}-${String(fecha.getDate()).padStart(2, '0')}`;
+      return { fecha: f };
+    });
+  };
+
+  const respuestaRango = (
+    profesionalId: number,
+    fechaInicio: string,
+    fechaFin: string,
+    slots: Array<{ fecha: string; hora: string; disponible: boolean; motivo: string | null }>
+  ) => ({
+    profesional_id: profesionalId,
+    fecha_inicio: fechaInicio,
+    fecha_fin: fechaFin,
+    duracion_min: 60,
+    dias: Array.from(new Set(slots.map(slot => slot.fecha))).map(fecha => ({
+      fecha,
+      slots: slots
+        .filter(slot => slot.fecha === fecha)
+        .map(slot => ({
+          hora: slot.hora,
+          disponible: slot.disponible,
+          motivo: slot.motivo,
+          overridable_con_sobrecupo: slot.motivo === 'en_colacion' || slot.motivo === 'fuera_de_jornada'
+        }))
+    }))
+  });
+
+  // ── Punto 1: diaSeleccionado no debe sobrevivir a un cambio de semana
+  //    si la fecha seleccionada ya no pertenece al rango visible ──
+
+  it('semanaSiguiente limpia diaSeleccionado si ya no pertenece a la nueva semana', () => {
+    const { component } = crearShellConPermisosYHttp(['agenda.ver']);
+    setSemana(component, '2026-09-07');
+    component.diaSeleccionado = '2026-09-07';
+
+    component.semanaSiguiente();
+
+    expect(component.diaSeleccionado).toBeNull();
+  });
+
+  it('semanaAnterior limpia diaSeleccionado si ya no pertenece a la nueva semana', () => {
+    const { component } = crearShellConPermisosYHttp(['agenda.ver']);
+    setSemana(component, '2026-09-07');
+    component.diaSeleccionado = '2026-09-10';
+
+    component.semanaAnterior();
+
+    expect(component.diaSeleccionado).toBeNull();
+  });
+
+  it('generarSemanaActual conserva diaSeleccionado si sigue perteneciendo a la semana visible', () => {
+    const { component } = crearShellConPermisosYHttp(['agenda.ver']);
+    const hoy = new Date();
+    const hoyStr = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+    component.diaSeleccionado = hoyStr;
+
+    component.generarSemanaActual();
+
+    expect(component.diaSeleccionado).toBe(hoyStr);
+  });
+
+  // ── Punto 2: un clic en un bloque no agendable (histórico, día cerrado,
+  //    etc.) debe igualmente actualizar el panel contextual al día correcto ──
+
+  it('clic en un bloque bloqueado (p. ej. fecha pasada) actualiza diaSeleccionado sin abrir cita ni sobrecupo', () => {
+    const { component, http } = crearShellConPermisosYHttp(['agenda.ver', 'agenda.gestionar']);
+    component.filtroProfesionalId = '20';
+    setSemana(component);
+    const abrirSpy = vi.spyOn(component, 'abrirModalNuevaCitaConFechaHora');
+
+    (http.get as any).mockImplementation((url: string) => {
+      if (url.includes('/disponibilidad')) {
+        return of(respuestaRango(20, '2026-09-07', '2026-09-13', [
+          { fecha: '2026-09-07', hora: '08:00', disponible: false, motivo: 'fecha_pasada' }
+        ]));
+      }
+      return of([]);
+    });
+
+    component.cargarHorarioProfesional();
+    expect(component.getBloqueEstado('2026-09-07', '08:00')).toBe('bloqueado');
+
+    component.clickBloque('2026-09-07', '08:00');
+
+    expect(component.diaSeleccionado).toBe('2026-09-07');
+    expect(abrirSpy).not.toHaveBeenCalled();
+    expect(component.sobrecupoConfirmAbierto).toBe(false);
+  });
+
+  it('clic en un día cerrado (centro cerrado) actualiza diaSeleccionado sin abrir cita', () => {
+    const { component, http } = crearShellConPermisosYHttp(['agenda.ver', 'agenda.gestionar']);
+    component.filtroProfesionalId = '20';
+    setSemana(component);
+    const abrirSpy = vi.spyOn(component, 'abrirModalNuevaCitaConFechaHora');
+
+    (http.get as any).mockImplementation((url: string) => {
+      if (url.includes('/disponibilidad')) {
+        return of(respuestaRango(20, '2026-09-07', '2026-09-13', [
+          { fecha: '2026-09-07', hora: '08:00', disponible: false, motivo: 'dia_cerrado' }
+        ]));
+      }
+      return of([]);
+    });
+
+    component.cargarHorarioProfesional();
+    expect(component.getBloqueEstado('2026-09-07', '08:00')).toBe('cerrado-centro');
+
+    component.clickBloque('2026-09-07', '08:00');
+
+    expect(component.diaSeleccionado).toBe('2026-09-07');
+    expect(abrirSpy).not.toHaveBeenCalled();
+  });
+
+  it('clic en una cita histórica (ocupada, no cancelada) actualiza diaSeleccionado al día correcto', () => {
+    const { component, http } = crearShellConPermisosYHttp(['agenda.ver', 'agenda.gestionar']);
+    component.filtroProfesionalId = '20';
+    setSemana(component);
+
+    (http.get as any).mockImplementation((url: string) => {
+      if (url.includes('/citas')) {
+        return of([{
+          id: 1, fecha: '2026-09-07', hora: '08:00', estado: 'completada',
+          urgente: false, sobrecupo: false, estudiante: 'Ana'
+        }]);
+      }
+      if (url.includes('/disponibilidad')) {
+        return of(respuestaRango(20, '2026-09-07', '2026-09-13', []));
+      }
+      return of([]);
+    });
+
+    component.cargarHorarioProfesional();
+    expect(component.getBloqueEstado('2026-09-07', '08:00')).toBe('ocupado');
+
+    component.clickBloque('2026-09-07', '08:00');
+
+    expect(component.diaSeleccionado).toBe('2026-09-07');
+  });
+
+  it('sin-datos sigue sin actualizar diaSeleccionado (no hay nada real que mostrar todavía)', () => {
+    const { component } = crearShellConPermisosYHttp(['agenda.ver', 'agenda.gestionar']);
+    component.filtroProfesionalId = '20';
+    setSemana(component);
+
+    component.clickBloque('2026-09-07', '08:00');
+
+    expect(component.getBloqueEstado('2026-09-07', '08:00')).toBe('sin-datos');
+    expect(component.diaSeleccionado).toBeNull();
+  });
+
+  // ── Punto 3: una fecha histórica nunca debe abrir "Nueva cita" ──
+
+  it('abrirModalNuevaCitaConFechaHora rechaza una fecha histórica', () => {
+    const { component } = crearShellConPermisosYHttp(['agenda.ver', 'agenda.gestionar']);
+    component.filtroProfesionalId = '20';
+
+    component.abrirModalNuevaCitaConFechaHora('2020-01-01', '08:00', false);
+
+    expect(component.modalCitaAbierto).toBe(false);
+  });
+
+  it('el botón de "Nueva cita" no abre el modal si diaSeleccionado quedó en una fecha histórica', () => {
+    const { component } = crearShellConPermisosYHttp(['agenda.ver', 'agenda.gestionar']);
+    component.filtroProfesionalId = '20';
+    component.diaSeleccionado = '2020-01-01';
+
+    component.abrirModalNuevaCita();
+
+    expect(component.modalCitaAbierto).toBe(false);
+  });
+
+  it('abrirModalNuevaCitaConFechaHora sigue permitiendo una fecha futura', () => {
+    const { component } = crearShellConPermisosYHttp(['agenda.ver', 'agenda.gestionar']);
+    component.filtroProfesionalId = '20';
+    const futura = new Date();
+    futura.setFullYear(futura.getFullYear() + 1);
+    const futuraStr = `${futura.getFullYear()}-${String(futura.getMonth() + 1).padStart(2, '0')}-${String(futura.getDate()).padStart(2, '0')}`;
+
+    component.abrirModalNuevaCitaConFechaHora(futuraStr, '08:00', false);
+
+    expect(component.modalCitaAbierto).toBe(true);
+  });
+
+  it('confirmarSobrecupo sobre una fecha histórica tampoco abre el modal (defensa adicional)', () => {
+    const { component } = crearShellConPermisosYHttp(['agenda.ver', 'agenda.gestionar']);
+    component.filtroProfesionalId = '20';
+    component.sobrecupoConfirmAbierto = true;
+    component.sobrecupoPendiente = { fecha: '2020-01-01', hora: '08:00', motivoTexto: 'el horario habitual de' };
+
+    component.confirmarSobrecupo();
+
+    expect(component.modalCitaAbierto).toBe(false);
   });
 });

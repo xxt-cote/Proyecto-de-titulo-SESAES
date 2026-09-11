@@ -335,4 +335,27 @@ describe('AdminHorarioComponent', () => {
     expect(nuevaSpy).not.toHaveBeenCalled();
     expect(cancelarSpy).not.toHaveBeenCalled();
   });
+  it('A.2B usa sin-datos como fallback seguro cuando no existe fuente de disponibilidad', () => {
+    const aislado = new AdminHorarioComponent();
+    expect(aislado.bloqueEstadoFn('2026-09-07', '08:00')).toBe('sin-datos');
+  });
+
+  it('A.2B representa sin-datos de forma neutra y no lo etiqueta como disponible', () => {
+    fixture.componentRef.setInput('filtroProfesionalId', '10');
+    fixture.componentRef.setInput('semanaActual', [
+      { nombre: 'Lun', num: 7, fecha: '2026-09-07', esHoy: false }
+    ]);
+    fixture.componentRef.setInput('horasGrilla', ['08:00']);
+    fixture.componentRef.setInput('bloqueEstadoFn', () => 'sin-datos');
+
+    fixture.detectChanges();
+
+    const bloque = fixture.nativeElement.querySelector('.bloque-celda') as HTMLDivElement;
+    expect(bloque.classList.contains('sin-datos-bloque')).toBe(true);
+    expect(bloque.classList.contains('disponible')).toBe(false);
+    expect(bloque.getAttribute('aria-disabled')).toBe('true');
+    expect(bloque.getAttribute('title')).toContain('Disponibilidad');
+    expect(bloque.textContent).not.toContain('+ Disponible');
+  });
+
 });

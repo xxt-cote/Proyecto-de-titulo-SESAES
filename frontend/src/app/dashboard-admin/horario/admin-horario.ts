@@ -43,7 +43,7 @@ export class AdminHorarioComponent {
   @Input() diasCerrados: any[] = [];
 
   @Input() bloqueEstadoFn: (fecha: string, hora: string) => string =
-    () => 'disponible';
+    () => 'sin-datos';
 
   @Input() bloqueInfoFn: (fecha: string, hora: string) => string =
     () => '';

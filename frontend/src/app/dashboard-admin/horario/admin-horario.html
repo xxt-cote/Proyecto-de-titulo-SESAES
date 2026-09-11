@@ -175,7 +175,9 @@
             [class.fuera-horario-bloque]="bloqueEstadoFn(dia.fecha, h) === 'fuera-horario'"
             [class.bloqueado]="bloqueEstadoFn(dia.fecha, h) === 'bloqueado'"
             [class.cerrado-centro-bloque]="bloqueEstadoFn(dia.fecha, h) === 'cerrado-centro'"
-            [title]="bloqueEstadoFn(dia.fecha, h) === 'cerrado-centro' ? 'El centro no atiende este día' : (bloqueEstadoFn(dia.fecha, h) === 'fuera-horario' ? 'Fuera del horario habitual — clic para forzar sobrecupo' : (bloqueEstadoFn(dia.fecha, h) === 'colacion' ? 'Hora de colación — clic para forzar sobrecupo' : ''))"
+            [class.sin-datos-bloque]="bloqueEstadoFn(dia.fecha, h) === 'sin-datos'"
+            [attr.aria-disabled]="bloqueEstadoFn(dia.fecha, h) === 'sin-datos' ? 'true' : null"
+            [title]="bloqueEstadoFn(dia.fecha, h) === 'sin-datos' ? 'Disponibilidad aún no disponible' : (bloqueEstadoFn(dia.fecha, h) === 'cerrado-centro' ? 'El centro no atiende este día' : (bloqueEstadoFn(dia.fecha, h) === 'fuera-horario' ? 'Fuera del horario habitual — clic para forzar sobrecupo' : (bloqueEstadoFn(dia.fecha, h) === 'colacion' ? 'Hora de colación — clic para forzar sobrecupo' : '')))"
             (click)="bloqueClick.emit({ fecha: dia.fecha, hora: h })"
           >
             <span *ngIf="bloqueInfoFn(dia.fecha, h) as info" class="bloque-info">{{ info }}</span>

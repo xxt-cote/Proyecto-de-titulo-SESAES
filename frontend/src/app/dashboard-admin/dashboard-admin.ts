@@ -21,6 +21,26 @@ import { AdminAdministradoresComponent } from './administradores/admin-administr
 import * as XLSX from 'xlsx';
 
 
+interface SlotDisponibilidadBackend {
+  hora: string;
+  disponible: boolean;
+  motivo: string | null;
+  overridable_con_sobrecupo: boolean;
+}
+
+interface DiaDisponibilidadBackend {
+  fecha: string;
+  slots: SlotDisponibilidadBackend[];
+}
+
+interface RespuestaDisponibilidadRango {
+  profesional_id: number;
+  fecha_inicio: string;
+  fecha_fin: string;
+  duracion_min: number;
+  dias: DiaDisponibilidadBackend[];
+}
+
 const API = environment.apiUrl;
 
 @Component({
@@ -270,6 +290,11 @@ toggleSidebarMovil(): void {
     this.modalCitaAbierto = false;
     this.sobrecupoConfirmAbierto = false;
     this.sobrecupoPendiente = null;
+
+    // A.2B.2: cualquier cambio de contexto invalida también la agenda
+    // operacional que pudo haberse cargado con permisos/scope anteriores.
+    this.citasHorario = [];
+    this.invalidarDisponibilidadRango();
   }
 
   private cargarContextoAdministrativoEfectivo(): void {
@@ -898,6 +923,14 @@ toggleSidebarMovil(): void {
 
   private citasHorario: any[] = [];
 
+  // A.2B.2 — disponibilidad de Semana. El backend es la única fuente de
+  // verdad para decidir si un slot sin cita está disponible o bloqueado.
+  // Se indexa por fecha+hora para lookup O(1) desde la grilla.
+  private disponibilidadPorFecha: Record<string, Record<string, SlotDisponibilidadBackend>> = {};
+  disponibilidadCargando = false;
+  disponibilidadError = false;
+  private disponibilidadRequestId = 0;
+
   busquedaEstudiante          = '';
   resultadosEstudiante: any[] = [];
   estudianteSeleccionado: any = null;
@@ -909,20 +942,117 @@ toggleSidebarMovil(): void {
       : this.profesionales;
   }
 
-  filtrarProfesionales(): void { this.filtroProfesionalId = ''; this.diaSeleccionado = null; }
+  filtrarProfesionales(): void {
+    this.filtroProfesionalId = '';
+    this.diaSeleccionado = null;
+    this.citasHorario = [];
+    this.invalidarDisponibilidadRango();
+  }
+
+  private invalidarDisponibilidadRango(): number {
+    this.disponibilidadRequestId += 1;
+    this.disponibilidadPorFecha = {};
+    this.disponibilidadCargando = false;
+    this.disponibilidadError = false;
+    return this.disponibilidadRequestId;
+  }
+
+  private indexarDisponibilidadRango(
+    respuesta: RespuestaDisponibilidadRango
+  ): Record<string, Record<string, SlotDisponibilidadBackend>> {
+    const mapa: Record<string, Record<string, SlotDisponibilidadBackend>> = {};
+
+    for (const dia of respuesta.dias ?? []) {
+      const fecha = String(dia?.fecha ?? '');
+      if (!fecha || !Array.isArray(dia?.slots)) continue;
+
+      const slots: Record<string, SlotDisponibilidadBackend> = {};
+      for (const slot of dia.slots) {
+        const hora = String(slot?.hora ?? '').substring(0, 5);
+        if (!hora) continue;
+        slots[hora] = slot;
+      }
+      mapa[fecha] = slots;
+    }
+
+    return mapa;
+  }
+
+  private respuestaDisponibilidadCorresponde(
+    respuesta: RespuestaDisponibilidadRango | null | undefined,
+    profesionalId: number,
+    fechaInicio: string,
+    fechaFin: string
+  ): respuesta is RespuestaDisponibilidadRango {
+    return !!respuesta
+      && Number(respuesta.profesional_id) === profesionalId
+      && respuesta.fecha_inicio === fechaInicio
+      && respuesta.fecha_fin === fechaFin
+      && Array.isArray(respuesta.dias);
+  }
 
   cargarHorarioProfesional(): void {
-    if (!this.hasPermission('agenda.ver')) {
-      this.citasHorario = [];
-      return;
-    }
-    if (!this.filtroProfesionalId) return;
-    this.http.get<any[]>(`${API}/agenda/profesional/${this.filtroProfesionalId}/citas`).subscribe({
+    const requestId = this.invalidarDisponibilidadRango();
+    this.citasHorario = [];
+
+    if (!this.hasPermission('agenda.ver')) return;
+
+    const profesionalId = Number(this.filtroProfesionalId);
+    const fechaInicio = String(this.semanaActual[0]?.fecha ?? '');
+    const fechaFin = String(this.semanaActual[this.semanaActual.length - 1]?.fecha ?? '');
+
+    if (!Number.isInteger(profesionalId) || profesionalId <= 0 || !fechaInicio || !fechaFin) return;
+
+    // Citas reales y disponibilidad se consultan una vez por selección/rango.
+    // El mismo token evita que respuestas de un profesional/semana anterior
+    // vuelvan a pintar la grilla después de una navegación rápida.
+    this.http.get<any[]>(`${API}/agenda/profesional/${profesionalId}/citas`).subscribe({
       next: (data) => {
+        if (requestId !== this.disponibilidadRequestId) return;
         this.citasHorario = data ?? [];
         this.cdr.detectChanges();
       },
-      error: () => { this.citasHorario = []; }
+      error: () => {
+        if (requestId !== this.disponibilidadRequestId) return;
+        this.citasHorario = [];
+        this.cdr.detectChanges();
+      }
+    });
+
+    this.disponibilidadCargando = true;
+    const url = `${API}/agenda/profesional/${profesionalId}/disponibilidad`
+      + `?fecha_inicio=${encodeURIComponent(fechaInicio)}`
+      + `&fecha_fin=${encodeURIComponent(fechaFin)}`;
+
+    this.http.get<RespuestaDisponibilidadRango>(url).subscribe({
+      next: (respuesta) => {
+        if (requestId !== this.disponibilidadRequestId) return;
+
+        if (!this.respuestaDisponibilidadCorresponde(
+          respuesta,
+          profesionalId,
+          fechaInicio,
+          fechaFin
+        )) {
+          this.disponibilidadPorFecha = {};
+          this.disponibilidadCargando = false;
+          this.disponibilidadError = true;
+          this.cdr.detectChanges();
+          return;
+        }
+
+        this.disponibilidadPorFecha = this.indexarDisponibilidadRango(respuesta);
+        this.disponibilidadCargando = false;
+        this.disponibilidadError = false;
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        if (requestId !== this.disponibilidadRequestId) return;
+        this.disponibilidadPorFecha = {};
+        this.disponibilidadCargando = false;
+        this.disponibilidadError = true;
+        this.cdr.detectChanges();
+      }
     });
   }
 
@@ -941,6 +1071,15 @@ toggleSidebarMovil(): void {
       const f = this.toDateStr(d);
       return { nombre: nombres[i], num: d.getDate(), fecha: f, esHoy: f === hoyStr };
     });
+
+    // Corrección A.2B v2, punto 1: si el día previamente seleccionado ya no
+    // pertenece a la semana recién construida (navegación de semana), se
+    // limpia — de lo contrario el panel contextual seguía mostrando un día
+    // de la semana anterior aunque ya no fuera visible en la grilla.
+    if (this.diaSeleccionado && !this.semanaActual.some(d => d.fecha === this.diaSeleccionado)) {
+      this.diaSeleccionado = null;
+    }
+
     const mesesN = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
     const inicio = this.parseDateStrLocal(this.semanaActual[0].fecha);
     const fin = this.parseDateStrLocal(this.semanaActual[6].fecha);
@@ -1012,10 +1151,41 @@ toggleSidebarMovil(): void {
     return this.diasCerrados.some(d => d.fecha === fecha);
   }
 
-  getBloqueEstado(fecha: string, hora: string): string {
-    if (this.profesionalActualBloqueado) return 'bloqueado';
-    if (this.esDiaCerrado(fecha)) return 'cerrado-centro';
+  private buscarDisponibilidadEnBloque(
+    fecha: string,
+    hora: string
+  ): SlotDisponibilidadBackend | null {
+    return this.disponibilidadPorFecha[fecha]?.[hora.substring(0, 5)] ?? null;
+  }
 
+  private claseVisualParaMotivo(slot: SlotDisponibilidadBackend): string {
+    if (slot.disponible) return 'disponible';
+
+    switch (slot.motivo) {
+      case 'dia_cerrado':
+      case 'fin_de_semana':
+        return 'cerrado-centro';
+      case 'en_colacion':
+        return 'colacion';
+      case 'fuera_de_jornada':
+        return 'fuera-horario';
+      case 'slot_ocupado':
+        return 'ocupado';
+      case 'profesional_inactivo':
+      case 'fecha_pasada':
+      case 'hora_pasada':
+      case 'hora_fuera_de_grilla':
+        return 'bloqueado';
+      default:
+        // Motivo desconocido o respuesta incompleta: no inferir disponibilidad.
+        return 'sin-datos';
+    }
+  }
+
+  getBloqueEstado(fecha: string, hora: string): string {
+    // Una cita operacional real tiene prioridad visual. Así, si las dos
+    // lecturas llegan en distinto orden, nunca se oculta una reserva real
+    // detrás de un estado de disponibilidad.
     const cita = this.buscarCitaEnBloque(fecha, hora);
     if (cita) {
       if (cita.urgente)   return 'urgente';
@@ -1023,16 +1193,18 @@ toggleSidebarMovil(): void {
       return 'ocupado';
     }
 
-    if (this.esHoraDeAlmuerzo(hora))          return 'colacion';
-    if (this.esFueraDeHorarioProfesional(hora)) return 'fuera-horario';
-    return 'disponible';
+    const slot = this.buscarDisponibilidadEnBloque(fecha, hora);
+    if (!slot) return 'sin-datos';
+
+    return this.claseVisualParaMotivo(slot);
   }
 
   getBloqueInfo(fecha: string, hora: string): string {
-    if (this.esDiaCerrado(fecha)) return '';
     const cita = this.buscarCitaEnBloque(fecha, hora);
     if (cita) return cita.sobrecupo ? `${cita.estudiante} (Sobrecupo)` : cita.estudiante;
-    if (this.esHoraDeAlmuerzo(hora)) return 'Colación';
+
+    const slot = this.buscarDisponibilidadEnBloque(fecha, hora);
+    if (slot?.motivo === 'en_colacion') return 'Colación';
     return '';
   }
 
@@ -1049,9 +1221,16 @@ toggleSidebarMovil(): void {
 
   clickBloque(fecha: string, hora: string): void {
     const estado = this.getBloqueEstado(fecha, hora);
-    if (estado === 'bloqueado' || estado === 'cerrado-centro') return;
 
-    this.diaSeleccionado = fecha;
+    // Corrección A.2B v2, punto 2: el panel contextual debe reflejar el día
+    // en que se hizo clic aunque el bloque no sea agendable — por ejemplo
+    // una cita histórica, un día cerrado o un slot ya pasado. Solo se omite
+    // cuando ni siquiera hay datos de disponibilidad todavía ('sin-datos').
+    if (estado !== 'sin-datos') {
+      this.diaSeleccionado = fecha;
+    }
+
+    if (estado === 'sin-datos' || estado === 'bloqueado' || estado === 'cerrado-centro') return;
 
     // Un usuario con agenda.ver puede seleccionar
     // el dia, pero no abrir citas ni sobrecupos.
@@ -1060,6 +1239,9 @@ toggleSidebarMovil(): void {
     if (estado === 'disponible') {
       this.abrirModalNuevaCitaConFechaHora(fecha, hora, false);
     } else if (estado === 'colacion' || estado === 'fuera-horario') {
+      const slot = this.buscarDisponibilidadEnBloque(fecha, hora);
+      if (!slot?.overridable_con_sobrecupo) return;
+
       this.sobrecupoPendiente = {
         fecha, hora,
         motivoTexto: estado === 'colacion'
@@ -1087,11 +1269,21 @@ toggleSidebarMovil(): void {
     this.abrirModalNuevaCitaConFechaHora(fecha, hora, true);
   }
 
+  // Corrección A.2B v2, punto 3: una fecha histórica (ya pasada) nunca debe
+  // abrir "Nueva cita" — ni siquiera si diaSeleccionado quedó apuntando a
+  // ella (p. ej. el botón de la barra de herramientas usa diaSeleccionado
+  // directamente, sin pasar por clickBloque()).
+  private esFechaPasada(fecha: string): boolean {
+    if (!fecha) return false;
+    return fecha < this.toDateStr(new Date());
+  }
+
   abrirModalNuevaCita(): void { this.abrirModalNuevaCitaConFechaHora(this.diaSeleccionado ?? '', '', false); }
 
   abrirModalNuevaCitaConFechaHora(fecha: string, hora: string, esSobrecupo: boolean = false): void {
     if (!this.hasPermission('agenda.gestionar')) return;
     if (this.profesionalActualBloqueado) return;
+    if (this.esFechaPasada(fecha)) return;
     this.nuevaCita = {
       fecha, hora, estudiante_id: null, profesional_id: Number(this.filtroProfesionalId),
       observaciones: '', urgente: false, sobrecupo: esSobrecupo
