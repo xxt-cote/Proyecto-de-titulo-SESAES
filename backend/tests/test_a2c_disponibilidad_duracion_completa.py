@@ -418,7 +418,10 @@ def test_crear_cita_estudiante_rechaza_solapamiento_parcial_aunque_hora_inicio_s
             current_user={"id": nuevo.id, "rol": "estudiante"},
         )
 
-    assert exc.value.status_code == 400
+    # A.3 — slot_ocupado (aquí, solapamiento parcial de intervalos)
+    # tras la re-evaluación dentro del lock es un conflicto (409), no
+    # una simple invalidez de datos (400).
+    assert exc.value.status_code == 409
     assert db_session.query(Cita).count() == 1  # solo la ya existente
 
 
@@ -448,7 +451,8 @@ def test_sobrecupo_admin_no_supera_solapamiento_parcial(db_session, monkeypatch)
     with pytest.raises(HTTPException) as exc:
         citas.crear_cita(cita=payload, db=db_session, current_user={"id": 999, "rol": "admin"})
 
-    assert exc.value.status_code == 400
+    # A.3 — ver nota en test_crear_cita_estudiante_rechaza_solapamiento_parcial...
+    assert exc.value.status_code == 409
     assert db_session.query(Cita).count() == 1
 
 

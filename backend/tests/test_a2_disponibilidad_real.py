@@ -58,6 +58,7 @@ from app.models.usuario import Usuario
 from app.rbac.admin_authorization import AlcanceAdministrativoEfectivo
 from app.routers import admin, citas
 from app.schemas import CitaCreate
+import app.services.agenda_disponibilidad_service as agenda_disponibilidad_service
 from app.services.agenda_disponibilidad_service import (
     VENTANA_AGENDAMIENTO_ESTUDIANTE_DIAS,
     evaluar_disponibilidad_slot,
@@ -615,14 +616,42 @@ def test_fin_de_semana_es_rechazado_y_no_overridable(db_session):
     assert resultado.overridable_con_sobrecupo is False
 
 
-def test_hora_ya_pasada_hoy_es_rechazada_y_no_overridable(db_session):
+def test_hora_ya_pasada_hoy_es_rechazada_y_no_overridable(db_session, monkeypatch):
     """Corrección v2, punto 2: regla ESTRUCTURAL de "hoy" — una hora que
-    ya pasó no es agendable aunque el resto de las reglas la permitan."""
+    ya pasó no es agendable aunque el resto de las reglas la permitan.
+
+    A.3 (v2) — determinismo: este test antes usaba `date.today()`/
+    `datetime.now()` reales, lo que lo hacía fallar cualquier fin de
+    semana real (fin_de_semana, de mayor prioridad y sin cambios,
+    ganaba antes de llegar a evaluar "hora_pasada"). En vez de saltar
+    el test con pytest.skip() los fines de semana, se fija el reloj
+    que ve el módulo (date.today()/datetime.now()) a un miércoles
+    conocido vía monkeypatch, para que la regla se ejercite siempre,
+    cualquier día real en que se corra la suite. No se toca ninguna
+    lógica de negocio — solo qué "ahora" ve el módulo durante el test.
+    """
     prof = _profesional(db_session, horario_inicio="00:00", horario_fin="23:59")
     db_session.commit()
 
-    hoy = date.today().isoformat()
-    hora_pasada = (datetime.now() - timedelta(minutes=5)).strftime("%H:%M")
+    hoy_fijo = date(2026, 9, 9)  # miércoles conocido, nunca fin de semana
+    ahora_fijo = datetime(2026, 9, 9, 10, 0, 0)
+    assert hoy_fijo.weekday() < 5
+
+    class _FechaFija(date):
+        @classmethod
+        def today(cls):
+            return hoy_fijo
+
+    class _DatetimeFijo(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return ahora_fijo
+
+    monkeypatch.setattr(agenda_disponibilidad_service, "date", _FechaFija)
+    monkeypatch.setattr(agenda_disponibilidad_service, "datetime", _DatetimeFijo)
+
+    hoy = hoy_fijo.isoformat()
+    hora_pasada = (ahora_fijo - timedelta(minutes=5)).strftime("%H:%M")
 
     resultado = evaluar_disponibilidad_slot(
         db_session, profesional_id=prof.id, fecha=hoy, hora=hora_pasada,
@@ -953,7 +982,12 @@ def test_crear_cita_rechaza_slot_ya_ocupado_por_otra_cita(db_session):
             current_user=_current_user_estudiante(est),
         )
 
-    assert exc.value.status_code == 400
+    # A.3 — slot_ocupado tras la re-evaluación dentro del lock de
+    # concurrencia es, por definición, un conflicto (409), no una
+    # simple invalidez de datos (400). La lógica de disponibilidad en
+    # sí (que ESTA hora está ocupada) no cambió — solo el código HTTP
+    # con el que se comunica.
+    assert exc.value.status_code == 409
 
 
 def test_crear_cita_estudiante_rechaza_slot_ocupado_guardado_en_ampm(db_session):
@@ -987,7 +1021,8 @@ def test_crear_cita_estudiante_rechaza_slot_ocupado_guardado_en_ampm(db_session)
             current_user=_current_user_estudiante(est),
         )
 
-    assert exc.value.status_code == 400
+    # A.3 — ver nota de test_crear_cita_rechaza_slot_ya_ocupado_por_otra_cita.
+    assert exc.value.status_code == 409
     assert db_session.query(Cita).count() == 1  # solo la ya existente
 
 
@@ -1128,7 +1163,10 @@ def test_sobrecupo_admin_no_supera_slot_ya_ocupado(db_session, monkeypatch):
             current_user={"id": 999, "rol": "admin"},
         )
 
-    assert exc.value.status_code == 400
+    # A.3 — ver nota en test_crear_cita_rechaza_slot_ya_ocupado_por_otra_cita:
+    # slot_ocupado ahora es 409, no 400. sobrecupo=True sigue sin poder
+    # superarlo (no cambia qué motivos son overridable).
+    assert exc.value.status_code == 409
 
 
 def test_sobrecupo_admin_no_supera_slot_ocupado_fuera_de_jornada(db_session, monkeypatch):
@@ -1162,7 +1200,7 @@ def test_sobrecupo_admin_no_supera_slot_ocupado_fuera_de_jornada(db_session, mon
             current_user={"id": 999, "rol": "admin"},
         )
 
-    assert exc.value.status_code == 400
+    assert exc.value.status_code == 409
     assert "reservada" in exc.value.detail.lower() or "ocupad" in exc.value.detail.lower()
     # Solo debe existir la cita original — el sobrecupo no se insertó.
     assert db_session.query(Cita).count() == 1
@@ -1204,7 +1242,7 @@ def test_sobrecupo_admin_no_supera_slot_ocupado_en_colacion(db_session, monkeypa
             current_user={"id": 999, "rol": "admin"},
         )
 
-    assert exc.value.status_code == 400
+    assert exc.value.status_code == 409
     assert db_session.query(Cita).count() == 1
 
 

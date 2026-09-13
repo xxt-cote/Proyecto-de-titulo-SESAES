@@ -23,6 +23,9 @@ from app.rbac.admin_authorization import (
 from app.services.agenda_disponibilidad_service import (
     evaluar_disponibilidad_slot,
     excede_ventana_agendamiento_estudiante,
+    adquirir_lock_agenda_profesional_fecha,
+    canonicalizar_fecha_valida,
+    SlotInvalidoError,
 )
 
 router = APIRouter(tags=["citas"])
@@ -223,11 +226,25 @@ def crear_cita(
         db,
     )
 
+    # A.3 (v3) — canonicalizar la fecha UNA sola vez, antes de CUALQUIER
+    # query que dependa de ella, y reutilizar exactamente ese mismo
+    # valor en todo el resto del flujo (DiaCerrado, ventana de
+    # agendamiento, lock, evaluar_disponibilidad_slot, INSERT de
+    # Cita.fecha) — ver canonicalizar_fecha_valida() en
+    # agenda_disponibilidad_service.py. Una fecha no interpretable
+    # nunca se mutasilenciosamente ni se deja pasar: se rechaza acá
+    # mismo con 400, antes de la consulta de DiaCerrado que existía
+    # antes de esta corrección y que comparaba contra el string crudo.
+    try:
+        fecha_canon = canonicalizar_fecha_valida(cita.fecha)
+    except SlotInvalidoError as exc:
+        raise HTTPException(status_code=400, detail=exc.mensaje)
+
     # Un día marcado como "cerrado" (centro completo sin atención) bloquea
     # el agendamiento sin excepción, incluso para el admin — ningún
     # profesional trabaja ese día, así que no existe sobrecupo posible ahí.
     from app.models.dia_cerrado import DiaCerrado
-    if db.query(DiaCerrado).filter(DiaCerrado.fecha == cita.fecha).first():
+    if db.query(DiaCerrado).filter(DiaCerrado.fecha == fecha_canon).first():
         raise HTTPException(status_code=400, detail="El centro permanece cerrado ese día. Elige otra fecha.")
 
     prof = (
@@ -266,7 +283,7 @@ def crear_cita(
     # quien agenda tiene capacidad administrativa, para no romper la
     # futura Agenda Admin, que necesita poder navegar/agendar semanas
     # posteriores a esta ventana.
-    if not puede_gestionar_agenda and excede_ventana_agendamiento_estudiante(cita.fecha):
+    if not puede_gestionar_agenda and excede_ventana_agendamiento_estudiante(fecha_canon):
         raise HTTPException(
             status_code=400,
             detail="Esa fecha está fuera del rango de agendamiento disponible.",
@@ -287,10 +304,27 @@ def crear_cita(
     # ya tenía el frontend (clickBloque() solo ofrece sobrecupo para
     # 'fuera-horario' y 'colacion'). El diseño definitivo de
     # autorización/auditoría de sobrecupo queda para A.4.
+    #
+    # A.3 — concurrencia/doble-reserva: el lock DEBE adquirirse ANTES
+    # de esta re-evaluación, no después. evaluar_disponibilidad_slot()
+    # aquí NO es una simple validación — es la re-evaluación dentro de
+    # la sección crítica que cierra la carrera SELECT→INSERT: dos
+    # peticiones concurrentes para el mismo profesional/fecha se
+    # serializan en esta línea (la segunda espera hasta que la primera
+    # haga commit/rollback), y para cuando la segunda continúa, ya ve
+    # la cita que la primera insertó. Evaluar antes del lock y confiar
+    # en que el resultado siga vigente al insertar es exactamente la
+    # carrera que esto existe para cerrar — ver
+    # adquirir_lock_agenda_profesional_fecha().
+    adquirir_lock_agenda_profesional_fecha(
+        db,
+        profesional_id=cita.profesional_id,
+        fecha=fecha_canon,
+    )
     resultado_disponibilidad = evaluar_disponibilidad_slot(
         db,
         profesional_id=cita.profesional_id,
-        fecha=cita.fecha,
+        fecha=fecha_canon,
         hora=cita.hora,
     )
     if not resultado_disponibilidad.disponible:
@@ -300,8 +334,21 @@ def crear_cita(
             and resultado_disponibilidad.overridable_con_sobrecupo
         )
         if not sobrecupo_autoriza:
+            # A.3 — "slot_ocupado" tras la re-evaluación DENTRO del
+            # lock es, por definición, perder la carrera (alguien más
+            # ocupó ese intervalo, ya sea justo ahora o antes de que
+            # esta petición llegara): 409 Conflict, no 400. El resto de
+            # los motivos (fuera de jornada, en colación, fuera de
+            # grilla, día cerrado, etc.) son problemas de validez del
+            # slot en sí, no de concurrencia, y mantienen 400 — no se
+            # convierte automáticamente en sobrecupo en ningún caso.
+            status_code = (
+                409
+                if resultado_disponibilidad.motivo == "slot_ocupado"
+                else 400
+            )
             raise HTTPException(
-                status_code=400,
+                status_code=status_code,
                 detail=resultado_disponibilidad.mensaje or "Esa hora no está disponible.",
             )
 
@@ -336,7 +383,12 @@ def crear_cita(
     nueva = Cita(
         estudiante_id  = cita.estudiante_id,
         profesional_id = cita.profesional_id,
-        fecha          = cita.fecha,
+        # A.3 (v3) — se guarda fecha_canon, NUNCA cita.fecha crudo: es
+        # la misma forma canónica ya usada arriba para DiaCerrado, el
+        # lock y evaluar_disponibilidad_slot (ver
+        # canonicalizar_fecha_valida()). Guardar el string crudo aquí
+        # era precisamente el hueco que A.3 (v2) dejaba abierto.
+        fecha          = fecha_canon,
         hora           = cita.hora,
         observaciones  = cita.observaciones,
         # Estas marcas son administrativas: el estudiante no puede
@@ -357,9 +409,17 @@ def crear_cita(
     try:
         db.commit()
     except IntegrityError:
-        # Otra persona reservó exactamente esta misma hora una fracción de
-        # segundo antes (dos peticiones simultáneas) — lo atrapa el índice
-        # único de la base de datos, no solo la validación de arriba.
+        # A.3 — esta red de seguridad NO es (nunca lo fue) la
+        # protección real contra doble reserva: Cita no tiene, ni tuvo
+        # nunca, ningún UniqueConstraint/Index único sobre
+        # (profesional_id, fecha, hora) que este INSERT pudiera violar
+        # (confirmado en el diagnóstico de A.3 — antes este comentario
+        # afirmaba lo contrario, era falso). La protección real es
+        # adquirir_lock_agenda_profesional_fecha() + la re-evaluación
+        # de evaluar_disponibilidad_slot() DENTRO de ese lock, arriba.
+        # Este except se conserva solo como red de seguridad genérica
+        # ante cualquier violación de integridad real (p. ej. FK), no
+        # como mecanismo de concurrencia.
         db.rollback()
         raise HTTPException(
             status_code=409,

@@ -224,6 +224,45 @@ Alcance explícito de A.2 (ver auditoría previa de Agenda V2):
   bloque: detectar superposición en una lectura no es protección
   transaccional contra dos peticiones simultáneas — eso se resuelve
   explícitamente en A.3, no acá.
+
+── A.3 — concurrencia / doble reserva ──
+
+  Hasta acá, evaluar_disponibilidad_slot() (y su re-implementación
+  paralela para urgente, que no llamaba a nada de este módulo) hacían
+  SELECT → INSERT sin ninguna protección transaccional: dos peticiones
+  concurrentes podían leer ambas "libre" antes de que cualquiera
+  insertara, y las dos citas solapadas quedaban activas. El comentario
+  en citas.py que decía que un índice único de la base de datos
+  atrapaba esto era FALSO — Cita no tiene, ni tuvo nunca, ningún
+  UniqueConstraint/Index sobre (profesional_id, fecha, hora); se
+  corrigió ese comentario junto con esta implementación.
+
+  Se agregan dos piezas nuevas, ambas reutilizables desde cualquier
+  endpoint que cree citas:
+
+    - `adquirir_lock_agenda_profesional_fecha()`: lock exclusivo de
+      ámbito de TRANSACCIÓN, vía pg_advisory_xact_lock(profesional_id,
+      YYYYMMDD) en PostgreSQL — no-op explícito en SQLite (no ofrece la
+      garantía real; ver test de integración marcado
+      @pytest.mark.postgres). Debe adquirirse ANTES de re-evaluar
+      disponibilidad/ocupación y ANTES de insertar, dentro de la MISMA
+      transacción que hará el INSERT — evaluar antes del lock y confiar
+      en que el resultado siga vigente es exactamente la carrera que
+      esto existe para cerrar.
+    - `hay_solapamiento_con_cita_activa()`: extrae SOLO el criterio de
+      superposición de intervalos (ya usado internamente por
+      _evaluar_slot_en_contexto()) para que POST /admin/citas/urgente
+      pueda protegerse de solapar una cita activa sin arrastrar el
+      resto de evaluar_disponibilidad_slot() (grilla, jornada,
+      colación, cierre de centro) — ese endpoint deliberadamente no
+      evalúa esas reglas (decisión histórica de A.2, ver
+      crear_cita_urgente en admin.py) y A.3 no amplía esa decisión,
+      solo cierra el hueco de ocupación/concurrencia.
+
+  Una carrera perdida sigue sin poder convertirse en sobrecupo=True:
+  `slot_ocupado` sigue siendo overridable_con_sobrecupo=False, sin
+  cambios — esta sección solo decide CUÁNDO se evalúa (dentro del
+  lock, no antes), no QUÉ motivos son superables.
 """
 
 from __future__ import annotations
@@ -231,6 +270,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models.cita import Cita
@@ -565,6 +605,246 @@ def _horas_ocupadas_normalizadas(
     return ocupadas
 
 
+class SlotInvalidoError(Exception):
+    """
+    A.3 (v2) — señal de dominio explícita: `hay_solapamiento_con_cita_activa()`
+    no pudo interpretar `fecha` u `hora`.
+
+    Deliberadamente NO es un `bool False`: False significaría "sí es
+    interpretable, y no hay solapamiento" — un fail-open peligroso para
+    POST /admin/citas/urgente, que no pasa por
+    evaluar_disponibilidad_slot() y por lo tanto no tiene ninguna otra
+    red de validación de formato aguas arriba. Quien la atrape debe
+    responder 400 (dato inválido, no autorización ni conflicto) y NO
+    continuar como si el slot estuviera libre, ni insertar nada.
+
+    Esto NO amplía la validación de urgente a jornada/colación/grilla
+    (sigue sin evaluarlas, ver docstring de crear_cita_urgente en
+    admin.py) — solo garantiza que fecha/hora sean interpretables antes
+    de poder comprobar ocupación con seguridad.
+    """
+
+    def __init__(self, mensaje: str):
+        super().__init__(mensaje)
+        self.mensaje = mensaje
+
+
+def canonicalizar_fecha_valida(fecha: str) -> str:
+    """
+    A.3 (v3) — helper compartido de canonicalización: parsea `fecha`
+    UNA sola vez y devuelve su forma canónica ("%Y-%m-%d",
+    `fecha_obj.isoformat()`), para que cada canal que crea una cita
+    (POST /citas, POST /admin/citas/urgente) reutilice exactamente el
+    mismo valor en TODA decisión crítica de ese flujo: consulta de
+    DiaCerrado, adquirir_lock_agenda_profesional_fecha(),
+    evaluar_disponibilidad_slot()/hay_solapamiento_con_cita_activa(), y
+    el INSERT de Cita.fecha.
+
+    Corrección del hueco detectado en A.3 (v2): _parsear_fecha() acepta
+    con strptime variantes no zero-padded ("2026-9-1") además de la
+    forma canónica ("2026-09-01") — ambas representan la MISMA fecha
+    real, pero son strings DISTINTOS. adquirir_lock_agenda_profesional_
+    fecha() y hay_solapamiento_con_cita_activa()/evaluar_disponibilidad_
+    slot() ya canonicalizaban internamente antes de construir su clave
+    de lock o su query de ocupación — pero ambos routers seguían
+    creando la fila `Cita` con `fecha=cita.fecha` crudo. Dos peticiones
+    para la MISMA fecha real, escritas con distinto formato de entrada
+    ("2026-9-1" vs "2026-09-01"), adquirían el MISMO advisory lock (las
+    claves ya eran canónicas), pero la segunda podía consultar
+    ocupación con un string que no coincidía byte a byte con la fila
+    que la primera acababa de guardar —un falso "no hay solapamiento"
+    que invalidaba la garantía fuerte de A.3 pese al lock compartido.
+
+    Lanza SlotInvalidoError si `fecha` no es interpretable — NUNCA
+    normaliza ni "adivina" una fecha inválida en silencio (p. ej. a la
+    fecha de hoy) solo para poder seguir. Quien llama debe traducir esa
+    excepción a 400 y no continuar con ninguna query ni INSERT.
+    """
+    fecha_obj = _parsear_fecha(fecha)
+    if fecha_obj is None:
+        raise SlotInvalidoError("Fecha inválida.")
+    return fecha_obj.isoformat()
+
+
+def _hay_solapamiento_con_ocupadas(
+    hora_obj: time,
+    fin_obj: time,
+    ocupadas: set[time],
+    duracion: int,
+) -> bool:
+    """
+    True si el intervalo [hora_obj, fin_obj) se superpone con alguna
+    de las horas de `ocupadas` (cada una interpretada como
+    [ocupada, ocupada + duracion), la misma duración efectiva del
+    profesional — ver diagnóstico de A.2C/A.3: Cita no guarda su
+    propia duración).
+
+    Extraída de _evaluar_slot_en_contexto() (A.3) para que
+    hay_solapamiento_con_cita_activa() —usada por
+    POST /admin/citas/urgente— pueda reutilizar EXACTAMENTE este mismo
+    criterio de intervalos sin duplicar la lógica ni arrastrar el
+    resto de las reglas de disponibilidad (grilla, jornada, colación,
+    cierre de centro), que no le corresponden a ese endpoint.
+    """
+    for ocupada in ocupadas:
+        ocupada_fin, _ = _fin_intervalo(ocupada, duracion)
+        if _intervalos_se_superponen(hora_obj, fin_obj, ocupada, ocupada_fin):
+            return True
+    return False
+
+
+def hay_solapamiento_con_cita_activa(
+    db: Session,
+    *,
+    profesional: Profesional,
+    fecha: str,
+    hora: str,
+) -> bool:
+    """
+    A.3 — True si el intervalo [hora, hora+duracion) de `profesional`
+    en `fecha` se superpone con alguna cita activa existente (estado
+    en ESTADOS_CITA_QUE_OCUPAN_SLOT) de ese mismo profesional/fecha.
+
+    Consulta la base de datos (a diferencia de _evaluar_slot_en_contexto,
+    que es puro). Pensada para POST /admin/citas/urgente: ese endpoint
+    deliberadamente NO llama a evaluar_disponibilidad_slot() (no evalúa
+    grilla, jornada, colación ni cierre de centro — decisión histórica
+    de A.2, ver docstring de crear_cita_urgente en admin.py, que A.3 no
+    amplía). Pero SÍ debe protegerse de solapar una cita activa
+    existente (objetivo mínimo de A.3), así que expone solo esa parte
+    de la lógica, reutilizando literalmente las mismas piezas que usa
+    el núcleo de disponibilidad (_horas_ocupadas_normalizadas,
+    _fin_intervalo, _intervalos_se_superponen, _duracion_efectiva) en
+    vez de reimplementarlas.
+
+    Debe llamarse DESPUÉS de adquirir
+    adquirir_lock_agenda_profesional_fecha() para la misma
+    (profesional_id, fecha), dentro de la misma transacción — de lo
+    contrario sigue existiendo la carrera SELECT→INSERT que A.3 busca
+    cerrar.
+
+    A.3 (v2) — dos correcciones de seguridad de datos:
+
+    1. `fecha`/`hora` no parseables lanzan SlotInvalidoError, NUNCA
+       devuelven False. Un `hora`/`fecha` inválida "resuelta como sin
+       solapamiento" sería fail-open: como urgente no pasa por
+       evaluar_disponibilidad_slot(), nada más aguas arriba rechazaría
+       ese dato, y la cita se insertaría igual. Quien llama (ver
+       admin.py) debe traducir esta excepción a 400 y NO insertar.
+    2. La consulta de ocupación usa `fecha_obj.isoformat()` (la forma
+       canónica "%Y-%m-%d" que produce _parsear_fecha), NUNCA el
+       string crudo recibido. `Cita.fecha` es una columna String
+       comparada por igualdad exacta; _parsear_fecha() acepta con
+       strptime formatos como "2026-9-1" (sin ceros de relleno) además
+       de "2026-09-01", y ambos representan la MISMA fecha pero son
+       strings distintos. Consultar con el string crudo podría no
+       encontrar una cita ya existente guardada en su forma canónica
+       (falso "no hay solapamiento"); canonicalizar antes de consultar
+       lo evita — mismo principio que la normalización de `hora` que
+       ya hace _horas_ocupadas_normalizadas() para "HH:MM" vs
+       "HH:MM AM/PM".
+    """
+    fecha_obj = _parsear_fecha(fecha)
+    if fecha_obj is None:
+        raise SlotInvalidoError("Fecha inválida.")
+
+    hora_obj = _parsear_hora_flexible(hora)
+    if hora_obj is None:
+        raise SlotInvalidoError("Hora inválida.")
+
+    duracion = _duracion_efectiva(profesional)
+    fin_obj, _cruza_medianoche = _fin_intervalo(hora_obj, duracion)
+    ocupadas = _horas_ocupadas_normalizadas(
+        db, profesional_id=profesional.id, fecha=fecha_obj.isoformat(),
+    )
+    return _hay_solapamiento_con_ocupadas(hora_obj, fin_obj, ocupadas, duracion)
+
+
+def adquirir_lock_agenda_profesional_fecha(
+    db: Session,
+    *,
+    profesional_id: int,
+    fecha: str,
+) -> None:
+    """
+    A.3 — concurrencia/doble-reserva: sección crítica compartida por
+    TODOS los canales que crean citas (POST /citas y
+    POST /admin/citas/urgente).
+
+    Adquiere un lock exclusivo de ámbito de TRANSACCIÓN, identificado
+    por (profesional_id, fecha). Se libera automáticamente al hacer
+    commit o rollback de `db` — nunca hay que liberarlo a mano. Debe
+    llamarse ANTES de re-evaluar ocupación/disponibilidad y ANTES de
+    insertar la Cita, dentro de la MISMA sesión que hará ese INSERT: la
+    sesión por-request de app.database.get_db() (autocommit=False) ya
+    vive exactamente ese ciclo de vida (se abre al primer query del
+    request, se cierra en su `finally`), así que basta con no abrir
+    una conexión aparte para el lock.
+
+    Patrón obligatorio en cada endpoint (ver A.3):
+        adquirir_lock_agenda_profesional_fecha(db, ...)   # 1. lock
+        resultado = evaluar_disponibilidad_slot(db, ...)  # 2. RE-evaluar
+        ...                                                # 3. INSERT si libre
+        db.commit()                                        # 4. libera el lock
+
+    Evaluar disponibilidad ANTES del lock y confiar en que ese
+    resultado siga vigente al insertar es exactamente la carrera que
+    A.3 existe para cerrar (dos lecturas ven "libre", ambas insertan).
+
+    Claves (int4, sin usar hash() de Python —no es determinista entre
+    procesos— ni hashtext(), evitable si se puede construir una clave
+    determinista sin hash):
+      - key1 = profesional_id: PK autoincremental, cabe holgadamente
+        en int4 (máx. 2_147_483_647).
+      - key2 = fecha como entero YYYYMMDD (p. ej. "2026-09-11" ->
+        20260911); el máximo teórico, 99991231, también cabe
+        holgadamente en int4. Si `fecha` no es parseable, se usa 0
+        como key2 — un único "balde" para fechas inválidas de ese
+        profesional: nunca habrá un INSERT real bajo esa key, porque
+        evaluar_disponibilidad_slot() (o la validación propia de
+        urgente) ya rechaza una fecha inválida antes de llegar al
+        INSERT, así que no hace falta —ni es posible— una clave más
+        fina para ese caso.
+
+    Comportamiento por dialecto — explícito, nunca asumido en
+    silencio:
+      - postgresql: adquiere pg_advisory_xact_lock(key1, key2) real.
+        Es la BD de producción; acá es donde la garantía es real.
+      - sqlite: no-op. SQLite no tiene locks advisory de sesión, y toda
+        la suite de tests actual corre contra sqlite:///:memory:. Un
+        no-op EXPLÍCITO dice claramente en el código que SQLite no
+        ofrece la garantía real de A.3 — el aislamiento real de
+        concurrencia se valida en el test de integración marcado
+        @pytest.mark.postgres (ver tests_a3_concurrencia_postgres.py),
+        no en la suite rápida.
+      - cualquier otro dialecto: falla explícitamente (RuntimeError) en
+        vez de dejar pasar en silencio una operación sin ninguna
+        protección real — un error ruidoso en desarrollo es preferible
+        a una falsa sensación de seguridad en producción bajo un motor
+        no contemplado.
+    """
+    dialecto = db.get_bind().dialect.name
+
+    if dialecto == "postgresql":
+        fecha_obj = _parsear_fecha(fecha)
+        key2 = int(fecha_obj.strftime("%Y%m%d")) if fecha_obj is not None else 0
+        db.execute(
+            text("SELECT pg_advisory_xact_lock(:key1, :key2)"),
+            {"key1": profesional_id, "key2": key2},
+        )
+        return
+
+    if dialecto == "sqlite":
+        return
+
+    raise RuntimeError(
+        f"A.3: no hay estrategia de lock de concurrencia definida para "
+        f"el dialecto {dialecto!r}. No se debe asumir en silencio que "
+        f"existe protección contra doble reserva en un motor de base "
+        f"de datos no contemplado explícitamente."
+    )
+
+
 def excede_ventana_agendamiento_estudiante(
     fecha: str,
     *,
@@ -756,15 +1036,13 @@ def _evaluar_slot_en_contexto(
     # porque Cita no guarda su propia duración — la única fuente de
     # duración sigue siendo Profesional.duracion_min (ver diagnóstico
     # del bloque de hardening); esto no es nuevo, ya era así antes.
-    for ocupada in ocupadas:
-        ocupada_fin, _ = _fin_intervalo(ocupada, duracion)
-        if _intervalos_se_superponen(hora_obj, fin_obj, ocupada, ocupada_fin):
-            return (
-                False,
-                "slot_ocupado",
-                "Esa hora ya está reservada.",
-                False,
-            )
+    if _hay_solapamiento_con_ocupadas(hora_obj, fin_obj, ocupadas, duracion):
+        return (
+            False,
+            "slot_ocupado",
+            "Esa hora ya está reservada.",
+            False,
+        )
 
     disponible, motivo, mensaje, overridable = _evaluar_reglas_jornada(
         profesional=profesional,

@@ -35,6 +35,12 @@ from app.rbac.admin_authorization import (
     obtener_alcance_administrativo_efectivo,
     especialidad_permitida_por_alcance,
 )
+from app.services.agenda_disponibilidad_service import (
+    adquirir_lock_agenda_profesional_fecha,
+    hay_solapamiento_con_cita_activa,
+    SlotInvalidoError,
+    canonicalizar_fecha_valida,
+)
 
 
 
@@ -1502,7 +1508,21 @@ def crear_cita_urgente(cita: CitaCreate, db: Session = Depends(get_db), current_
             detail="No tienes acceso al alcance solicitado.",
         )
 
-    if db.query(DiaCerrado).filter(DiaCerrado.fecha == cita.fecha).first():
+    # A.3 (v3) — canonicalizar la fecha UNA sola vez, antes de CUALQUIER
+    # query que dependa de ella, y reutilizar exactamente ese mismo
+    # valor en todo el resto del flujo (DiaCerrado, lock,
+    # hay_solapamiento_con_cita_activa, INSERT de Cita.fecha) — ver
+    # canonicalizar_fecha_valida() en agenda_disponibilidad_service.py.
+    # Una fecha no interpretable nunca se mutasilenciosamente ni se deja
+    # pasar: se rechaza acá mismo con 400, antes de la consulta de
+    # DiaCerrado que existía antes de esta corrección y que comparaba
+    # contra el string crudo.
+    try:
+        fecha_canon = canonicalizar_fecha_valida(cita.fecha)
+    except SlotInvalidoError as exc:
+        raise HTTPException(status_code=400, detail=exc.mensaje)
+
+    if db.query(DiaCerrado).filter(DiaCerrado.fecha == fecha_canon).first():
         raise HTTPException(status_code=400, detail="El centro permanece cerrado ese día. Elige otra fecha.")
 
     prof = db.query(Profesional).filter(Profesional.id == cita.profesional_id).first()
@@ -1528,9 +1548,67 @@ def crear_cita_urgente(cita: CitaCreate, db: Session = Depends(get_db), current_
             status_code=400,
             detail="El paciente seleccionado no corresponde a una cuenta de estudiante."
         )
+    # A.3 (v3) — se guarda fecha_canon, NUNCA cita.fecha crudo: es la
+    # misma forma canónica ya usada arriba para DiaCerrado (ver
+    # canonicalizar_fecha_valida()); se reutiliza también abajo para el
+    # lock y hay_solapamiento_con_cita_activa. Guardar el string crudo
+    # aquí era precisamente el hueco que A.3 (v2) dejaba abierto.
     nueva = Cita(estudiante_id=cita.estudiante_id, profesional_id=cita.profesional_id,
-                 fecha=cita.fecha, hora=cita.hora, observaciones=cita.observaciones,
+                 fecha=fecha_canon, hora=cita.hora, observaciones=cita.observaciones,
                  estado="pendiente", urgente=True)
+
+    # A.3 — concurrencia/doble-reserva, y cierre del hueco de ocupación
+    # que este endpoint tenía desde A.2 (ver diagnóstico de A.3):
+    # crear_cita_urgente() deliberadamente NO llama a
+    # evaluar_disponibilidad_slot() — no evalúa grilla, jornada,
+    # colación ni cierre de centro, decisión histórica de A.2 que A.3
+    # NO amplía (su relación definitiva con disponibilidad estructural
+    # sigue pendiente de la fase específica de urgencias/emergencias).
+    # Pero SÍ debe protegerse, como cualquier otro canal, de dejar dos
+    # citas activas solapadas para el mismo profesional — ese es el
+    # objetivo mínimo obligatorio de A.3, y hoy este endpoint podía
+    # solapar una cita activa incluso SIN ninguna carrera de por medio,
+    # simplemente porque nunca comprobaba ocupación.
+    #
+    # El lock debe adquirirse ANTES de comprobar solapamiento, y la
+    # comprobación debe repetirse DENTRO de él — evaluar antes del lock
+    # y confiar en que el resultado siga vigente al insertar es
+    # exactamente la carrera que esto existe para cerrar (ver
+    # adquirir_lock_agenda_profesional_fecha()).
+    #
+    # urgente=True NO es un permiso para crear una segunda cita encima
+    # de otra activa: si hay solapamiento, 409 — nunca se convierte
+    # automáticamente en sobrecupo (que además este endpoint ni
+    # siquiera expone hoy; ver CitaCreate.sobrecupo, ignorado acá).
+    adquirir_lock_agenda_profesional_fecha(
+        db,
+        profesional_id=cita.profesional_id,
+        fecha=fecha_canon,
+    )
+    # A.3 (v2) — fecha/hora no interpretables deben rechazarse con 400
+    # ANTES de decidir si hay solapamiento: nunca "no hay solapamiento"
+    # por defecto (fail-open), porque este endpoint no pasa por
+    # evaluar_disponibilidad_slot() y no tiene otra red de validación
+    # de formato. Ver SlotInvalidoError en agenda_disponibilidad_service.py.
+    # (v3) — `fecha` ya se canonicalizó y validó arriba con
+    # canonicalizar_fecha_valida(); este try/except queda por si
+    # `hora` es la que resulta inválida (fecha ya no puede fallar acá).
+    try:
+        hay_conflicto = hay_solapamiento_con_cita_activa(
+            db,
+            profesional=prof,
+            fecha=fecha_canon,
+            hora=cita.hora,
+        )
+    except SlotInvalidoError as exc:
+        raise HTTPException(status_code=400, detail=exc.mensaje)
+
+    if hay_conflicto:
+        raise HTTPException(
+            status_code=409,
+            detail="Esa hora ya está reservada por otra cita activa. Elige otra hora.",
+        )
+
     db.add(nueva)
     try:
         # SA-2 — transaccionalidad: flush() envía el INSERT de `nueva` a la
@@ -1540,22 +1618,19 @@ def crear_cita_urgente(cita: CitaCreate, db: Session = Depends(get_db), current_
         # FK) se detecte antes de continuar, sin partir la transacción en
         # dos commits separados.
         #
-        # AVISO EXPLÍCITO — este except NO es protección contra doble
-        # reserva: el modelo Cita (app/models/cita.py) no tiene ningún
-        # UniqueConstraint, unique=True ni Index único sobre
-        # profesional_id + fecha + hora (confirmado en la revisión SA-2;
-        # grep sin coincidencias sobre unique/constraint/Index en todo el
-        # módulo). Bajo el esquema actual, dos citas urgentes idénticas en
-        # profesional_id + fecha + hora pueden coexistir sin que esto
-        # lance ningún error. Se decidió NO agregar esa constraint en
-        # SA-2 porque Cita contempla `sobrecupo`, y una constraint simple
-        # de (profesional_id, fecha, hora) rompería reglas legítimas de
-        # Agenda. Este bloque se conserva solo por compatibilidad de
-        # alcance (y por si en el futuro se agrega una constraint real).
-        # La prevención real de doble reserva/concurrencia — considerando
-        # sobrecupo, disponibilidad, un posible índice/constraint parcial
-        # y locking — queda como deuda separada del módulo Agenda, fuera
-        # del alcance de SA-2.
+        # A.3 — este except sigue sin ser (nunca lo fue) la protección
+        # contra doble reserva: Cita no tiene, ni tuvo nunca, ningún
+        # UniqueConstraint/Index único sobre profesional_id + fecha +
+        # hora (confirmado en el diagnóstico de A.3; el aviso explícito
+        # que existía antes en este mismo bloque ya lo señalaba
+        # correctamente). La protección real contra doble
+        # reserva/concurrencia es, desde A.3,
+        # adquirir_lock_agenda_profesional_fecha() +
+        # hay_solapamiento_con_cita_activa() evaluados DENTRO de ese
+        # lock, arriba. Este bloque se conserva solo como red de
+        # seguridad genérica ante cualquier otra violación de
+        # integridad real (p. ej. FK), no como mecanismo de
+        # concurrencia.
         db.flush()
     except IntegrityError:
         db.rollback()
