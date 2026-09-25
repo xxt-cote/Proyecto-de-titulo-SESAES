@@ -280,10 +280,13 @@
       <app-admin-citas
         *ngIf="seccionActiva==='citas' && puedeAccederSeccion('citas')"
         [puedeGestionarAgenda]="hasPermission('agenda.gestionar')"
+        [puedeVerProfesionales]="puedeAccederSeccion('profesional')"
         (verDetalle)="verDetalleCita($event)"
         (marcarPrioridad)="marcarPrioridadCita($event.cita, $event.urgente)"
         (cancelarCita)="cancelarCitaAdmin($event)"
         (irAHorario)="navegarA('horario')"
+        (irAAgenda)="navegarA('horario')"
+        (irAProfesionales)="navegarA('profesional')"
       ></app-admin-citas>
 
       <!-- ══ PROFESIONALES ══ -->

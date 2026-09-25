@@ -814,6 +814,10 @@ toggleSidebarMovil(): void {
     if (!confirm(`¿Cancelar la cita de ${cita.estudiante}?`)) return;
     this.http.patch(`${API}/admin/citas/${cita.id}/cancelar`, { motivo: 'Cancelada por administrador' }).subscribe({
       next: () => {
+        // Se refleja en el mismo objeto recibido (no se reemplaza) para que
+        // AdminCitasComponent, que sigue apuntando a esta misma referencia,
+        // recalcule KPIs/pestañas/fila sin necesidad de recargar el listado.
+        cita.estado = 'cancelada';
         this.proximasCitas = this.proximasCitas.filter(c => c.id !== cita.id);
         // Se actualiza el estado en el mismo lugar (no se elimina), para que el panel
         // de Horario siga mostrando la cita con su estado real en vez de hacerla desaparecer.
