@@ -616,8 +616,8 @@ eliminarSeleccionadas(): void {
     if (!fecha) return [];
     const info: string[] = [];
     const feriado = obtenerFeriado(fecha);
-    if (feriado) info.push(`🇨🇱 Feriado: ${feriado.nombre}`);
-    for (const d of obtenerDiasInternacionales(fecha)) info.push(`🌍 ${d.nombre}`);
+    if (feriado) info.push(`Feriado: ${feriado.nombre}`);
+    for (const d of obtenerDiasInternacionales(fecha)) info.push(d.nombre);
     return info;
   }
 

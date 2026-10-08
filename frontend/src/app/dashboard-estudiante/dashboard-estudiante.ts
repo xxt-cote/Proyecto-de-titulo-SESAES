@@ -70,8 +70,10 @@ export class DashboardEstudianteComponent implements OnInit {
     return map[this.citasTab] ?? 'Mis Citas';
   }
   const map: Record<string, string> = {
-    configuracion: 'Mi Perfil',
-    ayuda:         'Ayuda'
+    inicio:         'Inicio',
+    cuestionarios:  'Cuestionarios',
+    configuracion:  'Mi Perfil',
+    ayuda:          'Ayuda'
   };
   return map[this.seccionActiva] ?? 'SESAES';
 }
@@ -87,6 +89,7 @@ get subtituloSeccionEst(): string {
   }
   const map: Record<string, string> = {
     inicio:        'Gestiona tus atenciones en SESAES.',
+    cuestionarios: 'Completa tus cuestionarios de antecedentes antes de tu atención.',
     configuracion: 'Gestiona tu información personal y seguridad de tu cuenta.',
     ayuda:         'Mapa de SESAES, preguntas frecuentes y contacto.'
   };
@@ -493,6 +496,39 @@ get subtituloSeccionEst(): string {
     return `${this.NOMBRES_MES[this.mesVisible]} ${this.anioVisible}`;
   }
 
+  // ── Calendario del Inicio (solo lectura): marca hoy y los días con cita ──
+  readonly DIAS_SEMANA_INICIO = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+  private calInicioRef = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+  get calInicioTitulo(): string {
+    return `${this.NOMBRES_MES[this.calInicioRef.getMonth()]} ${this.calInicioRef.getFullYear()}`;
+  }
+
+  get calInicioDias(): ({ num: number; hoy: boolean; conCita: boolean } | null)[] {
+    const anio = this.calInicioRef.getFullYear();
+    const mes = this.calInicioRef.getMonth();
+    const vacias = (new Date(anio, mes, 1).getDay() + 6) % 7; // semana desde el lunes
+    const diasMes = new Date(anio, mes + 1, 0).getDate();
+    const hoy = this.hoyStr();
+    const conCita = new Set(this.proximasCitas.map(c => c.fecha));
+    const celdas: ({ num: number; hoy: boolean; conCita: boolean } | null)[] = Array(vacias).fill(null);
+    for (let d = 1; d <= diasMes; d++) {
+      const iso = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      celdas.push({ num: d, hoy: iso === hoy, conCita: conCita.has(iso) });
+    }
+    return celdas;
+  }
+
+  calInicioMesAnterior(): void {
+    this.calInicioRef = new Date(this.calInicioRef.getFullYear(), this.calInicioRef.getMonth() - 1, 1);
+  }
+
+  calInicioMesSiguiente(): void {
+    this.calInicioRef = new Date(this.calInicioRef.getFullYear(), this.calInicioRef.getMonth() + 1, 1);
+  }
+
+  trackPorIndice = (indice: number): number => indice;
+
   private hoyStr(): string {
     const h = new Date();
     return `${h.getFullYear()}-${String(h.getMonth()+1).padStart(2,'0')}-${String(h.getDate()).padStart(2,'0')}`;
@@ -629,7 +665,7 @@ get subtituloSeccionEst(): string {
           hora: resp.hora, urgente: false, aviso: resp.aviso, estado: resp.estado
         });
         this.resetAgendar();
-        this.mensajeExito  = '✓ ¡Tu hora fue agendada correctamente!';
+        this.mensajeExito  = '¡Tu hora fue agendada correctamente!';
         this.seccionActiva = 'citas';
         this.enviandoCita = false;
         this.cdr.detectChanges();
@@ -773,17 +809,17 @@ get subtituloSeccionEst(): string {
   // Ícono representativo por especialidad — con fallback genérico para
   // cualquier especialidad nueva que se agregue desde el backend.
   private readonly iconosEspecialidad: Record<string, string> = {
-    'nutrición': '🥗',
-    'odontología': '🦷',
-    'kinesiología': '🦴',
-    'medicina general': '🩺',
-    'oftalmología': '👁️',
-    'rayos x': '🩻',
-    'psicología': '🧠',
-    'enfermería': '❤️',
+    'nutrición': 'nutrition',
+    'odontología': 'dentistry',
+    'kinesiología': 'physical_therapy',
+    'medicina general': 'stethoscope',
+    'oftalmología': 'visibility',
+    'rayos x': 'radiology',
+    'psicología': 'psychology',
+    'enfermería': 'medical_services',
   };
   iconoEspecialidad(especialidad: string): string {
-    return this.iconosEspecialidad[(especialidad || '').toLowerCase()] || '🩺';
+    return this.iconosEspecialidad[(especialidad || '').toLowerCase()] || 'stethoscope';
   }
 
   // -- Modal de detalle de atención (medicamento, observaciones, motivo) --
@@ -1056,8 +1092,8 @@ toggleFaq(faq: any): void {
     if (!fecha) return [];
     const info: string[] = [];
     const feriado = obtenerFeriado(fecha);
-    if (feriado) info.push(`🇨🇱 Feriado: ${feriado.nombre}`);
-    for (const d of obtenerDiasInternacionales(fecha)) info.push(`🌍 ${d.nombre}`);
+    if (feriado) info.push(`Feriado: ${feriado.nombre}`);
+    for (const d of obtenerDiasInternacionales(fecha)) info.push(d.nombre);
     return info;
   }
 
@@ -1095,7 +1131,7 @@ toggleFaq(faq: any): void {
         this.correoSecundarioOriginal = data.correo_secundario || '';
         this.correoSecundarioEditable = this.correoSecundarioOriginal;
         this.fotoPerfilCambiada = false; this.perfilEnEdicion = false;
-        this.mensajeExito = '✓ Cambios guardados correctamente.';
+        this.mensajeExito = 'Cambios guardados correctamente.';
         setTimeout(() => { this.mensajeExito = ''; this.cdr.detectChanges(); }, 3000);
         this.cdr.detectChanges();
       },

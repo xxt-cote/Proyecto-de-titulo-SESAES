@@ -2,12 +2,12 @@
   <div class="citas-lista">
     <div class="cita-card" [class.cita-card-vencida]="citaPendienteVencida(cita)" *ngFor="let cita of citas; let i = index">
       <p class="cita-aviso-vencida" *ngIf="citaPendienteVencida(cita)">
-        ⏳ Esta hora ya pasó y tu profesional aún no la registra como atendida. No significa que no hayas asistido — puedes cancelarla mientras se actualiza.
+        <span class="material-symbols-outlined icono-inline" aria-hidden="true">hourglass_top</span> Esta hora ya pasó y tu profesional aún no la registra como atendida. No significa que no hayas asistido — puedes cancelarla mientras se actualiza.
       </p>
       <div class="cita-card-row">
         <div class="cita-avatar">{{ cita.iniciales || cita.especialidad?.substring(0,2) }}</div>
         <div class="cita-info">
-          <span class="cita-badge" [class.urgente]="cita.urgente">{{ cita.urgente ? '🔴 Urgente' : cita.especialidad }}</span>
+          <span class="cita-badge" [class.urgente]="cita.urgente"><span *ngIf="cita.urgente" class="material-symbols-outlined" aria-hidden="true">priority_high</span> {{ cita.urgente ? 'Urgente' : cita.especialidad }}</span>
           <p class="cita-nombre">{{ cita.profesional }}</p>
           <p class="cita-profesional">{{ cita.especialidad }}</p>
         </div>
@@ -23,7 +23,7 @@
         </div>
       </div>
     </div>
-    <div *ngIf="citas.length === 0" style="text-align:center;color:#94a3b8;padding:32px;font-size:14px;">
+    <div *ngIf="citas.length === 0" style="text-align:center;color:var(--est-muted);padding:32px;font-size:14px;">
       No tienes citas próximas. <button class="btn-reagendar" (click)="solicitarNueva.emit()">Agendar una hora</button>
     </div>
   </div>

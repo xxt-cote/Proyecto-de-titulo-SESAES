@@ -26,10 +26,10 @@
         <td>{{ h.especialidad }}</td>
         <td><span class="estado-badge" [ngClass]="h.estado">{{ h.estado }}</span></td>
         <td>
-          <span class="doc-link" *ngIf="h.estado === 'cancelada'" (click)="reagendar.emit(h)">↻ Reagendar</span>
-          <span class="doc-link" *ngIf="h.estado === 'completada'" (click)="verDetalle.emit(h)">🩺 Ver detalle</span>
-          <span class="doc-link" *ngIf="h.estado === 'completada' && h.tiene_pdf" (click)="descargarPdf.emit(h.id)">⬇ PDF</span>
-          <span *ngIf="h.estado !== 'cancelada' && h.estado !== 'completada'" style="color:#94a3b8;font-size:12px;">No aplica</span>
+          <span class="doc-link" *ngIf="h.estado === 'cancelada'" (click)="reagendar.emit(h)"><span class="material-symbols-outlined icono-inline" aria-hidden="true">autorenew</span> Reagendar</span>
+          <span class="doc-link" *ngIf="h.estado === 'completada'" (click)="verDetalle.emit(h)"><span class="material-symbols-outlined" aria-hidden="true">visibility</span> Ver detalle</span>
+          <span class="doc-link" *ngIf="h.estado === 'completada' && h.tiene_pdf" (click)="descargarPdf.emit(h.id)"><span class="material-symbols-outlined icono-inline" aria-hidden="true">download</span> PDF</span>
+          <span *ngIf="h.estado !== 'cancelada' && h.estado !== 'completada'" style="color:var(--est-muted);font-size:12px;">No aplica</span>
         </td>
       </tr>
     </tbody>

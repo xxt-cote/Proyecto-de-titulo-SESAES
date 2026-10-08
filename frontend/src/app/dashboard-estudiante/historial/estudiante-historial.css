@@ -15,33 +15,33 @@
 }
 
 .stat-card {
-  background: white;
+  background: var(--est-card);
   border-radius: 12px;
   padding: 20px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  box-shadow: var(--est-shadow);
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
+  border-color: var(--est-border);}
 
 .stat-label {
   font-size: 12px;
-  color: #93A198;
+  color: var(--est-text-2);
 }
 
 .stat-num {
   font-family: 'Inter', sans-serif;
   font-size: 28px;
   font-weight: 700;
-  color: #1E2B23;
+  color: var(--est-text);
 }
 
 .stat-num.completadas {
-  color: #2C5A45;
+  color: var(--est-primary);
 }
 
 .stat-num.canceladas {
-  color: #C0453A;
+  color: var(--est-danger);
 }
 
 .historial-filtros {
@@ -53,17 +53,17 @@
 .historial-filtros input,
 .historial-filtros select {
   padding: 8px 14px;
-  border: 1.5px solid #E6E0D2;
+  border: 1.5px solid var(--est-border);
   border-radius: 8px;
   font-size: 13px;
-  color: #1E2B23;
+  color: var(--est-text-body);
   outline: none;
-  background: white;
+  background: var(--est-field);
 }
 
 .btn-filtrar {
   padding: 8px 20px;
-  background: #2C5A45;
+  background: var(--est-primary);
   color: white;
   border: none;
   border-radius: 8px;
@@ -74,10 +74,10 @@
 
 .btn-volver {
   padding: 10px 20px;
-  border: 1.5px solid #E6E0D2;
+  border: 1.5px solid var(--est-border);
   border-radius: 8px;
-  background: white;
-  color: #5C6B60;
+  background: var(--est-field);
+  color: var(--est-text-2);
   font-size: 14px;
   cursor: pointer;
 }
@@ -85,10 +85,10 @@
 .historial-tabla {
   width: 100%;
   border-collapse: collapse;
-  background: white;
+  background: var(--est-card);
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  box-shadow: var(--est-shadow);
   margin-top: 16px;
 }
 
@@ -97,17 +97,17 @@
   text-align: left;
   font-size: 11px;
   font-weight: 700;
-  color: #93A198;
+  color: var(--est-text-2);
   letter-spacing: 0.5px;
-  border-bottom: 1px solid #F7F4EC;
-  background: #fafafa;
+  border-bottom: 1px solid var(--est-border);
+  background: var(--est-chrome);
 }
 
 .historial-tabla td {
   padding: 14px 16px;
   font-size: 13px;
-  color: #1E2B23;
-  border-bottom: 1px solid #F7F4EC;
+  color: var(--est-text-body);
+  border-bottom: 1px solid var(--est-field);
 }
 
 .profesional-cell {
@@ -120,7 +120,7 @@
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  background: #2C5A45;
+  background: var(--est-primary);
   color: white;
   font-size: 10px;
   font-weight: 700;
@@ -138,22 +138,25 @@
 }
 
 .estado-badge.completada {
-  background: #E6F0E7;
-  color: #2C5A45;
+  background: var(--est-primary-tint);
+  color: var(--est-accent-text);
 }
 
 .estado-badge.cancelada {
-  background: #FBEBE9;
-  color: #C0453A;
+  background: var(--est-danger-tint);
+  color: var(--est-danger);
 }
 
 .estado-badge.inasistencia {
-  background: #fef9c3;
-  color: #ca8a04;
+  background: var(--est-warn-tint);
+  color: var(--est-warn);
 }
 
 .doc-link {
-  color: #2C5A45;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--est-accent-text);
   cursor: pointer;
   font-size: 12px;
 }
@@ -161,66 +164,7 @@
 .historial-conteo {
   margin: 12px 0 0;
   font-size: 12px;
-  color: #7A857D;
-}
-
-:host-context(.tema-oscuro) .stat-card,
-:host-context(.tema-oscuro) .historial-tabla {
-  background: #242f42;
-  border-color: #3a4a63;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.4);
-}
-
-:host-context(.tema-oscuro) .stat-num {
-  color: #e6edf3;
-}
-
-:host-context(.tema-oscuro) .stat-label,
-:host-context(.tema-oscuro) .historial-conteo {
-  color: #8b96a8;
-}
-
-:host-context(.tema-oscuro) .historial-tabla th {
-  background: #1c2534;
-  color: #8b96a8;
-  border-color: #3a4a63;
-}
-
-:host-context(.tema-oscuro) .historial-tabla td {
-  border-color: #2d3b52;
-  color: #c9d1d9;
-}
-
-:host-context(.tema-oscuro) .doc-link {
-  color: #2dd4bf;
-}
-
-:host-context(.tema-oscuro) .historial-filtros input,
-:host-context(.tema-oscuro) .historial-filtros select {
-  background: #2d3b52;
-  border-color: #3a4a63;
-  color: #c9d1d9;
-}
-
-:host-context(.tema-oscuro) .btn-volver {
-  background: #2d3b52;
-  border-color: #3a4a63;
-  color: #8b96a8;
-}
-
-:host-context(.tema-oscuro) .estado-badge.completada {
-  background: rgba(13,148,136,0.15);
-  color: #2dd4bf;
-}
-
-:host-context(.tema-oscuro) .estado-badge.cancelada {
-  background: rgba(248,81,73,0.12);
-  color: #f85149;
-}
-
-:host-context(.tema-oscuro) .estado-badge.inasistencia {
-  background: rgba(234,88,12,0.15);
-  color: #fb923c;
+  color: var(--est-text-2);
 }
 
 @media (max-width: 640px) {
@@ -242,3 +186,5 @@
     overflow-x: auto;
   }
 }
+
+.doc-link .material-symbols-outlined { font-size: 16px; }
