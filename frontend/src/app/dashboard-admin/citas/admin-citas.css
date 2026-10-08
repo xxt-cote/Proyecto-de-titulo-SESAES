@@ -120,7 +120,7 @@
 /* ══════════ KPIs ══════════ */
 .citas-kpis {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 16px;
 }
 
@@ -149,6 +149,8 @@
 .citas-kpi-icono.tono-total       { background: var(--tono-mint-bg);    color: var(--tono-mint-fg); }
 .citas-kpi-icono.tono-canceladas  { background: var(--tono-rojo-bg);    color: var(--tono-rojo-fg); }
 .citas-kpi-icono.tono-pendientes  { background: var(--tono-azul-bg);    color: var(--tono-azul-fg); }
+.citas-kpi-icono.tono-urgentes    { background: var(--tono-rojo-bg);    color: var(--tono-rojo-fg); }
+.citas-kpi-icono.tono-sobrecupo   { background: var(--est-inasistencia-bg); color: var(--est-inasistencia-fg); }
 .citas-kpi-icono.tono-profesionales { background: var(--tono-lavanda-bg); color: var(--tono-lavanda-fg); }
 
 .citas-kpi-cuerpo {
@@ -426,18 +428,15 @@
 
 .citas-tabla tbody tr.urgente td { background: var(--urgente-fila); }
 .citas-tabla tbody tr.urgente td:first-child { box-shadow: inset 3px 0 0 var(--urgente-borde); }
-.citas-tabla tbody tr.seleccionada td { background: var(--c-superficie); }
-.citas-tabla tbody tr.seleccionada.urgente td { background: var(--urgente-fila); }
 
 .col-acciones { width: 1%; white-space: nowrap; }
-.col-check { width: 1%; padding-right: 4px !important; }
-
-.citas-checkbox {
-  width: 16px;
-  height: 16px;
-  margin: 0;
-  accent-color: var(--c-primario-fuerte);
-  cursor: pointer;
+.col-num {
+  width: 1%;
+  padding-right: 4px !important;
+  color: var(--c-suave);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
 
 .citas-persona {
@@ -454,6 +453,8 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
+  background-size: cover;
+  background-position: center;
   color: #fff;
   font-size: 13px;
   font-weight: 700;
@@ -511,6 +512,13 @@
 
 .citas-texto-suave { color: var(--c-suave); }
 
+.citas-etiquetas {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
 .citas-chip-urgente {
   display: inline-flex;
   align-items: center;
@@ -524,6 +532,20 @@
 }
 
 .citas-chip-urgente .material-symbols-outlined { font-size: 15px; }
+
+.citas-chip-sobrecupo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px 4px 8px;
+  border-radius: 999px;
+  background: var(--est-inasistencia-bg);
+  color: var(--est-inasistencia-fg);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.citas-chip-sobrecupo .material-symbols-outlined { font-size: 15px; }
 
 .citas-estado-chip {
   display: inline-block;

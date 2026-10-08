@@ -29,7 +29,8 @@
           <span class="material-symbols-outlined" aria-hidden="true">search</span>
           <input
             type="search"
-            [(ngModel)]="citasFiltroEstudiante"
+            [ngModel]="citasFiltroEstudiante"
+            (ngModelChange)="actualizarBusqueda($event)"
             placeholder="Buscar estudiante o profesional..."
             aria-label="Buscar por estudiante, RUT o profesional"
             autocomplete="off"
@@ -39,7 +40,7 @@
         <label class="citas-campo">
           <span class="citas-campo-etiqueta">Tipo de servicio</span>
           <span class="citas-select">
-            <select [(ngModel)]="citasFiltroServicio">
+            <select [ngModel]="citasFiltroServicio" (ngModelChange)="actualizarServicio($event)">
               <option value="">Todos</option>
               <option *ngFor="let e of especialidades" [value]="e">{{ e }}</option>
             </select>
@@ -50,7 +51,7 @@
         <label class="citas-campo">
           <span class="citas-campo-etiqueta">Estado</span>
           <span class="citas-select">
-            <select [(ngModel)]="citasFiltroEstado">
+            <select [ngModel]="citasFiltroEstado" (ngModelChange)="seleccionarEstado($event)">
               <option value="">Todos</option>
               <option value="pendiente">Pendiente</option>
               <option value="completada">Completada</option>
@@ -86,7 +87,7 @@
               [class.activa]="citasFiltroEstado === t.valor"
               [attr.aria-selected]="citasFiltroEstado === t.valor"
               (click)="seleccionarEstado(t.valor)"
-            >{{ t.etiqueta }} ({{ contar(t.valor) }})</button>
+            >{{ t.etiqueta }}</button>
           </div>
 
           <div class="citas-tabs-extra">
@@ -149,16 +150,7 @@
           <table class="citas-tabla">
             <thead>
               <tr>
-                <th scope="col" class="col-check">
-                  <input
-                    type="checkbox"
-                    class="citas-checkbox"
-                    [checked]="todaLaPaginaSeleccionada"
-                    [indeterminate]="seleccionParcial"
-                    (change)="alternarSeleccionPagina()"
-                    aria-label="Seleccionar todas las citas de esta página"
-                  />
-                </th>
+                <th scope="col" class="col-num"><span class="citas-solo-lectores">N.º</span></th>
                 <th scope="col">Estudiante</th>
                 <th scope="col">Especialidad</th>
                 <th scope="col">Profesional</th>
@@ -169,19 +161,16 @@
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let c of citasPaginadas; trackBy: trackCita" [class.urgente]="c.urgente" [class.seleccionada]="estaSeleccionada(c)">
-                <td class="col-check" data-label="">
-                  <input
-                    type="checkbox"
-                    class="citas-checkbox"
-                    [checked]="estaSeleccionada(c)"
-                    (change)="alternarSeleccion(c)"
-                    [attr.aria-label]="'Seleccionar la cita de ' + c.estudiante"
-                  />
-                </td>
+              <tr *ngFor="let c of citasPaginadas; let i = index; trackBy: trackCita" [class.urgente]="c.urgente">
+                <td class="col-num" data-label="">{{ numeroFila(i) }}</td>
                 <td class="celda-estudiante" data-label="">
                   <div class="citas-persona">
-                    <span class="citas-avatar" [ngClass]="claseAvatar(c)" aria-hidden="true">{{ iniciales(c.estudiante) }}</span>
+                    <span
+                      class="citas-avatar"
+                      [ngClass]="claseAvatar(c)"
+                      aria-hidden="true"
+                      [style.backgroundImage]="c.estudiante_foto_url ? 'url(' + c.estudiante_foto_url + ')' : null"
+                    >{{ c.estudiante_foto_url ? '' : iniciales(c.estudiante) }}</span>
                     <div class="citas-persona-datos">
                       <strong>{{ c.estudiante }}</strong>
                       <span>{{ c.rut }}</span>
@@ -197,11 +186,17 @@
                   </div>
                 </td>
                 <td data-label="Prioridad">
-                  <span class="citas-chip-urgente" *ngIf="c.urgente">
-                    <span class="material-symbols-outlined" aria-hidden="true">warning</span>
-                    Urgente
-                  </span>
-                  <span class="citas-texto-suave" *ngIf="!c.urgente">Normal</span>
+                  <div class="citas-etiquetas">
+                    <span class="citas-chip-urgente" *ngIf="c.urgente">
+                      <span class="material-symbols-outlined" aria-hidden="true">warning</span>
+                      Urgente
+                    </span>
+                    <span class="citas-chip-sobrecupo" *ngIf="c.sobrecupo">
+                      <span class="material-symbols-outlined" aria-hidden="true">event_repeat</span>
+                      Sobrecupo
+                    </span>
+                    <span class="citas-texto-suave" *ngIf="!c.urgente && !c.sobrecupo">Normal</span>
+                  </div>
                 </td>
                 <td data-label="Estado">
                   <span class="citas-estado-chip" [ngClass]="'est-' + c.estado">{{ etiquetaEstado(c.estado) }}</span>

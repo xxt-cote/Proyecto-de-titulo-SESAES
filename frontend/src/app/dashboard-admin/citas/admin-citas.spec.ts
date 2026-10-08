@@ -4,6 +4,7 @@ import { provideHttpClientTesting, HttpTestingController } from '@angular/common
 import { vi } from 'vitest';
 
 import { AdminCitasComponent } from './admin-citas';
+import { indiceColorAvatar } from './admin-citas.utils';
 
 /**
  * Cada respuesta HTTP se refleja en la vista recién cuando Angular corre un
@@ -225,6 +226,37 @@ describe('AdminCitasComponent', () => {
     expect(component.citasFiltradas[0].id).toBe(2);
   });
 
+  it('la búsqueda filtra localmente por estudiante/RUT/profesional sin pedir nada nuevo al servidor', () => {
+    const hoy = new Date().toISOString().slice(0, 10);
+    flushInit(fixture, httpMock, [
+      { id: 1, estudiante: 'Ana Soto', rut: '11.111.111-1', profesional: 'Dr. Pérez', estado: 'pendiente', urgente: false, fecha: hoy, hora: '09:00' },
+      { id: 2, estudiante: 'Bruno Ríos', rut: '22.222.222-2', profesional: 'Dra. Rojas', estado: 'pendiente', urgente: false, fecha: hoy, hora: '10:00' },
+    ]);
+
+    component.actualizarBusqueda('bruno');
+    fixture.detectChanges();
+
+    expect(component.citasFiltradas.length).toBe(1);
+    expect(component.citasFiltradas[0].id).toBe(2);
+    // Ninguna petición nueva: el filtro de búsqueda es local.
+    httpMock.expectNone((r) => r.url.includes('/agenda/citas') || r.url.includes('/agenda/profesionales'));
+  });
+
+  it('el filtro de tipo de servicio filtra localmente sin pedir nada nuevo al servidor', () => {
+    const hoy = new Date().toISOString().slice(0, 10);
+    flushInit(fixture, httpMock, [
+      { id: 1, estudiante: 'A', especialidad: 'Odontología', estado: 'pendiente', urgente: false, fecha: hoy, hora: '09:00' },
+      { id: 2, estudiante: 'B', especialidad: 'Nutrición', estado: 'pendiente', urgente: false, fecha: hoy, hora: '10:00' },
+    ]);
+
+    component.actualizarServicio('Nutrición');
+    fixture.detectChanges();
+
+    expect(component.citasFiltradas.length).toBe(1);
+    expect(component.citasFiltradas[0].id).toBe(2);
+    httpMock.expectNone((r) => r.url.includes('/agenda/citas') || r.url.includes('/agenda/profesionales'));
+  });
+
   it('el KPI de citas totales no muestra variación cuando no hay período previo (rango "todas")', () => {
     flushInit(fixture, httpMock, [
       {
@@ -284,18 +316,29 @@ describe('AdminCitasComponent', () => {
     expect(component.citasFiltradas[0].urgente).toBe(true);
   });
 
-  it('el checkbox de fila es solo selección visual (no dispara ninguna llamada HTTP)', () => {
+  it('la columna N.º numera las filas según su posición real en el listado filtrado', () => {
     const hoy = new Date().toISOString().slice(0, 10);
-    const cita = { id: 1, estudiante: 'A', estado: 'pendiente', urgente: false, fecha: hoy, hora: '09:00' };
-    flushInit(fixture, httpMock, [cita]);
+    const citas = Array.from({ length: 10 }, (_, i) => ({
+      id: i + 1,
+      estudiante: `Estudiante ${i + 1}`,
+      estado: 'pendiente',
+      urgente: false,
+      fecha: hoy,
+      hora: '09:00',
+    }));
+    flushInit(fixture, httpMock, citas);
 
-    expect(component.estaSeleccionada(cita)).toBe(false);
-    const checkboxFila: HTMLInputElement = fixture.nativeElement.querySelector('tbody .citas-checkbox');
-    checkboxFila.click();
+    // Página 1 (renderizada): números 1..8 (porPagina = 8).
+    const celdas: HTMLElement[] = Array.from(fixture.nativeElement.querySelectorAll('td.col-num'));
+    expect(celdas.map((td) => td.textContent?.trim())).toEqual(['1', '2', '3', '4', '5', '6', '7', '8']);
+
+    // Página 2: numeroFila() debe continuar en 9, 10 — no reiniciar en 1.
+    component.irAPagina(2);
     fixture.detectChanges();
-
-    expect(component.estaSeleccionada(cita)).toBe(true);
-    httpMock.expectNone((r) => !r.url.includes('/agenda/citas') && !r.url.includes('/agenda/profesionales'));
+    expect(component.pagCitas).toBe(2);
+    expect(component.citasPaginadas.map((c: any) => c.id)).toEqual([9, 10]);
+    expect(component.numeroFila(0)).toBe(9);
+    expect(component.numeroFila(1)).toBe(10);
   });
 
   it('"Ver detalles" del menú "Acciones" emite verDetalle incluso en modo solo lectura', () => {
@@ -339,5 +382,121 @@ describe('AdminCitasComponent', () => {
     fixture.detectChanges();
 
     expect(component.menuCita).toBeNull();
+  });
+
+  it('no recalcula en cada ciclo de detección de cambios: una mutación directa sin pasar por un método no se refleja sola', () => {
+    const hoy = new Date().toISOString().slice(0, 10);
+    flushInit(fixture, httpMock, [
+      { id: 1, estudiante: 'A', estado: 'pendiente', urgente: false, fecha: hoy, hora: '09:00' },
+    ]);
+
+    expect(component.citasFiltradas.length).toBe(1);
+
+    // Mutación directa del arreglo, sin pasar por ningún método del
+    // componente (equivalente a lo que antes "de rebote" capturaba
+    // ngDoCheck en cualquier ciclo posterior). Varios ciclos de detección
+    // de cambios NO deben reflejarla, porque ya no hay recálculo automático.
+    component.citasAdmin.push({
+      id: 2,
+      estudiante: 'B',
+      estado: 'pendiente',
+      urgente: false,
+      fecha: hoy,
+      hora: '10:00',
+    });
+    fixture.detectChanges();
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    expect(component.citasFiltradas.length).toBe(1);
+
+    // Al llegar la señal explícita (citasVersion, la misma vía que usa el
+    // shell tras cancelar/marcar urgente), sí se recalcula. El primer
+    // setInput establece el valor inicial (equivalente a como queda ligado
+    // en la plantilla real desde la creación); el segundo es el cambio real.
+    fixture.componentRef.setInput('citasVersion', 0);
+    fixture.detectChanges();
+    fixture.componentRef.setInput('citasVersion', 1);
+    fixture.detectChanges();
+
+    expect(component.citasFiltradas.length).toBe(2);
+  });
+
+  it('A: Tipo de servicio, Estado y pestañas son 100% locales — nunca disparan HTTP ni "Cargando"', () => {
+    const hoy = new Date().toISOString().slice(0, 10);
+    flushInit(fixture, httpMock, [
+      { id: 1, estudiante: 'A', especialidad: 'Odontología', estado: 'pendiente', urgente: false, fecha: hoy, hora: '09:00' },
+      { id: 2, estudiante: 'B', especialidad: 'Nutrición', estado: 'completada', urgente: true, fecha: hoy, hora: '10:00' },
+    ]);
+
+    expect(component.citasCargando).toBe(false);
+
+    // Tipo de servicio (select)
+    component.actualizarServicio('Nutrición');
+    fixture.detectChanges();
+    expect(component.citasCargando).toBe(false);
+    expect(component.citasFiltradas.map((c: any) => c.id)).toEqual([2]);
+
+    component.actualizarServicio('');
+    fixture.detectChanges();
+    expect(component.citasCargando).toBe(false);
+
+    // Estado (select "Estado" y pestañas usan el mismo método)
+    component.seleccionarEstado('completada');
+    fixture.detectChanges();
+    expect(component.citasCargando).toBe(false);
+    expect(component.citasFiltradas.map((c: any) => c.id)).toEqual([2]);
+
+    component.seleccionarEstado('');
+    fixture.detectChanges();
+    expect(component.citasCargando).toBe(false);
+
+    // "Solo urgentes"
+    component.alternarSoloUrgentes();
+    fixture.detectChanges();
+    expect(component.citasCargando).toBe(false);
+    expect(component.citasFiltradas.map((c: any) => c.id)).toEqual([2]);
+
+    // En todo este flujo, la ÚNICA petición pendiente/realizada sigue siendo
+    // la de carga inicial (ya resuelta por flushInit): ninguna acción local
+    // agregó una petición nueva.
+    httpMock.expectNone((r) => r.url.includes('/agenda/citas') || r.url.includes('/agenda/profesionales'));
+  });
+
+  it('A: solo "Rango de fechas" dispara una nueva consulta HTTP (con su propio "Cargando")', () => {
+    flushInit(fixture, httpMock, []);
+    expect(component.citasCargando).toBe(false);
+
+    component.cambiarRango('mes');
+
+    // A diferencia de los filtros locales, este SÍ debe mostrar "Cargando"
+    // mientras espera la respuesta del servidor.
+    expect(component.citasCargando).toBe(true);
+
+    const req = httpMock.expectOne((r) => r.url.includes('/agenda/citas'));
+    req.flush([]);
+    fixture.detectChanges();
+
+    expect(component.citasCargando).toBe(false);
+    // No hace falta (ni se dispara) una nueva consulta de profesionales al
+    // cambiar el rango: ese catálogo no depende de la ventana de fechas.
+  });
+
+  it('claseAvatar usa estudiante_id (no el nombre) para elegir el color, tal como pide la regla de negocio', () => {
+    const hoy = new Date().toISOString().slice(0, 10);
+    // Mismo nombre, distinto id: si claseAvatar usara el nombre, ambas
+    // citas tendrían la misma clase de color pese a ser estudiantes
+    // distintos con id distinto.
+    flushInit(fixture, httpMock, [
+      { id: 1, estudiante_id: 501, estudiante: 'María González', estado: 'pendiente', urgente: false, fecha: hoy, hora: '09:00' },
+      { id: 2, estudiante_id: 999, estudiante: 'María González', estado: 'pendiente', urgente: false, fecha: hoy, hora: '10:00' },
+    ]);
+
+    const [citaA, citaB] = component.citasFiltradas;
+    // No se afirma que sean distintas (podrían coincidir por azar entre 6
+    // colores), pero sí que la clase depende del id: se calcula igual que
+    // llamar indiceColorAvatar directamente sobre cada estudiante_id.
+    expect(component.claseAvatar(citaA)).toBe('av-' + indiceColorAvatar(501));
+    expect(component.claseAvatar(citaB)).toBe('av-' + indiceColorAvatar(999));
   });
 });

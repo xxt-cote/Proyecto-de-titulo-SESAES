@@ -188,8 +188,9 @@ describe('Shell — Inicio montado según el contexto efectivo', () => {
 
     // Saludo y subtítulo del Inicio ADMIN, sin cambios.
     const titulo = fixture.nativeElement.querySelector('.topbar-title')?.textContent ?? '';
-    expect(titulo).toContain('Hola, Sofía Vera 👋');
-    expect(titulo).not.toContain('👑');
+    expect(titulo).toContain('Hola, Sofía Vera');
+    expect(titulo).toContain('waving_hand');
+    expect(titulo).not.toContain('workspace_premium');
     expect(fixture.nativeElement.querySelector('.topbar-sub')?.textContent)
       .toContain('Gestiona profesionales, horarios y reservas de bienestar estudiantil.');
   });
@@ -228,7 +229,8 @@ describe('Shell — Inicio montado según el contexto efectivo', () => {
     expect(admin).toBeNull();
 
     const titulo = fixture.nativeElement.querySelector('.topbar-title')?.textContent ?? '';
-    expect(titulo).toContain('Hola, Sofía Vera 👑');
+    expect(titulo).toContain('Hola, Sofía Vera');
+    expect(titulo).toContain('workspace_premium');
     expect(fixture.nativeElement.querySelector('.topbar-sub')?.textContent)
       .toContain('Resumen general del sistema');
   });

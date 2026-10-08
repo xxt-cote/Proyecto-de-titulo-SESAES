@@ -1,4 +1,4 @@
-    <div class="prof-stats">
+﻿    <div class="prof-stats">
       <div class="stat-card-sm">
         <span class="stat-label">Total profesionales</span>
         <span class="stat-num">{{ profesionales.length }}</span>
@@ -36,7 +36,10 @@
           <tr *ngFor="let p of profesionalesPaginados">
             <td>
               <div class="tabla-usuario">
-                <div class="mini-avatar">{{ p.iniciales }}</div>
+                <div class="mini-avatar">
+                  <img *ngIf="p.foto_url" [src]="p.foto_url" alt="" />
+                  <span *ngIf="!p.foto_url">{{ p.iniciales }}</span>
+                </div>
                 <div><strong>{{ nombreConTratamiento(p) }}</strong><span>{{ p.correo }}</span></div>
               </div>
             </td>
@@ -68,7 +71,7 @@
         <div *ngIf="!mostrarConfirmacionProf">
           <div class="modal-header">
             <h3>Nuevo Profesional</h3>
-            <button class="modal-cerrar" (click)="cerrarModal()">✕</button>
+            <button class="modal-cerrar" (click)="cerrarModal()"><span class="material-symbols-outlined">close</span></button>
           </div>
           <div class="form-grid">
             <div class="prefijo-nombre-row">
@@ -160,7 +163,7 @@
         <div *ngIf="mostrarConfirmacionProf">
           <div class="modal-header">
             <h3>Confirmar nuevo profesional</h3>
-            <button class="modal-cerrar" (click)="cerrarModal()">✕</button>
+            <button class="modal-cerrar" (click)="cerrarModal()"><span class="material-symbols-outlined">close</span></button>
           </div>
           <div class="confirmacion-resumen">
             <div class="conf-row"><span class="conf-label">Nombre</span><span class="conf-val">{{ profNuevoDatos.tratamiento ? profNuevoDatos.tratamiento + ' ' : '' }}{{ profNuevoDatos.nombre }}</span></div>
@@ -176,102 +179,144 @@
           </div>
           <div class="modal-footer">
             <button class="btn-cancelar-modal" (click)="volverFormProf()">← Volver</button>
-            <button class="btn-guardar-modal" (click)="confirmarCrearProf()">✓ Confirmar y crear</button>
+            <button class="btn-guardar-modal" (click)="confirmarCrearProf()"><span class="material-symbols-outlined modal-btn-icon">check</span> Confirmar y crear</button>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- MODAL: ACCIONES PROFESIONAL -->
+    <!-- MODAL: GESTIONAR PROFESIONAL -->
     <div class="modal-overlay" *ngIf="puedeGestionarProfesionales && modalAccionesAbierto" (click)="cerrarModalAcciones()">
-      <div class="modal modal-acciones" (click)="$event.stopPropagation()">
+      <div class="modal modal-acciones modal-gestionar-prof" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <h3>Gestionar Profesional</h3>
-          <button class="modal-cerrar" (click)="cerrarModalAcciones()">✕</button>
+          <button class="modal-cerrar" (click)="cerrarModalAcciones()"><span class="material-symbols-outlined">close</span></button>
         </div>
         <div *ngIf="profSeleccionado">
-          <div class="prof-datos-readonly">
-            <div class="mini-avatar avatar-lg">{{ profSeleccionado.iniciales }}</div>
-            <div class="prof-datos-info">
+          <!-- Cabecera -->
+          <div class="gestionar-cabecera">
+            <div class="mini-avatar avatar-lg">
+              <img *ngIf="profSeleccionado.foto_url" [src]="profSeleccionado.foto_url" alt="" />
+              <span *ngIf="!profSeleccionado.foto_url">{{ profSeleccionado.iniciales }}</span>
+            </div>
+            <div class="gestionar-cabecera-info">
               <h4>{{ nombreConTratamiento(profSeleccionado) }}</h4>
               <span class="esp-badge-color" [style.background]="colorDeProfesional(profSeleccionado) + '1a'" [style.color]="colorDeProfesional(profSeleccionado)" [style.borderColor]="colorDeProfesional(profSeleccionado) + '55'">{{ profSeleccionado.especialidad }}</span>
             </div>
+            <span class="estado-badge" [ngClass]="profSeleccionado.estado">● {{ profSeleccionado.estado }}</span>
           </div>
-          <div class="prof-datos-grid">
-            <div class="dato-row"><span class="dato-label">Correo</span><span class="dato-val">{{ profSeleccionado.correo }}</span></div>
-            <div class="dato-row"><span class="dato-label">RUT</span><span class="dato-val">{{ profSeleccionado.rut || '—' }}</span></div>
-            <div class="dato-row">
-              <span class="dato-label">Estado actual</span>
-              <span class="estado-badge" [ngClass]="profSeleccionado.estado">{{ profSeleccionado.estado }}</span>
+
+          <!-- Información del profesional -->
+          <div class="gestionar-card">
+            <div class="gestionar-card-titulo">
+              <span class="material-symbols-outlined">badge</span>
+              <div>
+                <p class="gestionar-card-h">Información del profesional</p>
+                <p class="gestionar-card-sub">Datos básicos y de contacto del profesional.</p>
+              </div>
+            </div>
+            <div class="gestionar-card-datos">
+              <div class="dato-row">
+                <span class="material-symbols-outlined dato-icono">mail</span>
+                <div><span class="dato-label">Correo electrónico</span><span class="dato-val">{{ profSeleccionado.correo || '—' }}</span></div>
+              </div>
+              <div class="dato-row">
+                <span class="material-symbols-outlined dato-icono">fingerprint</span>
+                <div><span class="dato-label">RUT</span><span class="dato-val">{{ profSeleccionado.rut || '—' }}</span></div>
+              </div>
+              <div class="dato-row">
+                <span class="material-symbols-outlined dato-icono">medical_services</span>
+                <div><span class="dato-label">Especialidad</span><span class="dato-val">{{ profSeleccionado.especialidad }}</span></div>
+              </div>
             </div>
           </div>
 
-          <!-- Prefijo profesional -->
-          <div class="modal-separador"></div>
-          <p class="config-seccion-titulo">Prefijo profesional</p>
-          <div class="campo-grupo" style="margin-bottom:12px">
-            <label>Prefijo</label>
-            <div class="duracion-selector">
-              <select [(ngModel)]="profSeleccionado.nuevoTratamiento">
-                <option value="">Sin prefijo</option>
-                <option *ngFor="let t of tratamientosDisponibles" [value]="t">{{ t }}</option>
+          <!-- Configuración de agenda -->
+          <div class="gestionar-card">
+            <div class="gestionar-card-titulo">
+              <span class="material-symbols-outlined">calendar_month</span>
+              <div>
+                <p class="gestionar-card-h">Configuración de agenda</p>
+                <p class="gestionar-card-sub">Define cómo se mostrará y se agendará la atención.</p>
+              </div>
+            </div>
+
+            <div class="campo-grupo" style="margin-bottom:12px">
+              <label>Prefijo profesional</label>
+              <div class="duracion-selector">
+                <select [(ngModel)]="profSeleccionado.nuevoTratamiento">
+                  <option value="">Sin prefijo</option>
+                  <option *ngFor="let t of tratamientosDisponibles" [value]="t">{{ t }}</option>
+                </select>
+                <button class="btn-guardar-modal" style="padding:7px 14px" (click)="guardarTratamientoProfesional()">Guardar</button>
+              </div>
+            </div>
+
+            <div class="campo-grupo" style="margin-bottom:8px">
+              <label>Color identificador del calendario</label>
+              <p class="campo-ayuda">Color con el que se identificarán los bloques de agenda y referencias visuales de este profesional.</p>
+              <div class="color-picker-grid" style="margin-bottom:8px">
+                <button
+                  type="button"
+                  class="color-swatch"
+                  *ngFor="let c of coloresDisponibles"
+                  [style.background]="c"
+                  [class.seleccionado]="profSeleccionado.nuevoColor === c"
+                  (click)="profSeleccionado.nuevoColor = c"
+                  [attr.aria-label]="'Elegir color ' + c">
+                  <span class="material-symbols-outlined" *ngIf="profSeleccionado.nuevoColor === c">check</span>
+                </button>
+              </div>
+              <div class="duracion-selector" style="margin-bottom:12px">
+                <button class="btn-cancelar-modal" style="padding:7px 14px" (click)="profSeleccionado.nuevoColor = null" [disabled]="!profSeleccionado.nuevoColor">Quitar color</button>
+                <button class="btn-guardar-modal" style="padding:7px 14px" (click)="guardarColorProfesional()">Guardar</button>
+              </div>
+            </div>
+
+            <div class="campo-grupo">
+              <label>Duración de atención por paciente</label>
+              <div class="duracion-selector" style="margin-bottom:4px">
+                <input type="number" min="1" max="60" [(ngModel)]="duracionNumero" class="duracion-input" />
+                <select [(ngModel)]="duracionUnidad" class="duracion-unidad">
+                  <option value="minutos">Minutos</option>
+                  <option value="horas">Horas</option>
+                </select>
+                <span class="duracion-preview">= {{ duracionEnMinutos }} min</span>
+                <button class="btn-guardar-modal" style="padding:7px 14px" (click)="guardarDuracionProfesional()">Guardar</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Estado operativo -->
+          <div class="gestionar-card">
+            <div class="gestionar-card-titulo">
+              <span class="material-symbols-outlined">toggle_on</span>
+              <div>
+                <p class="gestionar-card-h">Estado operativo</p>
+                <p class="gestionar-card-sub">Un profesional inactivo, con licencia o inasistencia no recibe nuevas reservas.</p>
+              </div>
+            </div>
+            <div class="campo-grupo" style="margin-bottom:10px">
+              <label>Nuevo estado</label>
+              <select [(ngModel)]="profSeleccionado.nuevoEstado">
+                <option value="activo">Activo</option>
+                <option value="licencia">En Licencia Médica</option>
+                <option value="inasistencia">Inasistencia</option>
               </select>
-              <button class="btn-guardar-modal" style="padding:7px 14px" (click)="guardarTratamientoProfesional()">Guardar prefijo</button>
             </div>
+            <div class="campo-grupo" *ngIf="estadoCambioRequiereMotivo" style="margin-bottom:10px">
+              <label>Motivo (opcional)</label>
+              <input [(ngModel)]="profSeleccionado.motivoCambio" placeholder="Ej: Licencia médica hasta el 30/06" />
+            </div>
+            <button class="btn-guardar-modal" style="width:100%" (click)="guardarEstadoProfesional()">Guardar estado</button>
           </div>
 
-          <!-- Color identificador del calendario -->
-          <div class="modal-separador"></div>
-          <p class="config-seccion-titulo">Color identificador del calendario</p>
-          <p class="campo-ayuda">Color con el que se identificarán los bloques de agenda y referencias visuales de este profesional.</p>
-          <div class="color-picker-grid" style="margin-bottom:8px">
-            <button
-              type="button"
-              class="color-swatch"
-              *ngFor="let c of coloresDisponibles"
-              [style.background]="c"
-              [class.seleccionado]="profSeleccionado.nuevoColor === c"
-              (click)="profSeleccionado.nuevoColor = c"
-              [attr.aria-label]="'Elegir color ' + c">
-              <span class="material-symbols-outlined" *ngIf="profSeleccionado.nuevoColor === c">check</span>
+          <div class="gestionar-acciones">
+            <button class="btn-cancelar-modal" (click)="cerrarModalAcciones()">Cerrar</button>
+            <button class="btn-eliminar-prof" (click)="eliminarProfesionalDesdeModal()">
+              <span class="material-symbols-outlined" style="font-size:16px; vertical-align:middle; margin-right:4px">person_off</span>Dar de baja profesional
             </button>
           </div>
-          <div class="duracion-selector" style="margin-bottom:12px">
-            <button class="btn-cancelar-modal" style="padding:7px 14px" (click)="profSeleccionado.nuevoColor = null" [disabled]="!profSeleccionado.nuevoColor">Quitar color</button>
-            <button class="btn-guardar-modal" style="padding:7px 14px" (click)="guardarColorProfesional()">Guardar color</button>
-          </div>
-
-          <!-- Duración de atención -->
-          <div class="modal-separador"></div>
-          <p class="config-seccion-titulo">Duración de atención por paciente</p>
-          <div class="duracion-selector" style="margin-bottom:12px">
-            <input type="number" min="1" max="60" [(ngModel)]="duracionNumero" class="duracion-input" />
-            <select [(ngModel)]="duracionUnidad" class="duracion-unidad">
-              <option value="minutos">Minutos</option>
-              <option value="horas">Horas</option>
-            </select>
-            <span class="duracion-preview">= {{ duracionEnMinutos }} min</span>
-            <button class="btn-guardar-modal" style="padding:7px 14px" (click)="guardarDuracionProfesional()">Guardar duración</button>
-          </div>
-
-          <div class="modal-separador"></div>
-          <p class="config-seccion-titulo">Cambiar estado operacional</p>
-          <div class="campo-grupo" style="margin-bottom:10px">
-            <label>Nuevo estado</label>
-            <select [(ngModel)]="profSeleccionado.nuevoEstado">
-              <option value="activo">Activo</option>
-              <option value="licencia">En Licencia Médica</option>
-              <option value="inasistencia">Inasistencia</option>
-            </select>
-          </div>
-          <div class="campo-grupo" *ngIf="estadoCambioRequiereMotivo" style="margin-bottom:10px">
-            <label>Motivo (opcional)</label>
-            <input [(ngModel)]="profSeleccionado.motivoCambio" placeholder="Ej: Licencia médica hasta el 30/06" />
-          </div>
-          <button class="btn-guardar-modal" style="width:100%;margin-bottom:12px" (click)="guardarEstadoProfesional()">Guardar Estado</button>
-
-          <div class="modal-separador"></div>
-          <button class="btn-eliminar-prof" (click)="eliminarProfesionalDesdeModal()">🗑️ Eliminar Profesional</button>
         </div>
       </div>
     </div>

@@ -207,3 +207,107 @@ export function libroAXlsxBlob(libro: XLSX.WorkBook): Blob {
   const bytes = XLSX.write(libro, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
   return new Blob([bytes], { type: MIME_XLSX });
 }
+
+// ── Excel de Reportes (Vista general) ───────────────────────────
+/**
+ * Exporta EXACTAMENTE lo que la pantalla de Reportes muestra tras
+ * "Aplicar filtros": una hoja "KPIs" con el resumen agregado que ya
+ * devolvió /admin/reportes/resumen (mismos números que ven los KPIs y
+ * gráficos en pantalla, nunca recalculados en Angular) y una hoja
+ * "Atenciones filtradas" con el detalle (reutiliza filasHistorialExcel,
+ * ya que ambas exportan citas con el mismo contrato de columnas).
+ */
+export interface ResumenReportesKpis {
+  periodo: { fecha_inicio: string; fecha_fin: string };
+  periodo_anterior: { fecha_inicio: string; fecha_fin: string; disponible: boolean };
+  kpis: Record<string, { valor: number; variacion_pct: number | null }>;
+  por_especialidad: { especialidad: string; cantidad: number }[];
+  por_carrera: { carrera: string; cantidad: number }[];
+  sobrecupos_por_especialidad: { especialidad: string; cantidad: number }[];
+  cancelaciones: { total: number; por_origen: { origen: string; cantidad: number }[] };
+  profesionales: {
+    profesional: string; especialidad: string; atenciones: number; citas: number;
+    canceladas: number; inasistencias: number; sobrecupos: number; urgentes: number;
+  }[];
+}
+
+const ETIQUETAS_KPI: Record<string, string> = {
+  total_atenciones: 'Total de atenciones',
+  completadas: 'Completadas',
+  canceladas: 'Canceladas',
+  urgentes: 'Urgentes',
+  sobrecupos: 'Sobrecupos',
+  estudiantes_atendidos: 'Estudiantes atendidos'
+};
+
+function filasKpiExcel(resumen: ResumenReportesKpis): Record<string, string | number>[] {
+  return Object.entries(resumen.kpis).map(([clave, kpi]) => ({
+    KPI: ETIQUETAS_KPI[clave] ?? clave,
+    Valor: kpi.valor,
+    'Variación vs. período anterior':
+      kpi.variacion_pct === null ? 'Sin datos comparables' : `${kpi.variacion_pct > 0 ? '+' : ''}${kpi.variacion_pct}%`
+  }));
+}
+
+/** Libro con una hoja por bloque del resumen (KPIs, especialidad, carrera, sobrecupos, profesionales). */
+export function libroResumenReportes(resumen: ResumenReportesKpis): XLSX.WorkBook {
+  const libro = XLSX.utils.book_new();
+
+  XLSX.utils.book_append_sheet(
+    libro,
+    XLSX.utils.json_to_sheet([
+      { Campo: 'Desde', Valor: resumen.periodo.fecha_inicio },
+      { Campo: 'Hasta', Valor: resumen.periodo.fecha_fin },
+      {}, // fila en blanco separadora
+      ...filasKpiExcel(resumen)
+    ] as object[]),
+    'KPIs'
+  );
+
+  XLSX.utils.book_append_sheet(
+    libro,
+    XLSX.utils.json_to_sheet(
+      resumen.por_especialidad.map(d => ({ Especialidad: d.especialidad, 'Atenciones completadas': d.cantidad }))
+    ),
+    'Por especialidad'
+  );
+
+  XLSX.utils.book_append_sheet(
+    libro,
+    XLSX.utils.json_to_sheet(resumen.por_carrera.map(d => ({ Carrera: d.carrera, Citas: d.cantidad }))),
+    'Demanda por carrera'
+  );
+
+  XLSX.utils.book_append_sheet(
+    libro,
+    XLSX.utils.json_to_sheet(
+      resumen.sobrecupos_por_especialidad.map(d => ({ Especialidad: d.especialidad, Sobrecupos: d.cantidad }))
+    ),
+    'Sobrecupos'
+  );
+
+  XLSX.utils.book_append_sheet(
+    libro,
+    XLSX.utils.json_to_sheet(
+      resumen.profesionales.map(p => ({
+        Profesional: p.profesional, Especialidad: p.especialidad, Atenciones: p.atenciones,
+        Citas: p.citas, Canceladas: p.canceladas, Inasistencias: p.inasistencias,
+        Sobrecupos: p.sobrecupos, Urgentes: p.urgentes
+      }))
+    ),
+    'Profesionales'
+  );
+
+  return libro;
+}
+
+/** Agrega la hoja de detalle (una fila por atención) al libro de resumen ya construido. */
+export function agregarHojaAtencionesReportes(libro: XLSX.WorkBook, atenciones: readonly any[]): XLSX.WorkBook {
+  const filas = filasHistorialExcel(atenciones);
+  XLSX.utils.book_append_sheet(
+    libro,
+    filas.length ? XLSX.utils.json_to_sheet(filas) : XLSX.utils.aoa_to_sheet([[...COLUMNAS_HISTORIAL]]),
+    'Atenciones filtradas'
+  );
+  return libro;
+}

@@ -18,6 +18,24 @@
   --admin-border: #DCE5E2;
 }
 
+/* Modo oscuro: mismas variables --admin-*, redefinidas con la paleta
+   oscura que YA usa el resto del shell (fondo #111827, superficies
+   #1a2333/#1c2530, bordes #2c3846/#3a4a63, texto #c9d1d9/#e6edf3) — el
+   acento primario se mantiene igual que en claro, como ya hace
+   .nav-item.active en oscuro, en vez de inventar un verde nuevo.
+   Con esto, TODO lo que use var(--admin-*) (Reportes, Configuración,
+   Usuarios y roles, panel de Perfil) hereda el modo oscuro automáticamente
+   sin tener que duplicar reglas .tema-oscuro una por una. */
+.admin-shell.tema-oscuro {
+  --admin-primary: #5E857D;
+  --admin-primary-hover: #7FA79B;
+  --admin-surface: #1a2333;
+  --admin-background: #111827;
+  --admin-text: #e6edf3;
+  --admin-text-secondary: #8b96a8;
+  --admin-border: #2c3846;
+}
+
 * { box-sizing: border-box; }
 
 body {
@@ -174,11 +192,24 @@ body {
 .dashboard.tema-oscuro .buscador-dropdown { background: #1c2530; border-color: #2c3846; }
 .dashboard.tema-oscuro .buscador-opcion:hover { background: #232f3d; }
 
-/* ═══ Tabs de Configuración ═══ */
-.config-tabs { display: flex; gap: 6px; margin-bottom: 18px; flex-wrap: wrap; border-bottom: 1.5px solid #e7ebef; padding-bottom: 0; }
-.config-tab { padding: 9px 16px; border: none; background: transparent; font-size: 13px; font-weight: 600; color: #66727e; cursor: pointer; border-bottom: 2.5px solid transparent; }
-.config-tab.active { color: #0d9488; border-bottom-color: #0d9488; }
-.config-tab:hover { color: #17202a; }
+/* ═══ Cabecera y tabs de Configuración ═══ */
+.config-cabecera { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+.config-cabecera-icono {
+  width: 46px; height: 46px; border-radius: 12px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--admin-surface, #EDF6F3); color: var(--admin-primary, #5E857D);
+}
+.config-cabecera-icono .material-symbols-outlined { font-size: 26px; }
+.config-titulo { margin: 0; font-size: 22px; font-weight: 700; color: var(--admin-text, #102E29); }
+.config-subtitulo { margin: 2px 0 0; font-size: 13.5px; color: var(--admin-text-secondary, #5C706D); }
+
+.config-tabs { display: flex; gap: 2px; margin-bottom: 16px; flex-wrap: wrap; border-bottom: 1px solid var(--admin-border, #DCE5E2); }
+.config-tab {
+  padding: 10px 16px; border: none; background: transparent; font: inherit; font-size: 13.5px; font-weight: 600;
+  color: var(--admin-text-secondary, #5C706D); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.config-tab.active { color: var(--admin-primary, #5E857D); border-bottom-color: var(--admin-primary, #5E857D); }
+.config-tab:hover { color: var(--admin-text, #102E29); }
 
 /* ═══ Barras de reporte (citas por especialidad) ═══ */
 .reporte-barra-fila { display: flex; align-items: center; gap: 10px; }
@@ -364,6 +395,10 @@ tr.fila-urgente { background: #fff6f5; }
   justify-content: center;
   flex-shrink: 0;
 }
+.notif-icono .material-symbols-outlined { font-size: 16px; }
+.notif-btn-icon { font-size: 15px; vertical-align: -3px; margin-right: 2px; }
+.notif-acciones-masivas-btns button .material-symbols-outlined,
+.notif-item-acciones button .material-symbols-outlined { font-size: 16px; vertical-align: middle; }
 
 .notif-icono.cancelacion { background: #fff0f0; color: #c53e3e; }
 .notif-icono.info        { background: #f0f7ff; color: #4f8ef7; }
@@ -646,6 +681,8 @@ tr.fila-urgente { background: #fff6f5; }
 .tabla-usuario { display: flex; align-items: center; gap: 10px; }
 .tabla-usuario strong { display: block; font-size: 13px; color: #17202a; }
 .tabla-usuario span   { display: block; font-size: 11px; color: #87919a; }
+/* Las iniciales del avatar viven en un <span> dentro de .tabla-usuario: no deben heredar el gris/tamano de esa regla */
+.tabla-usuario .mini-avatar span { display: inline; font-size: inherit; color: inherit; }
 .tabla-acciones { display: flex; gap: 6px; }
 .tabla-vacia { text-align: center; color: #87919a; font-size: 13px; padding: 24px; }
 
@@ -664,6 +701,7 @@ tr.fila-urgente { background: #fff6f5; }
 }
 
 .avatar-lg { width: 50px; height: 50px; font-size: 16px; }
+.mini-avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
 
 .btn-tabla {
   width: 30px;
@@ -951,11 +989,260 @@ tr.fila-urgente { background: #fff6f5; }
 /* CONFIGURACIÓN                         */
 /* ══════════════════════════════════════ */
 
-.config-nueva-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+.config-nueva-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; max-width: 1760px; margin: 0 auto; }
 .config-card { display: flex; flex-direction: column; gap: 12px; }
 .auditoria-card { grid-column: 1 / -1; }
 
 .config-seccion-titulo { font-size: 11px; font-weight: 700; color: #87919a; letter-spacing: .5px; margin: 4px 0 8px; }
+
+/* ── Usuarios y roles (tabla unificada + panel de perfil) ──
+   Reutiliza las variables --admin-* ya definidas en .admin-shell (mismas
+   que Reportes); sin paleta nueva, sin tipografía nueva, sin librería de
+   iconos nueva (Material Symbols Outlined, ya global al proyecto). */
+.usuarios-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; max-width: 1760px; margin: 0 auto; width: 100%; }
+.usuarios-layout:has(.perfil-panel) { grid-template-columns: minmax(0, 1fr) 340px; align-items: start; }
+.usuarios-principal {
+  display: flex; flex-direction: column; gap: 14px; min-width: 0;
+  background: #fff; border: 1px solid var(--admin-border, #DCE5E2); border-radius: 12px; padding: 18px;
+}
+.usuarios-header .card-desc { margin: 2px 0 0; }
+
+.usuarios-filtros { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.usuarios-buscar {
+  display: flex; align-items: center; gap: 6px; flex: 1 1 240px; min-width: 200px;
+  border: 1px solid var(--admin-border, #DCE5E2); border-radius: 8px; padding: 8px 10px; background: #fff;
+}
+.usuarios-buscar:focus-within { outline: 2px solid var(--admin-primary, #5E857D); outline-offset: 1px; }
+.usuarios-buscar .material-symbols-outlined { font-size: 18px; color: var(--admin-text-secondary, #5C706D); }
+.usuarios-buscar input { border: none; outline: none; font: inherit; font-size: 13px; flex: 1; min-width: 0; color: var(--admin-text, #102E29); background: transparent; }
+.usuarios-filtros select {
+  padding: 8px 10px; border: 1px solid var(--admin-border, #DCE5E2); border-radius: 8px; font: inherit; font-size: 13px;
+  color: var(--admin-text, #102E29); background: #fff;
+}
+.usuarios-filtros .btn-filtrar {
+  display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; padding: 0;
+  background: #fff; color: var(--admin-text-secondary, #5C706D); border: 1px solid var(--admin-border, #DCE5E2); border-radius: 8px;
+}
+.usuarios-filtros .btn-filtrar:hover { background: var(--admin-surface, #EDF6F3); color: var(--admin-primary, #5E857D); }
+.usuarios-filtros .btn-filtrar .material-symbols-outlined { font-size: 20px; }
+
+/* Sub-pestañas como píldoras con contador */
+.usuarios-subtabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.usuarios-subtab {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; cursor: pointer;
+  border: 1px solid var(--admin-border, #DCE5E2); border-radius: 20px; background: #fff;
+  font: inherit; font-size: 12.5px; font-weight: 600; color: var(--admin-text-secondary, #5C706D);
+}
+.usuarios-subtab:hover { color: var(--admin-text, #102E29); background: var(--admin-surface, #EDF6F3); }
+.usuarios-subtab.active { background: var(--admin-surface, #EDF6F3); border-color: var(--admin-primary, #5E857D); color: var(--admin-primary, #5E857D); }
+.usuarios-contador { font-size: 12px; font-weight: 700; }
+.usuarios-contador::before { content: '('; }
+.usuarios-contador::after { content: ')'; }
+
+.usuarios-seccion { margin-bottom: 6px; }
+.usuarios-seccion-titulo { font-size: 13px; font-weight: 700; color: var(--admin-text, #102E29); margin: 10px 0 8px; }
+.usuarios-tabla-wrap { overflow-x: auto; }
+.usuarios-tabla-wrap .admin-tabla { min-width: 620px; }
+.usuarios-tabla-wrap .admin-tabla th { color: var(--admin-text-secondary, #5C706D); font-weight: 600; font-size: 11.5px; letter-spacing: 0; border-bottom-color: var(--admin-border, #DCE5E2); }
+.usuarios-tabla-wrap .admin-tabla td { color: var(--admin-text, #102E29); border-bottom-color: var(--admin-border, #DCE5E2); }
+.usuarios-tabla-wrap .admin-tabla tbody tr { cursor: pointer; }
+.usuarios-tabla-wrap .admin-tabla tbody tr:hover { background: var(--admin-surface, #EDF6F3); }
+.usuarios-tabla-wrap .admin-tabla tr.fila-seleccionada { background: var(--admin-surface, #EDF6F3); box-shadow: inset 3px 0 0 var(--admin-primary, #5E857D); }
+.usuarios-tabla-wrap .admin-tabla tr.fila-seleccionada td { color: var(--admin-text, #102E29); }
+.col-acciones { width: 64px; text-align: center; }
+
+.usuario-celda { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.usuario-avatar, .usuario-avatar-foto { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; }
+.usuario-avatar { display: flex; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 700; }
+.usuario-avatar-foto { object-fit: cover; border: 1px solid var(--admin-border, #DCE5E2); }
+.usuario-nombre { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.btn-acciones-fila {
+  display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: none; border-radius: 8px;
+  background: transparent; color: var(--admin-text-secondary, #5C706D); cursor: pointer;
+}
+.btn-acciones-fila:hover { background: var(--admin-surface, #EDF6F3); color: var(--admin-primary, #5E857D); }
+.btn-acciones-fila .material-symbols-outlined { font-size: 20px; }
+
+.btn-ver-perfil {
+  padding: 4px 10px; border-radius: 6px; border: 1px solid var(--admin-border, #DCE5E2);
+  background: #fff; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; color: var(--admin-primary, #5E857D);
+}
+.btn-ver-perfil:hover { background: var(--admin-surface, #EDF6F3); }
+
+.usuarios-pie { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 2px 0; }
+.usuarios-pie-texto { font-size: 12.5px; color: var(--admin-text-secondary, #5C706D); }
+.usuarios-paginacion { display: flex; align-items: center; gap: 12px; font-size: 12.5px; color: var(--admin-text-secondary, #5C706D); }
+.usuarios-paginacion button { border: 1px solid var(--admin-border, #DCE5E2); background: #fff; border-radius: 6px; width: 28px; height: 28px; cursor: pointer; color: var(--admin-text, #102E29); }
+.usuarios-paginacion button:disabled { opacity: .4; cursor: not-allowed; }
+
+.estado-badge.estudiante    { background: #EEF2FF; color: #4338CA; }
+.estado-badge.profesional   { background: var(--admin-surface, #EDF6F3); color: var(--admin-primary, #5E857D); }
+.estado-badge.administrador { background: #FFF3DE; color: #9A6A0A; }
+
+/* Panel lateral "Perfil" */
+.perfil-panel {
+  background: #fff; border: 1px solid var(--admin-border, #DCE5E2); border-radius: 12px; padding: 18px;
+  display: flex; flex-direction: column; gap: 14px; position: sticky; top: 16px; min-width: 0;
+}
+.perfil-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.perfil-header .card-desc { margin: 2px 0 0; }
+.btn-cerrar-panel { border: none; background: none; cursor: pointer; color: var(--admin-text-secondary, #5C706D); border-radius: 8px; padding: 2px; }
+.btn-cerrar-panel:hover { background: var(--admin-surface, #EDF6F3); }
+
+.perfil-identidad { display: flex; align-items: center; gap: 14px; }
+.perfil-avatar, .perfil-avatar-foto { width: 64px; height: 64px; border-radius: 50%; flex-shrink: 0; }
+.perfil-avatar {
+  background: var(--admin-surface, #EDF6F3); color: var(--admin-primary, #5E857D);
+  display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 20px;
+}
+.perfil-avatar-foto { object-fit: cover; border: 1px solid var(--admin-border, #DCE5E2); }
+.perfil-identidad-datos { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.perfil-identidad-nombre { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.perfil-identidad-nombre strong { font-size: 15px; color: var(--admin-text, #102E29); }
+.perfil-identidad-rut { font-size: 12.5px; color: var(--admin-text-secondary, #5C706D); }
+
+.perfil-resumen { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 12px; padding: 12px 0; border-top: 1px solid var(--admin-border, #DCE5E2); border-bottom: 1px solid var(--admin-border, #DCE5E2); }
+.perfil-resumen-item { display: grid; grid-template-columns: 22px 1fr; column-gap: 8px; row-gap: 0; align-items: center; min-width: 0; }
+.perfil-resumen-item .material-symbols-outlined { grid-row: span 2; font-size: 20px; color: var(--admin-primary, #5E857D); }
+.perfil-resumen-item strong { font-size: 13px; color: var(--admin-text, #102E29); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.perfil-tabs { display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid var(--admin-border, #DCE5E2); }
+.perfil-tabs button {
+  padding: 8px 10px; border: none; background: none; cursor: pointer; margin-bottom: -1px;
+  font: inherit; font-size: 12.5px; font-weight: 600; color: var(--admin-text-secondary, #5C706D);
+  border-bottom: 2px solid transparent;
+}
+.perfil-tabs button:hover { color: var(--admin-text, #102E29); }
+.perfil-tabs button.active { color: var(--admin-primary, #5E857D); border-bottom-color: var(--admin-primary, #5E857D); }
+
+.perfil-contenido h5 { margin: 0 0 10px; font-size: 13px; font-weight: 700; color: var(--admin-text, #102E29); }
+.perfil-contenido h5.perfil-subtitulo { margin-top: 18px; }
+.perfil-datos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.perfil-datos-grid > div { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--admin-text, #102E29); min-width: 0; overflow-wrap: anywhere; }
+.perfil-label { font-size: 11.5px; color: var(--admin-text-secondary, #5C706D); }
+
+.perfil-horarios-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.perfil-horario-item {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px; font-size: 13px;
+  border: 1px solid var(--admin-border, #DCE5E2); border-radius: 10px;
+}
+.perfil-horario-item .material-symbols-outlined { color: var(--admin-primary, #5E857D); font-size: 20px; }
+.perfil-horario-item div { display: flex; flex-direction: column; }
+.perfil-horario-item span { font-size: 11.5px; color: var(--admin-text-secondary, #5C706D); }
+.perfil-horario-item strong { color: var(--admin-text, #102E29); }
+.perfil-aviso { font-size: 12.5px; color: var(--admin-text-secondary, #5C706D); background: var(--admin-surface, #EDF6F3); padding: 10px; border-radius: 8px; }
+.perfil-nota { font-size: 11px; color: var(--admin-text-secondary, #5C706D); font-style: italic; margin-top: 8px; }
+.perfil-nota-pendiente {
+  display: flex; align-items: flex-start; gap: 8px; font-style: normal;
+  background: #FFF8E8; color: #7A5B12; border-radius: 8px; padding: 10px; margin-bottom: 10px;
+}
+.perfil-nota-pendiente .material-symbols-outlined { font-size: 17px; flex-shrink: 0; }
+
+.perfil-ausencias-grid { display: flex; flex-direction: column; gap: 8px; }
+.perfil-ausencia-card {
+  display: flex; align-items: center; gap: 10px;
+  border: 1px solid var(--admin-border, #DCE5E2); border-radius: 10px; padding: 10px 12px;
+}
+.perfil-ausencia-icono {
+  width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--admin-surface, #EDF6F3); color: var(--admin-primary, #5E857D);
+}
+.perfil-ausencia-icono .material-symbols-outlined { font-size: 18px; }
+.perfil-ausencia-card > div { display: flex; flex-direction: column; gap: 2px; flex: 1; font-size: 12.5px; color: var(--admin-text, #102E29); }
+.perfil-ausencia-contador { font-size: 11px; color: var(--admin-text-secondary, #5C706D); }
+.perfil-ausencia-card .btn-ver-perfil:disabled { opacity: .5; cursor: not-allowed; }
+.perfil-ausencia-basico { display: flex; flex-direction: column; gap: 10px; }
+.perfil-ausencia-basico-fila { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+.perfil-rol { display: flex; align-items: center; gap: 10px; border: 1px solid var(--admin-border, #DCE5E2); border-radius: 10px; padding: 10px 12px; }
+.perfil-rol > div { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+
+@media (max-width: 1100px) {
+  .usuarios-layout:has(.perfil-panel) { grid-template-columns: minmax(0, 1fr); }
+  .perfil-panel { position: static; }
+}
+
+/* Modo oscuro — Usuarios y roles / panel de Perfil. Los textos y bordes ya
+   usan var(--admin-*), que se redefine en .admin-shell.tema-oscuro y se
+   adapta sola; esto cubre solo los fondos `#fff` que quedaban fijos. */
+.dashboard.tema-oscuro .usuarios-principal,
+.dashboard.tema-oscuro .perfil-panel { background: #242f42; border-color: #3a4a63; }
+.dashboard.tema-oscuro .perfil-panel { box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
+.dashboard.tema-oscuro .usuarios-buscar,
+.dashboard.tema-oscuro .usuarios-filtros select,
+.dashboard.tema-oscuro .usuarios-filtros .btn-filtrar,
+.dashboard.tema-oscuro .usuarios-subtab,
+.dashboard.tema-oscuro .usuarios-paginacion button,
+.dashboard.tema-oscuro .btn-ver-perfil { background: #1c2534; border-color: #3a4a63; color: #c9d1d9; }
+.dashboard.tema-oscuro .usuarios-subtab.active { background: #2d3b52; border-color: var(--admin-primary, #5E857D); color: #fff; }
+.dashboard.tema-oscuro .usuarios-subtab:hover,
+.dashboard.tema-oscuro .btn-ver-perfil:hover { background: #2d3b52; }
+.dashboard.tema-oscuro .usuarios-buscar input { color: #e6edf3; }
+.dashboard.tema-oscuro .usuarios-tabla-wrap .admin-tabla tbody tr:hover,
+.dashboard.tema-oscuro .usuarios-tabla-wrap .admin-tabla tr.fila-seleccionada { background: #2d3b52; }
+.dashboard.tema-oscuro .config-cabecera-icono { background: #1c2534; }
+.dashboard.tema-oscuro .perfil-avatar-foto,
+.dashboard.tema-oscuro .usuario-avatar-foto { border-color: #3a4a63; }
+.dashboard.tema-oscuro .perfil-nota-pendiente { background: rgba(217,164,65,0.12); color: #e0b05c; }
+.dashboard.tema-oscuro .perfil-ausencia-card,
+.dashboard.tema-oscuro .perfil-horario-item,
+.dashboard.tema-oscuro .perfil-rol { border-color: #3a4a63; }
+
+/* Teléfonos chicos (320–400px) — mismo criterio que Reportes: responsive
+   para cualquier dispositivo, no solo tablet. */
+@media (max-width: 400px) {
+  .usuarios-principal, .perfil-panel { padding: 14px; }
+  .usuarios-subtab { padding: 6px 10px; font-size: 12px; }
+  .usuarios-buscar { min-width: 0; flex-basis: 100%; }
+  .usuarios-filtros select { flex: 1 1 100%; }
+  .perfil-identidad { flex-wrap: wrap; }
+  .perfil-datos-grid, .perfil-horarios-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Rediseño de Configuración (General/Citas/Horarios/Seguridad) ──
+   .btn-guardar-config, .toggle, .btn-filtrar, .btn-exportar-excel/pdf,
+   .btn-editar-perfil y .card son clases COMPARTIDAS con otras pantallas
+   (Estudiantes, Profesionales, Historial, Administradores, Perfil): no se
+   tocan sus reglas base para no modificar esas pantallas. Se sobrescriben
+   SOLO dentro de .config-nueva-layout (contenedor propio de cada pestaña
+   de Configuración), reutilizando las mismas variables --admin-* que ya
+   usa Usuarios y roles — sin paleta nueva. */
+.config-tab-icon { font-size: 16px; vertical-align: -3px; margin-right: 2px; }
+.config-btn-icon { font-size: 16px; vertical-align: -3px; margin-right: 2px; }
+
+.config-nueva-layout .card { border-color: var(--admin-border, #DCE5E2); }
+.config-nueva-layout .card-title { color: var(--admin-text, #102E29); }
+.config-nueva-layout .card-desc { color: var(--admin-text-secondary, #5C706D); }
+
+.config-nueva-layout .campo-grupo label { color: var(--admin-text-secondary, #5C706D); }
+.config-nueva-layout .campo-grupo input,
+.config-nueva-layout .campo-grupo select,
+.config-nueva-layout .campo-grupo textarea {
+  border-color: var(--admin-border, #DCE5E2); color: var(--admin-text, #102E29);
+}
+.config-nueva-layout .campo-grupo input:focus,
+.config-nueva-layout .campo-grupo textarea:focus { border-color: var(--admin-primary, #5E857D); }
+
+.config-nueva-layout .btn-guardar-config,
+.config-nueva-layout .btn-filtrar {
+  background: var(--admin-primary, #5E857D);
+}
+.config-nueva-layout .btn-guardar-config:not(:disabled):hover,
+.config-nueva-layout .btn-filtrar:hover { background: var(--admin-primary-hover, #4F746C); }
+
+.config-nueva-layout .btn-editar-perfil,
+.config-nueva-layout .btn-exportar-excel {
+  border-color: var(--admin-primary, #5E857D); color: var(--admin-primary, #5E857D);
+}
+.config-nueva-layout .btn-editar-perfil:hover,
+.config-nueva-layout .btn-exportar-excel:hover { background: var(--admin-surface, #EDF6F3); }
+
+.config-nueva-layout .toggle.on { background: var(--admin-primary, #5E857D); }
+.config-nueva-layout .toggle-row { color: var(--admin-text, #102E29); }
+
+.config-nueva-layout .admin-tabla th { color: var(--admin-text-secondary, #5C706D); }
+.config-nueva-layout .admin-tabla td { color: var(--admin-text, #102E29); }
 
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .campo-grupo { display: flex; flex-direction: column; gap: 4px; }
@@ -1014,17 +1301,23 @@ tr.fila-urgente { background: #fff6f5; }
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 200; }
 .modal { background: white; border-radius: 16px; padding: 28px; width: 520px; max-width: 90vw; box-shadow: 0 20px 60px rgba(23,32,42,0.19); max-height: 90vh; overflow-y: auto; }
 .modal-acciones { width: 460px; }
+.modal-gestionar-prof { width: 560px; }
+/* Cerrar y Dar de baja en la misma fila: Cerrar a su ancho, la baja ocupa el resto */
+.gestionar-acciones { display: flex; gap: 10px; align-items: stretch; margin-top: 16px; }
+.gestionar-acciones .btn-cancelar-modal { flex: 0 0 auto; }
+.gestionar-acciones .btn-eliminar-prof { flex: 1; width: auto; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .modal-header h3 { margin: 0; font-size: 16px; color: #17202a; }
 .modal-cerrar { background: none; border: none; font-size: 16px; cursor: pointer; color: #87919a; }
 .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 .modal-separador { height: 1px; background: #f6f8fb; margin: 14px 0; }
 .btn-cancelar-modal { padding: 9px 20px; border: 1.5px solid #e7ebef; border-radius: 8px; background: white; color: #66727e; font-size: 13px; cursor: pointer; }
+.btn-cancelar-modal.btn-peligro-modal { border-color: #c53e3e; color: #c53e3e; font-weight: 600; }
+.btn-cancelar-modal.btn-peligro-modal:hover { background: #fff0f0; }
+.dashboard.tema-oscuro .btn-cancelar-modal.btn-peligro-modal { border-color: #ef4444; color: #f85149; }
 .btn-guardar-modal  { padding: 9px 22px; background: linear-gradient(135deg, #0d9488, #0f766e); color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
 
 /* Modal profesional — datos readonly */
-.prof-datos-readonly { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
-.prof-datos-info h4  { margin: 0 0 4px; font-size: 15px; color: #17202a; }
 .prof-datos-grid     { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
 .dato-row  { display: flex; align-items: center; gap: 10px; }
 .dato-label { font-size: 11px; font-weight: 600; color: #87919a; width: 90px; flex-shrink: 0; }
@@ -1033,6 +1326,42 @@ tr.fila-urgente { background: #fff6f5; }
 /* Botón eliminar profesional */
 .btn-eliminar-prof { width: 100%; padding: 10px; background: white; border: 1.5px solid #c53e3e; border-radius: 8px; color: #c53e3e; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; }
 .btn-eliminar-prof:hover { background: #fff0f0; }
+
+/* Modal "Gestionar Profesional" — cabecera + tarjetas por sección */
+.gestionar-cabecera { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+.gestionar-cabecera-info { flex: 1; }
+.gestionar-cabecera-info h4 { margin: 0 0 4px; font-size: 15px; color: #17202a; }
+.gestionar-card { background: #f8faf9; border: 1px solid #e7ebef; border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+.gestionar-card-titulo { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; }
+.gestionar-card-titulo .material-symbols-outlined { font-size: 20px; color: #0d9488; margin-top: 1px; }
+.gestionar-card-h { margin: 0; font-size: 13px; font-weight: 700; color: #17202a; }
+.gestionar-card-sub { margin: 2px 0 0; font-size: 11px; color: #87919a; }
+.gestionar-card-datos { display: flex; flex-direction: column; gap: 12px; }
+.gestionar-card-datos .dato-row { align-items: flex-start; gap: 10px; }
+.gestionar-card-datos .dato-row > div { display: flex; flex-direction: column; gap: 2px; }
+.dato-icono { font-size: 18px; color: #87919a; margin-top: 1px; }
+
+.dashboard.tema-oscuro .gestionar-card { background: #1e293b; border-color: #334155; }
+.dashboard.tema-oscuro .gestionar-card-h { color: #e2e8f0; }
+
+/* Modal "Ficha del estudiante" */
+.modal-ficha-est { width: 880px; max-width: 94vw; }
+/* Dentro de las tarjetas nuevas la etiqueta va sobre el valor: sin ancho fijo (evita 'Correo / electrónico') */
+.gestionar-card-datos .dato-label { width: auto; }
+/* Historial de la ficha: fecha en una sola linea y boton 'Ver detalle' completo */
+.modal-ficha-est .admin-tabla td:first-child { white-space: nowrap; }
+.modal-ficha-est .btn-tabla-acciones { white-space: nowrap; }
+.gestionar-card-datos-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 20px; }
+.tipo-badge { padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; text-transform: capitalize; }
+.tipo-badge.normal    { background: #f1f5f9; color: #475569; }
+.tipo-badge.urgente   { background: #fff6df; color: #ad7b12; }
+.tipo-badge.sobrecupo { background: #f5f3ff; color: #7c3aed; }
+.aviso-confidencialidad { display: flex; align-items: flex-start; gap: 8px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 10px 12px; font-size: 11px; color: #1e40af; margin-top: 4px; }
+.aviso-confidencialidad .material-symbols-outlined { font-size: 16px; margin-top: 1px; flex-shrink: 0; }
+
+.dashboard.tema-oscuro .modal-ficha-est .search-input { background: #0f172a; color: #e2e8f0; border-color: #334155; }
+.dashboard.tema-oscuro .tipo-badge.normal { background: #334155; color: #cbd5e1; }
+.dashboard.tema-oscuro .aviso-confidencialidad { background: rgba(59,130,246,0.12); border-color: #3b82f6; color: #bfdbfe; }
 
 /* Confirmación de nuevo profesional */
 .confirmacion-resumen { background: #f6f8fb; border-radius: 10px; padding: 16px; margin-bottom: 4px; display: flex; flex-direction: column; gap: 10px; }
@@ -1149,6 +1478,8 @@ tr.fila-urgente { background: #fff6f5; }
 .modal-header h3 { display: flex; align-items: center; gap: 6px; }
 .modal-header h3 .material-symbols-outlined { font-size: 18px; color: #7c3aed; }
 .modal-cerrar .material-symbols-outlined { font-size: 18px; }
+.topbar-title-icon { font-size: 20px; vertical-align: -3px; margin-left: 2px; }
+.modal-btn-icon { font-size: 16px; vertical-align: -3px; margin-right: 2px; }
 
 .campo-grupo textarea {
   width: 100%; resize: vertical; min-height: 64px;
@@ -1258,7 +1589,7 @@ tr.fila-urgente { background: #fff6f5; }
 .dashboard.tema-oscuro .modal-separador { background: #3a4a63; }
 .dashboard.tema-oscuro .dato-label { color: #8b96a8; }
 .dashboard.tema-oscuro .dato-val   { color: #c9d1d9; }
-.dashboard.tema-oscuro .prof-datos-info h4 { color: #e6edf3; }
+.dashboard.tema-oscuro .gestionar-cabecera-info h4 { color: #e6edf3; }
 .dashboard.tema-oscuro .btn-eliminar-prof { background: #2d3b52; border-color: #ef4444; color: #f85149; }
 .dashboard.tema-oscuro .est-stats-panel { background: rgba(79,142,247,0.08); border-color: rgba(79,142,247,0.3); }
 .dashboard.tema-oscuro .est-stats-titulo { color: #4f8ef7; }

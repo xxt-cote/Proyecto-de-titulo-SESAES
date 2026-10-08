@@ -22,3 +22,10 @@ dist/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Archivos de trabajo locales
+*.zip
+*.patch
+fix_*.py
+tmp_ajustes/
+backend/gen_hash.py

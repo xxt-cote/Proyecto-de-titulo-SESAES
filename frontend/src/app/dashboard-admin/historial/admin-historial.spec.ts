@@ -158,3 +158,31 @@ fixture.detectChanges();
     expect(alumnosSpy).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('AdminHistorialComponent.inicialesEstudiante', () => {
+  let component: AdminHistorialComponent;
+
+  beforeEach(() => {
+    component = new AdminHistorialComponent();
+  });
+
+  it('usa primer nombre + primer apellido en nombres compuestos (no el último apellido)', () => {
+    expect(component.inicialesEstudiante('María Fernanda García López')).toBe('MG');
+    expect(component.inicialesEstudiante('Juan Carlos Pérez')).toBe('JP');
+  });
+
+  it('usa primer nombre + apellido en nombres simples', () => {
+    expect(component.inicialesEstudiante('Juan Pérez')).toBe('JP');
+    expect(component.inicialesEstudiante('Camila Soto')).toBe('CS');
+  });
+
+  it('devuelve una sola letra cuando solo hay un token', () => {
+    expect(component.inicialesEstudiante('Juan')).toBe('J');
+  });
+
+  it('devuelve "?" cuando el nombre está vacío o ausente', () => {
+    expect(component.inicialesEstudiante('')).toBe('?');
+    expect(component.inicialesEstudiante(null)).toBe('?');
+    expect(component.inicialesEstudiante(undefined)).toBe('?');
+  });
+});

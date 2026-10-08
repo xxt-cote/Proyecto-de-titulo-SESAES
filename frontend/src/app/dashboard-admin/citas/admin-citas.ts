@@ -1,13 +1,15 @@
 import {
+  ChangeDetectorRef,
   Component,
-  DoCheck,
   ElementRef,
   EventEmitter,
   HostListener,
   Input,
+  OnChanges,
   OnDestroy,
   OnInit,
   Output,
+  SimpleChanges,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -42,7 +44,7 @@ export interface CitasKpiDelta {
 }
 
 export interface CitasKpi {
-  clave: 'total' | 'canceladas' | 'pendientes' | 'profesionales';
+  clave: 'total' | 'canceladas' | 'pendientes' | 'urgentes' | 'sobrecupo' | 'profesionales';
   etiqueta: string;
   valor: string;
   icono: string;
@@ -93,11 +95,23 @@ const ETIQUETA_ESTADO: Record<string, string> = {
   templateUrl: './admin-citas.html',
   styleUrls: ['./admin-citas.css'],
 })
-export class AdminCitasComponent implements OnInit, DoCheck, OnDestroy {
+export class AdminCitasComponent implements OnInit, OnChanges, OnDestroy {
   /** agenda.gestionar. Lectura (agenda.ver) la controla el shell. */
   @Input() puedeGestionarAgenda = false;
   /** profesionales.ver: habilita el acceso rápido a Profesionales. */
   @Input() puedeVerProfesionales = false;
+  /**
+   * El shell muta directamente `cita.estado`/`cita.urgente` sobre el MISMO
+   * objeto que este componente tiene en `citasAdmin` (se lo pasa por
+   * referencia al emitir `cancelarCita`/`marcarPrioridad`). Como ese cambio
+   * ocurre fuera de este componente, no hay ningún método propio que lo
+   * detecte. En vez de recalcular en cada ciclo de detección de cambios
+   * "por si acaso", el shell incrementa este contador cada vez que termina
+   * de mutar una cita, y este único punto (ngOnChanges) es el que dispara el
+   * recálculo — así el costo es proporcional a las mutaciones reales, no a
+   * la frecuencia de la detección de cambios.
+   */
+  @Input() citasVersion = 0;
 
   @Output() verDetalle = new EventEmitter<any>();
   @Output() marcarPrioridad = new EventEmitter<{ cita: any; urgente: boolean }>();
@@ -146,15 +160,6 @@ export class AdminCitasComponent implements OnInit, DoCheck, OnDestroy {
   desde = 0;
   hasta = 0;
 
-  /**
-   * Selección de filas por checkbox: es solo un estado visual local (marca
-   * filas, alimenta el checkbox "seleccionar todo" de la página visible).
-   * No hay ninguna operación masiva implementada — el backend solo expone
-   * cancelar/priorizar una cita a la vez — así que a propósito no se agrega
-   * ninguna barra de "acciones en lote" que dependa de esta selección.
-   */
-  seleccionadas = new Set<number>();
-
   // ── Menú contextual por fila ──
   menuCita: any | null = null;
   menuPos: { top: number | null; bottom: number | null; right: number } = {
@@ -172,11 +177,15 @@ export class AdminCitasComponent implements OnInit, DoCheck, OnDestroy {
 
   constructor(
     private http: HttpClient,
+    private cdr: ChangeDetectorRef,
     private host: ElementRef<HTMLElement>,
   ) {}
 
   ngOnInit(): void {
     document.addEventListener('scroll', this.alHacerScroll, true);
+    // Deriva el estado inicial (pestañas en 0, KPIs en "—") antes de que
+    // lleguen los datos, para que la primera pintura no quede en blanco.
+    this.recalcular();
     this.cargarCitas();
     this.cargarProfesionales();
   }
@@ -187,12 +196,16 @@ export class AdminCitasComponent implements OnInit, DoCheck, OnDestroy {
   }
 
   /**
-   * El shell muta objetos de cita (urgente, estado) tras cancelar o priorizar.
-   * Recalcular en cada ciclo mantiene KPIs, pestañas y filas coherentes sin
-   * depender de recargar el listado.
+   * Único disparador de recálculo por mutación externa: ver el comentario
+   * de `citasVersion` más arriba. No se usa ngDoCheck a propósito: con
+   * miles de citas, recalcular en cada ciclo de detección de cambios
+   * (que puede ocurrir decenas de veces por segundo) sería un costo
+   * innecesario. Aquí el costo es proporcional a las mutaciones reales.
    */
-  ngDoCheck(): void {
-    this.recalcular();
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['citasVersion'] && !changes['citasVersion'].firstChange) {
+      this.recalcular();
+    }
   }
 
   // ═══════════════ Carga ═══════════════
@@ -229,11 +242,20 @@ export class AdminCitasComponent implements OnInit, DoCheck, OnDestroy {
         this.pagCitas = 1;
         this.citasCargando = false;
         this.citasCargadas = true;
+        // Recalcula una sola vez, con los datos ya asignados, en vez de
+        // dejarlo a merced del próximo ciclo de detección de cambios.
+        this.recalcular();
+        // Fuerza el repintado inmediato: no depender de que zone.js decida
+        // por sí solo cuándo aplicar el cambio (con eventCoalescing activo,
+        // eso a veces queda pendiente hasta la próxima interacción del
+        // usuario, dejando la pantalla pegada en "Cargando...").
+        this.cdr.detectChanges();
       },
       error: () => {
         if (seq !== this.cargaSeq) return;
         this.citasCargando = false;
         this.citasError = true;
+        this.cdr.detectChanges();
       },
     });
   }
@@ -242,6 +264,10 @@ export class AdminCitasComponent implements OnInit, DoCheck, OnDestroy {
     this.http.get<any[]>(`${API}/agenda/profesionales`).subscribe({
       next: (data) => {
         this.profesionalesCatalogo = data ?? [];
+        // Afecta el KPI de "profesionales activos" y las opciones del
+        // filtro de especialidad: se recalcula una vez, al llegar el dato.
+        this.recalcular();
+        this.cdr.detectChanges();
       },
       error: () => {
         // Sin catálogo: el KPI de profesionales muestra "—" y el filtro de
@@ -276,10 +302,12 @@ export class AdminCitasComponent implements OnInit, DoCheck, OnDestroy {
 
   seleccionarEstado(estado: EstadoCitaFiltro): void {
     this.citasFiltroEstado = estado;
+    this.recalcular();
   }
 
   alternarSoloUrgentes(): void {
     this.citasFiltroPrioridad = this.citasFiltroPrioridad === 'urgente' ? '' : 'urgente';
+    this.recalcular();
   }
 
   verTodasLasFechas(): void {
@@ -289,12 +317,37 @@ export class AdminCitasComponent implements OnInit, DoCheck, OnDestroy {
   irAPagina(pagina: number): void {
     if (pagina < 1 || pagina > this.totalPaginas) return;
     this.pagCitas = pagina;
+    this.paginar();
     this.cerrarMenu();
+  }
+
+  /** Búsqueda por estudiante/RUT/profesional: filtro local, sin llamada al servidor. */
+  actualizarBusqueda(valor: string): void {
+    this.citasFiltroEstudiante = valor;
+    this.recalcular();
+  }
+
+  /** Filtro de especialidad/tipo de servicio: local, sin llamada al servidor. */
+  actualizarServicio(valor: string): void {
+    this.citasFiltroServicio = valor;
+    this.recalcular();
   }
 
   // ═══════════════ Cálculo de derivados ═══════════════
 
+  /**
+   * Recalcula todo lo derivado de citasAdmin/filtros: pestañas, conteos,
+   * especialidades y KPIs, y termina paginando. Se llama explícitamente
+   * (carga de datos, cambio de filtro, mutación externa vía citasVersion),
+   * nunca en cada ciclo de detección de cambios.
+   */
   private recalcular(): void {
+    this.refiltrar();
+    this.paginar();
+  }
+
+  /** Filtra citasAdmin según búsqueda/servicio/estado/prioridad y arma pestañas, KPIs y especialidades. */
+  private refiltrar(): void {
     const consulta = normalizarTexto(this.citasFiltroEstudiante);
     const consultaRut = consulta.replace(/[.\-\s]/g, '');
 
@@ -341,6 +394,15 @@ export class AdminCitasComponent implements OnInit, DoCheck, OnDestroy {
       ? base.filter((c) => c.estado === this.citasFiltroEstado)
       : base;
 
+    this.especialidades = this.armarEspecialidades();
+    this.kpis = this.armarKpis();
+  }
+
+  /**
+   * Solo repagina citasFiltradas (ya calculado por refiltrar()). Se usa al
+   * cambiar de página, donde no hace falta rehacer la búsqueda ni los KPIs.
+   */
+  private paginar(): void {
     this.totalPaginas = Math.max(1, Math.ceil(this.citasFiltradas.length / this.porPagina));
     if (this.pagCitas > this.totalPaginas) this.pagCitas = this.totalPaginas;
     if (this.pagCitas < 1) this.pagCitas = 1;
@@ -350,9 +412,6 @@ export class AdminCitasComponent implements OnInit, DoCheck, OnDestroy {
     this.desde = this.citasFiltradas.length === 0 ? 0 : inicio + 1;
     this.hasta = Math.min(inicio + this.porPagina, this.citasFiltradas.length);
     this.paginas = paginasVisibles(this.pagCitas, this.totalPaginas);
-
-    this.especialidades = this.armarEspecialidades();
-    this.kpis = this.armarKpis();
 
     // "Ver detalles" siempre está disponible, así que el menú en sí sigue
     // siendo válido aunque la cita cambie de estado; solo se cierra si la
@@ -417,9 +476,21 @@ export class AdminCitasComponent implements OnInit, DoCheck, OnDestroy {
     const total = this.citasAdmin.length;
     const canceladas = contar(this.citasAdmin, 'cancelada');
     const pendientes = contar(this.citasAdmin, 'pendiente');
+    const urgentes = this.citasAdmin.filter((c) => c.urgente).length;
+    const sobrecupos = this.citasAdmin.filter((c) => c.sobrecupo).length;
     const dTotal = delta(total, this.citasPrevias.length, true);
     const dCanceladas = delta(canceladas, contar(this.citasPrevias, 'cancelada'), false);
     const dPendientes = delta(pendientes, contar(this.citasPrevias, 'pendiente'), false);
+    const dUrgentes = delta(
+      urgentes,
+      this.citasPrevias.filter((c) => c.urgente).length,
+      false,
+    );
+    const dSobrecupos = delta(
+      sobrecupos,
+      this.citasPrevias.filter((c) => c.sobrecupo).length,
+      false,
+    );
 
     const activos = this.profesionalesCatalogo.filter(
       (p) => (p?.estado ?? 'activo') === 'activo',
@@ -450,6 +521,22 @@ export class AdminCitasComponent implements OnInit, DoCheck, OnDestroy {
         icono: 'schedule',
         delta: dPendientes,
         nota: nota(dPendientes),
+      },
+      {
+        clave: 'urgentes',
+        etiqueta: 'Citas urgentes',
+        valor: formato(urgentes),
+        icono: 'warning',
+        delta: dUrgentes,
+        nota: nota(dUrgentes),
+      },
+      {
+        clave: 'sobrecupo',
+        etiqueta: 'Sobrecupo',
+        valor: formato(sobrecupos),
+        icono: 'event_repeat',
+        delta: dSobrecupos,
+        nota: nota(dSobrecupos),
       },
       {
         clave: 'profesionales',
@@ -493,33 +580,13 @@ export class AdminCitasComponent implements OnInit, DoCheck, OnDestroy {
   trackPagina = (i: number, p: ItemPagina) => (p.elipsis ? 'e' + i : p.num);
   trackTab = (_: number, t: TabEstado) => t.valor;
 
-  // ═══════════════ Selección por checkbox (solo visual) ═══════════════
-
-  estaSeleccionada(cita: any): boolean {
-    return this.seleccionadas.has(cita.id);
-  }
-
-  alternarSeleccion(cita: any): void {
-    if (this.seleccionadas.has(cita.id)) this.seleccionadas.delete(cita.id);
-    else this.seleccionadas.add(cita.id);
-  }
-
-  /** true si todas las filas de la página actual están seleccionadas. */
-  get todaLaPaginaSeleccionada(): boolean {
-    return this.citasPaginadas.length > 0 && this.citasPaginadas.every((c) => this.seleccionadas.has(c.id));
-  }
-
-  /** true si hay alguna, pero no todas, seleccionadas (para el estado "indeterminado"). */
-  get seleccionParcial(): boolean {
-    return !this.todaLaPaginaSeleccionada && this.citasPaginadas.some((c) => this.seleccionadas.has(c.id));
-  }
-
-  alternarSeleccionPagina(): void {
-    if (this.todaLaPaginaSeleccionada) {
-      for (const c of this.citasPaginadas) this.seleccionadas.delete(c.id);
-    } else {
-      for (const c of this.citasPaginadas) this.seleccionadas.add(c.id);
-    }
+  /**
+   * Número de fila mostrado en la primera columna: sigue la posición real
+   * dentro del listado filtrado, no solo dentro de la página (así en la
+   * página 2 continúa en 9, 10, 11… en vez de reiniciar en 1).
+   */
+  numeroFila(indiceEnPagina: number): number {
+    return (this.pagCitas - 1) * this.porPagina + indiceEnPagina + 1;
   }
 
   // ═══════════════ Menú por fila ═══════════════

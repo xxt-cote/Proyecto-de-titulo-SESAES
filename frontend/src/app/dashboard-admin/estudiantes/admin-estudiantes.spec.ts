@@ -127,21 +127,41 @@ describe('AdminEstudiantesComponent', () => {
     fixture.componentRef.setInput('modalPerfilEstudianteAbierto', true);
     fixture.componentRef.setInput('perfilEstudianteCargando', false);
     fixture.componentRef.setInput('fichaEstudianteSeleccionado', {
+      id: 1,
       nombre: 'Ana Pérez',
       rut: '11.111.111-1',
       correo: 'ana@utem.cl',
       carrera: 'Derecho',
+      telefono: null,
+      foto_url: null,
+      activo: true,
       citas_totales: 4,
       citas_atendidas: 3,
+      citas_pendientes: 1,
+      citas_canceladas: 0,
       ultimas_atenciones: [
         {
           fecha: '2026-08-20',
           hora: '10:00',
           profesional: 'Profesional SESAES',
           especialidad: 'Medicina General',
+          tipo: 'normal',
           estado: 'completada'
         }
-      ]
+      ],
+      historial: [
+        {
+          fecha: '2026-08-20',
+          hora: '10:00',
+          profesional: 'Profesional SESAES',
+          especialidad: 'Medicina General',
+          tipo: 'normal',
+          estado: 'completada'
+        }
+      ],
+      historial_total: 1,
+      historial_pagina: 1,
+      historial_por_pagina: 5
     });
     fixture.detectChanges();
 
@@ -158,5 +178,33 @@ describe('AdminEstudiantesComponent', () => {
     cerrar!.click();
 
     expect(cerrarSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('AdminEstudiantesComponent.inicialesDe', () => {
+  let component: AdminEstudiantesComponent;
+
+  beforeEach(() => {
+    component = new AdminEstudiantesComponent();
+  });
+
+  it('usa primer nombre + primer apellido en nombres compuestos (no el último apellido)', () => {
+    expect(component.inicialesDe('María Fernanda García López')).toBe('MG');
+    expect(component.inicialesDe('Juan Carlos Pérez')).toBe('JP');
+  });
+
+  it('usa primer nombre + apellido en nombres simples', () => {
+    expect(component.inicialesDe('Juan Pérez')).toBe('JP');
+    expect(component.inicialesDe('Camila Soto')).toBe('CS');
+  });
+
+  it('devuelve una sola letra cuando solo hay un token', () => {
+    expect(component.inicialesDe('Juan')).toBe('J');
+  });
+
+  it('devuelve "?" cuando el nombre está vacío o ausente', () => {
+    expect(component.inicialesDe('')).toBe('?');
+    expect(component.inicialesDe(null)).toBe('?');
+    expect(component.inicialesDe(undefined)).toBe('?');
   });
 });

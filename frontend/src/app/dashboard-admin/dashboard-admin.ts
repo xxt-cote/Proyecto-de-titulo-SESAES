@@ -2,7 +2,7 @@ import { Component, OnInit, ViewChild, ViewEncapsulation, ChangeDetectorRef } fr
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { environment } from '../config';
 import { obtenerFeriado } from '../shared/feriados-chile';
 import { ToastService } from '../shared/toast/toast.service';
@@ -12,7 +12,7 @@ import { AdminCitasComponent } from './citas/admin-citas';
 import { AdminProfesionalesComponent } from './profesionales/admin-profesionales';
 import { AdminPerfilComponent } from './perfil/admin-perfil';
 import { AdminHistorialComponent } from './historial/admin-historial';
-import { AdminReportesComponent } from './reportes/admin-reportes';
+import { AdminReportesComponent, ReportesTab, ResumenReportes } from './reportes/admin-reportes';
 import { AdminEstudiantesComponent } from './estudiantes/admin-estudiantes';
 import { AdminInicioComponent } from './inicio/admin-inicio';
 import { SuperadminInicioComponent } from './superadmin-inicio/superadmin-inicio';
@@ -35,7 +35,9 @@ import {
   filasHistorialExcel,
   libroAXlsxBlob,
   libroCgrAlumnos,
-  libroCgrAtenciones
+  libroCgrAtenciones,
+  libroResumenReportes,
+  agregarHojaAtencionesReportes
 } from './reportes/reportes-excel';
 
 
@@ -97,6 +99,19 @@ toggleSidebarMovil(): void {
   private _mensajeError = '';
   set mensajeError(valor: string) { this._mensajeError = valor; if (valor) this.toast.error(valor); }
   get mensajeError(): string { return this._mensajeError; }
+
+  /**
+   * Le avisa a AdminCitasComponent que una cita cambió por fuera (cancelar,
+   * marcar/quitar urgente). Ese componente ya no recalcula en cada ciclo de
+   * detección de cambios por rendimiento, así que necesita una señal
+   * explícita — ver ngOnChanges en admin-citas.ts.
+   */
+  citasVersion = 0;
+
+  /** Los títulos van en la barra superior: ninguna sección dibuja cabecera propia. */
+  get seccionConCabeceraPropia(): boolean {
+    return false;
+  }
 
   get tituloSeccion(): string {
     const map: Record<string, string> = {
@@ -350,6 +365,8 @@ toggleSidebarMovil(): void {
     this.estudiantesCargando = false;
     this.fichaEstudianteSeleccionado = null;
     this.modalPerfilEstudianteAbierto = false;
+    this.estudianteFichaIdActual = null;
+    this.histEstudianteQ = '';
 
     this.historialAdmin = [];
     this.estadisticasEstudiante = null;
@@ -498,6 +515,7 @@ toggleSidebarMovil(): void {
     this.cargarGraficoEspecialidad();
     this.cargarGraficoSemana();
     this.cargarHistorial();
+    this.cargarReportesResumen();
   }
 
   if (seccion === 'miperfil') this.cargarMiPerfil();
@@ -814,17 +832,21 @@ toggleSidebarMovil(): void {
     if (!confirm(`¿Cancelar la cita de ${cita.estudiante}?`)) return;
     this.http.patch(`${API}/admin/citas/${cita.id}/cancelar`, { motivo: 'Cancelada por administrador' }).subscribe({
       next: () => {
+        this.proximasCitas = this.proximasCitas.filter(c => c.id !== cita.id);
         // Se refleja en el mismo objeto recibido (no se reemplaza) para que
         // AdminCitasComponent, que sigue apuntando a esta misma referencia,
         // recalcule KPIs/pestañas/fila sin necesidad de recargar el listado.
         cita.estado = 'cancelada';
-        this.proximasCitas = this.proximasCitas.filter(c => c.id !== cita.id);
         // Se actualiza el estado en el mismo lugar (no se elimina), para que el panel
         // de Horario siga mostrando la cita con su estado real en vez de hacerla desaparecer.
         const citaH = this.citasHorario.find(c => c.id === cita.id);
         if (citaH) citaH.estado = 'cancelada';
         this.mensajeExito = 'Cita cancelada. El estudiante fue notificado.';
         setTimeout(() => this.mensajeExito = '', 3000);
+        // AdminCitasComponent ya no recalcula en cada ciclo de detección de
+        // cambios (por rendimiento con miles de citas); este contador es la
+        // única señal que le indica "una cita cambió por fuera, recalcula".
+        this.citasVersion++;
         this.cdr.detectChanges();
       },
       error: () => { this.mensajeError = 'Error al cancelar cita.'; setTimeout(() => this.mensajeError = '', 3000); }
@@ -2185,18 +2207,23 @@ toggleSidebarMovil(): void {
     });
   }
 
+  /**
+   * Baja lógica, no hard-delete: el backend (DELETE /profesionales/{id})
+   * desactiva al profesional y preserva su historial/auditoría en vez de
+   * eliminarlo físicamente (ver corrección de baja lógica de profesional).
+   */
   onEliminarProfesional(p: any): void {
     if (!this.hasPermission('profesionales.gestionar')) return;
-    if (!confirm(`¿Eliminar a ${p.nombre}?`)) return;
+    if (!confirm(`¿Dar de baja a ${p.nombre}? Dejará de recibir nuevas reservas.`)) return;
     if (!confirm('Se cancelarán TODAS sus citas pendientes y se notificará a los estudiantes. ¿Confirmar?')) return;
     this.http.delete(`${API}/admin/profesionales/${p.id}`).subscribe({
       next: () => {
         this.adminProfesionalesRef?.cerrarModalAcciones();
         this.cargarProfesionales();
-        this.mensajeExito = 'Profesional eliminado.'; setTimeout(() => this.mensajeExito = '', 3000);
+        this.mensajeExito = 'Profesional dado de baja.'; setTimeout(() => this.mensajeExito = '', 3000);
         this.cdr.detectChanges();
       },
-      error: () => { this.mensajeError = 'No se pudo eliminar.'; setTimeout(() => this.mensajeError = '', 3000); }
+      error: () => { this.mensajeError = 'No se pudo dar de baja al profesional.'; setTimeout(() => this.mensajeError = '', 3000); }
     });
   }
 
@@ -2224,6 +2251,9 @@ toggleSidebarMovil(): void {
       next: (res) => {
         cita.urgente = res.urgente;
         this.toast.success(urgente ? 'Cita marcada como urgente' : 'Se quitó la prioridad urgente');
+        // Misma señal que en cancelarCitaAdmin: le avisa a AdminCitasComponent
+        // que debe recalcular (ver comentario en cancelarCitaAdmin).
+        this.citasVersion++;
         this.cdr.detectChanges();
       },
       error: () => this.toast.error('No se pudo cambiar la prioridad de la cita')
@@ -2283,15 +2313,80 @@ toggleSidebarMovil(): void {
     this.modalPerfilEstudianteAbierto = true;
     this.perfilEstudianteCargando = true;
     this.fichaEstudianteSeleccionado = null;
-    this.http.get<any>(`${API}/admin/estudiantes/${est.id}/perfil`).subscribe({
+    this.histEstudianteQ = '';
+    this.estudianteFichaIdActual = est.id;
+    this.cargarFichaEstudiante(est.id, 1);
+  }
+
+  /**
+   * Estudiante actualmente abierto en "Ficha del estudiante", para
+   * poder recargar el historial (búsqueda/paginación) sin volver a
+   * pasar el objeto completo cada vez.
+   */
+  estudianteFichaIdActual: number | null = null;
+  histEstudianteQ = '';
+
+  private cargarFichaEstudiante(estudianteId: number, pagina: number): void {
+    this.perfilEstudianteCargando = this.fichaEstudianteSeleccionado === null;
+    let params = new HttpParams()
+      .set('page', pagina)
+      .set('page_size', 5);
+    if (this.histEstudianteQ) {
+      params = params.set('q', this.histEstudianteQ);
+    }
+    this.http.get<any>(`${API}/admin/estudiantes/${estudianteId}/perfil`, { params }).subscribe({
       next: (data) => { this.fichaEstudianteSeleccionado = data; this.perfilEstudianteCargando = false; this.cdr.detectChanges(); },
       error: () => { this.perfilEstudianteCargando = false; this.toast.error('No se pudo cargar la ficha del estudiante'); }
+    });
+  }
+
+  buscarHistorialEstudiante(): void {
+    if (!this.estudianteFichaIdActual) return;
+    this.cargarFichaEstudiante(this.estudianteFichaIdActual, 1);
+  }
+
+  cambiarPaginaHistorialEstudiante(pagina: number): void {
+    if (!this.estudianteFichaIdActual || pagina < 1) return;
+    this.cargarFichaEstudiante(this.estudianteFichaIdActual, pagina);
+  }
+
+  modalDetalleCitaEstudianteAbierto = false;
+  citaDetalleEstudiante: any = null;
+
+  verDetalleCitaEstudiante(cita: any): void {
+    this.citaDetalleEstudiante = cita;
+    this.modalDetalleCitaEstudianteAbierto = true;
+  }
+
+  cerrarDetalleCitaEstudiante(): void {
+    this.modalDetalleCitaEstudianteAbierto = false;
+    this.citaDetalleEstudiante = null;
+  }
+
+  cancelarCitaDesdeFichaEstudiante(cita: any): void {
+    if (!this.hasPermission('agenda.gestionar')) return;
+    if (cita?.estado !== 'pendiente') return;
+    if (!confirm(`¿Cancelar la cita del ${cita.fecha} con ${cita.profesional}?`)) return;
+    this.http.patch(`${API}/admin/citas/${cita.id}/cancelar`, { motivo: 'Cancelada por administrador' }).subscribe({
+      next: () => {
+        cita.estado = 'cancelada';
+        this.cerrarDetalleCitaEstudiante();
+        if (this.estudianteFichaIdActual) {
+          this.cargarFichaEstudiante(this.estudianteFichaIdActual, this.fichaEstudianteSeleccionado?.historial_pagina || 1);
+        }
+        this.mensajeExito = 'Cita cancelada. El estudiante fue notificado.';
+        setTimeout(() => this.mensajeExito = '', 3000);
+        this.cdr.detectChanges();
+      },
+      error: () => { this.mensajeError = 'Error al cancelar cita.'; setTimeout(() => this.mensajeError = '', 3000); }
     });
   }
 
   cerrarModalPerfilEstudiante(): void {
     this.modalPerfilEstudianteAbierto = false;
     this.fichaEstudianteSeleccionado = null;
+    this.estudianteFichaIdActual = null;
+    this.histEstudianteQ = '';
   }
 
   historialAdmin:      any[] = [];
@@ -2370,6 +2465,142 @@ toggleSidebarMovil(): void {
   }
 
   // ══════════════════════════════════════
+  // REPORTES (Vista general y siguientes — GET /admin/reportes/resumen)
+  // ══════════════════════════════════════
+  // Única fuente de verdad de KPIs/gráficos/tabla: el backend
+  // (_construir_resumen_reportes). Angular NO recalcula nada, solo
+  // presenta lo que llega. Los 6 filtros (fecha/especialidad/carrera/
+  // profesional/estado/prioridad) requieren backend — por eso solo se
+  // aplican al presionar "Aplicar filtros", nunca en cada tecla. Cambiar
+  // de pestaña es 100% local (admin-reportes.ts decide qué mostrar del
+  // mismo `reportesResumen` ya cargado) y no dispara ninguna petición.
+
+  reportesResumen: ResumenReportes | null = null;
+  reportesCargando = false;
+  reportesError: string | null = null;
+  reportesTabActiva: ReportesTab = 'general';
+
+  reportesFiltroFechaInicio = '';
+  reportesFiltroFechaFin = '';
+  reportesFiltroEspecialidad = '';
+  reportesFiltroCarrera = '';
+  reportesFiltroProfesionalId: number | '' = '';
+  reportesFiltroEstado = '';
+  reportesFiltroPrioridad = '';
+
+  get listaProfesionalesReportes(): { id: number; nombre: string }[] {
+    return this.profesionales.map(p => ({ id: p.id, nombre: p.nombre }));
+  }
+
+  cargarReportesResumen(): void {
+    if (!this.hasPermission('reportes.ver')) return;
+
+    this.reportesCargando = true;
+    this.reportesError = null;
+
+    const params: Record<string, string | number> = {};
+    if (this.reportesFiltroFechaInicio) params['fecha_inicio'] = this.reportesFiltroFechaInicio;
+    if (this.reportesFiltroFechaFin) params['fecha_fin'] = this.reportesFiltroFechaFin;
+    if (this.reportesFiltroEspecialidad) params['especialidad'] = this.reportesFiltroEspecialidad;
+    if (this.reportesFiltroCarrera) params['carrera'] = this.reportesFiltroCarrera;
+    if (this.reportesFiltroProfesionalId) params['profesional_id'] = this.reportesFiltroProfesionalId;
+    if (this.reportesFiltroEstado) params['estado'] = this.reportesFiltroEstado;
+    if (this.reportesFiltroPrioridad) params['prioridad'] = this.reportesFiltroPrioridad;
+
+    this.http.get<ResumenReportes>(`${API}/admin/reportes/resumen`, { params }).subscribe({
+      next: (data) => {
+        this.reportesResumen = data;
+        this.reportesCargando = false;
+        this.cdr.detectChanges();
+      },
+      error: (err: HttpErrorResponse) => {
+        // Se conserva el resumen anterior en pantalla (no se limpia a null):
+        // un error de red no debe borrar lo último que sí se vio bien.
+        this.reportesCargando = false;
+        this.reportesError = err.status === 401
+          ? null // auth.interceptor ya redirige al login
+          : 'Error al cargar el reporte.';
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  aplicarFiltrosReportes(): void {
+    this.cargarReportesResumen();
+  }
+
+  limpiarFiltrosReportes(): void {
+    this.reportesFiltroFechaInicio = '';
+    this.reportesFiltroFechaFin = '';
+    this.reportesFiltroEspecialidad = '';
+    this.reportesFiltroCarrera = '';
+    this.reportesFiltroProfesionalId = '';
+    this.reportesFiltroEstado = '';
+    this.reportesFiltroPrioridad = '';
+    this.cargarReportesResumen();
+  }
+
+  // Excel: EXACTAMENTE lo que la pantalla muestra tras "Aplicar filtros".
+  // Hoja "KPIs" + desgloses = this.reportesResumen ya cargado (mismos
+  // números que ven los KPIs/gráficos, nunca recalculados en Angular).
+  // Hoja "Atenciones filtradas" = /admin/historial con LOS MISMOS filtros
+  // (fecha/especialidad/carrera/profesional) + estado forzado a
+  // "completada" (cita != atención) — se reutiliza el endpoint existente
+  // en vez de crear uno nuevo, y no queda acotada a las 10 filas de
+  // "últimas atenciones" del resumen.
+  exportarReportesExcel(): void {
+    if (!this.reportesResumen) return;
+
+    const libro = libroResumenReportes(this.reportesResumen);
+
+    let url = `${API}/admin/historial?estado=completada&`;
+    if (this.reportesFiltroFechaInicio) url += `fecha_inicio=${this.reportesFiltroFechaInicio}&`;
+    if (this.reportesFiltroFechaFin) url += `fecha_fin=${this.reportesFiltroFechaFin}&`;
+    if (this.reportesFiltroEspecialidad) url += `especialidad=${encodeURIComponent(this.reportesFiltroEspecialidad)}&`;
+    if (this.reportesFiltroCarrera) url += `carrera=${encodeURIComponent(this.reportesFiltroCarrera)}&`;
+
+    this.http.get<any[]>(url).subscribe({
+      next: (atenciones) => {
+        let filtradas = atenciones ?? [];
+        // "prioridad" (urgente) no es parámetro de /admin/historial: se
+        // aplica aquí sobre el resultado ya filtrado por backend, igual
+        // que hace la tabla "últimas atenciones" del resumen.
+        if (this.reportesFiltroPrioridad === 'urgente') filtradas = filtradas.filter(a => a.urgente);
+        if (this.reportesFiltroPrioridad === 'no_urgente') filtradas = filtradas.filter(a => !a.urgente);
+        agregarHojaAtencionesReportes(libro, filtradas);
+        guardarBlob(libroAXlsxBlob(libro), 'reportes_sesaes.xlsx');
+      },
+      error: () => {
+        // El detalle de atenciones no llegó: se entrega igual el Excel con
+        // los KPIs/gráficos (datos reales, ya en pantalla) más una hoja de
+        // atenciones vacía, en vez de no entregar nada.
+        agregarHojaAtencionesReportes(libro, []);
+        guardarBlob(libroAXlsxBlob(libro), 'reportes_sesaes.xlsx');
+        this.toast.error('No se pudo obtener el detalle de atenciones; se exportaron igual los KPIs.');
+      }
+    });
+  }
+
+  // PDF real: descarga el binario que arma el backend (fpdf2) desde
+  // GET /admin/reportes/resumen/pdf, con los mismos filtros y el mismo
+  // cálculo que el JSON — nunca se genera un PDF en Angular.
+  exportarReportesPdf(): void {
+    const params: Record<string, string | number> = {};
+    if (this.reportesFiltroFechaInicio) params['fecha_inicio'] = this.reportesFiltroFechaInicio;
+    if (this.reportesFiltroFechaFin) params['fecha_fin'] = this.reportesFiltroFechaFin;
+    if (this.reportesFiltroEspecialidad) params['especialidad'] = this.reportesFiltroEspecialidad;
+    if (this.reportesFiltroCarrera) params['carrera'] = this.reportesFiltroCarrera;
+    if (this.reportesFiltroProfesionalId) params['profesional_id'] = this.reportesFiltroProfesionalId;
+    if (this.reportesFiltroEstado) params['estado'] = this.reportesFiltroEstado;
+    if (this.reportesFiltroPrioridad) params['prioridad'] = this.reportesFiltroPrioridad;
+
+    this.http.get(`${API}/admin/reportes/resumen/pdf`, { params, responseType: 'blob' }).subscribe({
+      next: (blob) => guardarBlob(blob, 'reporte_sesaes.pdf'),
+      error: (err: HttpErrorResponse) => this.manejarErrorDescargaCgr(err)
+    });
+  }
+
+  // ══════════════════════════════════════
   // CONFIGURACIÓN
   // ══════════════════════════════════════
 
@@ -2395,7 +2626,123 @@ toggleSidebarMovil(): void {
     if (tab === 'general') this.cargarConfiguracionCentro();
     if (tab === 'citas') this.cargarConfiguracionCitas();
     if (tab === 'horarios') this.cargarDiasCerrados();
+    if (tab === 'usuarios') this.cargarUsuariosYRoles();
     if (tab === 'seguridad') this.cargarAuditoria();
+  }
+
+  // ══════════════════════════════════════
+  // USUARIOS Y ROLES (dentro de Configuración — NO es Reportes)
+  // ══════════════════════════════════════
+  // 3 fuentes reales, cada una con su propio contrato (no existe ni se crea
+  // un endpoint único "todos los usuarios"):
+  //   - Estudiantes: /admin/estudiantes/listado — paginado y con búsqueda
+  //     real en backend (puede haber cientos; nunca se cargan todos).
+  //   - Profesionales: ya están en memoria (this.profesionales, cargados
+  //     globalmente al iniciar sesión) — lista acotada, filtro 100% local.
+  //   - Administradores: /usuarios/administradores — también acotada,
+  //     filtro local. Requiere `roles.gestionar` (más estricto que
+  //     `usuarios.gestionar`, que es lo que abre esta pestaña), por eso se
+  //     pide aparte y se oculta si el usuario no tiene ese permiso.
+  usuariosSubTab: 'estudiantes' | 'profesionales' | 'administradores' = 'estudiantes';
+  usuariosBusqueda = '';
+  usuariosFiltroRol = '';
+  usuariosFiltroEstado = '';
+
+  usuariosEstudiantes: any[] = [];
+  usuariosEstudiantesTotal = 0;
+  usuariosEstudiantesPagina = 1;
+  readonly usuariosEstudiantesPorPagina = 8;
+  usuariosEstudiantesCargando = false;
+
+  usuariosAdministradores: any[] = [];
+
+  get puedeVerAdministradoresUsuarios(): boolean {
+    return this.hasPermission('roles.gestionar');
+  }
+
+  cargarUsuariosYRoles(): void {
+    this.usuariosEstudiantesPagina = 1;
+    this.buscarUsuariosEstudiantes();
+    if (this.puedeVerAdministradoresUsuarios && this.usuariosAdministradores.length === 0) {
+      this.http.get<any[]>(`${API}/usuarios/administradores`).subscribe({
+        next: (data) => { this.usuariosAdministradores = data ?? []; this.cdr.detectChanges(); },
+        error: () => {}
+      });
+    }
+  }
+
+  // Única llamada con costo de red real de esta pantalla: se dispara al
+  // entrar a la pestaña, al paginar, y al presionar "Buscar" — nunca en
+  // cada tecla (igual que Historial/Reportes).
+  buscarUsuariosEstudiantes(): void {
+    this.usuariosEstudiantesCargando = true;
+    const params: Record<string, string | number> = {
+      pagina: this.usuariosEstudiantesPagina,
+      por_pagina: this.usuariosEstudiantesPorPagina
+    };
+    if (this.usuariosBusqueda.trim()) params['q'] = this.usuariosBusqueda.trim();
+
+    this.http.get<{ total: number; estudiantes: any[] }>(`${API}/admin/estudiantes/listado`, { params }).subscribe({
+      next: (data) => {
+        this.usuariosEstudiantes = data?.estudiantes ?? [];
+        this.usuariosEstudiantesTotal = data?.total ?? 0;
+        this.usuariosEstudiantesCargando = false;
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.usuariosEstudiantesCargando = false;
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  cambiarPaginaUsuariosEstudiantes(pagina: number): void {
+    if (pagina < 1) return;
+    this.usuariosEstudiantesPagina = pagina;
+    this.buscarUsuariosEstudiantes();
+  }
+
+  get totalPaginasUsuariosEstudiantes(): number {
+    return Math.max(1, Math.ceil(this.usuariosEstudiantesTotal / this.usuariosEstudiantesPorPagina));
+  }
+
+  // Panel lateral "Perfil" (imagen 2). Información general y Rol y permisos
+  // son datos reales ya disponibles. Horarios y jornada muestra únicamente
+  // SOLICITUDES de horario aprobadas (jornada/colación) — SESAES no
+  // registra marcaje real de entrada/salida, así que nunca se etiqueta
+  // como "registro de jornada", para no sugerir un dato que no existe.
+  usuarioSeleccionado: any = null;
+  usuarioSeleccionadoTipo: 'estudiante' | 'profesional' | 'administrador' | null = null;
+  perfilTabActiva: 'general' | 'horarios' | 'permisos' = 'general';
+  perfilHorarios: any[] = [];
+  perfilHorariosCargando = false;
+
+  seleccionarUsuarioPerfil(usuario: any, tipo: 'estudiante' | 'profesional' | 'administrador'): void {
+    this.usuarioSeleccionado = usuario;
+    this.usuarioSeleccionadoTipo = tipo;
+    this.perfilTabActiva = 'general';
+    this.perfilHorarios = [];
+
+    if (tipo === 'profesional' && this.hasPermission('agenda.gestionar')) {
+      this.perfilHorariosCargando = true;
+      this.http.get<any[]>(`${API}/admin/solicitudes-horario?estado=aprobado`).subscribe({
+        next: (data) => {
+          this.perfilHorarios = (data ?? []).filter(s => s.profesional_id === usuario.id);
+          this.perfilHorariosCargando = false;
+          this.cdr.detectChanges();
+        },
+        error: () => { this.perfilHorariosCargando = false; this.cdr.detectChanges(); }
+      });
+    }
+  }
+
+  cambiarPerfilTab(tab: 'general' | 'horarios' | 'permisos'): void {
+    this.perfilTabActiva = tab;
+  }
+
+  cerrarPerfilUsuario(): void {
+    this.usuarioSeleccionado = null;
+    this.usuarioSeleccionadoTipo = null;
   }
 
   // Reglas de citas (endpoint ya existente en backend: /admin/configuracion)

@@ -11,6 +11,7 @@ import {
   FormatoCgrInesperadoError,
   MIME_XLSX,
   TablaCgr,
+  agregarHojaAtencionesReportes,
   construirLibroTabla,
   construirLibroXlsx,
   etiquetaEstadoCita,
@@ -21,7 +22,8 @@ import {
   formatearFechaExcel,
   libroAXlsxBlob,
   libroCgrAlumnos,
-  libroCgrAtenciones
+  libroCgrAtenciones,
+  libroResumenReportes
 } from './reportes-excel';
 
 // Datos con tildes, ñ, mayúsculas y minúsculas mezcladas, como en producción.
@@ -301,6 +303,68 @@ async function leerLibro(blob: Blob) {
     hoja,
     matriz: XLSX.utils.sheet_to_json<unknown[]>(hoja, { header: 1, raw: true }) as unknown[][]
   };
+}
+
+describe('Excel — resumen de Reportes (KPIs + hojas por bloque)', () => {
+  const RESUMEN = {
+    periodo: { fecha_inicio: '2026-09-01', fecha_fin: '2026-09-30' },
+    periodo_anterior: { fecha_inicio: '2026-08-01', fecha_fin: '2026-08-30', disponible: true },
+    kpis: {
+      total_atenciones: { valor: 3, variacion_pct: 200 },
+      completadas: { valor: 3, variacion_pct: 200 },
+      canceladas: { valor: 2, variacion_pct: null },
+      urgentes: { valor: 1, variacion_pct: null },
+      sobrecupos: { valor: 1, variacion_pct: null },
+      estudiantes_atendidos: { valor: 2, variacion_pct: null }
+    },
+    por_especialidad: [{ especialidad: 'Psicología', cantidad: 1 }],
+    por_carrera: [{ carrera: 'Kinesiología', cantidad: 2 }],
+    sobrecupos_por_especialidad: [{ especialidad: 'Psicología', cantidad: 1 }],
+    cancelaciones: { total: 2, por_origen: [{ origen: 'admin', cantidad: 1 }, { origen: 'paciente', cantidad: 1 }] },
+    profesionales: [
+      { profesional: 'Dra. María Núñez', especialidad: 'Nutrición', atenciones: 2, citas: 2,
+        canceladas: 0, inasistencias: 0, sobrecupos: 0, urgentes: 0 }
+    ]
+  };
+
+  it('la hoja KPIs trae el período, cada KPI y "Sin datos comparables" cuando corresponde', async () => {
+    const libro = libroResumenReportes(RESUMEN as any);
+    const { matriz } = await idaYVuelta2(libro);
+
+    const filas = matriz.map(f => f.join('|'));
+    expect(filas.some(f => f.includes('2026-09-01'))).toBe(true);
+    expect(filas.some(f => f.includes('Total de atenciones') && f.includes('+200%'))).toBe(true);
+    expect(filas.some(f => f.includes('Canceladas') && f.includes('Sin datos comparables'))).toBe(true);
+  });
+
+  it('genera una hoja por bloque (KPIs, especialidad, carrera, sobrecupos, profesionales)', () => {
+    const libro = libroResumenReportes(RESUMEN as any);
+    expect(libro.SheetNames).toEqual(['KPIs', 'Por especialidad', 'Demanda por carrera', 'Sobrecupos', 'Profesionales']);
+  });
+
+  it('agregarHojaAtencionesReportes añade "Atenciones filtradas" con las mismas columnas del historial', () => {
+    const libro = libroResumenReportes(RESUMEN as any);
+    agregarHojaAtencionesReportes(libro, [CITAS[1]]); // ÁLVARO NÚÑEZ, completada
+    expect(libro.SheetNames).toContain('Atenciones filtradas');
+    const hoja = libro.Sheets['Atenciones filtradas'];
+    const filas = XLSX.utils.sheet_to_json(hoja, { header: 1 }) as unknown[][];
+    expect(filas[0]).toEqual([...COLUMNAS_HISTORIAL]);
+    expect(filas[1]).toContain('ÁLVARO NÚÑEZ');
+  });
+
+  it('sin atenciones filtradas: la hoja igual trae los encabezados (no queda vacía ni se omite)', () => {
+    const libro = libroResumenReportes(RESUMEN as any);
+    agregarHojaAtencionesReportes(libro, []);
+    const filas = XLSX.utils.sheet_to_json(libro.Sheets['Atenciones filtradas'], { header: 1 }) as unknown[][];
+    expect(filas).toEqual([[...COLUMNAS_HISTORIAL]]);
+  });
+});
+
+async function idaYVuelta2(libro: XLSX.WorkBook) {
+  const bytes = XLSX.write(libro, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
+  const leido = XLSX.read(bytes, { type: 'array' });
+  const sheet = leido.Sheets[leido.SheetNames[0]];
+  return { matriz: XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, raw: true }) as unknown[][] };
 }
 
 describe('CGR — contrato de columnas', () => {

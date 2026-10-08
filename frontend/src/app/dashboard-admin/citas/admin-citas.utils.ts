@@ -120,6 +120,19 @@ export function fechaEnVentana(fecha: string, ventana: VentanaFechas): boolean {
  * El backend devuelve `iniciales` del PROFESIONAL en /agenda/citas, por eso
  * el avatar del estudiante se calcula aquí a partir de su nombre.
  */
+/**
+ * Iniciales del estudiante: primera letra del primer nombre + primera letra
+ * del primer apellido.
+ *
+ * Convención chilena: [nombre(s)...] [apellido paterno] [apellido materno].
+ * Se asume que la mitad inicial de las palabras son nombres y la mitad
+ * final son apellidos (si el total es impar, el nombre se queda con la
+ * palabra extra, que es el caso más común de un segundo nombre). Así:
+ *   "Juan"                          -> J
+ *   "Juan Pérez"                    -> JP
+ *   "Juan Carlos Pérez"             -> JP  (Juan Carlos = nombre compuesto)
+ *   "María Fernanda García López"   -> MG  (primer nombre + primer apellido)
+ */
 export function inicialesDe(nombre: string | null | undefined): string {
   const partes = String(nombre ?? '')
     .trim()
@@ -127,7 +140,9 @@ export function inicialesDe(nombre: string | null | undefined): string {
     .filter(Boolean);
   if (partes.length === 0) return '?';
   if (partes.length === 1) return partes[0].charAt(0).toUpperCase();
-  return (partes[0].charAt(0) + partes[partes.length - 1].charAt(0)).toUpperCase();
+
+  const mitad = Math.ceil(partes.length / 2);
+  return (partes[0].charAt(0) + partes[mitad].charAt(0)).toUpperCase();
 }
 
 export const TOTAL_COLORES_AVATAR = 6;

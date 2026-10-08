@@ -9,6 +9,10 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
+const PALETA_AVATAR = [
+  '#0F8A7E', '#7A4FD1', '#B93A76', '#2F7F4F', '#B0590F', '#2F6BBF',
+];
+
 @Component({
   selector: 'app-admin-historial',
   standalone: true,
@@ -86,9 +90,26 @@ export class AdminHistorialComponent implements OnChanges {
     return Math.min(a, b);
   }
 
+  /**
+   * Primer nombre + primer apellido (no las dos primeras palabras
+   * a secas, no el último apellido; ver AdminEstudiantesComponent
+   * .inicialesDe / citas/admin-citas.utils.ts::inicialesDe para la
+   * misma regla).
+   */
   inicialesEstudiante(nombre: unknown): string {
     const partes = String(nombre ?? '').trim().split(/\s+/).filter(Boolean);
-    if (partes.length >= 2) return `${partes[0][0]}${partes[1][0]}`.toUpperCase();
-    return (partes[0] ?? '').substring(0, 2).toUpperCase();
+    if (partes.length === 0) return '?';
+    if (partes.length === 1) return partes[0][0].toUpperCase();
+    const idxApellido = Math.ceil(partes.length / 2);
+    return (partes[0][0] + partes[idxApellido][0]).toUpperCase();
+  }
+
+  /** Color determinístico del avatar (misma fórmula que admin-citas.utils.ts). */
+  colorAvatar(id: number | null | undefined): string {
+    if (id === null || id === undefined) return PALETA_AVATAR[0];
+    const texto = String(id);
+    let suma = 0;
+    for (let i = 0; i < texto.length; i++) suma += texto.charCodeAt(i);
+    return PALETA_AVATAR[suma % PALETA_AVATAR.length];
   }
 }
