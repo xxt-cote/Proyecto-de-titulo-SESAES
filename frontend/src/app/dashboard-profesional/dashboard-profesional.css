@@ -628,9 +628,6 @@
 .modal-footer-prof { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 
 /* -- 13.3 Modal Completar Atención -- */
-.cita-resumen-modal { background: var(--prof-primary-tint-weak); border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; }
-.cita-resumen-modal strong { display: block; font-size: 14px; color: var(--prof-text-body); }
-.cita-resumen-modal span   { font-size: 12px; color: var(--prof-text-2); }
 .btn-guardar-modal-prof { padding: 9px 22px; background: var(--prof-primary); color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
 
 /* ══════════════════════════════════════ */

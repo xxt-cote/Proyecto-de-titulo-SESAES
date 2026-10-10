@@ -246,22 +246,61 @@ def test_perfil_limitado_scopea_citas_y_metricas(
         "rut": "11.111.111-1",
         "carrera": "Gastronom?a",
         "correo": "ana@ejemplo.cl",
+        "telefono": None,
+        "foto_url": None,
+        # Un solo token: una sola letra (no "dos primeras letras
+        # de la misma palabra").
+        "iniciales": "A",
+        "activo": True,
         "citas_totales": 3,
         "citas_atendidas": 2,
+        # scalar_values solo trae 2 valores (total/atendidas); los
+        # contadores agregados nuevos (pendientes/canceladas/
+        # inasistencias) caen al valor por defecto del FakeDB (0)
+        # al agotarse la cola.
+        "citas_pendientes": 0,
+        "citas_canceladas": 0,
+        "citas_inasistencias": 0,
         "ultimas_atenciones": [
             {
                 "id": 100,
                 "fecha": "2026-09-01",
                 "hora": "09:00",
                 "estado": "completada",
+                "tipo": "normal",
+                "urgente": False,
                 "especialidad": "Nutrici?n",
                 "profesional": "Nutricionista Uno",
             }
         ],
+        "historial": [
+            {
+                "id": 100,
+                "fecha": "2026-09-01",
+                "hora": "09:00",
+                "estado": "completada",
+                "tipo": "normal",
+                "urgente": False,
+                "especialidad": "Nutrici?n",
+                "profesional": "Nutricionista Uno",
+            }
+        ],
+        "historial_total": 1,
+        "historial_pagina": 1,
+        "historial_por_pagina": 5,
     }
 
-    assert len(db.scalar_queries) == 2
+    assert len(db.scalar_queries) == 5
+
+    # Antes hab?a una consulta separada para "?ltimas atenciones"
+    # (limit 10) y otra para el historial completo -- ambas se
+    # unificaron en una sola consulta de Cita, reutilizada para
+    # las dos secciones.
     assert len(db.cita_queries) == 1
+
+    # El profesional ya no se consulta una vez por cada cita
+    # (N+1): se trae en un solo batch con Profesional.id.in_(...).
+    assert len(db.profesional_queries) == 1
 
     for query in db.scalar_queries:
         assert _filtros_scope(query) == [
@@ -513,3 +552,107 @@ def test_perfil_no_expone_campos_clinicos(
 
     assert "medicamento" not in atencion
     assert "observaciones_atencion" not in atencion
+
+
+def test_perfil_no_reintroduce_n_mas_1_al_crecer_las_citas(
+    monkeypatch,
+):
+    """
+    Antes se consultaba Profesional una vez por cada cita (N+1).
+    Con muchas citas del mismo profesional, el n?mero de consultas
+    a Profesional debe mantenerse fijo (1 consulta batch), sin
+    crecer con la cantidad de citas.
+    """
+    citas = [
+        SimpleNamespace(
+            id=100 + i,
+            estudiante_id=20,
+            profesional_id=10,
+            fecha=f"2026-09-{(i % 28) + 1:02d}",
+            hora="09:00",
+            estado="completada",
+        )
+        for i in range(25)
+    ]
+
+    db = FakeDB(
+        estudiante=_estudiante(),
+        citas=citas,
+        profesionales=[_profesional()],
+        scalar_values=[25, 25],
+    )
+
+    monkeypatch.setattr(
+        admin,
+        "obtener_alcance_administrativo_efectivo",
+        lambda db, current_user: _alcance_institucional(),
+    )
+
+    resultado = admin.perfil_estudiante_admin(
+        estudiante_id=20,
+        db=db,
+        current_user={
+            "id": 1,
+            "rol": "superadmin",
+        },
+    )
+
+    assert resultado["historial_total"] == 25
+    assert len(resultado["ultimas_atenciones"]) == 10
+
+    # Una sola consulta a Cita y una sola consulta (batch) a
+    # Profesional, sin importar que haya 25 citas.
+    assert len(db.cita_queries) == 1
+    assert len(db.profesional_queries) == 1
+
+
+def test_perfil_urgente_y_sobrecupo_son_independientes(
+    monkeypatch,
+):
+    """
+    Una cita marcada como urgente Y sobrecupo simult?neamente no
+    debe perder ninguna de las dos condiciones: "tipo" (condici?n)
+    y "urgente" (prioridad) se exponen como atributos separados.
+    """
+    cita_ambas = SimpleNamespace(
+        id=200,
+        estudiante_id=20,
+        profesional_id=10,
+        fecha="2026-09-05",
+        hora="09:00",
+        estado="pendiente",
+        urgente=True,
+        sobrecupo=True,
+    )
+
+    db = FakeDB(
+        estudiante=_estudiante(),
+        citas=[cita_ambas],
+        profesionales=[_profesional()],
+        scalar_values=[1, 0],
+    )
+
+    monkeypatch.setattr(
+        admin,
+        "obtener_alcance_administrativo_efectivo",
+        lambda db, current_user: _alcance_institucional(),
+    )
+
+    resultado = admin.perfil_estudiante_admin(
+        estudiante_id=20,
+        db=db,
+        current_user={
+            "id": 1,
+            "rol": "superadmin",
+        },
+    )
+
+    atencion = resultado["ultimas_atenciones"][0]
+
+    assert atencion["tipo"] == "sobrecupo"
+    assert atencion["urgente"] is True
+
+    historial_fila = resultado["historial"][0]
+
+    assert historial_fila["tipo"] == "sobrecupo"
+    assert historial_fila["urgente"] is True

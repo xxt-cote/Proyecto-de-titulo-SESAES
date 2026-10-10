@@ -24,6 +24,8 @@ ENDPOINTS = [
     ("GET", "/admin/estudiantes/{estudiante_id}/perfil", Permission.USUARIOS_VER),
     ("GET", "/admin/graficos/especialidad", Permission.REPORTES_VER),
     ("GET", "/admin/graficos/semana", Permission.REPORTES_VER),
+    ("GET", "/admin/reportes/resumen", Permission.REPORTES_VER),
+    ("GET", "/admin/reportes/resumen/pdf", Permission.REPORTES_VER),
     ("GET", "/admin/profesionales", Permission.PROFESIONALES_VER),
     ("POST", "/admin/profesionales", Permission.PROFESIONALES_GESTIONAR),
     ("PATCH", "/admin/profesionales/{prof_id}", Permission.PROFESIONALES_GESTIONAR),

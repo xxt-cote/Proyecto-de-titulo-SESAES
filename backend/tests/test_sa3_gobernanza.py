@@ -697,3 +697,21 @@ def test_listar_administradores_incluye_solo_admin_superadmin(db_session):
     assert "listador@utem.cl" in correos
     assert "admin-en-lista@utem.cl" in correos
     assert "estudiante-no-en-lista@utem.cl" not in correos
+
+
+def test_listar_administradores_expone_el_rut_real_en_el_schema(db_session):
+    """Usuarios y roles (Configuración) necesita el RUT en la tabla de
+    Administradores; antes UsuarioAdministrativoOut no lo incluía aunque
+    Usuario.rut sí existe en el modelo."""
+    from app.schemas import UsuarioAdministrativoOut
+
+    superadmin = _crear_usuario(db_session, correo="listador2@utem.cl", rol="superadmin")
+    admin = _crear_usuario(db_session, correo="admin-con-rut@utem.cl", rol="admin")
+    admin.rut = "12.345.678-9"
+    db_session.commit()
+
+    resultado = listar_administradores(db_session, _current_user_de(superadmin))
+    fila = next(u for u in resultado if u.correo == "admin-con-rut@utem.cl")
+
+    serializado = UsuarioAdministrativoOut.model_validate(fila)
+    assert serializado.rut == "12.345.678-9"

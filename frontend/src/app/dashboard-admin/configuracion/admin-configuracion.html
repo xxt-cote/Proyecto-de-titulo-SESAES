@@ -3,6 +3,7 @@
           <button class="config-tab" *ngIf="puedeConfigCitas" [class.active]="configTabActiva==='citas'" (click)="cambiarTab('citas')"><span class="material-symbols-outlined config-tab-icon">event_note</span> Citas</button>
           <button class="config-tab" *ngIf="puedeConfigHorarios" [class.active]="configTabActiva==='horarios'" (click)="cambiarTab('horarios')"><span class="material-symbols-outlined config-tab-icon">schedule</span> Horarios</button>
           <button class="config-tab" *ngIf="puedeConfigUsuarios" [class.active]="configTabActiva==='usuarios'" (click)="cambiarTab('usuarios')"><span class="material-symbols-outlined config-tab-icon">group</span> Usuarios y roles</button>
+          <button class="config-tab" *ngIf="puedeConfigCapacidades" [class.active]="configTabActiva==='capacidades'" (click)="cambiarTab('capacidades')"><span class="material-symbols-outlined config-tab-icon">medical_services</span> Capacidades clínicas</button>
           <button class="config-tab" *ngIf="puedeVerAuditoria" [class.active]="configTabActiva==='seguridad'" (click)="cambiarTab('seguridad')"><span class="material-symbols-outlined config-tab-icon">shield</span> Seguridad</button>
         </div>
 
@@ -308,6 +309,8 @@
         </div>
 
         <!-- TAB SEGURIDAD -->
+        <app-admin-capacidades-clinicas *ngIf="configTabActiva==='capacidades' && puedeConfigCapacidades"></app-admin-capacidades-clinicas>
+
         <div class="config-nueva-layout" *ngIf="configTabActiva==='seguridad' && puedeVerAuditoria">
           <div class="card config-card auditoria-card">
             <div class="card-header">

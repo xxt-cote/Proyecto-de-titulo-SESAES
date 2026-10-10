@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, DoCheck, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 export interface HorarioBloqueClick {
@@ -46,6 +46,19 @@ const RESUMEN_DIA_VACIO: AgendaDiaResumen = {
   estado: 'sin-datos'
 };
 
+// Minutos desde medianoche para "HH:MM", "HH:MM:SS" o "HH:MM AM/PM".
+// Devuelve null si el texto no se puede leer (no se inventa una hora).
+function minutosDeHora(texto: unknown): number | null {
+  const m = /^\s*(\d{1,2}):(\d{2})(?::\d{2})?\s*([AaPp])?\.?[Mm]?\.?\s*$/.exec(String(texto ?? ''));
+  if (!m) return null;
+  let h = Number(m[1]);
+  const min = Number(m[2]);
+  const ap = m[3]?.toLowerCase();
+  if (ap === 'p' && h < 12) h += 12;
+  if (ap === 'a' && h === 12) h = 0;
+  return h > 23 || min > 59 ? null : h * 60 + min;
+}
+
 @Component({
   selector: 'app-admin-horario',
   standalone: true,
@@ -53,8 +66,11 @@ const RESUMEN_DIA_VACIO: AgendaDiaResumen = {
   templateUrl: './admin-horario.html',
   styleUrls: ['./admin-horario.css']
 })
-export class AdminHorarioComponent {
+export class AdminHorarioComponent implements DoCheck {
   @Input() puedeGestionarAgenda = false;
+  // Solicitar un sobrecupo desde el botón de la barra exige además el
+  // permiso agenda.sobrecupo; el shell lo informa, la agenda no lo deduce.
+  @Input() puedeSobrecupo = false;
   @Input() solicitudesHorarioAdmin: any[] = [];
 
   @Input() especialidades: string[] = [];
@@ -101,9 +117,6 @@ export class AdminHorarioComponent {
 
   @Input() bloqueEstadoFn: (fecha: string, hora: string) => string =
     () => 'sin-datos';
-
-  @Input() bloqueInfoFn: (fecha: string, hora: string) => string =
-    () => '';
 
   // A.4.7A.1 — la grilla necesita el arreglo completo de citas del
   // bloque (no un solo resumen en texto) para poder pintar cada una por
@@ -161,6 +174,7 @@ export class AdminHorarioComponent {
   @Output() recargarHorario = new EventEmitter<void>();
 
   @Output() abrirNuevaCita = new EventEmitter<void>();
+  @Output() abrirSobrecupo = new EventEmitter<void>();
   @Output() imprimir = new EventEmitter<void>();
 
   // Vista Mes: abrir la vista Día de una fecha concreta.
@@ -173,6 +187,39 @@ export class AdminHorarioComponent {
   @Output() bloqueClick = new EventEmitter<HorarioBloqueClick>();
   @Output() cancelarCita = new EventEmitter<any>();
 
+
+  // ¿El centro no atiende este día? Se considera cerrado cuando TODOS los
+  // bloques del día vienen como 'cerrado-centro' desde la disponibilidad, o
+  // cuando existe un cierre registrado para esa fecha (diasCerrados). No se
+  // infiere nada más: un día sin datos NO se muestra como cerrado.
+  diaCerrado(fecha: string): boolean {
+    if ((this.diasCerrados ?? []).some(d => d?.fecha === fecha)) return true;
+    return this.horasGrilla.length > 0
+      && this.horasGrilla.every(h => this.bloqueEstadoFn(fecha, h) === 'cerrado-centro');
+  }
+
+  // Motivo visible de un día sin atención: primero el motivo del cierre
+  // registrado, luego el nombre del feriado y, si no hay ninguno, el texto
+  // genérico.
+  motivoCierre(fecha: string): string {
+    const cierre = (this.diasCerrados ?? []).find(d => d?.fecha === fecha);
+    const motivo = String(cierre?.motivo ?? '').trim();
+    if (motivo) return motivo;
+    if (this.esFeriadoFn(fecha)) return this.nombreFeriadoFn(fecha) || 'Feriado';
+    return 'Centro cerrado';
+  }
+
+  // Horas VIGENTES del profesional seleccionado (las que dejó aprobadas el
+  // administrador). Si falta alguna, se dice y no se inventa un valor.
+  get colacionTexto(): string {
+    const ini = this.profesionalActual?.hora_almuerzo_inicio;
+    const fin = this.profesionalActual?.hora_almuerzo_fin;
+    return ini && fin ? `${ini} – ${fin}` : '';
+  }
+
+  get salidaTexto(): string {
+    return this.profesionalActual?.horario_fin || '';
+  }
 
   get tieneProfesionalSeleccionado(): boolean {
     return String(this.filtroProfesionalId ?? '').trim().length > 0;
@@ -337,6 +384,119 @@ export class AdminHorarioComponent {
   onAbrirNuevaCita(): void {
     if (!this.puedeGestionarAgenda) return;
     this.abrirNuevaCita.emit();
+  }
+
+  onAbrirSobrecupo(): void {
+    if (!this.puedeGestionarAgenda || !this.puedeSobrecupo) return;
+    this.abrirSobrecupo.emit();
+  }
+
+  // Altura de cada hora de la grilla. Una hora con dos citas (normal +
+  // sobrecupo) se muestra en dos recuadros apilados, así que esa fila crece
+  // para TODOS los días y para la columna de horas a la vez: las columnas son
+  // independientes y solo quedan alineadas si cada hora mide lo mismo en todas.
+  private readonly ALTO_HORA_PX = 48;
+  private readonly ALTO_ENCABEZADO_PX = 62;
+  private alturas = new Map<string, number>();
+
+  // Colación: un recuadro por cada día con atención, con el mismo estilo que
+  // una cita, ubicado en la hora REAL de colación vigente (aprobada) del
+  // profesional — no en las filas completas de la grilla, que pueden ser más
+  // anchas. Una solicitud de cambio pendiente no lo mueve.
+  bandaColacion: { top: number; alto: number } | null = null;
+  fechasBandaColacion = new Set<string>();
+
+  ngDoCheck(): void {
+    const dias = this.diasGrilla;
+    const horas = this.horasGrilla ?? [];
+    this.alturas.clear();
+    for (const h of horas) {
+      let filas = 1;
+      for (const dia of dias) {
+        filas = Math.max(filas, Math.min(2, this.bloqueCitasFn(dia.fecha, h).length));
+      }
+      this.alturas.set(h, this.ALTO_HORA_PX * filas);
+    }
+    this.calcularBandaColacion(dias, horas);
+  }
+
+  private calcularBandaColacion(dias: any[], horas: string[]): void {
+    this.bandaColacion = null;
+    this.fechasBandaColacion = new Set<string>();
+
+    // Solo con la colación VIGENTE del profesional seleccionado (la misma
+    // lógica sirve para cualquier profesional: cada uno trae sus horas) y en
+    // días con atención.
+    const abiertos = dias.filter(d => !this.diaCerrado(d.fecha));
+    if (!this.colacionTexto || abiertos.length === 0 || horas.length === 0) return;
+
+    const topFila: number[] = [];
+    let acumulado = this.ALTO_ENCABEZADO_PX;
+    for (const h of horas) { topFila.push(acumulado); acumulado += this.alturaHora(h); }
+
+    let top = 0;
+    let fin = 0;
+    let filasTapadas: number[] = [];
+
+    // 1) Posición exacta según la hora de colación sobre la grilla real,
+    //    sea cual sea su duración de bloque (30, 45, 60 min...).
+    const ini = minutosDeHora(this.profesionalActual?.hora_almuerzo_inicio);
+    const finMin = minutosDeHora(this.profesionalActual?.hora_almuerzo_fin);
+    const starts = horas.map(h => minutosDeHora(h));
+    const legible = ini !== null && finMin !== null && finMin > ini
+      && starts.every((m, i) => m !== null && (i === 0 || m > (starts[i - 1] as number)));
+    if (legible) {
+      const st = starts as number[];
+      const dur = st.map((m, i) => i < st.length - 1
+        ? st[i + 1] - m
+        : (st.length > 1 ? m - st[i - 1] : 45));
+      const px = (t: number): number => {
+        for (let i = 0; i < st.length; i++) {
+          if (t < st[i]) return topFila[i];
+          if (t < st[i] + dur[i]) {
+            return topFila[i] + ((t - st[i]) / dur[i]) * this.alturaHora(horas[i]);
+          }
+        }
+        return acumulado;
+      };
+      filasTapadas = st
+        .map((m, i) => (m < (finMin as number) && m + dur[i] > (ini as number)) ? i : -1)
+        .filter(i => i >= 0);
+      top = px(ini as number);
+      fin = px(finMin as number);
+    }
+
+    // 2) Si la colación no cae sobre la grilla (o sus horas no se pueden
+    //    leer), se respetan las filas que el backend marcó como colación.
+    if (filasTapadas.length === 0 || fin - top < 8) {
+      const marcadas = horas.map(h => abiertos.some(d => this.bloqueEstadoFn(d.fecha, h) === 'colacion'));
+      const primera = marcadas.indexOf(true);
+      if (primera < 0) return;
+      const ultima = marcadas.lastIndexOf(true);
+      filasTapadas = [];
+      for (let i = primera; i <= ultima; i++) filasTapadas.push(i);
+      top = topFila[primera];
+      fin = topFila[ultima] + this.alturaHora(horas[ultima]);
+    }
+    if (fin - top < 8) return;
+    this.bandaColacion = { top, alto: fin - top };
+
+    // Un día con una cita dentro de la colación (p. ej. un sobrecupo) no
+    // dibuja el recuadro, para no taparla.
+    for (const d of abiertos) {
+      const hayCita = filasTapadas.some(i => this.bloqueCitasFn(d.fecha, horas[i]).length > 0);
+      if (!hayCita) this.fechasBandaColacion.add(d.fecha);
+    }
+    if (this.fechasBandaColacion.size === 0) this.bandaColacion = null;
+  }
+
+  // Columna central de la semana.
+  get indiceColumnaCentro(): number {
+    return Math.floor((this.diasGrilla.length - 1) / 2);
+  }
+
+  alturaHora(hora: string): number {
+    return this.alturas.get(hora) ?? this.ALTO_HORA_PX;
   }
 
   onCancelarCita(cita: any): void {

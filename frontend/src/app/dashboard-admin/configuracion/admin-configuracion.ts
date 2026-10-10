@@ -1,18 +1,20 @@
 import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { AdminCapacidadesClinicasComponent } from './capacidades-clinicas/admin-capacidades-clinicas';
 
 export type ConfigTab =
   | 'general'
   | 'citas'
   | 'horarios'
   | 'usuarios'
+  | 'capacidades'
   | 'seguridad';
 
 @Component({
   selector: 'app-admin-configuracion',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AdminCapacidadesClinicasComponent],
   templateUrl: './admin-configuracion.html'
 })
 export class AdminConfiguracionComponent {
@@ -95,6 +97,7 @@ export class AdminConfiguracionComponent {
   @Input() puedeConfigCitas = false;
   @Input() puedeConfigHorarios = false;
   @Input() puedeConfigUsuarios = false;
+  @Input() puedeConfigCapacidades = false;
   @Input() puedeVerAuditoria = false;
 
   @Output() habilitarEdicionCentro = new EventEmitter<void>();

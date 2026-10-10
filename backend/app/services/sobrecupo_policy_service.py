@@ -88,6 +88,16 @@ MOTIVO vs INTENCIÓN — preserva A.4.1 al pie de la letra: si
 lock (rama A), la cita se crea NORMAL — `es_sobrecupo_efectivo=False`,
 sin exigir motivo, sin `CitaSobrecupo`, sin conflictos, sin auditoría
 de sobrecupo. Nunca se persiste un "sobrecupo fantasma".
+
+ÚNICA EXCEPCIÓN, pedida de forma explícita: `sobrecupo_forzado=True`
+(solo lo envía el botón «Solicitar sobrecupo» de la agenda). Con
+agenda.gestionar + agenda.sobrecupo + motivo humano, una hora LIBRE
+queda registrada igualmente como sobrecupo (CODIGO_AUTORIZADO_SOBRE_
+SLOT_LIBRE): sin conflictos que persistir, pero con `CitaSobrecupo` y
+auditoría. Sin agenda.gestionar el campo se ignora y la cita sigue
+siendo normal; con gestionar pero sin agenda.sobrecupo o sin motivo se
+rechaza como cualquier otro sobrecupo. Esa cita ocupa un cupo como
+cualquier otra: la hora deja de estar libre para citas normales.
 """
 
 from __future__ import annotations
@@ -118,6 +128,10 @@ CODIGO_DENEGADO_CONFLICTO_SIN_INTENCION = "denegado_conflicto_sin_intencion"
 CODIGO_DENEGADO_SIN_PERMISO = "denegado_sin_permiso"
 CODIGO_DENEGADO_SIN_MOTIVO = "denegado_sin_motivo"
 CODIGO_AUTORIZADO = "autorizado"
+# Sobrecupo pedido de forma EXPLÍCITA (botón «Solicitar sobrecupo») sobre una
+# hora que está libre: no hay conflicto que superar, pero el administrador
+# quiere que la cita quede registrada como sobrecupo.
+CODIGO_AUTORIZADO_SOBRE_SLOT_LIBRE = "autorizado_sobre_slot_libre"
 # Reservado a estados que violen invariantes imposibles del propio
 # ResultadoDisponibilidad (ver `_evaluar_disponibilidad_es_coherente`
 # más abajo) — NUNCA usado para las precondiciones terminales
@@ -134,6 +148,7 @@ CODIGOS_VALIDOS = frozenset(
         CODIGO_DENEGADO_SIN_PERMISO,
         CODIGO_DENEGADO_SIN_MOTIVO,
         CODIGO_AUTORIZADO,
+        CODIGO_AUTORIZADO_SOBRE_SLOT_LIBRE,
         CODIGO_DENEGADO_ENTRADA_INCOHERENTE,
     }
 )
@@ -202,6 +217,7 @@ def evaluar_politica_sobrecupo(
     sobrecupo_solicitado: bool,
     sobrecupo_motivo: str | None,
     resultado_disponibilidad: ResultadoDisponibilidad,
+    sobrecupo_forzado: bool = False,
 ) -> DecisionSobrecupo:
     """
     Punto de entrada único de la política central de sobrecupo (A.4.3).
@@ -239,6 +255,38 @@ def evaluar_politica_sobrecupo(
     # exigir. Preserva A.4.1: "flag sobrante" nunca se convierte en un
     # sobrecupo fantasma.
     if disponible:
+        # A') Excepción pedida de forma explícita: sobrecupo_forzado solo
+        # lo envía el botón «Solicitar sobrecupo». Mismas capacidades que
+        # cualquier sobrecupo (agenda.gestionar + agenda.sobrecupo + motivo).
+        # Quien NO tiene agenda.gestionar (p. ej. un estudiante que manda el
+        # campo a mano) recibe lo de siempre: una cita normal, sin que se le
+        # revele que existe esta capacidad.
+        if sobrecupo_solicitado and sobrecupo_forzado and tiene_permiso_efectivo(
+            db, current_user, Permission.AGENDA_GESTIONAR,
+        ):
+            if not tiene_permiso_efectivo(
+                db, current_user, Permission.AGENDA_SOBRECUPO,
+            ):
+                return _decision(
+                    permitido=False,
+                    es_sobrecupo_efectivo=False,
+                    codigo=CODIGO_DENEGADO_SIN_PERMISO,
+                )
+            motivo_forzado = (sobrecupo_motivo or "").strip()
+            if not motivo_forzado:
+                return _decision(
+                    permitido=False,
+                    es_sobrecupo_efectivo=False,
+                    codigo=CODIGO_DENEGADO_SIN_MOTIVO,
+                    requiere_motivo=True,
+                )
+            return _decision(
+                permitido=True,
+                es_sobrecupo_efectivo=True,
+                codigo=CODIGO_AUTORIZADO_SOBRE_SLOT_LIBRE,
+                requiere_motivo=True,
+                motivo_normalizado=motivo_forzado,
+            )
         codigo = (
             CODIGO_FLAG_SOBRANTE_SIN_CONFLICTO
             if sobrecupo_solicitado

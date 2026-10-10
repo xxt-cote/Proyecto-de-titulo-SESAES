@@ -13,13 +13,14 @@ import { ProfessionalAyudaComponent } from './ayuda/professional-ayuda';
 import { evaluarPassword, type PasswordChecklist } from '../shared/password-validation';
 import { coincideBusqueda } from '../shared/text-normalization';
 import { AuthService } from '../auth.service';
+import { CompletarAtencionComponent, type DocumentoEmitido, type PacienteAtencion } from './completar-atencion/completar-atencion';
 
 const API = environment.apiUrl;
 
 @Component({
   selector: 'app-dashboard-profesional',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePipe, PhotoCropperComponent, PhotoViewerComponent, ProfessionalAyudaComponent],
+  imports: [CommonModule, FormsModule, DatePipe, PhotoCropperComponent, PhotoViewerComponent, ProfessionalAyudaComponent, CompletarAtencionComponent],
   templateUrl: './dashboard-profesional.html',
   styleUrl: './dashboard-profesional.css'
 })
@@ -814,7 +815,6 @@ convertirA24h(hora: string): string {
   filtroBusquedaAt       = '';
   modalCompletarAbierto  = false;
   citaParaCompletar: any = null;
-  formCompletar = { medicamento: '', observaciones_atencion: '' };
 
   cargarAtenciones(): void {
     let url = `${API}/profesional/${this.profDbId}/citas`;
@@ -853,35 +853,39 @@ limpiarFiltrosAtenciones(): void {
 
   minVal(a: number, b: number): number { return Math.min(a, b); }
 
+  // La pantalla "Completar atención" vive en su propio componente
+  // (completar-atencion/): aquí solo se abre, se cierra y se refrescan las listas.
   abrirModalCompletar(cita: any): void {
     if (!this.puedeGestionarCita(cita)) return;
     this.citaParaCompletar = cita;
-    this.formCompletar = { medicamento: cita.medicamento || '', observaciones_atencion: cita.observaciones_atencion || '' };
     this.modalCompletarAbierto = true;
   }
 
   cerrarModalCompletar(): void { this.modalCompletarAbierto = false; this.citaParaCompletar = null; }
 
-  confirmarCompletar(): void {
-    if (!this.citaParaCompletar) return;
-    this.http.patch(`${API}/profesional/${this.profDbId}/citas/${this.citaParaCompletar.id}/completar`, this.formCompletar).subscribe({
-      next: () => {
-        this.cerrarModalCompletar();
-        this.cargarAtenciones();
-        this.cargarEstadisticasDia();
-        this.cargarCitasHoy();
-        this.cargarCitasSinCerrar();
-        this.refrescarCitasPendientesSiCorresponde();
-        this.mensajeExito = 'Atención completada correctamente.';
-        this.cdr.detectChanges();
-        setTimeout(() => { this.mensajeExito = ''; this.cdr.detectChanges(); }, 3000);
-      },
-      error: () => {
-        this.mensajeError = 'No se pudo completar la atención.';
-        this.cdr.detectChanges();
-        setTimeout(() => { this.mensajeError = ''; this.cdr.detectChanges(); }, 3000);
-      }
-    });
+  /** Datos del paciente para la pantalla: desde la cita (listas) o desde la ficha abierta. */
+  get pacienteParaCompletar(): PacienteAtencion {
+    const c = this.citaParaCompletar;
+    if (c?.estudiante) return { nombre: c.estudiante, rut: c.rut, carrera: c.carrera };
+    return {
+      nombre: this.pacienteSeleccionado?.nombre || '—',
+      rut: this.fichaEstudianteRut,
+      carrera: this.fichaEstudianteCarrera
+    };
+  }
+
+  onAtencionCompletada(documentos: DocumentoEmitido[]): void {
+    this.cerrarModalCompletar();
+    this.cargarAtenciones();
+    this.cargarEstadisticasDia();
+    this.cargarCitasHoy();
+    this.cargarCitasSinCerrar();
+    this.refrescarCitasPendientesSiCorresponde();
+    this.mensajeExito = documentos.length
+      ? `Atención completada. Se emitió${documentos.length > 1 ? 'ron' : ''} ${documentos.map(d => d.nombre_tipo.toLowerCase()).join(' y ')} y se envió al estudiante.`
+      : 'Atención completada correctamente.';
+    this.cdr.detectChanges();
+    setTimeout(() => { this.mensajeExito = ''; this.cdr.detectChanges(); }, 4000);
   }
 
   marcarInasistencia(cita: any): void {

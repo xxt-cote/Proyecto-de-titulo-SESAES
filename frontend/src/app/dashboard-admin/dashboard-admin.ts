@@ -264,6 +264,12 @@ toggleSidebarMovil(): void {
     return this.hasPermission('usuarios.gestionar');
   }
 
+  // Capacidades clínicas por especialidad (receta, justificativo...). Mismo
+  // permiso que la configuración global; el backend lo exige igual.
+  get puedeConfigCapacidades(): boolean {
+    return this.hasPermission('configuracion.gestionar');
+  }
+
   get puedeVerAuditoria(): boolean {
     return this.hasPermission('auditoria.ver');
   }
@@ -288,6 +294,7 @@ toggleSidebarMovil(): void {
           this.puedeConfigGeneral ||
           this.puedeConfigHorarios ||
           this.puedeConfigUsuarios ||
+          this.puedeConfigCapacidades ||
           this.puedeVerAuditoria
         );
       // SA-4 — Administradores: gobernanza de cuentas ADMIN/SUPERADMIN.
@@ -311,6 +318,8 @@ toggleSidebarMovil(): void {
         return this.hasPermission('agenda.gestionar');
       case 'usuarios':
         return this.hasPermission('usuarios.gestionar');
+      case 'capacidades':
+        return this.puedeConfigCapacidades;
       case 'seguridad':
         return this.hasPermission('auditoria.ver');
       default:
@@ -322,7 +331,7 @@ toggleSidebarMovil(): void {
     if (this.puedeAccederTabConfig(this.configTabActiva)) return;
 
     const primeraPermitida: ConfigTab | undefined = (
-      ['general', 'citas', 'horarios', 'usuarios', 'seguridad'] as ConfigTab[]
+      ['general', 'citas', 'horarios', 'usuarios', 'capacidades', 'seguridad'] as ConfigTab[]
     ).find(tab => this.puedeAccederTabConfig(tab));
 
     if (primeraPermitida) this.configTabActiva = primeraPermitida;

@@ -867,7 +867,13 @@ def get_profesionales_admin(db: Session = Depends(get_db), current_user: dict = 
             "iniciales": p.iniciales, "descripcion": p.descripcion,
             "duracion_min": p.duracion_min, "estado": p.estado or "activo",
             "correo": p.correo, "rut": p.rut, "usuario_id": p.usuario_id,
-            "foto_url": p.foto_url, "color_identificador": p.color_identificador
+            "foto_url": p.foto_url, "color_identificador": p.color_identificador,
+            # Jornada y colación vigentes: la agenda administrativa las muestra
+            # (franja de colación y hora de salida). Sin estos campos la
+            # pantalla no puede saber si el profesional tiene colación.
+            "horario_inicio": p.horario_inicio, "horario_fin": p.horario_fin,
+            "hora_almuerzo_inicio": p.hora_almuerzo_inicio,
+            "hora_almuerzo_fin": p.hora_almuerzo_fin,
         }
         for p in profesionales
     ]

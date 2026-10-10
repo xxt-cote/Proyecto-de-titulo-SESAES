@@ -5,6 +5,9 @@ import pytest
 from fastapi import HTTPException
 
 from app.models.cita import Cita
+from app.models.historial_estado_profesional import (
+    HistorialEstadoProfesional,
+)
 from app.models.profesional import Profesional
 from app.models.usuario import Usuario
 from app.rbac.admin_authorization import (
@@ -82,6 +85,9 @@ class FakeDB:
     def commit(self):
         self.commit_calls += 1
 
+    def refresh(self, obj):
+        pass
+
 
 def _alcance_limitado(*especialidades):
     return AlcanceAdministrativoEfectivo(
@@ -104,12 +110,14 @@ def _profesional(
     *,
     especialidad="Nutrici?n",
     usuario_id=30,
+    estado="activo",
 ):
     return SimpleNamespace(
         id=10,
         nombre="Profesional Uno",
         especialidad=especialidad,
         usuario_id=usuario_id,
+        estado=estado,
     )
 
 
@@ -328,9 +336,10 @@ def test_eliminar_dentro_de_scope_conserva_cancelacion_y_desactivacion(
         },
     )
 
-    assert resultado == {
-        "message": "Profesional eliminado correctamente"
-    }
+    assert resultado["message"] == (
+        "Profesional dado de baja correctamente"
+    )
+    assert resultado["profesional"] is prof
 
     assert cita.estado == "cancelada"
     assert cita.cancelada_por_admin is True
@@ -344,12 +353,30 @@ def test_eliminar_dentro_de_scope_conserva_cancelacion_y_desactivacion(
     # Estudiante no debe ser desactivado.
     assert estudiante.activo is True
 
-    # Una notificaci?n por la cita.
-    assert len(db.add_calls) == 1
+    # Baja l?gica: el profesional pasa a inactivo, no se hace
+    # hard-delete (preserva historial/trazabilidad).
+    assert prof.estado == "inactivo"
+
+    # Una notificaci?n por la cita + un HistorialEstadoProfesional.
+    assert len(db.add_calls) == 2
+
+    historial_estado = next(
+        obj
+        for obj in db.add_calls
+        if isinstance(
+            obj,
+            HistorialEstadoProfesional,
+        )
+    )
+
+    # Trazabilidad: queda registrado qui?n ejecut? la baja
+    # (el admin autenticado), no None.
+    assert historial_estado.registrado_por == 50
+
     assert len(correos) == 1
 
-    # Se elimina ?nicamente el Profesional.
-    assert db.delete_calls == [prof]
+    # No se elimina f?sicamente el Profesional.
+    assert db.delete_calls == []
 
     assert len(auditorias) == 1
     assert db.commit_calls == 1
@@ -393,19 +420,26 @@ def test_eliminar_sin_citas_tambien_desactiva_usuario_y_elimina(
     )
 
     assert resultado["message"] == (
-        "Profesional eliminado correctamente"
+        "Profesional dado de baja correctamente"
     )
 
     assert usuario_prof.activo is False
-    assert db.add_calls == []
-    assert db.delete_calls == [prof]
+    assert prof.estado == "inactivo"
+    # Solo el HistorialEstadoProfesional (no hubo citas que notificar).
+    assert len(db.add_calls) == 1
+    assert db.add_calls[0].registrado_por == 50
+    assert db.delete_calls == []
     assert db.commit_calls == 1
 
 
-def test_scope_se_verifica_antes_de_citas_usuarios_y_delete():
+def test_scope_se_verifica_antes_de_citas_usuarios_y_baja():
     source = inspect.getsource(
         admin.eliminar_profesional
     )
+
+    # Ya no debe hacer hard-delete del profesional: el proyecto
+    # preserva historial/trazabilidad (baja l?gica en su lugar).
+    assert "db.delete(prof)" not in source
 
     pos_resolver = source.find(
         "obtener_alcance_administrativo_efectivo"
@@ -427,8 +461,8 @@ def test_scope_se_verifica_antes_de_citas_usuarios_y_delete():
         "db.query(Usuario)"
     )
 
-    pos_delete = source.find(
-        "db.delete(prof)"
+    pos_baja = source.find(
+        'prof.estado = "inactivo"'
     )
 
     pos_commit = source.find(
@@ -442,6 +476,6 @@ def test_scope_se_verifica_antes_de_citas_usuarios_y_delete():
         < pos_scope
         < pos_citas
         < pos_usuario
-        < pos_delete
+        < pos_baja
         < pos_commit
     )

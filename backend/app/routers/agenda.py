@@ -214,12 +214,22 @@ def listar_citas_admin(
                 if estudiante_obj
                 else "?"
             ),
+            "estudiante_foto_url": (
+                estudiante_obj.foto_url
+                if estudiante_obj
+                else None
+            ),
             # Se conserva el contrato visual que hoy consume
             # AdminCitasComponent.
             "iniciales": (
                 profesional.iniciales
                 if profesional
                 else "??"
+            ),
+            "profesional_foto_url": (
+                profesional.foto_url
+                if profesional
+                else None
             ),
             "especialidad": (
                 profesional.especialidad

@@ -685,8 +685,15 @@ def test_datos_cgr_usan_una_cantidad_constante_de_consultas(escenario):
         _cita(db, est, escenario["maria"], "2026-09-25", f"{8 + i % 10:02d}:00", "completada")
     db.commit()
 
-    assert contar() == pocas                       # sin consultas por fila (N+1)
-    assert pocas == 2                              # una consulta por endpoint
+    assert contar() == pocas                       # sin consultas por fila (N+1): lo que importa
+    # Desde que ambos endpoints registran auditoría de exportación (Reportes,
+    # punto 21), cada llamada agrega también el INSERT + COMMIT del evento de
+    # auditoría (antes esta ruta no dejaba ningún registro). El número exacto
+    # ya no es "una consulta por endpoint" (era 2), pero sigue siendo UNA
+    # cantidad CONSTANTE sin importar cuántas filas haya — eso es lo que la
+    # aserción de arriba protege. Se deja un techo generoso en vez de un
+    # número mágico para no acoplar el test al motor de auditoría interno.
+    assert pocas <= 10
 
 
 @pytest.mark.parametrize("endpoint", ["exportar_cgr_datos", "exportar_listado_alumnos_datos"])

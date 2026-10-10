@@ -7,6 +7,13 @@ import { leaveDashboardGuard } from './leave-dashboard.guard';
 export const routes: Routes = [
   { path: '', redirectTo: 'login', pathMatch: 'full' },
   { path: 'login', component: LoginComponent },
+  {
+    // Pública (sin sesión): validar receta/justificativo por código o QR.
+    path: 'validar-documento',
+    loadComponent: () =>
+      import('./validar-documento/validar-documento')
+        .then(m => m.ValidarDocumentoComponent)
+  },
 
   {
     path: 'dashboard/estudiante',

@@ -1,6 +1,6 @@
-from pydantic import BaseModel, Field, field_validator
-from typing import Literal, Optional
-from datetime import datetime
+from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
+from typing import Annotated, Literal, Optional
+from datetime import date, datetime
 import re
 
 
@@ -24,6 +24,60 @@ class CitaCreate(BaseModel):
     # actualizar el modal de Angular antes de evaluar si corresponde
     # exigirlo para sobrecupos nuevos.
     sobrecupo_motivo: Optional[str] = None
+    # Solo lo envía el botón «Solicitar sobrecupo» de la agenda administrativa:
+    # la cita queda registrada como sobrecupo AUNQUE la hora esté libre.
+    # Exige sobrecupo=True, agenda.gestionar, agenda.sobrecupo y motivo. Sin
+    # este campo, un sobrecupo=True sobre una hora libre sigue creando una cita
+    # normal (comportamiento A.4.1: nunca un sobrecupo "fantasma" por accidente).
+    sobrecupo_forzado: Optional[bool] = False
+
+
+_MAX_OBS = 500
+
+
+_Texto = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+_TextoLargo = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
+
+
+class MedicamentoRecetaIn(BaseModel):
+    """Un ítem de la receta (pantalla 'Receta médica (profesional)')."""
+    medicamento: _Texto                              # principio activo, concentración y forma
+    dosis:       _Texto
+    via:         _Texto = "Oral"
+    frecuencia:  _Texto
+    periodo:     _Texto
+    cantidad:    Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=100)]] = None
+    indicacion:  Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=_MAX_OBS)]] = None
+    marca:       Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)]] = None  # alternativa comercial
+
+
+class RecetaIn(BaseModel):
+    medicamentos: Annotated[list[MedicamentoRecetaIn], Field(min_length=1, max_length=10)]
+
+
+class JustificativoIn(BaseModel):
+    """Justificativo médico. Nunca incluye diagnóstico."""
+    modalidad:       Literal["Presencial", "Remota"] = "Presencial"
+    tipo_atencion:   Literal["Consulta", "Control", "Urgencia"] = "Consulta"
+    motivo_consulta: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)]] = None
+    reposo:          bool = False
+    reposo_desde:    Optional[date] = None
+    reposo_hasta:    Optional[date] = None
+    restricciones:   Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=_MAX_OBS)]] = None
+    control_sugerido: Optional[date] = None
+    observaciones:   Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=_MAX_OBS)]] = None
+
+    @model_validator(mode="after")
+    def _validar_reposo(self):
+        if self.reposo:
+            if not self.reposo_desde or not self.reposo_hasta:
+                raise ValueError("Si indicas reposo, debes indicar desde y hasta.")
+            if self.reposo_hasta < self.reposo_desde:
+                raise ValueError("La fecha 'hasta' del reposo no puede ser anterior a 'desde'.")
+        else:
+            self.reposo_desde = None
+            self.reposo_hasta = None
+        return self
 
 
 class CompletarCitaBody(BaseModel):
@@ -47,6 +101,11 @@ class CompletarCitaBody(BaseModel):
     """
     medicamento:            Optional[str] = None
     observaciones_atencion: Optional[str] = None
+    # Documentos clínicos opcionales que se emiten junto con la atención
+    # (ver app/services/documento_clinico_service.py). Omitidos o null =
+    # no se emite ese documento.
+    receta:                 Optional["RecetaIn"] = None
+    justificativo:          Optional["JustificativoIn"] = None
 
 
 # ══════════════════════════════════════

@@ -372,10 +372,12 @@ def test_listado_institucional_devuelve_solo_campos_operacionales(
         "estudiante",
         "estudiante_id",
         "rut",
+        "estudiante_foto_url",
         "iniciales",
         "especialidad",
         "profesional",
         "profesional_id",
+        "profesional_foto_url",
         "fecha",
         "hora",
         "estado",
@@ -399,6 +401,78 @@ def test_listado_institucional_devuelve_solo_campos_operacionales(
         "cuestionario",
     }:
         assert campo not in fila
+
+
+def test_listado_incluye_foto_de_perfil_via_relacion_existente_sin_query_extra(
+    db_session,
+    monkeypatch,
+):
+    """
+    estudiante_foto_url debe salir del MISMO objeto Usuario que ya se
+    consulta para nombre/rut (no agrega ninguna consulta nueva por
+    estudiante): si el estudiante tiene foto_url, se expone tal cual; si
+    no, sale None y el frontend cae de vuelta a las iniciales.
+    """
+    con_foto = _usuario(
+        db_session,
+        correo="con-foto-sa10-2@utem.cl",
+        nombre="Bruno Rios",
+        rut="22.222.222-2",
+    )
+    con_foto.foto_url = "https://cdn.sesaes.cl/perfiles/bruno.jpg"
+
+    sin_foto = _usuario(
+        db_session,
+        correo="sin-foto-sa10-2@utem.cl",
+        nombre="Carla Diaz",
+        rut="33.333.333-3",
+    )
+
+    profesional = _profesional(
+        db_session,
+        nombre="Profesional Kinesiologia",
+        especialidad="Kinesiologia",
+        iniciales="PK",
+    )
+
+    _cita(
+        db_session,
+        estudiante_id=con_foto.id,
+        profesional_id=profesional.id,
+        fecha="2026-09-11",
+        hora="09:00",
+    )
+    _cita(
+        db_session,
+        estudiante_id=sin_foto.id,
+        profesional_id=profesional.id,
+        fecha="2026-09-11",
+        hora="10:00",
+    )
+
+    db_session.commit()
+
+    monkeypatch.setattr(
+        agenda,
+        "obtener_alcance_administrativo_efectivo",
+        lambda db, current_user: (
+            _alcance_institucional()
+        ),
+    )
+
+    resultado = agenda.listar_citas_admin(
+        db=db_session,
+        current_user={
+            "id": 1,
+            "rol": "superadmin",
+        },
+    )
+
+    assert len(resultado) == 2
+
+    por_estudiante = {fila["estudiante"]: fila for fila in resultado}
+    assert por_estudiante["Bruno Rios"]["estudiante_foto_url"] == "https://cdn.sesaes.cl/perfiles/bruno.jpg"
+    assert por_estudiante["Carla Diaz"]["estudiante_foto_url"] is None
 
 
 

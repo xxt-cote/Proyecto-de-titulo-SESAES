@@ -9,6 +9,8 @@ from app.models.profesional import Profesional
 from app.models.usuario import Usuario
 from app.models.historial_plantilla_pregunta import HistorialPlantillaPregunta
 from app.models.historial_paciente import HistorialPaciente
+from app.models.cuestionario_solicitud import CuestionarioConfig, CuestionarioEnvio
+from app.models.notificacion import Notificacion
 from app.auth_dependencies import get_current_user, verificar_acceso_profesional
 from app.rbac.permissions import Permission, has_permission
 
@@ -46,6 +48,14 @@ class PlantillaUpdateIn(BaseModel):
 
 class HistorialGuardarIn(BaseModel):
     respuestas: dict
+
+
+class CuestionarioDecisionIn(BaseModel):
+    solicitar: bool          # True = enviar al estudiante · False = omitir (aunque el ajuste general esté activo)
+
+
+class CuestionarioConfigIn(BaseModel):
+    enviar_por_defecto: bool
 
 
 # ══════════════════════════════════════
@@ -116,6 +126,25 @@ def _exigir_acceso_clinico(
     verificar_acceso_profesional(current_user, profesional_id, db, roles_permitidos=["profesional"])
     if not _tiene_relacion_clinica(profesional_id, estudiante_id, db):
         raise HTTPException(status_code=403, detail="No tienes permiso para acceder a este recurso.")
+
+
+def _cuestionario_solicitado(profesional_id: int, estudiante_id: int, db: Session) -> bool:
+    """
+    El cuestionario previo es OPCIONAL: lo decide el profesional.
+
+    Prioridad: decisión puntual para este estudiante (CuestionarioEnvio)
+    > ajuste general del profesional (CuestionarioConfig) > no enviar.
+    """
+    decision = db.query(CuestionarioEnvio).filter(
+        CuestionarioEnvio.profesional_id == profesional_id,
+        CuestionarioEnvio.estudiante_id == estudiante_id,
+    ).first()
+    if decision is not None:
+        return bool(decision.solicitado)
+    config = db.query(CuestionarioConfig).filter(
+        CuestionarioConfig.profesional_id == profesional_id
+    ).first()
+    return bool(config.enviar_por_defecto) if config else False
 
 
 def _asegurar_plantilla_base(prof: Profesional, db: Session) -> None:
@@ -240,6 +269,94 @@ class RespuestasEstudianteIn(BaseModel):
     respuestas: dict
 
 
+@router.get("/config-cuestionario/{profesional_id}")
+def obtener_config_cuestionario(
+    profesional_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    if not has_permission(current_user, Permission.FICHA_VER_ASIGNADA):
+        raise HTTPException(status_code=403, detail="No tienes permiso para acceder a este recurso.")
+    verificar_acceso_profesional(current_user, profesional_id, db, roles_permitidos=["profesional"])
+    config = db.query(CuestionarioConfig).filter(CuestionarioConfig.profesional_id == profesional_id).first()
+    return {"enviar_por_defecto": bool(config.enviar_por_defecto) if config else False}
+
+
+@router.put("/config-cuestionario/{profesional_id}")
+def actualizar_config_cuestionario(
+    profesional_id: int,
+    datos: CuestionarioConfigIn,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    if not has_permission(current_user, Permission.FICHA_EDITAR_ASIGNADA):
+        raise HTTPException(status_code=403, detail="No tienes permiso para acceder a este recurso.")
+    verificar_acceso_profesional(current_user, profesional_id, db, roles_permitidos=["profesional"])
+    config = db.query(CuestionarioConfig).filter(CuestionarioConfig.profesional_id == profesional_id).first()
+    if config:
+        config.enviar_por_defecto = datos.enviar_por_defecto
+    else:
+        db.add(CuestionarioConfig(profesional_id=profesional_id, enviar_por_defecto=datos.enviar_por_defecto))
+    db.commit()
+    return {"enviar_por_defecto": datos.enviar_por_defecto}
+
+
+@router.put("/{profesional_id}/{estudiante_id}/cuestionario")
+def decidir_cuestionario(
+    profesional_id: int,
+    estudiante_id: int,
+    datos: CuestionarioDecisionIn,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """El profesional decide, para ESTE estudiante, si recibe o no el cuestionario previo."""
+    _exigir_acceso_clinico(current_user, profesional_id, estudiante_id, db, Permission.FICHA_EDITAR_ASIGNADA)
+    prof = _get_profesional_o_404(profesional_id, db)
+
+    ya_respondio = db.query(HistorialPaciente).filter(
+        HistorialPaciente.profesional_id == profesional_id,
+        HistorialPaciente.estudiante_id == estudiante_id,
+    ).first()
+    if ya_respondio and datos.solicitar:
+        raise HTTPException(status_code=400, detail="Este estudiante ya tiene su ficha de antecedentes.")
+
+    decision = db.query(CuestionarioEnvio).filter(
+        CuestionarioEnvio.profesional_id == profesional_id,
+        CuestionarioEnvio.estudiante_id == estudiante_id,
+    ).first()
+    era_solicitado = _cuestionario_solicitado(profesional_id, estudiante_id, db)
+    if decision:
+        decision.solicitado = datos.solicitar
+    else:
+        db.add(CuestionarioEnvio(profesional_id=profesional_id, estudiante_id=estudiante_id, solicitado=datos.solicitar))
+
+    if datos.solicitar and not era_solicitado:
+        db.add(Notificacion(
+            usuario_id=estudiante_id,
+            mensaje=f"{prof.nombre} te pidió completar un cuestionario de antecedentes antes de tu atención.",
+            tipo="info",
+        ))
+    db.commit()
+    return {"cuestionario_solicitado": datos.solicitar}
+
+
+@router.delete("/{profesional_id}/{estudiante_id}/cuestionario")
+def volver_a_ajuste_general(
+    profesional_id: int,
+    estudiante_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Quita la decisión puntual: este estudiante vuelve a seguir el ajuste general."""
+    _exigir_acceso_clinico(current_user, profesional_id, estudiante_id, db, Permission.FICHA_EDITAR_ASIGNADA)
+    db.query(CuestionarioEnvio).filter(
+        CuestionarioEnvio.profesional_id == profesional_id,
+        CuestionarioEnvio.estudiante_id == estudiante_id,
+    ).delete()
+    db.commit()
+    return {"cuestionario_solicitado": _cuestionario_solicitado(profesional_id, estudiante_id, db)}
+
+
 @router.get("/cuestionarios-pendientes/{estudiante_id}")
 def cuestionarios_pendientes(
     estudiante_id: int,
@@ -290,6 +407,8 @@ def cuestionarios_pendientes(
         if c.profesional_id in ids_con_ficha or c.profesional_id in vistos:
             continue
         vistos.add(c.profesional_id)
+        if not _cuestionario_solicitado(c.profesional_id, estudiante_id, db):
+            continue   # el cuestionario es opcional: solo si el profesional lo pidió
         prof = db.query(Profesional).filter(Profesional.id == c.profesional_id).first()
         if not prof:
             continue
@@ -325,6 +444,8 @@ def obtener_cuestionario_para_estudiante(
     ).first()
     if not tiene_cita:
         raise HTTPException(status_code=403, detail="Solo puedes responder el cuestionario de un profesional con el que tengas una cita.")
+    if not _cuestionario_solicitado(profesional_id, estudiante_id, db):
+        raise HTTPException(status_code=403, detail="Tu profesional no te ha pedido este cuestionario.")
 
     ya_existe = db.query(HistorialPaciente).filter(
         HistorialPaciente.profesional_id == profesional_id,
@@ -375,6 +496,8 @@ def responder_cuestionario_estudiante(
     ).first()
     if not tiene_cita:
         raise HTTPException(status_code=403, detail="Solo puedes responder el cuestionario de un profesional con el que tengas una cita.")
+    if not _cuestionario_solicitado(profesional_id, estudiante_id, db):
+        raise HTTPException(status_code=403, detail="Tu profesional no te ha pedido este cuestionario.")
 
     ya_existe = db.query(HistorialPaciente).filter(
         HistorialPaciente.profesional_id == profesional_id,
@@ -543,6 +666,8 @@ def obtener_historial(
     # dias_desde_ultima_visita) solo puede usar las fechas que sí se
     # lograron convertir.
     citas_completadas = [c for c in citas if c.estado == "completada"]
+    from app.services.documento_clinico_service import documentos_por_citas
+    docs_por_cita = documentos_por_citas(db, [c.id for c in citas_completadas])
     fechas_completadas = []
     for c in citas_completadas:
         try:
@@ -552,6 +677,7 @@ def obtener_historial(
 
     return {
         "existe": historial is not None,
+        "cuestionario_solicitado": _cuestionario_solicitado(profesional_id, estudiante_id, db),
         "estudiante_nombre": estudiante.nombre,
         "estudiante_rut":     estudiante.rut,
         "estudiante_carrera": estudiante.carrera,
@@ -576,6 +702,7 @@ def obtener_historial(
                 "medicamento":            c.medicamento,
                 "observaciones_atencion": c.observaciones_atencion,
                 "motivo_cancelacion":     c.motivo_cancelacion,
+                "documentos":             docs_por_cita.get(c.id, []),
             }
             for c in citas
         ],

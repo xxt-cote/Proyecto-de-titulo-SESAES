@@ -76,6 +76,17 @@
         <span class="material-symbols-outlined" aria-hidden="true">add</span>
         Nueva cita
       </button>
+      <button
+        *ngIf="puedeGestionarAgenda && puedeSobrecupo"
+        type="button"
+        class="agenda-btn agenda-btn-sobrecupo"
+        (click)="onAbrirSobrecupo()"
+        [disabled]="!filtroProfesionalId || profesionalActualBloqueado"
+        [attr.title]="filtroProfesionalId ? 'Solicitar un sobrecupo en la hora que elijas' : 'Selecciona un profesional para solicitar un sobrecupo'"
+      >
+        <span class="material-symbols-outlined" aria-hidden="true">add_circle</span>
+        Solicitar sobrecupo
+      </button>
     </div>
   </div>
 
@@ -187,9 +198,10 @@
       >
         <div class="hora-col">
           <div class="hora-celda header">Hora</div>
-          <div class="hora-celda" *ngFor="let h of horasGrilla">{{ h }}</div>
+          <div class="hora-celda" *ngFor="let h of horasGrilla" [style.height.px]="alturaHora(h)">{{ h }}</div>
+          <div class="hora-celda pie-hora-celda" aria-hidden="true"></div>
         </div>
-        <div class="dia-col" *ngFor="let dia of diasGrilla">
+        <div class="dia-col" *ngFor="let dia of diasGrilla; let i = index" [class.dia-cerrado]="diaCerrado(dia.fecha)">
           <div
             class="dia-header"
             [class.hoy]="dia.esHoy"
@@ -203,6 +215,7 @@
           <div
             class="bloque-celda"
             *ngFor="let h of horasGrilla"
+            [style.height.px]="alturaHora(h)"
             [class.disponible]="bloqueEstadoFn(dia.fecha, h) === 'disponible'"
             [class.ocupado]="bloqueEstadoFn(dia.fecha, h) === 'ocupado'"
             [class.ocupado-sobrecupo-disponible]="bloqueEstadoFn(dia.fecha, h) === 'ocupado' && bloqueSobrecupoDisponibleFn(dia.fecha, h)"
@@ -220,21 +233,54 @@
           >
             <!-- A.4.7A.1 — un bloque puede tener más de una cita real en
                  el mismo slot (p. ej. normal + sobrecupo forzada encima).
-                 Antes se leía un único bloqueInfoFn(...), que solo podía
+                 Antes se leía un único resumen en texto, que solo podía
                  representar a la primera; ahora se itera bloqueCitasFn(...)
                  completo para que ninguna cita quede oculta detrás de otra. -->
             <ng-container *ngIf="bloqueCitasFn(dia.fecha, h) as citasBloque">
               <span *ngFor="let c of citasBloque"
                     class="bloque-info"
+                    [class.cita-tarjeta]="citasBloque.length > 1"
                     [class.bloque-info-sobrecupo]="c.sobrecupo"
                     [class.bloque-info-urgente]="c.urgente">
                 {{ c.estudiante }}<small *ngIf="c.sobrecupo"> (Sobrecupo)</small>
               </span>
               <span *ngIf="citasBloque.length === 0 && bloqueEstadoFn(dia.fecha, h) === 'disponible'" class="agenda-slot-available">+ Disponible</span>
-              <span *ngIf="citasBloque.length === 0 && bloqueEstadoFn(dia.fecha, h) === 'colacion' && bloqueInfoFn(dia.fecha, h) as infoColacion" class="bloque-info">{{ infoColacion }}</span>
             </ng-container>
             <span *ngIf="bloqueEstadoFn(dia.fecha, h) === 'ocupado' && bloqueSobrecupoDisponibleFn(dia.fecha, h)"
                 class="material-symbols-outlined agenda-sobrecupo-affordance" aria-hidden="true">add_circle</span>
+          </div>
+
+          <!-- Día sin atención: lo decide el estado real de la disponibilidad
+               o un cierre registrado (diasCerrados). El motivo mostrado es el
+               del cierre, el nombre del feriado o, si no hay otro, el genérico. -->
+          <div class="dia-cerrado-aviso" *ngIf="diaCerrado(dia.fecha)" role="note">
+            <span class="material-symbols-outlined" aria-hidden="true">event_busy</span>
+            <strong>Sin atención</strong>
+            <span class="dia-cerrado-motivo">{{ motivoCierre(dia.fecha) }}</span>
+          </div>
+
+          <!-- Colación: recuadro (como una cita) en la hora de colación VIGENTE
+               del profesional, la que ya aprobó el administrador. -->
+          <div class="banda-colacion" *ngIf="bandaColacion && fechasBandaColacion.has(dia.fecha)"
+               [class.compacta]="bandaColacion.alto < 40"
+               [style.top.px]="bandaColacion.top" [style.height.px]="bandaColacion.alto"
+               role="note" [attr.aria-label]="'Colación ' + colacionTexto">
+            <span class="banda-colacion-titulo">
+              <span class="material-symbols-outlined" aria-hidden="true">restaurant</span>
+              Colación
+            </span>
+            <span class="banda-colacion-hora">{{ colacionTexto }}</span>
+          </div>
+
+          <!-- Fila al pie: salida VIGENTE del profesional (la que ya aprobó el
+               administrador; una solicitud pendiente no cambia lo que se
+               muestra). Un día sin atención no repite el aviso: queda vacía. -->
+          <div class="dia-pie">
+            <span class="pie-linea" *ngIf="!diaCerrado(dia.fecha) && salidaTexto" [title]="'Salida: ' + salidaTexto">
+              <span class="material-symbols-outlined" aria-hidden="true">schedule</span>
+              <span class="pie-etq">Salida</span>
+              <span class="pie-hora">{{ salidaTexto }}</span>
+            </span>
           </div>
         </div>
       </div>

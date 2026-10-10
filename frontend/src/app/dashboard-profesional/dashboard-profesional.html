@@ -1099,33 +1099,15 @@
     </main>
   </div>
 
-  <!-- MODAL: COMPLETAR ATENCIÓN -->
-  <div class="modal-overlay-prof" *ngIf="modalCompletarAbierto" (click)="cerrarModalCompletar()">
-    <div class="modal-prof" (click)="$event.stopPropagation()">
-      <div class="modal-header-prof">
-        <h3><span class="material-symbols-outlined icono-inline" aria-hidden="true">check</span> Completar Atención</h3>
-        <button class="modal-cerrar-prof" (click)="cerrarModalCompletar()" aria-label="Cerrar"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
-      </div>
-      <div *ngIf="citaParaCompletar" class="cita-resumen-modal">
-        <strong>{{ citaParaCompletar.estudiante }}</strong>
-        <span>{{ citaParaCompletar.fecha }} · {{ citaParaCompletar.hora }}</span>
-      </div>
-      <div class="campo-grupo-prof">
-        <label>Medicamento suministrado <span class="opcional">(opcional)</span></label>
-        <input [(ngModel)]="formCompletar.medicamento" placeholder="Ej: Ibuprofeno 400mg, Paracetamol..." />
-      </div>
-      <div class="campo-grupo-prof">
-        <label>Observaciones de la atención <span class="opcional">(opcional)</span></label>
-        <textarea [(ngModel)]="formCompletar.observaciones_atencion"
-                  placeholder="Notas clínicas, indicaciones, seguimiento..."
-                  rows="4" class="textarea-descripcion"></textarea>
-      </div>
-      <div class="modal-footer-prof">
-        <button class="btn-cancelar-modal-prof" (click)="cerrarModalCompletar()">Cancelar</button>
-        <button class="btn-guardar-modal-prof" (click)="confirmarCompletar()"><span class="material-symbols-outlined icono-inline" aria-hidden="true">check</span> Confirmar atención</button>
-      </div>
-    </div>
-  </div>
+  <!-- PANTALLA: COMPLETAR ATENCIÓN -->
+  <app-completar-atencion
+    *ngIf="modalCompletarAbierto && citaParaCompletar"
+    [cita]="citaParaCompletar"
+    [profId]="profDbId"
+    [paciente]="pacienteParaCompletar"
+    (completada)="onAtencionCompletada($event)"
+    (cancelar)="cerrarModalCompletar()">
+  </app-completar-atencion>
 
 </div>
 

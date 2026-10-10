@@ -253,6 +253,8 @@ def get_historial(
         Cita.estudiante_id == estudiante_id,
         Cita.estado.in_(["completada", "cancelada", "inasistencia"])
     ).all()
+    from app.services.documento_clinico_service import documentos_por_citas
+    docs_por_cita = documentos_por_citas(db, [c.id for c in citas if c.estado == "completada"])
     result = []
     for c in citas:
         prof = db.query(Profesional).filter(Profesional.id == c.profesional_id).first()
@@ -266,6 +268,7 @@ def get_historial(
             "especialidad":           prof.especialidad if prof else "",
             "estado":                 c.estado,
             "tiene_pdf":              c.estado == "completada",
+            "documentos":             docs_por_cita.get(c.id, []),
             "motivo_consulta":        c.observaciones,
             "medicamento":            c.medicamento            if c.estado == "completada" else None,
             "observaciones_atencion": c.observaciones_atencion if c.estado == "completada" else None,
@@ -402,6 +405,7 @@ def crear_cita(
         sobrecupo_solicitado=bool(cita.sobrecupo),
         sobrecupo_motivo=cita.sobrecupo_motivo,
         resultado_disponibilidad=resultado_disponibilidad,
+        sobrecupo_forzado=bool(cita.sobrecupo_forzado),
     )
 
     if not decision_sobrecupo.permitido:
@@ -491,7 +495,7 @@ def crear_cita(
         # única fuente de verdad — nunca se rechaza la cita solo
         # porque el conflicto desapareció; eso es una mejora legítima
         # de la concurrencia, no un error.
-        sobrecupo      = motivo_conflicto_superado is not None,
+        sobrecupo      = decision_sobrecupo.es_sobrecupo_efectivo,
         estado         = "pendiente",
         creado_por_usuario_id = origen.creado_por_usuario_id,
         creado_por_rol        = origen.creado_por_rol,

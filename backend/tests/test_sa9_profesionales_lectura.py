@@ -42,6 +42,10 @@ def _prof(id_, nombre, especialidad):
         correo=f"prof{id_}@utem.cl",
         rut=None,
         usuario_id=None,
+        horario_inicio="08:00",
+        horario_fin="18:00",
+        hora_almuerzo_inicio="13:00",
+        hora_almuerzo_fin="13:30",
         foto_url=None,
         color_identificador=None,
     )
@@ -149,3 +153,24 @@ def test_sin_alcance_da_403(monkeypatch):
         )
 
     assert exc.value.status_code == 403
+
+
+def test_el_listado_incluye_la_jornada_y_la_colacion_vigentes(monkeypatch):
+    """La agenda administrativa necesita estas horas para mostrar la colación
+    y la salida del profesional; sin ellas decía «Sin colación» aunque la
+    grilla sí la tuviera."""
+    db = FakeDB([_prof(1, "Nutri", "Nutrición")])
+    monkeypatch.setattr(
+        admin,
+        "obtener_alcance_administrativo_efectivo",
+        lambda db, current_user: _alcance_limitado("Nutrición"),
+    )
+
+    [fila] = admin.get_profesionales_admin(
+        db=db, current_user={"id": 10, "rol": "admin"},
+    )
+
+    assert fila["horario_inicio"] == "08:00"
+    assert fila["horario_fin"] == "18:00"
+    assert fila["hora_almuerzo_inicio"] == "13:00"
+    assert fila["hora_almuerzo_fin"] == "13:30"

@@ -267,7 +267,9 @@
 .agenda-profesional-chip > span:last-child { min-width: 0; font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .agenda-profesional-chip small { display: block; color: var(--admin-text-secondary); font-size: 9px; font-weight: 500; }
 
-.agenda-week-grid .hora-celda.header { color: var(--admin-text-secondary); font-weight: 600; justify-content: center; padding-right: 0; }
+/* Mismo alto que el encabezado de los días (62px): sin esto las horas de la
+   columna izquierda quedan 10px más arriba que las filas de la grilla. */
+.agenda-week-grid .hora-celda.header { height: 62px; box-sizing: border-box; color: var(--admin-text-secondary); font-weight: 600; justify-content: center; padding-right: 0; }
 .agenda-week-grid .dia-header { height: 62px; }
 .agenda-week-grid .dia-header.feriado { background: repeating-linear-gradient(135deg, #FFF8E7, #FFF8E7 7px, #FFF2CD 7px, #FFF2CD 14px); }
 .agenda-week-grid .dia-header.feriado .dia-num { color: #8A4B08; }
@@ -305,14 +307,47 @@
 }
 .agenda-week-grid .bloque-celda .bloque-info-sobrecupo { color: var(--agenda-sobrecupo); font-weight: 600; }
 .agenda-week-grid .bloque-celda .bloque-info-urgente { color: var(--agenda-urgencia); font-weight: 600; }
-/* Acento visual cuando el slot tiene más de una cita: una franja doble
-   a la izquierda en vez de la franja simple habitual, para que el
-   admin distinga de un vistazo "un slot con dos citas" de "un slot con
-   una cita cualquiera" sin tener que abrir el panel contextual. */
-.agenda-week-grid .bloque-celda.multi-cita {
-  border-left-width: 4px;
-  border-left-style: double;
+/* Una hora con dos citas (normal + sobrecupo) se muestra como dos recuadros
+   separados, uno debajo del otro, que comparten la misma hora. La fila crece
+   para todos los días (ver alturaHora) y cada recuadro lleva su propio color. */
+.agenda-week-grid .bloque-celda.multi-cita,
+.agenda-week-grid .bloque-celda.multi-cita.ocupado,
+.agenda-week-grid .bloque-celda.multi-cita.sobrecupo-bloque,
+.agenda-week-grid .bloque-celda.multi-cita.urgente-bloque {
+  background: #fff;
+  border-left: 0;
+  padding: 3px 4px;
+  gap: 3px;
+  justify-content: stretch;
 }
+.agenda-week-grid .bloque-celda .cita-tarjeta {
+  flex: 1 1 0;
+  align-self: stretch;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--agenda-reservada-bg);
+  border-left: 3px solid var(--agenda-reservada);
+}
+.agenda-week-grid .bloque-celda .cita-tarjeta.bloque-info-sobrecupo {
+  background: var(--agenda-sobrecupo-bg);
+  border-left-color: var(--agenda-sobrecupo);
+}
+.agenda-week-grid .bloque-celda .cita-tarjeta.bloque-info-urgente {
+  background: var(--agenda-urgencia-bg);
+  border-left-color: var(--agenda-urgencia);
+}
+.agenda-btn-sobrecupo {
+  border: 1px solid var(--agenda-sobrecupo);
+  background: var(--agenda-sobrecupo-bg);
+  color: var(--agenda-sobrecupo);
+  font-weight: 600;
+}
+.agenda-btn-sobrecupo:disabled { opacity: .55; cursor: not-allowed; }
 .agenda-week-grid .bloque-celda.ocupado.ocupado-sobrecupo-disponible {
   cursor: pointer;
   box-shadow: inset 0 0 0 2px var(--agenda-sobrecupo);
@@ -339,6 +374,98 @@
   opacity: .7;
 }
 .agenda-week-grid .bloque-celda.sin-datos-bloque:hover { background: var(--admin-background); }
+
+/* ══════════════════════════════════════════════════════════════
+   Día sin atención y fila al pie (colación / salida)
+   ══════════════════════════════════════════════════════════════ */
+.agenda-week-grid { --pie-alto: 62px; }
+.agenda-week-grid .dia-col { position: relative; }
+
+.agenda-week-grid .dia-cerrado-aviso {
+  position: absolute;
+  top: 62px;
+  bottom: var(--pie-alto);
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 8px;
+  text-align: center;
+  pointer-events: none;
+}
+.agenda-week-grid .dia-cerrado-aviso .material-symbols-outlined { font-size: 24px; color: var(--admin-text-secondary); }
+.agenda-week-grid .dia-cerrado-aviso strong { color: var(--admin-text); font-size: 12px; }
+.agenda-week-grid .dia-cerrado-motivo {
+  max-width: 100%;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--admin-text-secondary);
+  font-size: 11px;
+}
+
+.agenda-week-grid .dia-pie,
+.agenda-week-grid .pie-hora-celda {
+  height: var(--pie-alto);
+  box-sizing: border-box;
+}
+.agenda-week-grid .pie-hora-celda { border-top: 1px solid var(--admin-border); background: var(--admin-background); }
+.agenda-week-grid .dia-pie {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 8px;
+  border-top: 1px solid var(--admin-border);
+  background: var(--admin-background);
+  color: var(--admin-text-secondary);
+  font-size: 10px;
+  overflow: hidden;
+}
+/* Colación: recuadro con el estilo de una cita, en la hora real de colación.
+   No captura clics (las filas de abajo siguen permitiendo solicitar sobrecupo). */
+.agenda-week-grid .banda-colacion {
+  position: absolute;
+  left: 3px;
+  right: 5px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: #EEF1F6;
+  border-left: 3px solid #8A97AB;
+  color: var(--admin-text);
+  pointer-events: none;
+  overflow: hidden;
+}
+.agenda-week-grid .banda-colacion-titulo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--admin-text-secondary);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.agenda-week-grid .banda-colacion-titulo .material-symbols-outlined { font-size: 13px; }
+/* Colación corta (poco alto): título y hora en una sola línea. */
+.agenda-week-grid .banda-colacion.compacta { flex-direction: row; align-items: center; justify-content: flex-start; gap: 6px; }
+.agenda-week-grid .banda-colacion-hora { color: var(--admin-text); font-size: 11px; font-weight: 600; white-space: nowrap; }
+/* Las filas de colación quedan sin relleno propio: el recuadro es el que marca la colación. */
+.agenda-week-grid .bloque-celda.colacion-bloque { background: #fff; }
+.agenda-week-grid .pie-linea { display: flex; align-items: center; gap: 5px; min-width: 0; white-space: nowrap; }
+.agenda-week-grid .pie-linea .material-symbols-outlined { font-size: 14px; color: var(--admin-text-secondary); }
+.agenda-week-grid .pie-etq { font-weight: 600; color: var(--admin-text); }
+.agenda-week-grid .pie-hora { overflow: hidden; text-overflow: ellipsis; }
 
 /* ══════════════════════════════════════════════════════════════
    Vista Día — reutiliza la grilla horaria con una sola columna.
@@ -533,6 +660,18 @@
 :host-context(.admin-shell.tema-oscuro) .agenda-month-cell.fuera-mes { background: #242f42; }
 :host-context(.admin-shell.tema-oscuro) .agenda-month-chip.multicita { background: #1d2636; }
 :host-context(.admin-shell.tema-oscuro) .agenda-day-summary strong { color: #e6edf3; }
+:host-context(.admin-shell.tema-oscuro) .agenda-week-grid .bloque-celda.multi-cita { background: #1d2636; }
+:host-context(.admin-shell.tema-oscuro) .agenda-week-grid .bloque-celda .cita-tarjeta { background: #1f3350; }
+:host-context(.admin-shell.tema-oscuro) .agenda-week-grid .bloque-celda .cita-tarjeta.bloque-info-sobrecupo { background: #33274d; }
+:host-context(.admin-shell.tema-oscuro) .agenda-week-grid .bloque-celda .cita-tarjeta.bloque-info-urgente { background: #4a2430; }
+:host-context(.admin-shell.tema-oscuro) .agenda-week-grid .dia-pie,
+:host-context(.admin-shell.tema-oscuro) .agenda-week-grid .pie-hora-celda { background: #1d2636; border-top-color: #3a4a63; }
+:host-context(.admin-shell.tema-oscuro) .agenda-week-grid .banda-colacion { background: #263246; border-left-color: #6B7A93; }
+:host-context(.admin-shell.tema-oscuro) .agenda-week-grid .banda-colacion-titulo { color: #9fb0c8; }
+:host-context(.admin-shell.tema-oscuro) .agenda-week-grid .banda-colacion-hora { color: #e6edf3; }
+:host-context(.admin-shell.tema-oscuro) .agenda-week-grid .bloque-celda.colacion-bloque { background: #1d2636; }
+:host-context(.admin-shell.tema-oscuro) .agenda-week-grid .pie-etq,
+:host-context(.admin-shell.tema-oscuro) .agenda-week-grid .dia-cerrado-aviso strong { color: #e6edf3; }
 
 @media (max-width: 1280px) {
   .agenda-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -565,4 +704,8 @@
   .agenda-week-grid.agenda-day-grid { min-width: 0; }
   .agenda-month-weekdays,
   .agenda-month-body { min-width: 640px; }
+}
+
+@media (max-width: 1280px) {
+  .agenda-week-grid .pie-etq { display: none; }
 }

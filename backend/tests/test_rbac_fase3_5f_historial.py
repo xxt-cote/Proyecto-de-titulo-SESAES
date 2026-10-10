@@ -273,10 +273,18 @@ def test_put_ficha_endpoint_con_cita_completada_permite(db):
 ESTUDIANTE_USER = {"id": 99, "rol": "estudiante"}
 
 
+def _solicitar_cuestionario(db, profesional_id=5, estudiante_id=99):
+    """El cuestionario previo es opcional: el profesional debe haberlo pedido."""
+    from app.models.cuestionario_solicitud import CuestionarioEnvio
+    db.add(CuestionarioEnvio(profesional_id=profesional_id, estudiante_id=estudiante_id, solicitado=True))
+    db.commit()
+
+
 @pytest.mark.parametrize("estado", ["pendiente", "completada"])
 def test_cuestionario_get_permitido_con_cita_valida(db, estado):
     _seed_prof_y_usuarios(db)
     _cita(db, estado=estado)
+    _solicitar_cuestionario(db)
     resultado = m.obtener_cuestionario_para_estudiante(profesional_id=5, db=db, current_user=ESTUDIANTE_USER)
     assert resultado["profesional_nombre"] == "Dra. Owner"
 
@@ -294,6 +302,7 @@ def test_cuestionario_get_bloqueado_con_cita_invalida(db, estado):
 def test_cuestionario_post_permitido_con_cita_valida(db, estado):
     _seed_prof_y_usuarios(db)
     _cita(db, estado=estado)
+    _solicitar_cuestionario(db)
     resultado = m.responder_cuestionario_estudiante(
         profesional_id=5, datos=m.RespuestasEstudianteIn(respuestas={"1": "no"}),
         db=db, current_user=ESTUDIANTE_USER,

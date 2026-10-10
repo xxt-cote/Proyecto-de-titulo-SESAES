@@ -20,6 +20,8 @@ from app.routers.historial_clinico import router as historial_clinico_router
 from app.routers.agenda import router as agenda_router
 from app.routers.usuarios import router as usuarios_router
 from app.routers.capacidades_clinicas import router as capacidades_clinicas_router
+from app.routers.documentos_clinicos import router as documentos_clinicos_router
+from app.routers.admin_capacidades_clinicas import router as admin_capacidades_clinicas_router
 
 import os
 
@@ -73,6 +75,8 @@ app.include_router(historial_clinico_router)
 app.include_router(agenda_router)
 app.include_router(usuarios_router)
 app.include_router(capacidades_clinicas_router)  # SA-11.2
+app.include_router(admin_capacidades_clinicas_router)  # administración de capacidades por especialidad
+app.include_router(documentos_clinicos_router)  # recetas, justificativos y validación pública
 
 @app.get("/")
 def home():

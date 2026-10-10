@@ -24,6 +24,7 @@ from app.rbac.clinical_capabilities import ClinicalCapability
 from app.services.clinical_capabilities_service import resolver_capacidades_efectivas
 from app.schemas import CompletarCitaBody
 from app.auditoria import registrar_evento_auditoria
+from app.services import documento_clinico_service as documentos_svc
 
 router = APIRouter(tags=["profesionales"])
 
@@ -421,6 +422,12 @@ def completar_cita(
                 detail="No tienes la capacidad clínica para registrar medicamento suministrado.",
             )
 
+    # Documentos opcionales (receta / justificativo): mismas reglas fail-closed
+    # que el medicamento suministrado — capacidad de la especialidad y que no
+    # exista ya uno vigente para esta atención. Todo se valida ANTES de mutar.
+    prof_doc = db.query(Profesional).filter(Profesional.id == prof_id).first()
+    documentos_svc.validar_emision(db, prof_doc, body.receta, body.justificativo, cita.id)
+
     cita.estado                 = "completada"
     cita.medicamento            = medicamento
     cita.observaciones_atencion = observaciones_atencion
@@ -428,8 +435,25 @@ def completar_cita(
     registrar_evento_auditoria(db, current_user, "Profesional completó cita",
                                 entidad="cita", entidad_id=cita_id,
                                 detalle=f"Estudiante: {est.nombre if est else '—'} — {cita.fecha} {cita.hora}")
+
+    emitidos = documentos_svc.emitir_documentos(db, cita, prof_doc, est, body.receta, body.justificativo)
+    for doc in emitidos:
+        registrar_evento_auditoria(db, current_user, "Profesional emitió documento clínico",
+                                    entidad="documento_clinico", entidad_id=doc.id,
+                                    detalle=f"{documentos_svc.resumen_documento(doc)['nombre_tipo']} {doc.folio}")
+    if emitidos:
+        # Mensaje genérico: nunca lleva contenido clínico (ver notificaciones privacidad).
+        db.add(Notificacion(
+            usuario_id=cita.estudiante_id,
+            mensaje=f"Tu atención del {cita.fecha} fue completada. Ya puedes ver tus documentos en tu historial.",
+            tipo="info",
+        ))
     db.commit()
-    return {"message": "Cita marcada como completada"}
+    respuesta = {"message": "Cita marcada como completada"}
+    if emitidos:
+        # Solo cuando se emitió algo: sin documentos la respuesta es la de siempre.
+        respuesta["documentos"] = [documentos_svc.resumen_documento(d) for d in emitidos]
+    return respuesta
 
 
 # ══════════════════════════════════════
