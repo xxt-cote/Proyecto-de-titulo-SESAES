@@ -43,6 +43,7 @@ from app.services.agenda_disponibilidad_service import (
     canonicalizar_fecha_valida,
 )
 from app.services.cita_origen_service import resolver_origen_cita
+from app.services import reportes_resumen_service as reportes_svc
 
 
 
@@ -929,12 +930,7 @@ def crear_profesional(
     iniciales = datos.iniciales
 
     if not iniciales and datos.nombre:
-        partes = datos.nombre.split()
-        iniciales = (
-            (partes[0][0] + partes[1][0]).upper()
-            if len(partes) >= 2
-            else datos.nombre[:2].upper()
-        )
+        iniciales = _iniciales_de(datos.nombre)
 
     nuevo_usuario = Usuario(
         correo=datos.correo,
@@ -2203,6 +2199,125 @@ def eliminar_dia_cerrado(dia_id: int, db: Session = Depends(get_db), current_use
 # ══════════════════════════════════════
 # HISTORIAL CON FILTROS — fix búsqueda
 # ══════════════════════════════════════
+
+# ══════════════════════════════════════
+# REPORTES — resumen (Vista general y pestañas) y su PDF
+# ══════════════════════════════════════
+
+def _iniciales_de(nombre: str | None) -> str:
+    """
+    Iniciales = primer nombre + primer apellido. Con nombres compuestos el
+    primer apellido cae en el punto medio de las palabras, redondeando hacia
+    arriba (con cantidad impar, la palabra extra queda del lado de los
+    nombres). Misma regla que inicialesDe en admin-citas.utils.ts.
+    """
+    partes = str(nombre or "").split()
+    if not partes:
+        return "?"
+    if len(partes) == 1:
+        return partes[0][0].upper()
+    mitad = (len(partes) + 1) // 2
+    return (partes[0][0] + partes[mitad][0]).upper()
+
+
+def _construir_resumen_reportes(
+    db: Session,
+    current_user: dict,
+    *,
+    fecha_inicio: str | None = None,
+    fecha_fin: str | None = None,
+    especialidad: str | None = None,
+    carrera: str | None = None,
+    profesional_id: int | None = None,
+    estado: str | None = None,
+    prioridad: str | None = None,
+    limite_ultimas: int = 10,
+) -> dict:
+    """
+    Única fuente del resumen: la usan el JSON y el PDF. El alcance se resuelve
+    ANTES de cualquier filtro del request; los filtros solo pueden reducirlo.
+    """
+    alcance = obtener_alcance_administrativo_efectivo(db, current_user)
+    if alcance is None:
+        raise HTTPException(status_code=403, detail="No tienes acceso al alcance solicitado.")
+
+    ids_profesionales = None
+    if not alcance.institucional:
+        ids_profesionales = _ids_profesionales_en_alcance(db, alcance)
+
+    return reportes_svc.calcular_resumen(
+        db, ids_profesionales,
+        fecha_inicio=fecha_inicio, fecha_fin=fecha_fin,
+        especialidad=especialidad, carrera=carrera, profesional_id=profesional_id,
+        estado=estado, prioridad=prioridad, limite_ultimas=limite_ultimas,
+    )
+
+
+@router.get("/reportes/resumen")
+def get_reportes_resumen(
+    fecha_inicio: str | None = None,
+    fecha_fin: str | None = None,
+    especialidad: str | None = None,
+    carrera: str | None = None,
+    profesional_id: int | None = None,
+    estado: str | None = None,
+    prioridad: str | None = None,
+    limite_ultimas: int = 10,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_effective_permission(Permission.REPORTES_VER)),
+):
+    return _construir_resumen_reportes(
+        db, current_user,
+        fecha_inicio=fecha_inicio, fecha_fin=fecha_fin, especialidad=especialidad,
+        carrera=carrera, profesional_id=profesional_id, estado=estado,
+        prioridad=prioridad, limite_ultimas=limite_ultimas,
+    )
+
+
+@router.get("/reportes/resumen/pdf")
+def get_reportes_resumen_pdf(
+    fecha_inicio: str | None = None,
+    fecha_fin: str | None = None,
+    especialidad: str | None = None,
+    carrera: str | None = None,
+    profesional_id: int | None = None,
+    estado: str | None = None,
+    prioridad: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_effective_permission(Permission.REPORTES_VER)),
+):
+    """PDF administrativo con los mismos números que el JSON; deja registro de auditoría."""
+    resumen = _construir_resumen_reportes(
+        db, current_user,
+        fecha_inicio=fecha_inicio, fecha_fin=fecha_fin, especialidad=especialidad,
+        carrera=carrera, profesional_id=profesional_id, estado=estado,
+        prioridad=prioridad, limite_ultimas=20,
+    )
+    nombre_profesional = None
+    if profesional_id:
+        prof = db.query(Profesional.nombre).filter(Profesional.id == profesional_id).first()
+        nombre_profesional = prof[0] if prof else str(profesional_id)
+
+    contenido = reportes_svc.renderizar_pdf(
+        resumen,
+        {
+            "Especialidad": especialidad, "Carrera": carrera, "Profesional": nombre_profesional,
+            "Estado": estado, "Prioridad": prioridad,
+        },
+    )
+    periodo = resumen["periodo"]
+    registrar_evento_auditoria(
+        db, current_user, "Exportó el reporte de atenciones (PDF)",
+        entidad="reportes",
+        detalle=f"Período {periodo['fecha_inicio']} a {periodo['fecha_fin']}",
+    )
+    db.commit()
+    return StreamingResponse(
+        io.BytesIO(contenido),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="reporte-atenciones-{periodo["fecha_fin"]}.pdf"'},
+    )
+
 
 @router.get("/historial")
 def get_historial_admin(
