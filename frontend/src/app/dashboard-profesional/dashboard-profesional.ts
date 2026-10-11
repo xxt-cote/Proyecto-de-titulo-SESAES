@@ -14,13 +14,15 @@ import { evaluarPassword, type PasswordChecklist } from '../shared/password-vali
 import { coincideBusqueda } from '../shared/text-normalization';
 import { AuthService } from '../auth.service';
 import { CompletarAtencionComponent, type DocumentoEmitido, type PacienteAtencion } from './completar-atencion/completar-atencion';
+import { DocumentosCitaComponent } from '../shared/documentos-cita/documentos-cita';
+import { CuestionarioOpcionalComponent } from './cuestionario-opcional/cuestionario-opcional';
 
 const API = environment.apiUrl;
 
 @Component({
   selector: 'app-dashboard-profesional',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePipe, PhotoCropperComponent, PhotoViewerComponent, ProfessionalAyudaComponent, CompletarAtencionComponent],
+  imports: [CommonModule, FormsModule, DatePipe, PhotoCropperComponent, PhotoViewerComponent, ProfessionalAyudaComponent, CompletarAtencionComponent, DocumentosCitaComponent, CuestionarioOpcionalComponent],
   templateUrl: './dashboard-profesional.html',
   styleUrl: './dashboard-profesional.css'
 })
@@ -1184,6 +1186,7 @@ eliminarSolicitudesSeleccionadas(): void {
   fichaPreguntas: any[] = [];
   fichaRespuestas: any = {};
   fichaExiste = false;
+  fichaCuestionarioSolicitado = false;   // ¿este estudiante recibirá el cuestionario previo?
   fichaEnEdicion = false;
   fichaFechaModificacion: string | null = null;
   fichaCompletadoPor: string | null = null;
@@ -1281,6 +1284,7 @@ eliminarSolicitudesSeleccionadas(): void {
         this.fichaPreguntas   = data.preguntas;
         this.fichaRespuestas  = { ...data.respuestas };
         this.fichaExiste      = data.existe;
+        this.fichaCuestionarioSolicitado = data.cuestionario_solicitado ?? false;
         this.fichaFechaModificacion = data.fecha_modificacion;
         this.fichaCompletadoPor     = data.completado_por;
         this.fichaRevisada          = data.revisado_por_profesional ?? true;
@@ -1314,6 +1318,14 @@ eliminarSolicitudesSeleccionadas(): void {
   }
 
   // ── Datos derivados para la vista de ficha estilo "Historial clínico" ──
+
+  /** Vuelve a cargar la ficha abierta (tras anular un documento o decidir el cuestionario) sin cambiar de pestaña. */
+  recargarFicha(): void {
+    if (!this.pacienteSeleccionado) return;
+    const pestana = this.fichaTab;
+    this.abrirFichaPaciente(this.pacienteSeleccionado);
+    this.fichaTab = pestana;   // abrirFichaPaciente la reinicia
+  }
 
   get fichaCitasCompletadas(): any[] {
     return this.fichaCitas.filter(c => c.estado === 'completada');

@@ -60,7 +60,7 @@ def db():
         engine.dispose()
 
 
-def _setup(db, capacidades=("emitir_receta", "emitir_justificativo"), especialidad="Medicina"):
+def _setup(db, capacidades=("emitir_receta", "emitir_justificativo"), especialidad="Enfermería"):
     db.add(Usuario(id=USUARIO_PROF_ID, correo="p@utem.cl", password="x", rol="profesional", activo=True, nombre="Ana"))
     db.add(Usuario(id=EST_ID, correo="e@utem.cl", password="x", rol="estudiante", activo=True,
                    nombre="Valentina Torres Silva", rut="19.876.543-2", carrera="Estudiante"))
@@ -270,3 +270,26 @@ def test_enmascarar_nombre():
     assert svc.enmascarar_nombre("Valentina Torres Silva") == "Valentina T. S."
     assert svc.enmascarar_nombre("Ana") == "Ana"
     assert svc.enmascarar_nombre(None) == "—"
+
+
+# ───────────────────── capacidades de fábrica por especialidad ─────────────────────
+def test_un_medico_emite_receta_y_justificativo_sin_ninguna_autorizacion(db):
+    _setup(db, capacidades=(), especialidad="Medicina General")      # ninguna regla en base de datos
+    r = _completar(db, receta=RECETA, justificativo=JUSTIFICATIVO)
+    assert {d["tipo"] for d in r["documentos"]} == {"receta", "justificativo"}
+
+
+def test_un_psicologo_certifica_pero_no_receta(db):
+    _setup(db, capacidades=(), especialidad="Psicología")
+    with pytest.raises(HTTPException) as exc:
+        _completar(db, receta=RECETA)
+    assert exc.value.status_code == 403
+    _completar(db, justificativo=JUSTIFICATIVO)
+    assert db.query(DocumentoClinico).one().tipo == "justificativo"
+
+
+def test_enfermeria_no_trae_nada_de_fabrica_y_requiere_autorizacion_adicional(db):
+    _setup(db, capacidades=(), especialidad="Enfermería")
+    with pytest.raises(HTTPException) as exc:
+        _completar(db, receta=RECETA)
+    assert exc.value.status_code == 403

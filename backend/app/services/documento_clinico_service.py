@@ -38,7 +38,7 @@ from app.models.documento_clinico import (
 from app.models.profesional import Profesional
 from app.models.usuario import Usuario
 from app.rbac.clinical_capabilities import ClinicalCapability
-from app.services.clinical_capabilities_service import resolver_capacidades_efectivas
+from app.services.capacidades_por_defecto import capacidades_efectivas_profesional
 
 # Sin 0, O, 1, I, L: se pueden leer y teclear sin confundirlos.
 _ALFABETO = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
@@ -159,7 +159,7 @@ def url_validacion(folio: str) -> str:
 # Emisión
 # ══════════════════════════════════════
 def _exigir_capacidad(db: Session, prof: Profesional, tipo: str) -> None:
-    capacidades = resolver_capacidades_efectivas(prof.especialidad, db)
+    capacidades = capacidades_efectivas_profesional(prof.especialidad, db)
     if _CAPACIDAD_POR_TIPO[tipo].value not in capacidades:
         etiqueta = "recetas" if tipo == TIPO_RECETA else "justificativos"
         raise HTTPException(

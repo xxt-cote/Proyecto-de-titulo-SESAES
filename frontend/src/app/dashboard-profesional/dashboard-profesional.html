@@ -859,6 +859,7 @@
                       <div class="timeline-row-prof" *ngIf="c.motivo_consulta"><label>Motivo</label><p>{{ c.motivo_consulta }}</p></div>
                       <div class="timeline-row-prof" *ngIf="c.observaciones_atencion"><label>Observación</label><p>{{ c.observaciones_atencion }}</p></div>
                       <div class="timeline-row-prof" *ngIf="c.medicamento"><label>Indicaciones</label><p>{{ c.medicamento }}</p></div>
+                      <app-documentos-cita [documentos]="c.documentos" [modoProfesional]="true" (cambio)="recargarFicha()"></app-documentos-cita>
                     </div>
                   </div>
                 </div>
@@ -920,6 +921,7 @@
               <button class="btn-editar-perfil" (click)="abrirGestionPlantilla()"><span class="material-symbols-outlined icono-inline" aria-hidden="true">settings</span> Gestionar preguntas</button>
             </div>
             <p class="modal-desc" *ngIf="fichaFechaModificacion">Última modificación: {{ fichaFechaModificacion | date:'dd/MM/yyyy HH:mm' }}</p>
+            <app-cuestionario-opcional [profId]="profDbId" [estudianteId]="pacienteSeleccionado.estudiante_id" [solicitado]="fichaCuestionarioSolicitado" [yaExiste]="fichaExiste" (cambio)="recargarFicha()"></app-cuestionario-opcional>
             <p class="cuestionario-aviso-prof" *ngIf="fichaCompletadoPor === 'estudiante' && !fichaRevisada">
               <span class="material-symbols-outlined icono-inline" aria-hidden="true">stethoscope</span> Este cuestionario lo respondió el estudiante antes de su atención. Revísalo y guarda para confirmarlo.
             </p>

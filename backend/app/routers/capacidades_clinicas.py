@@ -27,7 +27,7 @@ from sqlalchemy.orm import Session
 from app.auth_dependencies import get_current_user, verificar_rol
 from app.database import get_db
 from app.models.profesional import Profesional
-from app.services.clinical_capabilities_service import resolver_capacidades_efectivas
+from app.services.capacidades_por_defecto import capacidades_efectivas_profesional
 
 router = APIRouter()
 
@@ -82,5 +82,5 @@ def obtener_mis_capacidades_clinicas(
     if profesional is None:
         return {"capacidades": []}
 
-    capacidades = resolver_capacidades_efectivas(profesional.especialidad, db)
+    capacidades = capacidades_efectivas_profesional(profesional.especialidad, db)
     return {"capacidades": capacidades}
