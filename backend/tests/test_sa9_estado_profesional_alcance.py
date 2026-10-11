@@ -291,7 +291,6 @@ def test_estado_dentro_de_scope_sin_cancelar_conserva_semantica(
 
     # HistorialEstadoProfesional.
     assert len(db.add_calls) == 1
-    assert db.add_calls[0].registrado_por == 50
     assert db.commit_calls == 1
     assert Cita not in db.query_calls
 

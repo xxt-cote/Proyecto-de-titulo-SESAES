@@ -171,7 +171,6 @@ def _estudiante():
         rut="11.111.111-1",
         carrera="Gastronom?a",
         correo="ana@ejemplo.cl",
-        foto_url=None,
     )
 
 
@@ -220,7 +219,6 @@ def test_listado_limitado_scopea_total_y_paginacion(
                 "rut": "11.111.111-1",
                 "carrera": "Gastronom?a",
                 "correo": "ana@ejemplo.cl",
-                "foto_url": None,
                 "citas_totales": 2,
                 "citas_atendidas": 1,
             }

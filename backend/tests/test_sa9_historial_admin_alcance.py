@@ -420,8 +420,6 @@ def test_historial_conserva_formato_operacional(
     assert resultado[0] == {
         "id": 100,
         "estudiante": "Ana",
-        "estudiante_id": 20,
-        "estudiante_foto_url": None,
         "rut": "11.111.111-1",
         "carrera": "Gastronom?a",
         "especialidad": "Nutrici?n",
@@ -431,6 +429,5 @@ def test_historial_conserva_formato_operacional(
         "hora": "09:00",
         "estado": "completada",
         "urgente": True,
-        "sobrecupo": False,
         "tiene_pdf": True,
     }

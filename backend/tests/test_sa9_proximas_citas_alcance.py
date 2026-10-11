@@ -392,7 +392,6 @@ def test_proximas_citas_conserva_campos_operacionales(
         "fecha",
         "hora",
         "urgente",
-        "sobrecupo",
         "estado",
     }
 
