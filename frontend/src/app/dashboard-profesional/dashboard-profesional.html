@@ -157,146 +157,183 @@
           <span class="material-symbols-outlined icono-inline" aria-hidden="true">warning</span> Tu estado actual es <strong>{{ perfil.estado }}</strong>. El administrador fue notificado.
         </div>
 
-        <!-- Hero -->
-        <div class="inicio-hero-prof">
+        <!-- ENCABEZADO -->
+        <div class="inicio-cab-prof">
           <div>
-            <h2 class="inicio-hero-titulo-prof">{{ saludoHorario }}, {{ perfil.nombre || 'Profesional' }}.</h2>
-            <p class="inicio-hero-sub-prof">Aquí tienes un resumen de tu jornada y de las tareas pendientes.</p>
+            <h2 class="inicio-cab-titulo-prof">¡{{ saludoHorario }}, {{ perfil.nombre || 'Profesional' }}!</h2>
+            <p class="inicio-cab-sub-prof">Aquí tienes un resumen de tu jornada y la información más relevante.</p>
           </div>
-          <div class="inicio-hero-acciones-prof">
-            <button class="btn-hero-secundario-prof" (click)="navegarA('horario')">Ver agenda</button>
-            <button class="btn-hero-primario-prof" (click)="navegarA('historial-clinico')">Buscar paciente</button>
-          </div>
-        </div>
-
-        <!-- RESUMEN -->
-        <h3 class="inicio-seccion-titulo-prof"><span class="material-symbols-outlined icono-inline" aria-hidden="true">bar_chart</span> Resumen</h3>
-        <div class="stats-grid-prof">
-          <div class="stat-card-prof blue">
-            <span class="stat-icon-prof"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></span>
-            <span class="stat-num-prof">{{ estadisticasDia.total_hoy }}</span>
-            <span class="stat-label-prof">Citas hoy</span>
-            <span class="stat-sub-prof" *ngIf="estadisticasDia.pendientes > 0">{{ estadisticasDia.pendientes }} pendiente{{ estadisticasDia.pendientes===1 ? '' : 's' }} de confirmar</span>
-          </div>
-          <div class="stat-card-prof teal">
-            <span class="stat-icon-prof"><span class="material-symbols-outlined" aria-hidden="true">skip_next</span></span>
-            <span class="stat-num-prof" style="font-size:24px">{{ proximaCitaGeneral ? proximaCitaGeneral.hora : '—' }}</span>
-            <span class="stat-label-prof">Próxima atención</span>
-            <span class="stat-sub-prof">{{ proximaCitaGeneral ? proximaCitaGeneral.estudiante : 'Sin citas pendientes' }}</span>
-          </div>
-          <div class="stat-card-prof green">
-            <span class="stat-icon-prof"><span class="material-symbols-outlined" aria-hidden="true">group</span></span>
-            <span class="stat-num-prof">{{ pacientesActivosCount }}</span>
-            <span class="stat-label-prof">Pacientes en cartera</span>
-            <span class="stat-sub-prof">Bajo tu atención</span>
-          </div>
-          <div class="stat-card-prof orange">
-            <span class="stat-icon-prof"><span class="material-symbols-outlined" aria-hidden="true">inbox</span></span>
-            <span class="stat-num-prof">{{ solicitudesPendientesTotal }}</span>
-            <span class="stat-label-prof">Solicitudes</span>
-            <span class="stat-sub-prof">Requieren revisión</span>
+          <div class="inicio-cab-fecha-prof">
+            <span class="material-symbols-outlined" aria-hidden="true">calendar_today</span>
+            <span>Hoy, {{ fechaHoyLarga }}</span>
           </div>
         </div>
 
-        <!-- AGENDA DE HOY + CALENDARIO -->
-        <div class="inicio-layout-prof">
-
-          <!-- Agenda de hoy -->
-          <div class="card-prof">
-            <div class="card-header-prof">
-              <h3 class="card-title-prof"><span class="material-symbols-outlined icono-inline" aria-hidden="true">calendar_today</span> Agenda de hoy</h3>
-              <button class="btn-ver-mas" (click)="navegarA('horario')">Ver agenda completa <span class="material-symbols-outlined icono-inline" aria-hidden="true">arrow_forward</span></button>
+        <!-- INDICADORES -->
+        <div class="inicio-kpis-prof">
+          <div class="inicio-kpi-prof">
+            <span class="inicio-kpi-icono-prof"><span class="material-symbols-outlined" aria-hidden="true">group</span></span>
+            <div>
+              <span class="inicio-kpi-num-prof">{{ estadisticasDia.completadas }}</span>
+              <span class="inicio-kpi-label-prof">Pacientes atendidos<br>de {{ estadisticasDia.total_hoy }} programados</span>
             </div>
-
-            <!-- Estado vacío: sin citas agendadas hoy -->
-            <div class="agenda-vacia-prof" *ngIf="citasHoy.length === 0">
-              <span class="agenda-vacia-icono-prof"><span class="material-symbols-outlined" aria-hidden="true">calendar_today</span></span>
-              <p>No tienes citas programadas para hoy</p>
-              <div class="agenda-vacia-acciones-prof">
-                <button class="btn-hero-secundario-prof" (click)="navegarA('horario')">Ver agenda completa</button>
-                <button class="btn-hero-secundario-prof" (click)="navegarA('horario'); horarioTab='configuracion'">Ver mi horario</button>
-              </div>
+          </div>
+          <div class="inicio-kpi-prof">
+            <span class="inicio-kpi-icono-prof"><span class="material-symbols-outlined" aria-hidden="true">event_upcoming</span></span>
+            <div>
+              <span class="inicio-kpi-num-prof">{{ estadisticasDia.pendientes }}</span>
+              <span class="inicio-kpi-label-prof">Atenciones pendientes<br>en agenda hoy</span>
             </div>
+          </div>
+          <div class="inicio-kpi-prof">
+            <span class="inicio-kpi-icono-prof"><span class="material-symbols-outlined" aria-hidden="true">description</span></span>
+            <div>
+              <span class="inicio-kpi-num-prof">{{ documentosHoy.total }}</span>
+              <span class="inicio-kpi-label-prof">Documentos enviados hoy<br>{{ documentosHoy.recetas }} receta{{ documentosHoy.recetas === 1 ? '' : 's' }} · {{ documentosHoy.justificativos }} justificativo{{ documentosHoy.justificativos === 1 ? '' : 's' }}</span>
+            </div>
+          </div>
+          <button type="button" class="inicio-kpi-prof inicio-kpi-alerta-prof" [class.con-alerta]="citasSinCerrar.length > 0"
+                  [disabled]="citasSinCerrar.length === 0" (click)="abrirModalCompletar(citasSinCerrar[0])">
+            <span class="inicio-kpi-icono-prof"><span class="material-symbols-outlined" aria-hidden="true">pending_actions</span></span>
+            <div>
+              <span class="inicio-kpi-num-prof">{{ citasSinCerrar.length }}</span>
+              <span class="inicio-kpi-label-prof">Citas sin cerrar<br>{{ citasSinCerrar.length > 0 ? 'Completar la más antigua' : 'Todo al día' }}</span>
+            </div>
+          </button>
+        </div>
 
-            <!-- Centro cerrado hoy -->
-            <div class="tabla-vacia-prof" *ngIf="citasHoy.length > 0 && centroCerradoHoy">El centro no atiende hoy.</div>
+        <div class="inicio-grid-prof">
 
-            <!-- Agenda con bloques: disponible / ocupado / colación -->
-            <ng-container *ngIf="citasHoy.length > 0 && !centroCerradoHoy">
-              <div class="bloque-hoy-item-prof" *ngFor="let b of agendaHoyBloques" [ngClass]="b.estado">
-                <span class="bloque-hoy-hora-prof">{{ b.hora }}</span>
+          <!-- COLUMNA PRINCIPAL -->
+          <div class="inicio-col-prof">
 
-                <ng-container [ngSwitch]="b.estado">
-                  <div *ngSwitchCase="'libre'" class="bloque-hoy-info-prof libre">
-                    <span>Disponible</span>
-                  </div>
-                  <div *ngSwitchCase="'bloqueado'" class="bloque-hoy-info-prof bloqueado">
-                    <span><span class="material-symbols-outlined icono-inline" aria-hidden="true">restaurant</span> Colación</span>
-                  </div>
-                  <div *ngSwitchDefault class="bloque-hoy-info-prof">
-                    <div>
-                      <strong>{{ b.cita?.estudiante }}</strong>
-                      <span>{{ tipoAtencionGlobal(b.cita) }}</span>
-                    </div>
-                    <span class="urgente-tag" *ngIf="b.cita?.urgente">URGENTE</span>
-                    <span class="estado-badge-prof" [ngClass]="b.cita?.estado">{{ b.cita?.estado }}</span>
-                    <div class="cita-hoy-acciones" *ngIf="b.cita?.estado === 'pendiente' && puedeGestionarCita(b.cita)">
-                      <button class="btn-completar" (click)="abrirModalCompletar(b.cita)"><span class="material-symbols-outlined icono-inline" aria-hidden="true">check</span> Completar</button>
-                      <button class="btn-inasistencia" (click)="marcarInasistencia(b.cita)"><span class="material-symbols-outlined icono-inline" aria-hidden="true">close</span> Inasistencia</button>
-                    </div>
-                  </div>
-                </ng-container>
+            <!-- Agenda de hoy -->
+            <div class="card-prof">
+              <div class="card-header-prof">
+                <h3 class="card-title-prof"><span class="material-symbols-outlined icono-inline" aria-hidden="true">calendar_today</span> Tu agenda de hoy</h3>
+                <button class="btn-ver-mas" (click)="navegarA('horario')">Ver agenda completa <span class="material-symbols-outlined icono-inline" aria-hidden="true">arrow_forward</span></button>
               </div>
 
-              <!-- Sobrecupos: citas fuera de la grilla horaria habitual -->
-              <ng-container *ngIf="sobrecuposHoy.length > 0">
-                <div class="sobrecupo-titulo-prof">Sobrecupos</div>
-                <div class="bloque-hoy-item-prof ocupado" *ngFor="let cita of sobrecuposHoy">
-                  <span class="bloque-hoy-hora-prof">{{ cita.hora }}</span>
-                  <div class="bloque-hoy-info-prof">
-                    <div>
-                      <strong>{{ cita.estudiante }}</strong>
-                      <span>{{ tipoAtencionGlobal(cita) }} · Sobrecupo</span>
-                    </div>
-                    <span class="urgente-tag" *ngIf="cita.urgente">URGENTE</span>
-                    <span class="estado-badge-prof" [ngClass]="cita.estado">{{ cita.estado }}</span>
-                    <div class="cita-hoy-acciones" *ngIf="cita.estado === 'pendiente' && puedeGestionarCita(cita)">
-                      <button class="btn-completar" (click)="abrirModalCompletar(cita)"><span class="material-symbols-outlined icono-inline" aria-hidden="true">check</span> Completar</button>
-                      <button class="btn-inasistencia" (click)="marcarInasistencia(cita)"><span class="material-symbols-outlined icono-inline" aria-hidden="true">close</span> Inasistencia</button>
-                    </div>
+              <div class="tabla-vacia-prof" *ngIf="centroCerradoHoy">El centro no atiende hoy.</div>
+
+              <div class="agenda-vacia-prof" *ngIf="!centroCerradoHoy && agendaHoyCitas.length === 0">
+                <span class="agenda-vacia-icono-prof"><span class="material-symbols-outlined" aria-hidden="true">calendar_today</span></span>
+                <p>No tienes citas programadas para hoy</p>
+                <div class="agenda-vacia-acciones-prof">
+                  <button class="btn-hero-secundario-prof" (click)="navegarA('horario')">Ver agenda completa</button>
+                  <button class="btn-hero-secundario-prof" (click)="navegarA('horario'); horarioTab='configuracion'">Ver mi horario</button>
+                </div>
+              </div>
+
+              <ng-container *ngIf="!centroCerradoHoy">
+                <div class="inicio-agenda-fila-prof" *ngFor="let c of agendaHoyCitas">
+                  <span class="inicio-agenda-hora-prof">{{ c.hora }}</span>
+                  <div class="inicio-agenda-info-prof">
+                    <strong>{{ c.estudiante }}</strong>
+                    <span>{{ tipoAtencionGlobal(c) }}<ng-container *ngIf="c.sobrecupo"> · Sobrecupo</ng-container></span>
+                  </div>
+                  <span class="urgente-tag" *ngIf="c.urgente">URGENTE</span>
+                  <span class="estado-badge-prof" [ngClass]="c.estado">{{ c.estado }}</span>
+                  <div class="cita-hoy-acciones" *ngIf="c.estado === 'pendiente' && puedeGestionarCita(c)">
+                    <button class="btn-completar" (click)="abrirModalCompletar(c)"><span class="material-symbols-outlined icono-inline" aria-hidden="true">check</span> Completar</button>
+                    <button class="btn-inasistencia" (click)="marcarInasistencia(c)"><span class="material-symbols-outlined icono-inline" aria-hidden="true">close</span> Inasistencia</button>
                   </div>
                 </div>
               </ng-container>
-            </ng-container>
+            </div>
+
+            <!-- Pacientes recientes -->
+            <div class="card-prof">
+              <div class="card-header-prof">
+                <h3 class="card-title-prof"><span class="material-symbols-outlined icono-inline" aria-hidden="true">group</span> Mis pacientes recientes</h3>
+                <button class="btn-ver-mas" (click)="navegarA('historial-clinico')">Ver todos <span class="material-symbols-outlined icono-inline" aria-hidden="true">arrow_forward</span></button>
+              </div>
+              <div *ngIf="pacientesRecientes.length === 0" class="tabla-vacia-prof">Aún no tienes pacientes atendidos</div>
+              <table class="inicio-tabla-prof" *ngIf="pacientesRecientes.length > 0">
+                <thead><tr><th>Nombre</th><th>Carrera</th><th>Última atención</th><th></th></tr></thead>
+                <tbody>
+                  <tr *ngFor="let p of pacientesRecientes" (click)="irAFichaPacienteReciente(p)">
+                    <td><span class="mini-avatar-prof">{{ p.nombre?.charAt(0) }}</span> {{ p.nombre }}</td>
+                    <td>{{ p.carrera || '—' }}</td>
+                    <td>
+                      <ng-container [ngSwitch]="p.dias_desde_ultima_visita">
+                        <ng-container *ngSwitchCase="0">Hoy</ng-container>
+                        <ng-container *ngSwitchCase="1">Ayer</ng-container>
+                        <ng-container *ngSwitchDefault>{{ p.dias_desde_ultima_visita !== null ? 'Hace ' + p.dias_desde_ultima_visita + ' días' : 'Sin visitas' }}</ng-container>
+                      </ng-container>
+                    </td>
+                    <td class="inicio-tabla-flecha-prof"><span class="material-symbols-outlined" aria-hidden="true">chevron_right</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
           </div>
 
-          <!-- Calendario -->
-          <div class="card-prof inicio-calendario-prof">
-            <div class="card-header-prof" style="margin-bottom:6px">
-              <h3 class="card-title-prof"><span class="material-symbols-outlined icono-inline" aria-hidden="true">calendar_month</span> Calendario</h3>
-            </div>
-            <div class="calendario-header-prof">
-              <button class="cal-nav-btn" (click)="calMesAnterior()"><span class="material-symbols-outlined icono-inline" aria-hidden="true">chevron_left</span></button>
-              <span>{{ calNombreMesVisible }}</span>
-              <button class="cal-nav-btn" (click)="calMesSiguiente()"><span class="material-symbols-outlined icono-inline" aria-hidden="true">chevron_right</span></button>
-            </div>
-            <div class="cal-grid-dias-nombre-prof">
-              <span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span>
-            </div>
-            <div class="cal-grid-prof">
-              <div *ngFor="let dia of calDiasMes" class="cal-celda-prof" [class.vacia]="!dia" [class.clickeable]="dia" (click)="seleccionarDiaInfo(dia)">
-                <span *ngIf="dia" [class.hoy]="dia.esHoy" [class.feriado]="esFeriado(dia.fecha)" [title]="nombreFeriado(dia.fecha)">{{ dia.num }}</span>
+          <!-- COLUMNA LATERAL -->
+          <div class="inicio-col-prof">
+
+            <div class="card-prof">
+              <div class="card-header-prof">
+                <h3 class="card-title-prof"><span class="material-symbols-outlined icono-inline" aria-hidden="true">bolt</span> Acciones rápidas</h3>
+              </div>
+              <div class="inicio-acciones-prof">
+                <button type="button" [disabled]="!proximaAtencionPendiente" (click)="abrirModalCompletar(proximaAtencionPendiente)">
+                  <span class="material-symbols-outlined" aria-hidden="true">stethoscope</span>
+                  <span>Completar atención</span>
+                </button>
+                <button type="button" (click)="navegarA('horario')">
+                  <span class="material-symbols-outlined" aria-hidden="true">calendar_month</span>
+                  <span>Ver agenda</span>
+                </button>
+                <button type="button" (click)="navegarA('historial-clinico')">
+                  <span class="material-symbols-outlined" aria-hidden="true">group</span>
+                  <span>Mis pacientes</span>
+                </button>
+                <button type="button" (click)="navegarA('solicitudes')">
+                  <span class="material-symbols-outlined" aria-hidden="true">inbox</span>
+                  <span>Solicitudes<small *ngIf="solicitudesPendientesTotal > 0"> ({{ solicitudesPendientesTotal }})</small></span>
+                </button>
               </div>
             </div>
-            <div class="info-dia-prof" *ngIf="diaSeleccionadoInfo && infoDelDia(diaSeleccionadoInfo).length > 0">
-              <span class="info-dia-prof-item" *ngFor="let info of infoDelDia(diaSeleccionadoInfo)">{{ info }}</span>
-            </div>
-            <p class="info-dia-prof-vacio" *ngIf="diaSeleccionadoInfo && infoDelDia(diaSeleccionadoInfo).length === 0">
-              Nada especial que celebrar este día.
-            </p>
-            <button class="btn-ver-mas" style="margin-top:10px" (click)="navegarA('horario')">Ver calendario <span class="material-symbols-outlined icono-inline" aria-hidden="true">arrow_forward</span></button>
-          </div>
 
+            <div class="inicio-recuerda-prof">
+              <span class="material-symbols-outlined" aria-hidden="true">favorite</span>
+              <div>
+                <strong>Recuerda</strong>
+                <p>Al completar una atención con receta o justificativo, el documento se envía automáticamente al dashboard del estudiante.</p>
+              </div>
+            </div>
+
+        <!-- Calendario -->
+        <div class="card-prof inicio-calendario-prof">
+          <div class="card-header-prof" style="margin-bottom:6px">
+            <h3 class="card-title-prof"><span class="material-symbols-outlined icono-inline" aria-hidden="true">calendar_month</span> Calendario</h3>
+          </div>
+          <div class="calendario-header-prof">
+            <button class="cal-nav-btn" (click)="calMesAnterior()"><span class="material-symbols-outlined icono-inline" aria-hidden="true">chevron_left</span></button>
+            <span>{{ calNombreMesVisible }}</span>
+            <button class="cal-nav-btn" (click)="calMesSiguiente()"><span class="material-symbols-outlined icono-inline" aria-hidden="true">chevron_right</span></button>
+          </div>
+          <div class="cal-grid-dias-nombre-prof">
+            <span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span>
+          </div>
+          <div class="cal-grid-prof">
+            <div *ngFor="let dia of calDiasMes" class="cal-celda-prof" [class.vacia]="!dia" [class.clickeable]="dia" (click)="seleccionarDiaInfo(dia)">
+              <span *ngIf="dia" [class.hoy]="dia.esHoy" [class.feriado]="esFeriado(dia.fecha)" [title]="nombreFeriado(dia.fecha)">{{ dia.num }}</span>
+            </div>
+          </div>
+          <div class="info-dia-prof" *ngIf="diaSeleccionadoInfo && infoDelDia(diaSeleccionadoInfo).length > 0">
+            <span class="info-dia-prof-item" *ngFor="let info of infoDelDia(diaSeleccionadoInfo)">{{ info }}</span>
+          </div>
+          <p class="info-dia-prof-vacio" *ngIf="diaSeleccionadoInfo && infoDelDia(diaSeleccionadoInfo).length === 0">
+            Nada especial que celebrar este día.
+          </p>
+          <button class="btn-ver-mas" style="margin-top:10px" (click)="navegarA('horario')">Ver calendario <span class="material-symbols-outlined icono-inline" aria-hidden="true">arrow_forward</span></button>
+        </div>
+
+
+          </div>
         </div>
 
         <!-- REQUIERE TU ATENCIÓN -->
@@ -325,39 +362,6 @@
           </button>
         </div>
 
-        <!-- ACCIONES RÁPIDAS -->
-        <div class="card-prof">
-          <div class="card-header-prof">
-            <h3 class="card-title-prof"><span class="material-symbols-outlined icono-inline" aria-hidden="true">bolt</span> Acciones rápidas</h3>
-          </div>
-          <div class="acciones-rapidas-grid-prof">
-            <button (click)="navegarA('horario'); horarioTab='configuracion'"><span class="material-symbols-outlined icono-inline" aria-hidden="true">schedule</span> Mi horario</button>
-            <button (click)="navegarA('solicitudes')"><span class="material-symbols-outlined icono-inline" aria-hidden="true">inbox</span> Solicitudes</button>
-          </div>
-        </div>
-
-        <!-- PACIENTES RECIENTES -->
-        <div class="card-prof">
-          <div class="card-header-prof">
-            <h3 class="card-title-prof"><span class="material-symbols-outlined icono-inline" aria-hidden="true">group</span> Pacientes recientes</h3>
-            <button class="btn-ver-mas" (click)="navegarA('historial-clinico')">Ver todos <span class="material-symbols-outlined icono-inline" aria-hidden="true">arrow_forward</span></button>
-          </div>
-          <div *ngIf="pacientesRecientes.length === 0" class="tabla-vacia-prof">Aún no tienes pacientes atendidos</div>
-          <div class="paciente-reciente-item-prof" *ngFor="let p of pacientesRecientes" (click)="irAFichaPacienteReciente(p)">
-            <div class="mini-avatar-prof">{{ p.nombre?.charAt(0) }}</div>
-            <div>
-              <strong>{{ p.nombre }}</strong>
-              <span>{{ p.carrera || '—' }}</span>
-            </div>
-            <span class="paciente-reciente-ultima-prof">
-              <ng-container [ngSwitch]="p.dias_desde_ultima_visita">
-                <ng-container *ngSwitchCase="0">Hoy</ng-container>
-                <ng-container *ngSwitchCase="1">Ayer</ng-container>
-                <ng-container *ngSwitchDefault>{{ p.dias_desde_ultima_visita !== null ? 'Hace ' + p.dias_desde_ultima_visita + ' días' : 'Sin visitas' }}</ng-container>
-              </ng-container>
-            </span>
-          </div>
-        </div>
 
         <!-- DOCUMENTACIÓN CLÍNICA -->
         <div class="card-prof">

@@ -147,6 +147,7 @@ toggleSidebarMovil(): void {
   cargarDatos(): void {
     this.cargarPerfil();
     this.cargarEstadisticasDia();
+    this.cargarDocumentosHoy();
     this.cargarCitasHoy();
     this.cargarProximasSemana();
     this.cargarNotificaciones();
@@ -403,12 +404,6 @@ eliminarSeleccionadas(): void {
     return items.slice(0, 3);
   }
 
-  get proximaCitaGeneral(): any {
-    const hoyPendientes = this.citasHoy.filter(c => c.estado === 'pendiente');
-    if (hoyPendientes.length > 0) return hoyPendientes[0];
-    return this.proximasSemana[0] || null;
-  }
-
   // ── Agenda de hoy: bloques horarios reales (disponible / ocupado / colación / cerrado) ──
   // Reutiliza la misma lógica de la grilla semanal de "Mi Horario" (getBloqueEstado/Info),
   // por lo que requiere que citasSemana esté cargado (se pide también en cargarDatos()).
@@ -419,23 +414,6 @@ eliminarSeleccionadas(): void {
   }
 
   get centroCerradoHoy(): boolean { return this.esDiaCerrado(this.fechaHoyStr); }
-
-  get agendaHoyBloques(): { hora: string; estado: string; cita: any }[] {
-    const hoy = this.fechaHoyStr;
-    return this.horasGrilla
-      .map(hora => ({
-        hora,
-        estado: this.getBloqueEstado(hoy, hora),
-        cita: this.citasHoy.find(c => this.convertirA24h(c.hora) === hora) || null
-      }))
-      .filter(b => b.estado !== 'cerrado-centro');
-  }
-
-  // Citas de hoy cuya hora no calza con ningún bloque de la grilla (sobrecupos)
-  get sobrecuposHoy(): any[] {
-    const horasValidas = new Set(this.horasGrilla);
-    return this.citasHoy.filter(c => !horasValidas.has(this.convertirA24h(c.hora)));
-  }
 
   // Heurística de tipo de atención usando el historial completo de citas del profesional
   // (no solo las de la ficha de un paciente): la primera cita histórica del estudiante
@@ -514,6 +492,7 @@ eliminarSeleccionadas(): void {
   get donutC3(): string { return `${this.anguloAcumulado('inasistencias')}deg`; }
 
   citasHoy: any[] = [];
+  documentosHoy = { total: 0, recetas: 0, justificativos: 0 };   // documentos emitidos hoy (Inicio)
 
   cargarEstadisticasDia(): void {
     this.http.get<any>(`${API}/profesional/${this.profDbId}/estadisticas-dia`).subscribe({
@@ -523,6 +502,28 @@ eliminarSeleccionadas(): void {
       },
       error: () => {}
     });
+  }
+
+  cargarDocumentosHoy(): void {
+    this.http.get<{ total: number; recetas: number; justificativos: number }>(`${API}/documentos/profesional/${this.profDbId}/hoy`).subscribe({
+      next: (d) => { this.documentosHoy = d; this.cdr.detectChanges(); },
+      error: () => {}
+    });
+  }
+
+  /** Citas de hoy ordenadas por hora (agenda del Inicio). */
+  get agendaHoyCitas(): any[] {
+    return [...this.citasHoy].sort((a, b) => this.convertirA24h(a.hora).localeCompare(this.convertirA24h(b.hora)));
+  }
+
+  /** La próxima cita pendiente de hoy que este profesional puede completar. */
+  get proximaAtencionPendiente(): any {
+    return this.agendaHoyCitas.find(c => c.estado === 'pendiente' && this.puedeGestionarCita(c)) || null;
+  }
+
+  get fechaHoyLarga(): string {
+    const f = new Date().toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    return f.charAt(0).toUpperCase() + f.slice(1);
   }
 
   cargarCitasHoy(): void {
@@ -880,6 +881,7 @@ limpiarFiltrosAtenciones(): void {
     this.cerrarModalCompletar();
     this.cargarAtenciones();
     this.cargarEstadisticasDia();
+    this.cargarDocumentosHoy();
     this.cargarCitasHoy();
     this.cargarCitasSinCerrar();
     this.refrescarCitasPendientesSiCorresponde();

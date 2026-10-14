@@ -67,6 +67,17 @@ def validar_documento(request: Request, codigo: str, db: Session = Depends(get_d
 
 
 # ── CON SESIÓN ───────────────────────────────────────────────────────
+@router.get("/documentos/profesional/{prof_id}/hoy")
+def resumen_documentos_hoy(
+    prof_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Cuántos documentos vigentes emitió el profesional hoy (solo el propio profesional)."""
+    _exigir_permiso_y_ownership_propio(current_user, prof_id, db, Permission.ATENCIONES_REGISTRAR)
+    return svc.contar_documentos_del_dia(db, prof_id)
+
+
 @router.get("/documentos/cita/{cita_id}")
 def listar_documentos_de_cita(
     cita_id: int,
