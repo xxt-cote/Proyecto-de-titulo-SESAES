@@ -10,6 +10,11 @@ tiene el permiso `configuracion.gestionar` (hoy, SUPERADMIN).
   GET /admin/capacidades-clinicas            catálogo + especialidades + reglas vigentes
   PUT /admin/capacidades-clinicas/{clave}    reemplaza las capacidades de UNA especialidad
 
+Cada especialidad trae de fábrica lo propio de su profesión (ver
+capacidades_por_defecto.py): un médico no necesita autorización. Esta pantalla
+sirve para las AUTORIZACIONES ADICIONALES y supervisadas (por ejemplo,
+enfermería). Lo que viene de fábrica se muestra como "incluida" y no se edita.
+
 Reglas (las mismas de SA-11.2, fail-closed):
   - la clave de especialidad es SIEMPRE la normalizada (normalizar_especialidad);
   - solo se aceptan capacidades del catálogo ClinicalCapability;
@@ -34,6 +39,7 @@ from app.rbac.clinical_capabilities import (
     normalizar_especialidad,
 )
 from app.rbac.permissions import Permission, has_permission
+from app.services.capacidades_por_defecto import capacidades_efectivas_profesional, capacidades_por_defecto
 from app.services.clinical_capabilities_service import resolver_capacidades_efectivas
 
 router = APIRouter(prefix="/admin/capacidades-clinicas", tags=["admin-capacidades-clinicas"])
@@ -87,7 +93,8 @@ def _especialidades(db: Session) -> list[dict]:
             "clave": clave,
             "nombre": visible,
             "profesionales": conteo.get(clave, 0),
-            "capacidades": resolver_capacidades_efectivas(clave, db),
+            "incluidas": sorted(capacidades_por_defecto(clave)),     # de fábrica, no editables
+            "capacidades": capacidades_efectivas_profesional(clave, db),
         })
     return salida
 
@@ -123,6 +130,10 @@ def actualizar_capacidades(
     if desconocidas:
         raise HTTPException(status_code=400, detail=f"Capacidad desconocida: {', '.join(desconocidas)}.")
 
+    # Lo que la especialidad ya trae de fábrica no se guarda como regla: solo
+    # se persisten las autorizaciones adicionales.
+    de_fabrica = capacidades_por_defecto(clave)
+    deseadas = deseadas - de_fabrica
     antes = set(resolver_capacidades_efectivas(clave, db))
     reglas = {
         r.capability: r
@@ -139,7 +150,7 @@ def actualizar_capacidades(
     otorgadas = sorted(deseadas - antes)
     retiradas = sorted(antes - deseadas)
     registrar_evento_auditoria(
-        db, current_user, "Administrador cambió capacidades clínicas",
+        db, current_user, "Administrador cambió autorizaciones clínicas adicionales",
         entidad="especialidad_capability", entidad_id=None,
         detalle=f"{clave}: +[{', '.join(otorgadas)}] -[{', '.join(retiradas)}]",
     )

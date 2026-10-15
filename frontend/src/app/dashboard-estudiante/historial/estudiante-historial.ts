@@ -9,6 +9,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { normalizarTexto } from '../../shared/text-normalization';
+import { DocumentosCitaComponent } from '../../shared/documentos-cita/documentos-cita';
 
 // ══════════════════════════════════════════════════════════════════
 // EstudianteHistorialComponent — Student 5A (extracción presentacional)
@@ -24,7 +25,7 @@ import { normalizarTexto } from '../../shared/text-normalization';
 @Component({
   selector: 'app-estudiante-historial',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, DocumentosCitaComponent],
   templateUrl: './estudiante-historial.html',
   styleUrl: './estudiante-historial.css'
 })

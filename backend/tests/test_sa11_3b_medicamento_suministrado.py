@@ -105,7 +105,7 @@ CITA_ID = 7
 CURRENT_USER = {"id": USUARIO_PROF_ID, "rol": "profesional"}
 
 
-def _setup_basico(db, especialidad="Medicina", estado_cita="pendiente"):
+def _setup_basico(db, especialidad="Enfermería", estado_cita="pendiente"):
     """Profesional dueño + estudiante + cita pendiente del día anterior."""
     _usuario(db, USUARIO_PROF_ID, "profesional")
     _usuario(db, ESTUDIANTE_ID, "estudiante", nombre="Ana")
@@ -149,7 +149,7 @@ def test_orden_obligatorio_no_hay_mutacion_antes_de_capability():
     solo que el resultado final sea correcto).
     """
     source = inspect.getsource(m.completar_cita)
-    idx_capability = source.index("resolver_capacidades_efectivas")
+    idx_capability = source.index("capacidades_efectivas_profesional")
     idx_estado = source.index('cita.estado                 = "completada"')
     idx_medicamento = source.index("cita.medicamento            = medicamento")
     assert idx_capability < idx_estado
@@ -158,7 +158,7 @@ def test_orden_obligatorio_no_hay_mutacion_antes_de_capability():
 
 def test_caso_1_dueno_capability_activa_medicamento_200_y_persistido(db):
     _setup_basico(db)
-    _regla(db, normalizar_especialidad("Medicina"), ClinicalCapability.REGISTRAR_MEDICAMENTO_SUMINISTRADO.value)
+    _regla(db, normalizar_especialidad("Enfermería"), ClinicalCapability.REGISTRAR_MEDICAMENTO_SUMINISTRADO.value)
 
     resultado = m.completar_cita(
         prof_id=PROF_ID, cita_id=CITA_ID,
@@ -233,7 +233,7 @@ def test_caso_5_dueno_permiso_sin_capability_medicamento_omitido_completa(db):
 
 def test_caso_6_capability_inactiva_medicamento_403(db):
     _setup_basico(db)
-    _regla(db, normalizar_especialidad("Medicina"), ClinicalCapability.REGISTRAR_MEDICAMENTO_SUMINISTRADO.value, activo=False)
+    _regla(db, normalizar_especialidad("Enfermería"), ClinicalCapability.REGISTRAR_MEDICAMENTO_SUMINISTRADO.value, activo=False)
     with pytest.raises(HTTPException) as exc:
         m.completar_cita(
             prof_id=PROF_ID, cita_id=CITA_ID,
@@ -256,7 +256,7 @@ def test_caso_7_especialidad_sin_configuracion_medicamento_403(db):
 
 def test_caso_8_profesional_ajeno_bloqueado_aunque_tenga_capability(db):
     _setup_basico(db)
-    _regla(db, normalizar_especialidad("Medicina"), ClinicalCapability.REGISTRAR_MEDICAMENTO_SUMINISTRADO.value)
+    _regla(db, normalizar_especialidad("Enfermería"), ClinicalCapability.REGISTRAR_MEDICAMENTO_SUMINISTRADO.value)
     otro_usuario = {"id": 999, "rol": "profesional"}
     with pytest.raises(HTTPException) as exc:
         m.completar_cita(
@@ -270,7 +270,7 @@ def test_caso_8_profesional_ajeno_bloqueado_aunque_tenga_capability(db):
 @pytest.mark.parametrize("rol", ["admin", "superadmin"])
 def test_caso_9_admin_superadmin_no_obtienen_acceso_por_coincidencia_de_id(db, rol):
     _setup_basico(db)
-    _regla(db, normalizar_especialidad("Medicina"), ClinicalCapability.REGISTRAR_MEDICAMENTO_SUMINISTRADO.value)
+    _regla(db, normalizar_especialidad("Enfermería"), ClinicalCapability.REGISTRAR_MEDICAMENTO_SUMINISTRADO.value)
     # Mismo id que Profesional.usuario_id, pero rol no autorizado por
     # verificar_acceso_profesional (roles_permitidos=["profesional"]).
     current_user = {"id": USUARIO_PROF_ID, "rol": rol}
@@ -315,7 +315,7 @@ def test_medicamento_solo_espacios_no_exige_capability_y_persiste_none(db):
 
 def test_medicamento_con_espacios_al_borde_se_persiste_stripeado(db):
     _setup_basico(db)
-    _regla(db, normalizar_especialidad("Medicina"), ClinicalCapability.REGISTRAR_MEDICAMENTO_SUMINISTRADO.value)
+    _regla(db, normalizar_especialidad("Enfermería"), ClinicalCapability.REGISTRAR_MEDICAMENTO_SUMINISTRADO.value)
     m.completar_cita(
         prof_id=PROF_ID, cita_id=CITA_ID,
         body=CompletarCitaBody(medicamento="  Paracetamol 500mg  "),

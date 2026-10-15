@@ -66,7 +66,7 @@
         <button class="btn-hamburguesa" (click)="toggleSidebarMovil()">
           <span class="material-symbols-outlined" aria-hidden="true">menu</span>
         </button>
-        <h1 class="topbar-title">{{ tituloSeccion }}</h1>
+        <h1 class="topbar-title" [style.visibility]="seccionActiva === 'inicio' ? 'hidden' : 'visible'">{{ tituloSeccion }}</h1>
       </div>
 
       <div class="topbar-buscador-prof">
@@ -143,7 +143,7 @@
         <div class="banner-csc-lista-prof">
           <div class="banner-csc-item-prof" *ngFor="let c of citasSinCerrar">
             <span>{{ c.estudiante }} <small>({{ c.fecha }})</small></span>
-            <button class="banner-csc-btn-prof completar" (click)="abrirModalCompletar(c)"><span class="material-symbols-outlined icono-inline" aria-hidden="true">check</span> Completar</button>
+            <button class="banner-csc-btn-prof completar" (click)="iniciarAtencion(c)"><span class="material-symbols-outlined icono-inline" aria-hidden="true">play_arrow</span> Iniciar atención</button>
             <button class="banner-csc-btn-prof inasistencia" (click)="marcarInasistencia(c)"><span class="material-symbols-outlined icono-inline" aria-hidden="true">close</span> Inasistencia</button>
           </div>
         </div>
@@ -157,225 +157,244 @@
           <span class="material-symbols-outlined icono-inline" aria-hidden="true">warning</span> Tu estado actual es <strong>{{ perfil.estado }}</strong>. El administrador fue notificado.
         </div>
 
-        <!-- Hero -->
-        <div class="inicio-hero-prof">
+        <!-- ENCABEZADO -->
+        <div class="inicio-cab-prof">
           <div>
-            <h2 class="inicio-hero-titulo-prof">{{ saludoHorario }}, {{ perfil.nombre || 'Profesional' }}.</h2>
-            <p class="inicio-hero-sub-prof">Aquí tienes un resumen de tu jornada y de las tareas pendientes.</p>
+            <h2 class="inicio-cab-titulo-prof">¡Hola, {{ perfil.nombre || 'Profesional' }}!</h2>
+            <p class="inicio-cab-sub-prof">Aquí tienes un resumen de tu jornada y la información más relevante.</p>
           </div>
-          <div class="inicio-hero-acciones-prof">
-            <button class="btn-hero-secundario-prof" (click)="navegarA('horario')">Ver agenda</button>
-            <button class="btn-hero-primario-prof" (click)="navegarA('historial-clinico')">Buscar paciente</button>
-          </div>
-        </div>
-
-        <!-- RESUMEN -->
-        <h3 class="inicio-seccion-titulo-prof"><span class="material-symbols-outlined icono-inline" aria-hidden="true">bar_chart</span> Resumen</h3>
-        <div class="stats-grid-prof">
-          <div class="stat-card-prof blue">
-            <span class="stat-icon-prof"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></span>
-            <span class="stat-num-prof">{{ estadisticasDia.total_hoy }}</span>
-            <span class="stat-label-prof">Citas hoy</span>
-            <span class="stat-sub-prof" *ngIf="estadisticasDia.pendientes > 0">{{ estadisticasDia.pendientes }} pendiente{{ estadisticasDia.pendientes===1 ? '' : 's' }} de confirmar</span>
-          </div>
-          <div class="stat-card-prof teal">
-            <span class="stat-icon-prof"><span class="material-symbols-outlined" aria-hidden="true">skip_next</span></span>
-            <span class="stat-num-prof" style="font-size:24px">{{ proximaCitaGeneral ? proximaCitaGeneral.hora : '—' }}</span>
-            <span class="stat-label-prof">Próxima atención</span>
-            <span class="stat-sub-prof">{{ proximaCitaGeneral ? proximaCitaGeneral.estudiante : 'Sin citas pendientes' }}</span>
-          </div>
-          <div class="stat-card-prof green">
-            <span class="stat-icon-prof"><span class="material-symbols-outlined" aria-hidden="true">group</span></span>
-            <span class="stat-num-prof">{{ pacientesActivosCount }}</span>
-            <span class="stat-label-prof">Pacientes en cartera</span>
-            <span class="stat-sub-prof">Bajo tu atención</span>
-          </div>
-          <div class="stat-card-prof orange">
-            <span class="stat-icon-prof"><span class="material-symbols-outlined" aria-hidden="true">inbox</span></span>
-            <span class="stat-num-prof">{{ solicitudesPendientesTotal }}</span>
-            <span class="stat-label-prof">Solicitudes</span>
-            <span class="stat-sub-prof">Requieren revisión</span>
+          <div class="inicio-cab-fecha-prof">
+            <span class="material-symbols-outlined" aria-hidden="true">calendar_today</span>
+            <span>Hoy, {{ fechaHoyLarga }}</span>
           </div>
         </div>
 
-        <!-- AGENDA DE HOY + CALENDARIO -->
-        <div class="inicio-layout-prof">
-
-          <!-- Agenda de hoy -->
-          <div class="card-prof">
-            <div class="card-header-prof">
-              <h3 class="card-title-prof"><span class="material-symbols-outlined icono-inline" aria-hidden="true">calendar_today</span> Agenda de hoy</h3>
-              <button class="btn-ver-mas" (click)="navegarA('horario')">Ver agenda completa <span class="material-symbols-outlined icono-inline" aria-hidden="true">arrow_forward</span></button>
+        <!-- INDICADORES -->
+        <div class="inicio-kpis-prof">
+          <div class="inicio-kpi-prof">
+            <span class="inicio-kpi-icono-prof"><span class="material-symbols-outlined" aria-hidden="true">groups</span></span>
+            <div class="inicio-kpi-texto-prof">
+              <span class="inicio-kpi-label-prof">Atenciones de hoy</span>
+              <span class="inicio-kpi-num-prof">{{ atencionesHoyRealizadas }} <small>/ {{ atencionesHoyTotal }}</small></span>
+              <span class="inicio-kpi-sub-prof">ya realizadas</span>
             </div>
+            <div class="inicio-donut-prof" [style.--pct]="avanceHoyPct" role="img" [attr.aria-label]="avanceHoyPct + '% completado'"><span>{{ avanceHoyPct }}%</span></div>
+          </div>
 
-            <!-- Estado vacío: sin citas agendadas hoy -->
-            <div class="agenda-vacia-prof" *ngIf="citasHoy.length === 0">
-              <span class="agenda-vacia-icono-prof"><span class="material-symbols-outlined" aria-hidden="true">calendar_today</span></span>
-              <p>No tienes citas programadas para hoy</p>
-              <div class="agenda-vacia-acciones-prof">
-                <button class="btn-hero-secundario-prof" (click)="navegarA('horario')">Ver agenda completa</button>
-                <button class="btn-hero-secundario-prof" (click)="navegarA('horario'); horarioTab='configuracion'">Ver mi horario</button>
-              </div>
+          <button type="button" class="inicio-kpi-prof inicio-kpi-boton-prof" [disabled]="!proximaAtencionPendiente" (click)="irAFichaDesdeAgenda(proximaAtencionPendiente)">
+            <span class="inicio-kpi-icono-prof azul"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></span>
+            <div class="inicio-kpi-texto-prof">
+              <span class="inicio-kpi-label-prof">Próxima cita</span>
+              <span class="inicio-kpi-num-prof">{{ proximaAtencionPendiente ? proximaAtencionPendiente.hora : '—' }}</span>
+              <span class="inicio-kpi-sub-prof">{{ proximaAtencionPendiente ? proximaAtencionPendiente.estudiante : 'Sin citas pendientes hoy' }}</span>
             </div>
+            <span class="material-symbols-outlined inicio-kpi-flecha-prof" aria-hidden="true">chevron_right</span>
+          </button>
 
-            <!-- Centro cerrado hoy -->
-            <div class="tabla-vacia-prof" *ngIf="citasHoy.length > 0 && centroCerradoHoy">El centro no atiende hoy.</div>
+          <button type="button" class="inicio-kpi-prof inicio-kpi-boton-prof" (click)="navegarA('historial-clinico')">
+            <span class="inicio-kpi-icono-prof"><span class="material-symbols-outlined" aria-hidden="true">description</span></span>
+            <div class="inicio-kpi-texto-prof">
+              <span class="inicio-kpi-label-prof">Documentos emitidos</span>
+              <span class="inicio-kpi-num-prof">{{ documentosHoy.total }}</span>
+              <span class="inicio-kpi-sub-prof">hoy (recetas o justificativos)</span>
+            </div>
+            <span class="material-symbols-outlined inicio-kpi-flecha-prof" aria-hidden="true">chevron_right</span>
+          </button>
 
-            <!-- Agenda con bloques: disponible / ocupado / colación -->
-            <ng-container *ngIf="citasHoy.length > 0 && !centroCerradoHoy">
-              <div class="bloque-hoy-item-prof" *ngFor="let b of agendaHoyBloques" [ngClass]="b.estado">
-                <span class="bloque-hoy-hora-prof">{{ b.hora }}</span>
+          <button type="button" class="inicio-kpi-prof inicio-kpi-boton-prof" (click)="navegarA('solicitudes')">
+            <span class="inicio-kpi-icono-prof inicio-kpi-icono-aviso-prof"><span class="material-symbols-outlined" aria-hidden="true">assignment</span></span>
+            <div class="inicio-kpi-texto-prof">
+              <span class="inicio-kpi-label-prof">Solicitudes pendientes</span>
+              <span class="inicio-kpi-num-prof">{{ solicitudesPendientesTotal }}</span>
+              <span class="inicio-kpi-sub-prof">por revisar</span>
+            </div>
+            <span class="material-symbols-outlined inicio-kpi-flecha-prof" aria-hidden="true">chevron_right</span>
+          </button>
+        </div>
 
-                <ng-container [ngSwitch]="b.estado">
-                  <div *ngSwitchCase="'libre'" class="bloque-hoy-info-prof libre">
-                    <span>Disponible</span>
-                  </div>
-                  <div *ngSwitchCase="'bloqueado'" class="bloque-hoy-info-prof bloqueado">
-                    <span><span class="material-symbols-outlined icono-inline" aria-hidden="true">restaurant</span> Colación</span>
-                  </div>
-                  <div *ngSwitchDefault class="bloque-hoy-info-prof">
-                    <div>
-                      <strong>{{ b.cita?.estudiante }}</strong>
-                      <span>{{ tipoAtencionGlobal(b.cita) }}</span>
-                    </div>
-                    <span class="urgente-tag" *ngIf="b.cita?.urgente">URGENTE</span>
-                    <span class="estado-badge-prof" [ngClass]="b.cita?.estado">{{ b.cita?.estado }}</span>
-                    <div class="cita-hoy-acciones" *ngIf="b.cita?.estado === 'pendiente' && puedeGestionarCita(b.cita)">
-                      <button class="btn-completar" (click)="abrirModalCompletar(b.cita)"><span class="material-symbols-outlined icono-inline" aria-hidden="true">check</span> Completar</button>
-                      <button class="btn-inasistencia" (click)="marcarInasistencia(b.cita)"><span class="material-symbols-outlined icono-inline" aria-hidden="true">close</span> Inasistencia</button>
-                    </div>
-                  </div>
-                </ng-container>
+        <div class="inicio-grid-prof">
+
+          <!-- COLUMNA PRINCIPAL -->
+          <div class="inicio-col-prof">
+
+            <!-- Agenda de hoy -->
+            <div class="card-prof">
+              <div class="card-header-prof">
+                <h3 class="card-title-prof"><span class="material-symbols-outlined icono-inline" aria-hidden="true">calendar_today</span> Agenda de hoy
+                  <span class="inicio-chip-prof">{{ atencionesHoyRealizadas }} de {{ atencionesHoyTotal }} atenciones realizadas</span>
+                </h3>
+                <button class="btn-ver-mas" (click)="navegarA('horario')">Ver agenda completa <span class="material-symbols-outlined icono-inline" aria-hidden="true">arrow_forward</span></button>
               </div>
 
-              <!-- Sobrecupos: citas fuera de la grilla horaria habitual -->
-              <ng-container *ngIf="sobrecuposHoy.length > 0">
-                <div class="sobrecupo-titulo-prof">Sobrecupos</div>
-                <div class="bloque-hoy-item-prof ocupado" *ngFor="let cita of sobrecuposHoy">
-                  <span class="bloque-hoy-hora-prof">{{ cita.hora }}</span>
-                  <div class="bloque-hoy-info-prof">
-                    <div>
-                      <strong>{{ cita.estudiante }}</strong>
-                      <span>{{ tipoAtencionGlobal(cita) }} · Sobrecupo</span>
+              <div class="tabla-vacia-prof" *ngIf="centroCerradoHoy">El centro no atiende hoy.</div>
+
+              <div class="agenda-vacia-prof" *ngIf="!centroCerradoHoy && agendaHoyCitas.length === 0">
+                <span class="agenda-vacia-icono-prof"><span class="material-symbols-outlined" aria-hidden="true">calendar_today</span></span>
+                <p>No tienes citas programadas para hoy</p>
+              </div>
+
+              <ng-container *ngIf="!centroCerradoHoy">
+                <div class="inicio-agenda-lista-prof">
+                  <div class="inicio-agenda-fila-prof" *ngFor="let c of agendaHoyCitas" [class.en-espera]="esEnEspera(c)">
+                    <span class="inicio-agenda-punto-prof" [ngClass]="claseEstadoAgenda(c)" aria-hidden="true">
+                      <span class="material-symbols-outlined" *ngIf="c.estado === 'completada'">check</span>
+                    </span>
+                    <span class="inicio-agenda-hora-prof">{{ c.hora }}</span>
+                    <span class="inicio-avatar-prof suave" aria-hidden="true">{{ iniciales(c.estudiante) }}</span>
+                    <div class="inicio-agenda-pac-prof">
+                      <strong>{{ c.estudiante }}</strong>
+                      <span>{{ c.carrera || '—' }}</span>
                     </div>
-                    <span class="urgente-tag" *ngIf="cita.urgente">URGENTE</span>
-                    <span class="estado-badge-prof" [ngClass]="cita.estado">{{ cita.estado }}</span>
-                    <div class="cita-hoy-acciones" *ngIf="cita.estado === 'pendiente' && puedeGestionarCita(cita)">
-                      <button class="btn-completar" (click)="abrirModalCompletar(cita)"><span class="material-symbols-outlined icono-inline" aria-hidden="true">check</span> Completar</button>
-                      <button class="btn-inasistencia" (click)="marcarInasistencia(cita)"><span class="material-symbols-outlined icono-inline" aria-hidden="true">close</span> Inasistencia</button>
+                    <div class="inicio-agenda-motivo-prof">
+                      <strong>{{ c.observaciones || 'Motivo no informado' }}</strong>
+                      <span>{{ tipoAtencionGlobal(c) }}<ng-container *ngIf="c.sobrecupo"> · Sobrecupo</ng-container> <span class="urgente-tag" *ngIf="c.urgente">URGENTE</span></span>
                     </div>
+                    <span class="inicio-estado-prof" [ngClass]="claseEstadoAgenda(c)">{{ etiquetaEstadoAgenda(c) }}</span>
+                    <div class="inicio-agenda-accion-prof">
+                      <button type="button" class="inicio-btn-iniciar-prof" *ngIf="esEnEspera(c) && puedeGestionarCita(c)" (click)="iniciarAtencion(c)">
+                        Iniciar atención <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span>
+                      </button>
+                      <button type="button" class="inicio-btn-detalle-prof" *ngIf="!(esEnEspera(c) && puedeGestionarCita(c))" (click)="irAFichaDesdeAgenda(c)">Ver detalle</button>
+                    </div>
+                    <details class="inicio-menu-prof" #menu>
+                      <summary aria-label="Más acciones"><span class="material-symbols-outlined" aria-hidden="true">more_vert</span></summary>
+                      <div class="inicio-menu-lista-prof">
+                        <button type="button" (click)="irAFichaDesdeAgenda(c); menu.open = false">Ver detalle</button>
+                        <button type="button" *ngIf="c.estado === 'pendiente' && puedeGestionarCita(c)" (click)="marcarInasistencia(c); menu.open = false">Marcar inasistencia</button>
+                      </div>
+                    </details>
                   </div>
                 </div>
               </ng-container>
-            </ng-container>
-          </div>
+            </div>
 
-          <!-- Calendario -->
-          <div class="card-prof inicio-calendario-prof">
-            <div class="card-header-prof" style="margin-bottom:6px">
-              <h3 class="card-title-prof"><span class="material-symbols-outlined icono-inline" aria-hidden="true">calendar_month</span> Calendario</h3>
-            </div>
-            <div class="calendario-header-prof">
-              <button class="cal-nav-btn" (click)="calMesAnterior()"><span class="material-symbols-outlined icono-inline" aria-hidden="true">chevron_left</span></button>
-              <span>{{ calNombreMesVisible }}</span>
-              <button class="cal-nav-btn" (click)="calMesSiguiente()"><span class="material-symbols-outlined icono-inline" aria-hidden="true">chevron_right</span></button>
-            </div>
-            <div class="cal-grid-dias-nombre-prof">
-              <span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span>
-            </div>
-            <div class="cal-grid-prof">
-              <div *ngFor="let dia of calDiasMes" class="cal-celda-prof" [class.vacia]="!dia" [class.clickeable]="dia" (click)="seleccionarDiaInfo(dia)">
-                <span *ngIf="dia" [class.hoy]="dia.esHoy" [class.feriado]="esFeriado(dia.fecha)" [title]="nombreFeriado(dia.fecha)">{{ dia.num }}</span>
+            <!-- Pacientes recientes -->
+            <div class="card-prof">
+              <div class="card-header-prof">
+                <h3 class="card-title-prof"><span class="material-symbols-outlined icono-inline" aria-hidden="true">group</span> Pacientes recientes</h3>
+                <button class="btn-ver-mas" (click)="navegarA('historial-clinico')">Ver todos <span class="material-symbols-outlined icono-inline" aria-hidden="true">arrow_forward</span></button>
+              </div>
+              <div *ngIf="pacientesRecientes.length === 0" class="tabla-vacia-prof">Aún no tienes pacientes atendidos</div>
+              <div class="inicio-tabla-scroll-prof" *ngIf="pacientesRecientes.length > 0">
+                <table class="inicio-tabla-prof">
+                  <thead><tr><th>Nombre</th><th>Carrera</th><th>Última atención</th><th>Estado</th><th>Acciones</th><th></th></tr></thead>
+                  <tbody>
+                    <tr *ngFor="let p of pacientesRecientes">
+                      <td>
+                        <span class="inicio-avatar-prof fuerte" aria-hidden="true">{{ iniciales(p.nombre) }}</span>
+                        <span class="inicio-tabla-nombre-prof"><strong>{{ p.nombre }}</strong><small>{{ p.rut || '—' }}</small></span>
+                      </td>
+                      <td>{{ p.carrera || '—' }}</td>
+                      <td>{{ textoUltimaAtencion(p) }}</td>
+                      <td><span class="inicio-estado-prof" [ngClass]="p.tiene_ficha ? 'completada' : 'incompleta'">{{ p.tiene_ficha ? 'Ficha completa' : 'Ficha incompleta' }}</span></td>
+                      <td><button type="button" class="inicio-btn-detalle-prof" (click)="irAFichaPacienteReciente(p)">Ver ficha <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span></button></td>
+                      <td class="inicio-tabla-flecha-prof"><span class="material-symbols-outlined" aria-hidden="true">chevron_right</span></td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
-            <div class="info-dia-prof" *ngIf="diaSeleccionadoInfo && infoDelDia(diaSeleccionadoInfo).length > 0">
-              <span class="info-dia-prof-item" *ngFor="let info of infoDelDia(diaSeleccionadoInfo)">{{ info }}</span>
-            </div>
-            <p class="info-dia-prof-vacio" *ngIf="diaSeleccionadoInfo && infoDelDia(diaSeleccionadoInfo).length === 0">
-              Nada especial que celebrar este día.
-            </p>
-            <button class="btn-ver-mas" style="margin-top:10px" (click)="navegarA('horario')">Ver calendario <span class="material-symbols-outlined icono-inline" aria-hidden="true">arrow_forward</span></button>
+
           </div>
 
+          <!-- COLUMNA LATERAL -->
+          <div class="inicio-col-prof">
+
+            <div class="card-prof">
+              <div class="card-header-prof">
+                <h3 class="card-title-prof"><span class="material-symbols-outlined icono-inline" aria-hidden="true">bolt</span> Acciones rápidas</h3>
+              </div>
+              <div class="inicio-acciones-prof">
+                <button type="button" class="inicio-accion-principal-prof" [disabled]="!proximaAtencionPendiente" (click)="iniciarAtencion(proximaAtencionPendiente)">
+                  <span class="material-symbols-outlined" aria-hidden="true">stethoscope</span>
+                  <span>Iniciar atención</span>
+                </button>
+                <button type="button" (click)="navegarA('horario')">
+                  <span class="material-symbols-outlined" aria-hidden="true">calendar_month</span>
+                  <span>Ver agenda</span>
+                </button>
+                <button type="button" (click)="navegarA('historial-clinico')">
+                  <span class="material-symbols-outlined" aria-hidden="true">group</span>
+                  <span>Mis pacientes</span>
+                </button>
+                <button type="button" (click)="navegarA('solicitudes')">
+                  <span class="material-symbols-outlined" aria-hidden="true">inbox</span>
+                  <span>Solicitudes</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="inicio-recuerda-prof" *ngIf="recuerdaVisible">
+              <span class="material-symbols-outlined inicio-recuerda-icono-prof" aria-hidden="true">lightbulb</span>
+              <div>
+                <strong>Recuerda</strong>
+                <p>Al completar una atención con receta o justificativo, el documento se envía automáticamente al dashboard del estudiante.</p>
+              </div>
+              <button type="button" class="inicio-recuerda-cerrar-prof" (click)="cerrarRecuerda()" aria-label="Cerrar recordatorio"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
+            </div>
+
+            <!-- Calendario -->
+            <div class="card-prof inicio-calendario-prof">
+              <div class="inicio-cal-cab-prof">
+                <h3 class="card-title-prof"><span class="material-symbols-outlined icono-inline" aria-hidden="true">calendar_month</span> Calendario</h3>
+                <span class="inicio-cal-mes-prof">{{ calNombreMesVisible }}</span>
+                <button type="button" class="cal-nav-btn" (click)="calMesAnterior()" aria-label="Mes anterior"><span class="material-symbols-outlined icono-inline" aria-hidden="true">chevron_left</span></button>
+                <button type="button" class="cal-nav-btn" (click)="calMesSiguiente()" aria-label="Mes siguiente"><span class="material-symbols-outlined icono-inline" aria-hidden="true">chevron_right</span></button>
+              </div>
+              <div class="cal-grid-dias-nombre-prof">
+                <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span>
+              </div>
+              <div class="cal-grid-prof">
+                <div *ngFor="let dia of calDiasMes" class="cal-celda-prof clickeable" (click)="seleccionarDiaInfo(dia)">
+                  <span [class.hoy]="dia.esHoy" [class.otro-mes]="dia.otroMes" [class.feriado]="esFeriado(dia.fecha)" [title]="nombreFeriado(dia.fecha)">{{ dia.num }}</span>
+                </div>
+              </div>
+              <div class="info-dia-prof" *ngIf="diaSeleccionadoInfo && infoDelDia(diaSeleccionadoInfo).length > 0">
+                <span class="info-dia-prof-item" *ngFor="let info of infoDelDia(diaSeleccionadoInfo)">{{ info }}</span>
+              </div>
+              <p class="info-dia-prof-vacio" *ngIf="diaSeleccionadoInfo && infoDelDia(diaSeleccionadoInfo).length === 0">
+                Nada especial que celebrar este día.
+              </p>
+            </div>
+
+            <div class="card-prof">
+              <div class="card-header-prof">
+                <h3 class="card-title-prof"><span class="material-symbols-outlined icono-inline" aria-hidden="true">notifications</span> Pendientes por revisar</h3>
+              </div>
+              <div class="tabla-vacia-prof" *ngIf="pendientesPorRevisar.length === 0">Todo al día</div>
+              <button type="button" class="inicio-pendiente-prof" *ngFor="let it of pendientesPorRevisar" (click)="it.accion()">
+                <span class="inicio-pendiente-icono-prof" [ngClass]="it.tono"><span class="material-symbols-outlined" aria-hidden="true">{{ it.icono }}</span></span>
+                <span class="inicio-pendiente-texto-prof"><strong>{{ it.titulo }}</strong><small>{{ it.detalle }}</small></span>
+                <span class="inicio-pendiente-etiqueta-prof" [ngClass]="it.tono">{{ it.etiqueta }}</span>
+                <span class="material-symbols-outlined inicio-kpi-flecha-prof" aria-hidden="true">chevron_right</span>
+              </button>
+            </div>
+
+          </div>
         </div>
 
         <!-- REQUIERE TU ATENCIÓN -->
-        <h3 class="inicio-seccion-titulo-prof"><span class="material-symbols-outlined icono-inline" aria-hidden="true">warning</span> Requiere tu atención</h3>
-        <div class="atencion-grid-prof">
-          <button class="atencion-card-prof naranjo" (click)="navegarA('solicitudes')">
-            <span class="atencion-num-prof">{{ solicitudesPendientesTotal }}</span>
-            <div class="atencion-card-texto-prof">
-              <span>Solicitud{{ solicitudesPendientesTotal === 1 ? '' : 'es' }} pendiente{{ solicitudesPendientesTotal === 1 ? '' : 's' }}</span>
-              <span class="atencion-card-accion-prof">Revisar solicitud <span class="material-symbols-outlined icono-inline" aria-hidden="true">arrow_forward</span></span>
-            </div>
+        <div class="inicio-requiere-prof">
+          <span class="inicio-requiere-titulo-prof"><span class="material-symbols-outlined" aria-hidden="true">warning</span> Requiere tu atención</span>
+          <button type="button" class="inicio-requiere-item-prof verde" (click)="navegarA('solicitudes')">
+            <span class="inicio-requiere-icono-prof"><span class="material-symbols-outlined" aria-hidden="true">mail</span></span>
+            <span><strong>{{ solicitudesPendientesTotal }} solicitud{{ solicitudesPendientesTotal === 1 ? '' : 'es' }} pendiente{{ solicitudesPendientesTotal === 1 ? '' : 's' }}</strong><small>Revisa y gestiona nuevas solicitudes</small></span>
+            <span class="material-symbols-outlined inicio-kpi-flecha-prof" aria-hidden="true">chevron_right</span>
           </button>
-          <button class="atencion-card-prof rojo" (click)="irAFichasSinCompletar()">
-            <span class="atencion-num-prof">{{ fichasSinCompletarCount }}</span>
-            <div class="atencion-card-texto-prof">
-              <span>Registro{{ fichasSinCompletarCount === 1 ? '' : 's' }} incompleto{{ fichasSinCompletarCount === 1 ? '' : 's' }}</span>
-              <span class="atencion-card-accion-prof">Completar registro <span class="material-symbols-outlined icono-inline" aria-hidden="true">arrow_forward</span></span>
-            </div>
+          <button type="button" class="inicio-requiere-item-prof rojo" (click)="irAFichasSinCompletar()">
+            <span class="inicio-requiere-icono-prof rojo"><span class="material-symbols-outlined" aria-hidden="true">description</span></span>
+            <span><strong>{{ fichasSinCompletarCount }} registro{{ fichasSinCompletarCount === 1 ? '' : 's' }} incompleto{{ fichasSinCompletarCount === 1 ? '' : 's' }}</strong><small>Completa fichas clínicas</small></span>
+            <span class="material-symbols-outlined inicio-kpi-flecha-prof" aria-hidden="true">chevron_right</span>
           </button>
-          <button class="atencion-card-prof azul" (click)="navegarA('horario')">
-            <span class="atencion-num-prof">{{ proximasSemana.length }}</span>
-            <div class="atencion-card-texto-prof">
-              <span>Seguimiento{{ proximasSemana.length === 1 ? '' : 's' }} próximo{{ proximasSemana.length === 1 ? '' : 's' }}</span>
-              <span class="atencion-card-accion-prof">Ver seguimiento <span class="material-symbols-outlined icono-inline" aria-hidden="true">arrow_forward</span></span>
-            </div>
+          <button type="button" class="inicio-requiere-item-prof verde" (click)="navegarA('horario')">
+            <span class="inicio-requiere-icono-prof"><span class="material-symbols-outlined" aria-hidden="true">schedule</span></span>
+            <span><strong>{{ proximasSemana.length }} cita{{ proximasSemana.length === 1 ? '' : 's' }} próxima{{ proximasSemana.length === 1 ? '' : 's' }}</strong><small>Atenciones de los próximos días</small></span>
+            <span class="material-symbols-outlined inicio-kpi-flecha-prof" aria-hidden="true">chevron_right</span>
           </button>
-        </div>
-
-        <!-- ACCIONES RÁPIDAS -->
-        <div class="card-prof">
-          <div class="card-header-prof">
-            <h3 class="card-title-prof"><span class="material-symbols-outlined icono-inline" aria-hidden="true">bolt</span> Acciones rápidas</h3>
-          </div>
-          <div class="acciones-rapidas-grid-prof">
-            <button (click)="navegarA('horario'); horarioTab='configuracion'"><span class="material-symbols-outlined icono-inline" aria-hidden="true">schedule</span> Mi horario</button>
-            <button (click)="navegarA('solicitudes')"><span class="material-symbols-outlined icono-inline" aria-hidden="true">inbox</span> Solicitudes</button>
-          </div>
-        </div>
-
-        <!-- PACIENTES RECIENTES -->
-        <div class="card-prof">
-          <div class="card-header-prof">
-            <h3 class="card-title-prof"><span class="material-symbols-outlined icono-inline" aria-hidden="true">group</span> Pacientes recientes</h3>
-            <button class="btn-ver-mas" (click)="navegarA('historial-clinico')">Ver todos <span class="material-symbols-outlined icono-inline" aria-hidden="true">arrow_forward</span></button>
-          </div>
-          <div *ngIf="pacientesRecientes.length === 0" class="tabla-vacia-prof">Aún no tienes pacientes atendidos</div>
-          <div class="paciente-reciente-item-prof" *ngFor="let p of pacientesRecientes" (click)="irAFichaPacienteReciente(p)">
-            <div class="mini-avatar-prof">{{ p.nombre?.charAt(0) }}</div>
-            <div>
-              <strong>{{ p.nombre }}</strong>
-              <span>{{ p.carrera || '—' }}</span>
-            </div>
-            <span class="paciente-reciente-ultima-prof">
-              <ng-container [ngSwitch]="p.dias_desde_ultima_visita">
-                <ng-container *ngSwitchCase="0">Hoy</ng-container>
-                <ng-container *ngSwitchCase="1">Ayer</ng-container>
-                <ng-container *ngSwitchDefault>{{ p.dias_desde_ultima_visita !== null ? 'Hace ' + p.dias_desde_ultima_visita + ' días' : 'Sin visitas' }}</ng-container>
-              </ng-container>
-            </span>
-          </div>
-        </div>
-
-        <!-- DOCUMENTACIÓN CLÍNICA -->
-        <div class="card-prof">
-          <div class="card-header-prof">
-            <h3 class="card-title-prof"><span class="material-symbols-outlined icono-inline" aria-hidden="true">assignment</span> Documentación clínica</h3>
-            <span class="documentacion-contador-prof">{{ pacientesConFichaCount }} de {{ pacientesActivosCount }} completados</span>
-          </div>
-          <div class="barra-progreso-prof">
-            <div class="barra-progreso-relleno-prof" [style.width.%]="fichasCompletadasPctHistorial"></div>
-          </div>
-          <div class="documentacion-footer-prof">
-            <span>{{ fichasCompletadasPctHistorial }}% · {{ registrosPorRevisarCount }} registro{{ registrosPorRevisarCount === 1 ? '' : 's' }} requiere{{ registrosPorRevisarCount === 1 ? '' : 'n' }} revisión</span>
-            <button class="btn-hero-secundario-prof" (click)="irARevisarDocumentacion()">Revisar</button>
-          </div>
+          <button type="button" class="inicio-requiere-todo-prof" (click)="navegarA('solicitudes')">Revisar todo <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span></button>
         </div>
 
       </div>
-
       <!-- ══ MI AGENDA ══ -->
       <!-- ══ MI HORARIO (agenda semanal + configuración de jornada/colación) ══ -->
       <div *ngIf="seccionActiva==='horario'">
@@ -569,7 +588,7 @@
                 <td>
                   <div class="tabla-acciones-prof">
                     <ng-container *ngIf="a.estado === 'pendiente'">
-                      <button class="btn-completar" *ngIf="puedeGestionarCita(a)" (click)="abrirModalCompletar(a)"><span class="material-symbols-outlined icono-inline" aria-hidden="true">check</span> Completar</button>
+                      <button class="btn-completar" *ngIf="puedeGestionarCita(a)" (click)="iniciarAtencion(a)"><span class="material-symbols-outlined icono-inline" aria-hidden="true">play_arrow</span> Iniciar atención</button>
                       <button class="btn-inasistencia" *ngIf="puedeGestionarCita(a)" (click)="marcarInasistencia(a)"><span class="material-symbols-outlined icono-inline" aria-hidden="true">close</span> Inasistencia</button>
                       <span *ngIf="!puedeGestionarCita(a)" class="texto-gris" title="La cita todavía no ocurre">Pendiente (futura)</span>
                     </ng-container>
@@ -613,7 +632,7 @@
               </div>
               <span class="estado-badge-prof pendiente">Pendiente</span>
               <ng-container *ngIf="puedeGestionarCita(c); else futura">
-                <button class="btn-completar" (click)="abrirModalCompletar(c)"><span class="material-symbols-outlined icono-inline" aria-hidden="true">check</span> Completar</button>
+                <button class="btn-completar" (click)="iniciarAtencion(c)"><span class="material-symbols-outlined icono-inline" aria-hidden="true">play_arrow</span> Iniciar atención</button>
                 <button class="btn-inasistencia" (click)="marcarInasistencia(c)"><span class="material-symbols-outlined icono-inline" aria-hidden="true">close</span> Inasistencia</button>
               </ng-container>
               <ng-template #futura><span class="texto-gris">Aún no llega la fecha</span></ng-template>
@@ -748,7 +767,7 @@
                       <span class="material-symbols-outlined icono-inline" aria-hidden="true">stethoscope</span> Por revisar
                     </span>
                   </td>
-                  <td><button class="btn-guardar-prof" style="width:auto; padding:6px 14px;" (click)="abrirFichaPaciente(p)">Ver ficha <span class="material-symbols-outlined icono-inline" aria-hidden="true">arrow_forward</span></button></td>
+                  <td><button class="btn-guardar-prof" style="width:auto; padding:6px 14px;" (click)="abrirFichaPaciente(p)">Abrir historial <span class="material-symbols-outlined icono-inline" aria-hidden="true">arrow_forward</span></button></td>
                 </tr>
               </tbody>
             </table>
@@ -762,8 +781,14 @@
         <!-- ══ FICHA / HISTORIAL DEL PACIENTE SELECCIONADO ══ -->
         <div *ngIf="pacienteSeleccionado">
 
+          <button type="button" class="btn-volver-prof" (click)="volverAPacientes()"><span class="material-symbols-outlined" aria-hidden="true">arrow_back</span> Volver a pacientes</button>
           <div class="breadcrumb-prof">
-            <span (click)="cerrarFichaPaciente()">Mis pacientes</span> / {{ pacienteSeleccionado.nombre }} / Historial clínico
+            <span (click)="volverAPacientes()">Pacientes</span> / {{ pacienteSeleccionado.nombre }} / Historial clínico
+          </div>
+
+          <div class="atencion-banner-prof" *ngIf="citaContextoAtencion as ctx">
+            <span class="material-symbols-outlined" aria-hidden="true">stethoscope</span>
+            <span><strong>{{ etiquetaCitaContexto(ctx) }}</strong> · Motivo: {{ ctx.observaciones || 'no informado' }}</span>
           </div>
 
           <div class="card-prof patient-head-prof">
@@ -779,8 +804,9 @@
               </div>
             </div>
             <div class="patient-head-acciones-prof">
-              <button class="btn-hero-secundario-prof" (click)="fichaTab='ficha'">Ver ficha</button>
-              <button class="btn-hero-primario-prof" (click)="registrarNuevaAtencionDesdeFicha()">Registrar atención</button>
+              <button class="btn-hero-secundario-prof" (click)="fichaTab='ficha'">Antecedentes <span class="estado-antecedentes-prof">{{ fichaExiste ? 'Respondida' : 'Sin responder' }}</span></button>
+              <button class="btn-hero-primario-prof" [disabled]="!puedeRegistrarAtencion" (click)="registrarNuevaAtencionDesdeFicha()">Registrar atención</button>
+              <p class="patient-aviso-prof" *ngIf="!puedeRegistrarAtencion">{{ motivoSinAtencion }}</p>
             </div>
           </div>
 
@@ -859,6 +885,7 @@
                       <div class="timeline-row-prof" *ngIf="c.motivo_consulta"><label>Motivo</label><p>{{ c.motivo_consulta }}</p></div>
                       <div class="timeline-row-prof" *ngIf="c.observaciones_atencion"><label>Observación</label><p>{{ c.observaciones_atencion }}</p></div>
                       <div class="timeline-row-prof" *ngIf="c.medicamento"><label>Indicaciones</label><p>{{ c.medicamento }}</p></div>
+                      <app-documentos-cita [documentos]="c.documentos" [modoProfesional]="true" (cambio)="recargarFicha()"></app-documentos-cita>
                     </div>
                   </div>
                 </div>
@@ -920,6 +947,7 @@
               <button class="btn-editar-perfil" (click)="abrirGestionPlantilla()"><span class="material-symbols-outlined icono-inline" aria-hidden="true">settings</span> Gestionar preguntas</button>
             </div>
             <p class="modal-desc" *ngIf="fichaFechaModificacion">Última modificación: {{ fichaFechaModificacion | date:'dd/MM/yyyy HH:mm' }}</p>
+            <app-cuestionario-opcional [profId]="profDbId" [estudianteId]="pacienteSeleccionado.estudiante_id" [solicitado]="fichaCuestionarioSolicitado" [yaExiste]="fichaExiste" (cambio)="recargarFicha()"></app-cuestionario-opcional>
             <p class="cuestionario-aviso-prof" *ngIf="fichaCompletadoPor === 'estudiante' && !fichaRevisada">
               <span class="material-symbols-outlined icono-inline" aria-hidden="true">stethoscope</span> Este cuestionario lo respondió el estudiante antes de su atención. Revísalo y guarda para confirmarlo.
             </p>

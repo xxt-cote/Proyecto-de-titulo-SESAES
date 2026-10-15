@@ -60,7 +60,7 @@ def db():
         engine.dispose()
 
 
-def _setup(db, capacidades=("emitir_receta", "emitir_justificativo"), especialidad="Medicina"):
+def _setup(db, capacidades=("emitir_receta", "emitir_justificativo"), especialidad="Enfermería"):
     db.add(Usuario(id=USUARIO_PROF_ID, correo="p@utem.cl", password="x", rol="profesional", activo=True, nombre="Ana"))
     db.add(Usuario(id=EST_ID, correo="e@utem.cl", password="x", rol="estudiante", activo=True,
                    nombre="Valentina Torres Silva", rut="19.876.543-2", carrera="Estudiante"))
@@ -270,3 +270,55 @@ def test_enmascarar_nombre():
     assert svc.enmascarar_nombre("Valentina Torres Silva") == "Valentina T. S."
     assert svc.enmascarar_nombre("Ana") == "Ana"
     assert svc.enmascarar_nombre(None) == "—"
+
+
+# ───────────────────── capacidades de fábrica por especialidad ─────────────────────
+def test_un_medico_emite_receta_y_justificativo_sin_ninguna_autorizacion(db):
+    _setup(db, capacidades=(), especialidad="Medicina General")      # ninguna regla en base de datos
+    r = _completar(db, receta=RECETA, justificativo=JUSTIFICATIVO)
+    assert {d["tipo"] for d in r["documentos"]} == {"receta", "justificativo"}
+
+
+def test_un_psicologo_certifica_pero_no_receta(db):
+    _setup(db, capacidades=(), especialidad="Psicología")
+    with pytest.raises(HTTPException) as exc:
+        _completar(db, receta=RECETA)
+    assert exc.value.status_code == 403
+    _completar(db, justificativo=JUSTIFICATIVO)
+    assert db.query(DocumentoClinico).one().tipo == "justificativo"
+
+
+def test_enfermeria_no_trae_nada_de_fabrica_y_requiere_autorizacion_adicional(db):
+    _setup(db, capacidades=(), especialidad="Enfermería")
+    with pytest.raises(HTTPException) as exc:
+        _completar(db, receta=RECETA)
+    assert exc.value.status_code == 403
+
+
+# ───────────────────── indicador del Inicio: documentos emitidos hoy ─────────────────────
+def test_documentos_emitidos_hoy_cuenta_solo_los_vigentes_del_dia_del_profesional(db):
+    _setup(db)
+    _completar(db, receta=RECETA, justificativo=JUSTIFICATIVO)
+    r = docs_router.resumen_documentos_hoy(PROF_ID, db=db, current_user=PROF_USER)
+    assert (r["total"], r["recetas"], r["justificativos"]) == (2, 1, 1)
+
+    receta = db.query(DocumentoClinico).filter_by(tipo="receta").one()
+    docs_router.anular_documento(receta.id, docs_router.AnularIn(motivo="error de dosis"), db=db, current_user=PROF_USER)
+    r = docs_router.resumen_documentos_hoy(PROF_ID, db=db, current_user=PROF_USER)
+    assert (r["total"], r["recetas"], r["justificativos"]) == (1, 0, 1)      # lo anulado no cuenta
+
+
+def test_documentos_de_ayer_no_cuentan_como_de_hoy(db):
+    from datetime import datetime, timedelta, timezone
+    _setup(db)
+    _completar(db, receta=RECETA)
+    manana = datetime.now(timezone.utc) + timedelta(days=1, hours=1)
+    assert svc.contar_documentos_del_dia(db, PROF_ID, ahora=manana)["total"] == 0
+
+
+def test_solo_el_propio_profesional_ve_su_resumen_de_hoy(db):
+    _setup(db)
+    for intruso in (EST_USER, OTRO_EST_USER):
+        with pytest.raises(HTTPException) as exc:
+            docs_router.resumen_documentos_hoy(PROF_ID, db=db, current_user=intruso)
+        assert exc.value.status_code == 403

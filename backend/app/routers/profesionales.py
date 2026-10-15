@@ -21,7 +21,7 @@ from app.rbac.admin_authorization import (
     tiene_permiso_admin_en_especialidad,
 )
 from app.rbac.clinical_capabilities import ClinicalCapability
-from app.services.clinical_capabilities_service import resolver_capacidades_efectivas
+from app.services.capacidades_por_defecto import capacidades_efectivas_profesional
 from app.schemas import CompletarCitaBody
 from app.auditoria import registrar_evento_auditoria
 from app.services import documento_clinico_service as documentos_svc
@@ -415,7 +415,7 @@ def completar_cita(
     if medicamento is not None:
         prof = db.query(Profesional).filter(Profesional.id == prof_id).first()
         especialidad = prof.especialidad if prof else None
-        capacidades = resolver_capacidades_efectivas(especialidad, db)
+        capacidades = capacidades_efectivas_profesional(especialidad, db)
         if ClinicalCapability.REGISTRAR_MEDICAMENTO_SUMINISTRADO.value not in capacidades:
             raise HTTPException(
                 status_code=403,

@@ -21,7 +21,7 @@ import hashlib
 import json
 import os
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from fastapi import HTTPException
@@ -38,7 +38,7 @@ from app.models.documento_clinico import (
 from app.models.profesional import Profesional
 from app.models.usuario import Usuario
 from app.rbac.clinical_capabilities import ClinicalCapability
-from app.services.clinical_capabilities_service import resolver_capacidades_efectivas
+from app.services.capacidades_por_defecto import capacidades_efectivas_profesional
 
 # Sin 0, O, 1, I, L: se pueden leer y teclear sin confundirlos.
 _ALFABETO = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
@@ -159,7 +159,7 @@ def url_validacion(folio: str) -> str:
 # Emisión
 # ══════════════════════════════════════
 def _exigir_capacidad(db: Session, prof: Profesional, tipo: str) -> None:
-    capacidades = resolver_capacidades_efectivas(prof.especialidad, db)
+    capacidades = capacidades_efectivas_profesional(prof.especialidad, db)
     if _CAPACIDAD_POR_TIPO[tipo].value not in capacidades:
         etiqueta = "recetas" if tipo == TIPO_RECETA else "justificativos"
         raise HTTPException(
@@ -281,6 +281,34 @@ def anular_documento(doc: DocumentoClinico, motivo: str) -> None:
     doc.estado = ESTADO_ANULADO
     doc.motivo_anulacion = motivo
     doc.anulado_en = datetime.now(timezone.utc)
+
+
+def contar_documentos_del_dia(db: Session, profesional_id: int, ahora: datetime | None = None) -> dict:
+    """
+    Documentos VIGENTES que el profesional emitió HOY (día calendario de Chile).
+    Alimenta el indicador "Documentos enviados hoy" del Inicio del profesional.
+    """
+    ahora = ahora or datetime.now(timezone.utc)
+    hoy = ahora.astimezone(a_hora_local(ahora.isoformat()).tzinfo).date()
+    # Margen de 2 días en UTC; el filtro exacto por día local se hace en Python.
+    filas = (
+        db.query(DocumentoClinico)
+        .filter(
+            DocumentoClinico.profesional_id == profesional_id,
+            DocumentoClinico.estado == ESTADO_VIGENTE,
+            DocumentoClinico.emitido_en >= ahora - timedelta(days=2),
+        )
+        .all()
+    )
+    recetas = justificativos = 0
+    for d in filas:
+        if a_hora_local(d.contenido["emitido_en"]).date() != hoy:
+            continue
+        if d.tipo == TIPO_RECETA:
+            recetas += 1
+        elif d.tipo == TIPO_JUSTIFICATIVO:
+            justificativos += 1
+    return {"fecha": hoy.isoformat(), "total": recetas + justificativos, "recetas": recetas, "justificativos": justificativos}
 
 
 def resumen_documento(doc: DocumentoClinico) -> dict:

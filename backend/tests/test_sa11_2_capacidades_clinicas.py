@@ -215,8 +215,8 @@ def test_activo_no_tiene_default_y_debe_indicarse_explicitamente(db):
 # ══════════════════════════════════════════════════════════════════
 def test_profesional_obtiene_solo_sus_propias_capacidades(db):
     _usuario_profesional(db, usuario_id=10)
-    _profesional(db, prof_id=5, usuario_id=10, especialidad="Odontología")
-    _regla(db, "odontologia", ClinicalCapability.GESTIONAR_FICHA_ODONTOLOGICA.value)
+    _profesional(db, prof_id=5, usuario_id=10, especialidad="Enfermería")
+    _regla(db, "enfermeria", ClinicalCapability.GESTIONAR_FICHA_ODONTOLOGICA.value)
 
     # otro profesional, otra especialidad — no debe filtrarse
     _usuario_profesional(db, usuario_id=11)
@@ -300,8 +300,8 @@ def test_profesional_sin_fila_profesional_asociada_es_fail_closed(db):
 
 def test_profesional_con_exactamente_una_asociacion_resuelve_normalmente(db):
     _usuario_profesional(db, usuario_id=30, rol="profesional")
-    _profesional(db, prof_id=40, usuario_id=30, especialidad="Odontología")
-    _regla(db, "odontologia", ClinicalCapability.GESTIONAR_FICHA_ODONTOLOGICA.value)
+    _profesional(db, prof_id=40, usuario_id=30, especialidad="Enfermería")
+    _regla(db, "enfermeria", ClinicalCapability.GESTIONAR_FICHA_ODONTOLOGICA.value)
 
     resultado = m.obtener_mis_capacidades_clinicas(
         db=db,

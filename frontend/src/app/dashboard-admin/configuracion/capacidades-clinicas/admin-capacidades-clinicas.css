@@ -21,3 +21,4 @@
 .cc-texto small { font-size: 12px; color: var(--admin-text-secondary, #64748b); }
 .cc-inactiva label { cursor: not-allowed; opacity: .6; }
 .cc-pronto { font-size: 11px; font-weight: 600; color: var(--admin-text-secondary, #64748b); background: var(--admin-background, #f1f5f9); border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+.cc-fabrica { font-size: 11px; font-weight: 600; color: var(--admin-primary, #0f766e); background: rgba(13,148,136,.12); border-radius: 999px; padding: 2px 8px; white-space: nowrap; }

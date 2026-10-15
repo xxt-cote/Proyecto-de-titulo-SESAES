@@ -29,6 +29,7 @@
           <span class="doc-link" *ngIf="h.estado === 'cancelada'" (click)="reagendar.emit(h)"><span class="material-symbols-outlined icono-inline" aria-hidden="true">autorenew</span> Reagendar</span>
           <span class="doc-link" *ngIf="h.estado === 'completada'" (click)="verDetalle.emit(h)"><span class="material-symbols-outlined" aria-hidden="true">visibility</span> Ver detalle</span>
           <span class="doc-link" *ngIf="h.estado === 'completada' && h.tiene_pdf" (click)="descargarPdf.emit(h.id)"><span class="material-symbols-outlined icono-inline" aria-hidden="true">download</span> PDF</span>
+          <app-documentos-cita *ngIf="h.estado === 'completada' && h.documentos?.length" [documentos]="h.documentos"></app-documentos-cita>
           <span *ngIf="h.estado !== 'cancelada' && h.estado !== 'completada'" style="color:var(--est-muted);font-size:12px;">No aplica</span>
         </td>
       </tr>

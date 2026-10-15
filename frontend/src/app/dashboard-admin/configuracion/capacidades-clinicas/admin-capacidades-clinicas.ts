@@ -10,7 +10,9 @@ export interface CapacidadCatalogo {
 }
 
 export interface EspecialidadCapacidades {
-  clave: string; nombre: string; profesionales: number; capacidades: string[];
+  clave: string; nombre: string; profesionales: number;
+  incluidas: string[];      // las trae la especialidad de fábrica: no se editan
+  capacidades: string[];    // incluidas + autorizaciones adicionales
 }
 
 interface FilaEditable extends EspecialidadCapacidades {
@@ -21,10 +23,11 @@ interface FilaEditable extends EspecialidadCapacidades {
 }
 
 /**
- * Pestaña "Capacidades clínicas" de Configuración: qué puede emitir un
- * profesional según su especialidad (receta, justificativo, medicamento
- * suministrado). Requiere el permiso configuracion.gestionar; el backend lo
- * vuelve a exigir en cada llamada.
+ * Pestaña "Capacidades clínicas" de Configuración. Cada especialidad trae de
+ * fábrica lo propio de su profesión (un médico receta sin pedir permiso): eso
+ * se muestra como "incluida" y no se edita. Aquí se otorgan las AUTORIZACIONES
+ * ADICIONALES y supervisadas (por ejemplo, enfermería). Requiere el permiso
+ * configuracion.gestionar; el backend lo vuelve a exigir en cada llamada.
  */
 @Component({
   selector: 'app-admin-capacidades-clinicas',
@@ -72,7 +75,10 @@ export class AdminCapacidadesClinicasComponent implements OnInit {
 
   marcada(f: FilaEditable, valor: string): boolean { return f.seleccion.has(valor); }
 
+  deFabrica(f: FilaEditable, valor: string): boolean { return f.incluidas.includes(valor); }
+
   alternar(f: FilaEditable, valor: string): void {
+    if (this.deFabrica(f, valor)) return;     // lo propio de la profesión no se retira
     if (f.seleccion.has(valor)) f.seleccion.delete(valor); else f.seleccion.add(valor);
     f.mensaje = '';
     f.error = '';
