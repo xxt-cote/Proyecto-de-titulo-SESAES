@@ -7,13 +7,18 @@ import { DashboardProfesionalComponent } from './dashboard-profesional';
 import { AuthService } from '../auth.service';
 import { environment } from '../config';
 
-/** Inicio del profesional: saludo, 4 indicadores, agenda de hoy, acciones rápidas y recordatorio. */
-describe('DashboardProfesionalComponent — Inicio', () => {
+const API = environment.apiUrl;
+
+/** Inicio del profesional y flujo "Iniciar atención" → historial del paciente → "Registrar atención". */
+describe('DashboardProfesionalComponent — Inicio y flujo de atención', () => {
   let fixture: ComponentFixture<DashboardProfesionalComponent>;
   let c: DashboardProfesionalComponent;
   let el: HTMLElement;
+  let http: HttpTestingController;
 
   const hoy = new Date().toISOString().slice(0, 10);
+  const cita = (id: number, hora: string, estado: string, extra: any = {}) =>
+    ({ id, hora, estado, fecha: hoy, estudiante: `Estudiante ${id}`, estudiante_id: 100 + id, carrera: 'Kinesiología', observaciones: 'Control', urgente: false, ...extra });
 
   beforeEach(async () => {
     localStorage.clear();
@@ -27,88 +32,177 @@ describe('DashboardProfesionalComponent — Inicio', () => {
     fixture = TestBed.createComponent(DashboardProfesionalComponent);
     c = fixture.componentInstance;
     el = fixture.nativeElement as HTMLElement;
+    http = TestBed.inject(HttpTestingController);
+    (c as any).profesionalId = 5;   // es privado: se fija directamente para estas pruebas
     c.seccionActiva = 'inicio';
-    c.perfil = { ...c.perfil, nombre: 'Dra. María Pérez', estado: 'activo' };
-    c.estadisticasDia = { total_hoy: 5, completadas: 2, pendientes: 3, inasistencias: 0 };
+    c.perfil = { ...c.perfil, nombre: 'Carlos Muñoz', estado: 'activo' };
     c.documentosHoy = { total: 3, recetas: 2, justificativos: 1 };
-    c.citasHoy = [
-      { id: 2, hora: '11:30', estudiante: 'Valentina Torres', estado: 'pendiente', fecha: hoy, urgente: false },
-      { id: 1, hora: '08:30', estudiante: 'Camila Rojas', estado: 'completada', fecha: hoy, urgente: false },
-      { id: 3, hora: '10:00', estudiante: 'Matías López', estado: 'pendiente', fecha: hoy, urgente: true },
-    ];
+    c.citasHoy = [cita(2, '11:30', 'pendiente'), cita(1, '08:30', 'completada'), cita(3, '10:00', 'pendiente', { urgente: true }), cita(4, '09:00', 'cancelada')];
     c.citasSinCerrar = [];
+    c.pacientesHistorial = [];
   });
 
-  it('muestra el saludo y los 4 indicadores con datos reales', () => {
-    fixture.detectChanges();
-    const texto = el.textContent ?? '';
-    expect(texto).toContain('Dra. María Pérez');
-    const nums = Array.from(el.querySelectorAll('.inicio-kpi-num-prof')).map(n => n.textContent?.trim());
-    expect(nums).toEqual(['2', '3', '3', '0']);      // atendidos · pendientes · documentos · sin cerrar
-    expect(texto).toContain('de 5 programados');
-    expect(texto).toContain('2 recetas · 1 justificativo');
+  describe('Inicio', () => {
+    it('saluda por el nombre, sin saludo según la hora del día', () => {
+      fixture.detectChanges();
+      const titulo = el.querySelector('.inicio-cab-titulo-prof')?.textContent?.trim();
+      expect(titulo).toBe('¡Hola, Carlos Muñoz!');
+      expect(el.textContent).not.toMatch(/Buenos días|Buenas tardes|Buenas noches/);
+    });
+
+    it('muestra el avance del día sin contar las canceladas', () => {
+      fixture.detectChanges();
+      expect(c.atencionesHoyTotal).toBe(3);
+      expect(c.atencionesHoyRealizadas).toBe(1);
+      expect(c.avanceHoyPct).toBe(33);
+      expect(el.querySelector('.inicio-kpi-num-prof')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('1 / 3');
+      expect(el.textContent).toContain('1 de 3 atenciones realizadas');
+    });
+
+    it('la próxima cita y los documentos del día salen de datos reales', () => {
+      fixture.detectChanges();
+      const nums = Array.from(el.querySelectorAll('.inicio-kpi-num-prof')).map(n => n.textContent?.replace(/\s+/g, ' ').trim());
+      expect(nums[1]).toBe('10:00');   // la primera pendiente por hora
+      expect(nums[2]).toBe('3');
+      expect(c.proximaAtencionPendiente?.id).toBe(3);
+    });
+
+    it('la agenda marca Completada, En espera y Programada, e inicia solo la que toca', () => {
+      fixture.detectChanges();
+      expect(c.agendaHoyCitas.map(x => x.hora)).toEqual(['08:30', '09:00', '10:00', '11:30']);
+      expect(c.etiquetaEstadoAgenda(c.citasHoy[1])).toBe('Completada');
+      expect(c.etiquetaEstadoAgenda(c.citasHoy[2])).toBe('En espera');
+      expect(c.etiquetaEstadoAgenda(c.citasHoy[0])).toBe('Programada');
+      expect(c.etiquetaEstadoAgenda(c.citasHoy[3])).toBe('Cancelada');
+      expect(el.querySelectorAll('.inicio-btn-iniciar-prof')).toHaveLength(1);
+      expect(el.querySelector('.inicio-btn-iniciar-prof')?.textContent).toContain('Iniciar atención');
+    });
+
+    it('sin nada pendiente, la acción rápida "Iniciar atención" queda desactivada', () => {
+      c.citasHoy = [cita(1, '08:30', 'completada')];
+      fixture.detectChanges();
+      expect(c.proximaAtencionPendiente).toBeNull();
+      expect((el.querySelector('.inicio-accion-principal-prof') as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it('el recordatorio se puede cerrar y no vuelve a aparecer', () => {
+      fixture.detectChanges();
+      expect(el.querySelector('.inicio-recuerda-prof')).not.toBeNull();
+      (el.querySelector('.inicio-recuerda-cerrar-prof') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(el.querySelector('.inicio-recuerda-prof')).toBeNull();
+      expect(localStorage.getItem('prof_recuerda_cerrado')).toBe('1');
+    });
+
+    it('"Pendientes por revisar" reúne citas sin cerrar, fichas incompletas y solicitudes', () => {
+      c.citasSinCerrar = [cita(9, '09:00', 'pendiente', { fecha: '2020-01-01' })];
+      c.pacientesHistorial = [{ estudiante_id: 1, nombre: 'Diego Soto', carrera: 'Ing. Civil', tiene_ficha: false, dias_desde_ultima_visita: 0 }];
+      const titulos = c.pendientesPorRevisar.map(p => p.titulo);
+      expect(titulos).toContain('Cita sin cerrar');
+      expect(titulos).toContain('Ficha clínica incompleta');
+      c.pacientesHistorial = [];
+      c.citasSinCerrar = [];
+      expect(c.pendientesPorRevisar).toEqual([]);
+      fixture.detectChanges();
+      expect(el.textContent).toContain('Todo al día');
+    });
+
+    it('carga los documentos emitidos hoy desde el backend', () => {
+      c.cargarDocumentosHoy();
+      http.expectOne(`${API}/documentos/profesional/5/hoy`).flush({ fecha: hoy, total: 4, recetas: 3, justificativos: 1 });
+      expect(c.documentosHoy.total).toBe(4);
+    });
+
+    it('no repite el bloque de notificaciones', () => {
+      fixture.detectChanges();
+      expect(el.querySelector('.inicio-grid-prof')?.textContent).not.toContain('Notificaciones');
+    });
   });
 
-  it('la agenda de hoy va ordenada por hora y solo ofrece completar lo pendiente', () => {
-    fixture.detectChanges();
-    expect(c.agendaHoyCitas.map(x => x.hora)).toEqual(['08:30', '10:00', '11:30']);
-    const filas = el.querySelectorAll('.inicio-agenda-fila-prof');
-    expect(filas).toHaveLength(3);
-    expect(filas[0].querySelector('.btn-completar')).toBeNull();          // ya completada
-    expect(filas[1].querySelector('.btn-completar')).not.toBeNull();      // pendiente
-    expect(filas[1].textContent).toContain('URGENTE');
-  });
+  describe('Flujo de atención', () => {
+    const ficha = (extra: any = {}) => ({ existe: true, preguntas: [], respuestas: {}, citas: [], total_atenciones: 0, ...extra });
 
-  it('"Completar atención" apunta a la próxima cita pendiente de hoy', () => {
-    fixture.detectChanges();
-    expect(c.proximaAtencionPendiente?.id).toBe(3);                       // 10:00 es la primera pendiente
-    const boton = el.querySelector('.inicio-acciones-prof button') as HTMLButtonElement;
-    expect(boton.disabled).toBe(false);
-  });
+    it('"Iniciar atención" abre el historial del paciente con el contexto de la cita', () => {
+      const c1 = cita(3, '10:00', 'pendiente');
+      c.iniciarAtencion(c1);
+      expect(c.seccionActiva).toBe('historial-clinico');
+      expect(c.pacienteSeleccionado.estudiante_id).toBe(103);
+      http.match(r => r.url.endsWith('/pacientes')).forEach(r => r.flush([]));
+      http.expectOne(`${API}/historial-clinico/5/103`).flush(ficha({ citas: [{ ...c1 }] }));
+      fixture.detectChanges();
+      expect(c.citaContextoAtencion?.id).toBe(3);
+      expect(el.querySelector('.atencion-banner-prof')?.textContent).toContain('Atención de hoy · 10:00');
+      expect(el.querySelector('.atencion-banner-prof')?.textContent).toContain('Motivo: Control');
+    });
 
-  it('"Completar atención" se desactiva si no queda nada pendiente hoy', () => {
-    c.citasHoy = c.citasHoy.map(x => ({ ...x, estado: 'completada' }));
-    fixture.detectChanges();
-    expect(c.proximaAtencionPendiente).toBeNull();
-    const boton = el.querySelector('.inicio-acciones-prof button') as HTMLButtonElement;
-    expect(boton.disabled).toBe(true);
-  });
+    it('"Registrar atención" usa la cita con la que se inició, aunque haya otra pendiente antes', () => {
+      const antigua = cita(8, '09:00', 'pendiente', { fecha: '2020-01-01' });
+      const actual = cita(3, '10:00', 'pendiente');
+      c.iniciarAtencion(actual);
+      http.match(r => r.url.endsWith('/pacientes')).forEach(r => r.flush([]));
+      http.expectOne(`${API}/historial-clinico/5/103`).flush(ficha({ citas: [antigua, actual] }));
+      expect(c.fichaCitaPendienteActual?.id).toBe(3);
+    });
 
-  it('el indicador de citas sin cerrar alerta y abre la más antigua', () => {
-    c.citasSinCerrar = [{ id: 9, hora: '09:00', estudiante: 'Fernanda Castillo', estado: 'pendiente', fecha: '2020-01-01' }];
-    const abrir = vi.spyOn(c, 'abrirModalCompletar').mockImplementation(() => {});
-    fixture.detectChanges();
-    const kpi = el.querySelector('.inicio-kpi-alerta-prof') as HTMLButtonElement;
-    expect(kpi.classList).toContain('con-alerta');
-    kpi.click();
-    expect(abrir).toHaveBeenCalledWith(c.citasSinCerrar[0]);
-  });
+    it('si no hay cita pendiente, el botón queda desactivado y explica por qué', () => {
+      c.pacienteSeleccionado = { estudiante_id: 1, nombre: 'Ana' };
+      c.fichaCitas = [];
+      expect(c.puedeRegistrarAtencion).toBe(false);
+      expect(c.motivoSinAtencion).toContain('No hay una cita pendiente');
+      c.fichaCitas = [cita(1, '10:00', 'pendiente')];
+      expect(c.puedeRegistrarAtencion).toBe(true);
+      expect(c.motivoSinAtencion).toBe('');
+    });
 
-  it('sin citas sin cerrar el indicador queda en calma y desactivado', () => {
-    fixture.detectChanges();
-    const kpi = el.querySelector('.inicio-kpi-alerta-prof') as HTMLButtonElement;
-    expect(kpi.classList).not.toContain('con-alerta');
-    expect(kpi.disabled).toBe(true);
-    expect(kpi.textContent).toContain('Todo al día');
-  });
+    it('el menú lateral "Historial clínico" cierra la ficha y vuelve al buscador', () => {
+      c.seccionActiva = 'historial-clinico';
+      c.pacienteSeleccionado = { estudiante_id: 1, nombre: 'Ana' };
+      c.navegarA('historial-clinico');
+      http.match(r => r.url.endsWith('/pacientes')).forEach(r => r.flush([]));
+      expect(c.pacienteSeleccionado).toBeNull();
+      expect(c.citaEnAtencion).toBeNull();
+    });
 
-  it('incluye el recordatorio y NO duplica el bloque de notificaciones', () => {
-    fixture.detectChanges();
-    expect(el.querySelector('.inicio-recuerda-prof')?.textContent).toContain('se envía automáticamente al dashboard del estudiante');
-    expect(el.querySelector('.inicio-grid-prof')?.textContent).not.toContain('Notificaciones');
-  });
+    it('"Volver a pacientes" pide confirmación solo si hay antecedentes sin guardar', () => {
+      const confirmar = vi.spyOn(window, 'confirm');
+      c.pacienteSeleccionado = { estudiante_id: 1, nombre: 'Ana' };
+      c.fichaEnEdicion = true;
+      c.fichaRespuestas = {};
+      c.fichaRespuestasInicial = JSON.stringify({});
+      c.volverAPacientes();                                   // sin cambios: sale sin preguntar
+      expect(confirmar).not.toHaveBeenCalled();
+      expect(c.pacienteSeleccionado).toBeNull();
 
-  it('carga los documentos de hoy desde el backend', () => {
-    const http = TestBed.inject(HttpTestingController);
-    (c as any).profesionalId = 5;   // es privado: se fija directamente para esta prueba
-    c.cargarDocumentosHoy();
-    const req = http.expectOne(`${environment.apiUrl}/documentos/profesional/5/hoy`);
-    req.flush({ fecha: hoy, total: 4, recetas: 3, justificativos: 1 });
-    expect(c.documentosHoy.total).toBe(4);
-  });
+      c.pacienteSeleccionado = { estudiante_id: 1, nombre: 'Ana' };
+      c.fichaEnEdicion = true;
+      c.fichaRespuestas = { a: 'nuevo' };
+      confirmar.mockReturnValue(false);
+      c.volverAPacientes();                                   // con cambios y "cancelar": se queda
+      expect(c.pacienteSeleccionado).not.toBeNull();
+      confirmar.mockReturnValue(true);
+      c.volverAPacientes();                                   // con cambios y "aceptar": sale
+      expect(c.pacienteSeleccionado).toBeNull();
+    });
 
-  it('la fecha larga empieza con mayúscula', () => {
-    expect(c.fechaHoyLarga.charAt(0)).toBe(c.fechaHoyLarga.charAt(0).toUpperCase());
-    expect(c.fechaHoyLarga).toContain(String(new Date().getFullYear()));
+    it('en la ficha, "Ver ficha" pasa a ser "Antecedentes" con su estado, y existe "Volver a pacientes"', () => {
+      c.seccionActiva = 'historial-clinico';
+      c.pacienteSeleccionado = { estudiante_id: 1, nombre: 'Ana' };
+      c.fichaExiste = false;
+      c.fichaCitas = [];
+      fixture.detectChanges();
+      const texto = el.textContent ?? '';
+      expect(texto).toContain('Volver a pacientes');
+      expect(texto).toContain('Antecedentes');
+      expect(texto).toContain('Sin responder');
+      expect(texto).not.toContain('Ver ficha');
+    });
+
+    it('en la lista de pacientes el botón se llama "Abrir historial"', () => {
+      c.seccionActiva = 'historial-clinico';
+      c.pacienteSeleccionado = null;
+      c.pacientesHistorial = [{ estudiante_id: 1, nombre: 'Ana', carrera: 'X', rut: '1-9', tiene_ficha: true, total_atenciones: 1, dias_desde_ultima_visita: 0 }];
+      fixture.detectChanges();
+      expect(el.textContent).toContain('Abrir historial');
+    });
   });
 });
