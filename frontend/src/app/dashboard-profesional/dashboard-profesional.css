@@ -966,17 +966,17 @@ button.inicio-kpi-prof:disabled { cursor: default; }
 .inicio-kpi-num-prof small { font-size: 16px; font-weight: 600; color: var(--prof-text-2); }
 .inicio-kpi-sub-prof { font-size: 12px; color: var(--prof-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .inicio-kpi-flecha-prof { color: var(--prof-muted); font-size: 22px; flex-shrink: 0; }
-.inicio-donut-prof { --pct: 0; width: 58px; height: 58px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; position: relative;
+.inicio-donut-prof { --pct: 0; width: 62px; height: 62px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; position: relative;
   background: conic-gradient(var(--prof-primary) calc(var(--pct) * 1%), var(--prof-border) 0); }
-.inicio-donut-prof::before { content: ''; position: absolute; inset: 6px; border-radius: 50%; background: var(--prof-card); }
+.inicio-donut-prof::before { content: ''; position: absolute; inset: 8px; border-radius: 50%; background: var(--prof-card); }
 .inicio-donut-prof span { position: relative; font-size: 12px; font-weight: 700; color: var(--prof-text); }
 
 .inicio-grid-prof { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 18px; align-items: start; margin-bottom: 18px; }
 .inicio-col-prof { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
 .inicio-chip-prof { font-size: 11px; font-weight: 600; color: var(--prof-accent-text); background: var(--prof-primary-tint); border-radius: 999px; padding: 3px 10px; margin-left: 8px; vertical-align: middle; }
 
-.inicio-agenda-fila-prof { display: flex; align-items: center; gap: 12px; padding: 10px 8px; border-top: 1px solid var(--prof-border); flex-wrap: wrap; }
-.inicio-agenda-fila-prof.en-espera { background: var(--prof-primary-tint-weak); border-radius: 10px; }
+.inicio-agenda-fila-prof { display: grid; grid-template-columns: 22px 50px 36px minmax(120px, 1.3fr) minmax(110px, 1.1fr) 104px 140px 24px; align-items: center; gap: 10px; padding: 10px 8px; }
+.inicio-agenda-fila-prof.en-espera { background: var(--prof-info-tint); border-radius: 10px; }
 .inicio-agenda-punto-prof { width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--prof-border-strong, #c9d6d2); }
 .inicio-agenda-punto-prof.completada { background: var(--prof-primary); color: #fff; }
 .inicio-agenda-punto-prof.completada .material-symbols-outlined { font-size: 14px; }
@@ -991,7 +991,7 @@ button.inicio-kpi-prof:disabled { cursor: default; }
 
 .inicio-estado-prof { font-size: 11px; font-weight: 600; border-radius: 999px; padding: 3px 12px; background: var(--prof-surface); color: var(--prof-text-2); white-space: nowrap; }
 .inicio-estado-prof.completada { background: var(--prof-primary-tint); color: var(--prof-accent-text); }
-.inicio-estado-prof.espera { background: var(--prof-primary-tint-weak); color: var(--prof-accent-text); box-shadow: inset 0 0 0 1px var(--prof-primary); }
+.inicio-estado-prof.espera { background: var(--prof-info-tint); color: var(--prof-info); }
 .inicio-estado-prof.programada { background: var(--prof-surface); color: var(--prof-text-2); }
 .inicio-estado-prof.inasistencia, .inicio-estado-prof.incompleta { background: var(--prof-warn-tint); color: var(--prof-warn); }
 .inicio-estado-prof.cancelada { background: var(--prof-danger-tint); color: var(--prof-danger); }
@@ -1001,8 +1001,8 @@ button.inicio-kpi-prof:disabled { cursor: default; }
 .inicio-btn-iniciar-prof .material-symbols-outlined, .inicio-btn-detalle-prof .material-symbols-outlined { font-size: 16px; }
 .inicio-btn-detalle-prof { display: inline-flex; align-items: center; gap: 4px; background: var(--prof-card); color: var(--prof-text-body); border: 1px solid var(--prof-border); border-radius: 8px; padding: 6px 14px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; }
 .inicio-btn-detalle-prof:hover { border-color: var(--prof-primary); color: var(--prof-accent-text); }
-.inicio-btn-icono-prof { background: none; border: none; color: var(--prof-muted); cursor: pointer; display: inline-flex; padding: 4px; border-radius: 6px; }
-.inicio-btn-icono-prof:hover { background: var(--prof-field); color: var(--prof-danger); }
+
+
 
 .inicio-tabla-scroll-prof { overflow-x: auto; }
 .inicio-tabla-prof { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -1067,3 +1067,46 @@ button.inicio-kpi-prof:disabled { cursor: default; }
 .atencion-banner-prof .material-symbols-outlined { color: var(--prof-primary); font-size: 20px; }
 .patient-aviso-prof { flex-basis: 100%; margin: 6px 0 0; font-size: 12px; color: var(--prof-text-2); text-align: right; }
 .estado-antecedentes-prof { margin-left: 8px; font-size: 11px; font-weight: 600; border-radius: 999px; padding: 2px 8px; background: var(--prof-surface); color: var(--prof-text-2); }
+
+/* Calendario del Inicio: filas compactas (antes eran cuadradas y muy altas) */
+.inicio-calendario-prof .cal-grid-prof { gap: 2px; }
+.inicio-calendario-prof .cal-celda-prof { aspect-ratio: auto; height: 32px; }
+
+/* ══════════════════════════════════════ */
+/* INICIO — ajustes al diseño de referencia */
+/* ══════════════════════════════════════ */
+.inicio-agenda-lista-prof { position: relative; }
+.inicio-agenda-lista-prof::before { content: ''; position: absolute; left: 19px; top: 24px; bottom: 24px; width: 2px; background: var(--prof-border); }
+.inicio-agenda-fila-prof > * { position: relative; }
+.inicio-agenda-accion-prof { display: flex; justify-content: flex-end; }
+.inicio-avatar-prof.suave { background: var(--prof-field); color: var(--prof-text-body); border: 1px solid var(--prof-border); }
+.inicio-avatar-prof.fuerte { background: var(--prof-primary); color: #fff; }
+
+.inicio-menu-prof { position: relative; }
+.inicio-menu-prof summary { list-style: none; cursor: pointer; display: inline-flex; padding: 4px; border-radius: 6px; color: var(--prof-muted); }
+.inicio-menu-prof summary::-webkit-details-marker { display: none; }
+.inicio-menu-prof summary:hover { background: var(--prof-field); color: var(--prof-text); }
+.inicio-menu-lista-prof { position: absolute; right: 0; top: 100%; z-index: 20; min-width: 170px; background: var(--prof-card); border: 1px solid var(--prof-border); border-radius: 10px; padding: 4px; box-shadow: 0 8px 24px rgba(15, 23, 42, .12); }
+.inicio-menu-lista-prof button { display: block; width: 100%; text-align: left; background: none; border: none; padding: 8px 10px; border-radius: 8px; font-size: 13px; font-family: inherit; color: var(--prof-text-body); cursor: pointer; }
+.inicio-menu-lista-prof button:hover { background: var(--prof-field); }
+
+.inicio-kpi-icono-prof.azul { background: var(--prof-info-tint); color: var(--prof-info); }
+.inicio-pendiente-icono-prof.azul { background: var(--prof-info-tint); color: var(--prof-info); }
+.inicio-pendiente-etiqueta-prof.azul { background: var(--prof-info-tint); color: var(--prof-info); }
+.inicio-requiere-item-prof.verde { background: var(--prof-primary-tint-weak); border-color: transparent; }
+.inicio-requiere-item-prof.rojo { background: var(--prof-danger-tint); border-color: transparent; }
+.inicio-recuerda-prof { background: var(--prof-primary-tint-weak); border-color: var(--prof-primary-tint); }
+
+.inicio-cal-cab-prof { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.inicio-cal-cab-prof .card-title-prof { margin: 0; flex: 1; }
+.inicio-cal-mes-prof { font-size: 13px; font-weight: 700; color: var(--prof-text); margin-right: 4px; }
+.inicio-calendario-prof .cal-celda-prof span.otro-mes { color: var(--prof-muted); }
+.inicio-calendario-prof .cal-celda-prof span.feriado { background: none; color: var(--prof-text-body); position: relative; font-weight: 500; }
+.inicio-calendario-prof .cal-celda-prof span.feriado::after { content: ''; position: absolute; bottom: 1px; width: 4px; height: 4px; border-radius: 50%; background: var(--prof-danger); }
+.inicio-calendario-prof .cal-celda-prof span.hoy { background: var(--prof-primary); color: #fff; font-weight: 700; }
+.inicio-calendario-prof .cal-celda-prof span.hoy::after { display: none; }
+
+@media (max-width: 900px) {
+  .inicio-agenda-lista-prof::before { display: none; }
+  .inicio-agenda-fila-prof { display: flex; flex-wrap: wrap; }
+}

@@ -62,7 +62,7 @@ toggleSidebarMovil(): void {
 
   get tituloSeccion(): string {
     const map: Record<string, string> = {
-      inicio:            'Bienvenido/a',
+      inicio:            'Inicio',
       horario:            'Agenda',
       pacientes:          'Pacientes',
       'historial-clinico': 'Historial Clínico',
@@ -639,15 +639,27 @@ eliminarSeleccionadas(): void {
   }
 
   generarCalendarioInicio(): void {
-    const primerDia = new Date(this.calAnioVisible, this.calMesVisible, 1);
-    const ultimoDia = new Date(this.calAnioVisible, this.calMesVisible + 1, 0);
-    const hoy       = this.hoyStr();
-    const offset    = (primerDia.getDay() + 6) % 7;
+    const anio = this.calAnioVisible;
+    const mes  = this.calMesVisible;
+    const hoy  = this.hoyStr();
+    const fecha = (a: number, m: number, d: number) => `${a}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const ultimoDia = new Date(anio, mes + 1, 0).getDate();
+    const offset    = (new Date(anio, mes, 1).getDay() + 6) % 7;      // lunes = 0
+    const ultimoPrev = new Date(anio, mes, 0).getDate();
     const celdas: any[] = [];
-    for (let i = 0; i < offset; i++) celdas.push(null);
-    for (let dia = 1; dia <= ultimoDia.getDate(); dia++) {
-      const fechaStr = `${this.calAnioVisible}-${String(this.calMesVisible+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
-      celdas.push({ num: dia, fecha: fechaStr, esHoy: fechaStr === hoy });
+    // Días del mes anterior y del siguiente completan la primera y la última semana (en gris).
+    for (let i = offset - 1; i >= 0; i--) {
+      const d = ultimoPrev - i;
+      const f = mes === 0 ? fecha(anio - 1, 11, d) : fecha(anio, mes - 1, d);
+      celdas.push({ num: d, fecha: f, esHoy: f === hoy, otroMes: true });
+    }
+    for (let d = 1; d <= ultimoDia; d++) {
+      const f = fecha(anio, mes, d);
+      celdas.push({ num: d, fecha: f, esHoy: f === hoy, otroMes: false });
+    }
+    for (let d = 1; celdas.length % 7 !== 0; d++) {
+      const f = mes === 11 ? fecha(anio + 1, 0, d) : fecha(anio, mes + 1, d);
+      celdas.push({ num: d, fecha: f, esHoy: f === hoy, otroMes: true });
     }
     this.calDiasMes = celdas;
   }

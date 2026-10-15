@@ -66,7 +66,7 @@
         <button class="btn-hamburguesa" (click)="toggleSidebarMovil()">
           <span class="material-symbols-outlined" aria-hidden="true">menu</span>
         </button>
-        <h1 class="topbar-title">{{ tituloSeccion }}</h1>
+        <h1 class="topbar-title" [style.visibility]="seccionActiva === 'inicio' ? 'hidden' : 'visible'">{{ tituloSeccion }}</h1>
       </div>
 
       <div class="topbar-buscador-prof">
@@ -182,7 +182,7 @@
           </div>
 
           <button type="button" class="inicio-kpi-prof inicio-kpi-boton-prof" [disabled]="!proximaAtencionPendiente" (click)="irAFichaDesdeAgenda(proximaAtencionPendiente)">
-            <span class="inicio-kpi-icono-prof"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></span>
+            <span class="inicio-kpi-icono-prof azul"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></span>
             <div class="inicio-kpi-texto-prof">
               <span class="inicio-kpi-label-prof">Próxima cita</span>
               <span class="inicio-kpi-num-prof">{{ proximaAtencionPendiente ? proximaAtencionPendiente.hora : '—' }}</span>
@@ -234,29 +234,36 @@
               </div>
 
               <ng-container *ngIf="!centroCerradoHoy">
-                <div class="inicio-agenda-fila-prof" *ngFor="let c of agendaHoyCitas" [class.en-espera]="esEnEspera(c)">
-                  <span class="inicio-agenda-punto-prof" [ngClass]="claseEstadoAgenda(c)" aria-hidden="true">
-                    <span class="material-symbols-outlined" *ngIf="c.estado === 'completada'">check</span>
-                  </span>
-                  <span class="inicio-agenda-hora-prof">{{ c.hora }}</span>
-                  <span class="inicio-avatar-prof" aria-hidden="true">{{ iniciales(c.estudiante) }}</span>
-                  <div class="inicio-agenda-pac-prof">
-                    <strong>{{ c.estudiante }}</strong>
-                    <span>{{ c.carrera || '—' }}</span>
+                <div class="inicio-agenda-lista-prof">
+                  <div class="inicio-agenda-fila-prof" *ngFor="let c of agendaHoyCitas" [class.en-espera]="esEnEspera(c)">
+                    <span class="inicio-agenda-punto-prof" [ngClass]="claseEstadoAgenda(c)" aria-hidden="true">
+                      <span class="material-symbols-outlined" *ngIf="c.estado === 'completada'">check</span>
+                    </span>
+                    <span class="inicio-agenda-hora-prof">{{ c.hora }}</span>
+                    <span class="inicio-avatar-prof suave" aria-hidden="true">{{ iniciales(c.estudiante) }}</span>
+                    <div class="inicio-agenda-pac-prof">
+                      <strong>{{ c.estudiante }}</strong>
+                      <span>{{ c.carrera || '—' }}</span>
+                    </div>
+                    <div class="inicio-agenda-motivo-prof">
+                      <strong>{{ c.observaciones || 'Motivo no informado' }}</strong>
+                      <span>{{ tipoAtencionGlobal(c) }}<ng-container *ngIf="c.sobrecupo"> · Sobrecupo</ng-container> <span class="urgente-tag" *ngIf="c.urgente">URGENTE</span></span>
+                    </div>
+                    <span class="inicio-estado-prof" [ngClass]="claseEstadoAgenda(c)">{{ etiquetaEstadoAgenda(c) }}</span>
+                    <div class="inicio-agenda-accion-prof">
+                      <button type="button" class="inicio-btn-iniciar-prof" *ngIf="esEnEspera(c) && puedeGestionarCita(c)" (click)="iniciarAtencion(c)">
+                        Iniciar atención <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span>
+                      </button>
+                      <button type="button" class="inicio-btn-detalle-prof" *ngIf="!(esEnEspera(c) && puedeGestionarCita(c))" (click)="irAFichaDesdeAgenda(c)">Ver detalle</button>
+                    </div>
+                    <details class="inicio-menu-prof" #menu>
+                      <summary aria-label="Más acciones"><span class="material-symbols-outlined" aria-hidden="true">more_vert</span></summary>
+                      <div class="inicio-menu-lista-prof">
+                        <button type="button" (click)="irAFichaDesdeAgenda(c); menu.open = false">Ver detalle</button>
+                        <button type="button" *ngIf="c.estado === 'pendiente' && puedeGestionarCita(c)" (click)="marcarInasistencia(c); menu.open = false">Marcar inasistencia</button>
+                      </div>
+                    </details>
                   </div>
-                  <div class="inicio-agenda-motivo-prof">
-                    <strong>{{ c.observaciones || tipoAtencionGlobal(c) }}</strong>
-                    <span>{{ tipoAtencionGlobal(c) }}<ng-container *ngIf="c.sobrecupo"> · Sobrecupo</ng-container></span>
-                  </div>
-                  <span class="urgente-tag" *ngIf="c.urgente">URGENTE</span>
-                  <span class="inicio-estado-prof" [ngClass]="claseEstadoAgenda(c)">{{ etiquetaEstadoAgenda(c) }}</span>
-                  <button type="button" class="inicio-btn-iniciar-prof" *ngIf="esEnEspera(c) && puedeGestionarCita(c)" (click)="iniciarAtencion(c)">
-                    Iniciar atención <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span>
-                  </button>
-                  <button type="button" class="inicio-btn-detalle-prof" *ngIf="!(esEnEspera(c) && puedeGestionarCita(c))" (click)="irAFichaDesdeAgenda(c)">Ver detalle</button>
-                  <button type="button" class="inicio-btn-icono-prof" *ngIf="c.estado === 'pendiente' && puedeGestionarCita(c)" (click)="marcarInasistencia(c)" title="Marcar inasistencia" aria-label="Marcar inasistencia">
-                    <span class="material-symbols-outlined" aria-hidden="true">event_busy</span>
-                  </button>
                 </div>
               </ng-container>
             </div>
@@ -270,17 +277,18 @@
               <div *ngIf="pacientesRecientes.length === 0" class="tabla-vacia-prof">Aún no tienes pacientes atendidos</div>
               <div class="inicio-tabla-scroll-prof" *ngIf="pacientesRecientes.length > 0">
                 <table class="inicio-tabla-prof">
-                  <thead><tr><th>Nombre</th><th>Carrera</th><th>Última atención</th><th>Estado</th><th>Acciones</th></tr></thead>
+                  <thead><tr><th>Nombre</th><th>Carrera</th><th>Última atención</th><th>Estado</th><th>Acciones</th><th></th></tr></thead>
                   <tbody>
                     <tr *ngFor="let p of pacientesRecientes">
                       <td>
-                        <span class="inicio-avatar-prof" aria-hidden="true">{{ iniciales(p.nombre) }}</span>
+                        <span class="inicio-avatar-prof fuerte" aria-hidden="true">{{ iniciales(p.nombre) }}</span>
                         <span class="inicio-tabla-nombre-prof"><strong>{{ p.nombre }}</strong><small>{{ p.rut || '—' }}</small></span>
                       </td>
                       <td>{{ p.carrera || '—' }}</td>
                       <td>{{ textoUltimaAtencion(p) }}</td>
                       <td><span class="inicio-estado-prof" [ngClass]="p.tiene_ficha ? 'completada' : 'incompleta'">{{ p.tiene_ficha ? 'Ficha completa' : 'Ficha incompleta' }}</span></td>
                       <td><button type="button" class="inicio-btn-detalle-prof" (click)="irAFichaPacienteReciente(p)">Ver ficha <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span></button></td>
+                      <td class="inicio-tabla-flecha-prof"><span class="material-symbols-outlined" aria-hidden="true">chevron_right</span></td>
                     </tr>
                   </tbody>
                 </table>
@@ -326,31 +334,28 @@
             </div>
 
             <!-- Calendario -->
-                    <div class="card-prof inicio-calendario-prof">
-                      <div class="card-header-prof" style="margin-bottom:6px">
-                        <h3 class="card-title-prof"><span class="material-symbols-outlined icono-inline" aria-hidden="true">calendar_month</span> Calendario</h3>
-                      </div>
-                      <div class="calendario-header-prof">
-                        <button class="cal-nav-btn" (click)="calMesAnterior()"><span class="material-symbols-outlined icono-inline" aria-hidden="true">chevron_left</span></button>
-                        <span>{{ calNombreMesVisible }}</span>
-                        <button class="cal-nav-btn" (click)="calMesSiguiente()"><span class="material-symbols-outlined icono-inline" aria-hidden="true">chevron_right</span></button>
-                      </div>
-                      <div class="cal-grid-dias-nombre-prof">
-                        <span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span>
-                      </div>
-                      <div class="cal-grid-prof">
-                        <div *ngFor="let dia of calDiasMes" class="cal-celda-prof" [class.vacia]="!dia" [class.clickeable]="dia" (click)="seleccionarDiaInfo(dia)">
-                          <span *ngIf="dia" [class.hoy]="dia.esHoy" [class.feriado]="esFeriado(dia.fecha)" [title]="nombreFeriado(dia.fecha)">{{ dia.num }}</span>
-                        </div>
-                      </div>
-                      <div class="info-dia-prof" *ngIf="diaSeleccionadoInfo && infoDelDia(diaSeleccionadoInfo).length > 0">
-                        <span class="info-dia-prof-item" *ngFor="let info of infoDelDia(diaSeleccionadoInfo)">{{ info }}</span>
-                      </div>
-                      <p class="info-dia-prof-vacio" *ngIf="diaSeleccionadoInfo && infoDelDia(diaSeleccionadoInfo).length === 0">
-                        Nada especial que celebrar este día.
-                      </p>
-                      <button class="btn-ver-mas" style="margin-top:10px" (click)="navegarA('horario')">Ver calendario <span class="material-symbols-outlined icono-inline" aria-hidden="true">arrow_forward</span></button>
-                    </div>
+            <div class="card-prof inicio-calendario-prof">
+              <div class="inicio-cal-cab-prof">
+                <h3 class="card-title-prof"><span class="material-symbols-outlined icono-inline" aria-hidden="true">calendar_month</span> Calendario</h3>
+                <span class="inicio-cal-mes-prof">{{ calNombreMesVisible }}</span>
+                <button type="button" class="cal-nav-btn" (click)="calMesAnterior()" aria-label="Mes anterior"><span class="material-symbols-outlined icono-inline" aria-hidden="true">chevron_left</span></button>
+                <button type="button" class="cal-nav-btn" (click)="calMesSiguiente()" aria-label="Mes siguiente"><span class="material-symbols-outlined icono-inline" aria-hidden="true">chevron_right</span></button>
+              </div>
+              <div class="cal-grid-dias-nombre-prof">
+                <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span>
+              </div>
+              <div class="cal-grid-prof">
+                <div *ngFor="let dia of calDiasMes" class="cal-celda-prof clickeable" (click)="seleccionarDiaInfo(dia)">
+                  <span [class.hoy]="dia.esHoy" [class.otro-mes]="dia.otroMes" [class.feriado]="esFeriado(dia.fecha)" [title]="nombreFeriado(dia.fecha)">{{ dia.num }}</span>
+                </div>
+              </div>
+              <div class="info-dia-prof" *ngIf="diaSeleccionadoInfo && infoDelDia(diaSeleccionadoInfo).length > 0">
+                <span class="info-dia-prof-item" *ngFor="let info of infoDelDia(diaSeleccionadoInfo)">{{ info }}</span>
+              </div>
+              <p class="info-dia-prof-vacio" *ngIf="diaSeleccionadoInfo && infoDelDia(diaSeleccionadoInfo).length === 0">
+                Nada especial que celebrar este día.
+              </p>
+            </div>
 
             <div class="card-prof">
               <div class="card-header-prof">
@@ -371,17 +376,17 @@
         <!-- REQUIERE TU ATENCIÓN -->
         <div class="inicio-requiere-prof">
           <span class="inicio-requiere-titulo-prof"><span class="material-symbols-outlined" aria-hidden="true">warning</span> Requiere tu atención</span>
-          <button type="button" class="inicio-requiere-item-prof" (click)="navegarA('solicitudes')">
+          <button type="button" class="inicio-requiere-item-prof verde" (click)="navegarA('solicitudes')">
             <span class="inicio-requiere-icono-prof"><span class="material-symbols-outlined" aria-hidden="true">mail</span></span>
             <span><strong>{{ solicitudesPendientesTotal }} solicitud{{ solicitudesPendientesTotal === 1 ? '' : 'es' }} pendiente{{ solicitudesPendientesTotal === 1 ? '' : 's' }}</strong><small>Revisa y gestiona nuevas solicitudes</small></span>
             <span class="material-symbols-outlined inicio-kpi-flecha-prof" aria-hidden="true">chevron_right</span>
           </button>
-          <button type="button" class="inicio-requiere-item-prof" (click)="irAFichasSinCompletar()">
+          <button type="button" class="inicio-requiere-item-prof rojo" (click)="irAFichasSinCompletar()">
             <span class="inicio-requiere-icono-prof rojo"><span class="material-symbols-outlined" aria-hidden="true">description</span></span>
             <span><strong>{{ fichasSinCompletarCount }} registro{{ fichasSinCompletarCount === 1 ? '' : 's' }} incompleto{{ fichasSinCompletarCount === 1 ? '' : 's' }}</strong><small>Completa fichas clínicas</small></span>
             <span class="material-symbols-outlined inicio-kpi-flecha-prof" aria-hidden="true">chevron_right</span>
           </button>
-          <button type="button" class="inicio-requiere-item-prof" (click)="navegarA('horario')">
+          <button type="button" class="inicio-requiere-item-prof verde" (click)="navegarA('horario')">
             <span class="inicio-requiere-icono-prof"><span class="material-symbols-outlined" aria-hidden="true">schedule</span></span>
             <span><strong>{{ proximasSemana.length }} cita{{ proximasSemana.length === 1 ? '' : 's' }} próxima{{ proximasSemana.length === 1 ? '' : 's' }}</strong><small>Atenciones de los próximos días</small></span>
             <span class="material-symbols-outlined inicio-kpi-flecha-prof" aria-hidden="true">chevron_right</span>
