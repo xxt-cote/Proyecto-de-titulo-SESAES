@@ -243,4 +243,33 @@ describe('EstudianteCitasProximasComponent', () => {
     expect(aviso).toBeTruthy();
     expect(aviso.textContent).toContain('ya pasó');
   });
+
+  describe('tipo de cita', () => {
+    const marcas = () => Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('.tipo-cita')) as HTMLElement[];
+
+    beforeEach(() => {
+      fixture = TestBed.createComponent(EstudianteCitasProximasComponent);
+      component = fixture.componentInstance;
+    });
+
+    it('una cita de sobrecupo agendada por el administrador se reconoce como sobrecupo', () => {
+      fixture.componentRef.setInput('citas', [crearCita({ tipo: 'sobrecupo', sobrecupo: true })]);
+      fixture.detectChanges();
+      expect(marcas().map(m => m.textContent?.trim())).toEqual(['Sobrecupo']);
+      expect(marcas()[0].classList).toContain('sobrecupo');
+    });
+
+    it('una urgencia se reconoce como urgente y sigue mostrando su especialidad', () => {
+      fixture.componentRef.setInput('citas', [crearCita({ tipo: 'urgente', urgente: true })]);
+      fixture.detectChanges();
+      expect(marcas().map(m => m.textContent?.trim())).toEqual(['Urgente']);
+      expect((fixture.nativeElement as HTMLElement).querySelector('.cita-badge')?.textContent?.trim()).toBe('Psicología');
+    });
+
+    it('una cita normal no lleva marca', () => {
+      fixture.componentRef.setInput('citas', [crearCita({ tipo: 'normal' }), crearCita({ id: 2 })]);
+      fixture.detectChanges();
+      expect(marcas().length).toBe(0);
+    });
+  });
 });

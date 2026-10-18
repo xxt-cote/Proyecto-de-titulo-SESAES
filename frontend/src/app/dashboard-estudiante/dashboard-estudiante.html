@@ -25,13 +25,13 @@
         <span class="material-symbols-outlined" aria-hidden="true">calendar_month</span>
         Mis citas
       </button>
+      <button class="nav-item" [class.active]="seccionActiva === 'atenciones'" (click)="navegarA('atenciones')">
+        <span class="material-symbols-outlined" aria-hidden="true">favorite</span>
+        Mis atenciones
+      </button>
       <button class="nav-item" [class.active]="seccionActiva === 'cuestionarios'" (click)="navegarA('cuestionarios')">
         <span class="material-symbols-outlined" aria-hidden="true">assignment</span>
         Cuestionarios
-      </button>
-      <button class="nav-item" [class.active]="seccionActiva === 'citas' && citasTab === 'historial'" (click)="navegarA('citas', 'historial')">
-        <span class="material-symbols-outlined" aria-hidden="true">favorite</span>
-        Mis atenciones
       </button>
       <button class="nav-item" [class.active]="seccionActiva === 'configuracion'" (click)="navegarA('configuracion')">
         <span class="material-symbols-outlined" aria-hidden="true">person</span>
@@ -70,8 +70,8 @@
   <button class="btn-hamburguesa" (click)="toggleSidebarMovil()">
     <span class="material-symbols-outlined" aria-hidden="true">menu</span>
   </button>
-    <h1 class="topbar-title-est">{{ tituloSeccionEst }}</h1>
-    <span class="topbar-sub-est">{{ subtituloSeccionEst }}</span>
+    <h1 class="topbar-title-est" [style.visibility]="seccionActiva === 'inicio' ? 'hidden' : 'visible'">{{ tituloSeccionEst }}</h1>
+    <span class="topbar-sub-est" [style.visibility]="seccionActiva === 'inicio' ? 'hidden' : 'visible'">{{ subtituloSeccionEst }}</span>
   </div>
   <div class="topbar-actions-est">
     <button class="topbar-icon-btn-est" (click)="toggleTemaRapido()" [title]="temaOscuro ? 'Modo claro' : 'Modo oscuro'">
@@ -190,6 +190,45 @@
             <p class="inicio-frase-est"><span class="material-symbols-outlined" aria-hidden="true">favorite</span> Tu bienestar también es parte de tu vida universitaria</p>
           </header>
 
+          <div class="inicio-kpis-est">
+            <button type="button" class="kpi-inicio-est" (click)="navegarA('citas','proximas')">
+              <span class="kpi-inicio-icono"><span class="material-symbols-outlined" aria-hidden="true">event_available</span></span>
+              <span class="kpi-inicio-texto">
+                <small>Próxima cita</small>
+                <strong>{{ proximaCita ? fechaCorta(fechaIsoDe(proximaCita)) : 'Sin cita' }}</strong>
+                <span>{{ proximaCita ? proximaCita.especialidad : 'Agenda una hora' }}</span>
+              </span>
+              <span class="material-symbols-outlined kpi-inicio-flecha" aria-hidden="true">chevron_right</span>
+            </button>
+            <button type="button" class="kpi-inicio-est" (click)="navegarA('cuestionarios')">
+              <span class="kpi-inicio-icono aviso"><span class="material-symbols-outlined" aria-hidden="true">assignment</span></span>
+              <span class="kpi-inicio-texto">
+                <small>Cuestionarios pendientes</small>
+                <strong>{{ cuestionariosPendientes.length }}</strong>
+                <span>{{ cuestionariosPendientes.length === 0 ? 'Estás al día' : (cuestionariosPendientes.length === 1 ? 'Cuestionario por responder' : 'Cuestionarios por responder') }}</span>
+              </span>
+              <span class="material-symbols-outlined kpi-inicio-flecha" aria-hidden="true">chevron_right</span>
+            </button>
+            <button type="button" class="kpi-inicio-est" (click)="navegarA('atenciones')">
+              <span class="kpi-inicio-icono info"><span class="material-symbols-outlined" aria-hidden="true">description</span></span>
+              <span class="kpi-inicio-texto">
+                <small>Documentos disponibles</small>
+                <strong>{{ documentosDisponibles.length }}</strong>
+                <span>Recetas y justificativos</span>
+              </span>
+              <span class="material-symbols-outlined kpi-inicio-flecha" aria-hidden="true">chevron_right</span>
+            </button>
+            <button type="button" class="kpi-inicio-est" (click)="navegarA('atenciones')">
+              <span class="kpi-inicio-icono"><span class="material-symbols-outlined" aria-hidden="true">favorite</span></span>
+              <span class="kpi-inicio-texto">
+                <small>Atenciones realizadas</small>
+                <strong>{{ atencionesRealizadas }}</strong>
+                <span>Durante tu periodo en SESAES</span>
+              </span>
+              <span class="material-symbols-outlined kpi-inicio-flecha" aria-hidden="true">chevron_right</span>
+            </button>
+          </div>
+
           <section class="card-inicio-est">
             <h3 class="card-inicio-titulo">¿Qué necesitas hacer hoy?</h3>
             <p class="card-inicio-sub">Realiza tus trámites y accede a los servicios de salud que necesitas.</p>
@@ -202,58 +241,97 @@
                 </span>
                 <span class="material-symbols-outlined accion-inicio-flecha" aria-hidden="true">chevron_right</span>
               </button>
+              <button class="accion-inicio-est" (click)="navegarA('citas','proximas')">
+                <span class="accion-inicio-icono"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span></span>
+                <span class="accion-inicio-texto">
+                  <strong>Ver mis citas</strong>
+                  <small>Revisa tus próximas citas.</small>
+                </span>
+                <span class="material-symbols-outlined accion-inicio-flecha" aria-hidden="true">chevron_right</span>
+              </button>
               <button class="accion-inicio-est" (click)="navegarA('cuestionarios')">
                 <span class="accion-inicio-icono"><span class="material-symbols-outlined" aria-hidden="true">assignment</span></span>
                 <span class="accion-inicio-texto">
-                  <strong>Completar cuestionario</strong>
-                  <small>Ayúdanos a brindarte una mejor atención.</small>
+                  <strong>Responder cuestionario</strong>
+                  <small>Completa los cuestionarios pendientes de salud.</small>
+                </span>
+                <span class="material-symbols-outlined accion-inicio-flecha" aria-hidden="true">chevron_right</span>
+              </button>
+              <button class="accion-inicio-est" (click)="navegarA('atenciones')">
+                <span class="accion-inicio-icono"><span class="material-symbols-outlined" aria-hidden="true">description</span></span>
+                <span class="accion-inicio-texto">
+                  <strong>Ver documentos</strong>
+                  <small>Consulta tus recetas y justificativos.</small>
                 </span>
                 <span class="material-symbols-outlined accion-inicio-flecha" aria-hidden="true">chevron_right</span>
               </button>
             </div>
           </section>
 
-          <div class="inicio-resumen-est">
-            <article class="card-inicio-est resumen-card-est">
-              <span class="resumen-card-etiqueta"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span> Próxima cita</span>
-              <ng-container *ngIf="proximasCitas.length > 0; else sinProximaCita">
-                <strong class="resumen-card-valor">{{ proximasCitas[0].especialidad }}</strong>
-                <span class="resumen-card-texto">{{ proximasCitas[0].fecha }} · {{ proximasCitas[0].hora }}</span>
-                <span class="resumen-card-texto">Con {{ proximasCitas[0].profesional }}</span>
-                <button class="resumen-card-boton" (click)="navegarA('citas','proximas')">Ver detalle <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span></button>
+          <div class="inicio-par-est">
+            <section class="card-inicio-est">
+              <div class="card-inicio-cabecera">
+                <h3 class="card-inicio-titulo"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span> Próxima cita</h3>
+                <button class="enlace-inicio-est" (click)="navegarA('citas','proximas')">Ver todas mis citas <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span></button>
+              </div>
+              <ng-container *ngIf="proximaCita as pc; else sinProximaCita">
+                <div class="proxima-cita-est">
+                  <div class="proxima-cita-cab">
+                    <span class="proxima-cita-icono"><span class="material-symbols-outlined" aria-hidden="true">{{ iconoEspecialidad(pc.especialidad) }}</span></span>
+                    <div class="proxima-cita-quien">
+                      <span class="proxima-cita-especialidad"><strong>{{ pc.especialidad }}</strong> <span class="proxima-cita-estado">Confirmada</span> <app-tipo-cita-badge [tipo]="pc.tipo"></app-tipo-cita-badge></span>
+                      <span>{{ pc.profesional }}</span>
+                    </div>
+                  </div>
+                  <ul class="proxima-cita-datos">
+                    <li><span class="material-symbols-outlined" aria-hidden="true">calendar_today</span> {{ fechaLarga(fechaIsoDe(pc)) }}</li>
+                    <li><span class="material-symbols-outlined" aria-hidden="true">schedule</span> {{ pc.hora }} hrs.</li>
+                    <li *ngIf="infoCentro.direccion"><span class="material-symbols-outlined" aria-hidden="true">location_on</span> <span>{{ infoCentro.nombre_centro }}<small>{{ infoCentro.direccion }}</small></span></li>
+                  </ul>
+                  <div class="proxima-cita-acciones">
+                    <button class="resumen-card-boton resumen-card-boton-primario" (click)="navegarA('citas','proximas')">Ver detalles de la cita <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span></button>
+                    <button class="resumen-card-boton resumen-card-boton-contorno" (click)="reagendarCita(pc)"><span class="material-symbols-outlined" aria-hidden="true">autorenew</span> Reagendar cita</button>
+                  </div>
+                </div>
               </ng-container>
               <ng-template #sinProximaCita>
-                <strong class="resumen-card-valor">No tienes citas próximas</strong>
-                <span class="resumen-card-texto">Agenda una atención con nuestros profesionales.</span>
+                <p class="card-inicio-vacio">No tienes citas próximas. Agenda una atención con nuestros profesionales.</p>
                 <button class="resumen-card-boton resumen-card-boton-primario" (click)="navegarA('citas','solicitar')">Agendar cita <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span></button>
               </ng-template>
-            </article>
+            </section>
 
-            <article class="card-inicio-est resumen-card-est">
-              <span class="resumen-card-etiqueta"><span class="material-symbols-outlined" aria-hidden="true">assignment</span> Cuestionarios pendientes</span>
-              <strong class="resumen-card-valor">{{ cuestionariosPendientes.length }} cuestionario{{ cuestionariosPendientes.length === 1 ? '' : 's' }}</strong>
-              <span class="resumen-card-texto">{{ cuestionariosPendientes.length > 0 ? 'Completa los cuestionarios antes de tu próxima atención.' : 'Estás al día con tus cuestionarios.' }}</span>
-              <button class="resumen-card-boton" *ngIf="cuestionariosPendientes.length > 0" (click)="navegarA('cuestionarios')">Ver cuestionarios <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span></button>
-            </article>
+            <section class="card-inicio-est">
+              <div class="card-inicio-cabecera">
+                <h3 class="card-inicio-titulo"><span class="material-symbols-outlined" aria-hidden="true">notifications</span> Recordatorios y avisos</h3>
+                <button class="enlace-inicio-est" (click)="toggleNotificaciones()">Ver todos <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span></button>
+              </div>
+              <p class="card-inicio-vacio" *ngIf="recordatorios.length === 0">No tienes recordatorios por ahora.</p>
+              <div class="recordatorio-est" *ngFor="let r of recordatorios; trackBy: trackPorId" [ngClass]="r.tono">
+                <span class="recordatorio-icono"><span class="material-symbols-outlined" aria-hidden="true">{{ r.icono }}</span></span>
+                <span class="recordatorio-texto"><strong>{{ r.titulo }}</strong><small>{{ r.detalle }}</small></span>
+                <button type="button" class="recordatorio-cerrar" (click)="descartarRecordatorio(r.id)" aria-label="Descartar recordatorio"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
+              </div>
+            </section>
           </div>
 
           <section class="card-inicio-est">
             <div class="card-inicio-cabecera">
-              <h3 class="card-inicio-titulo">Mis últimas atenciones</h3>
-              <button class="enlace-inicio-est" (click)="navegarA('citas','historial')">Ver todas <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span></button>
+              <h3 class="card-inicio-titulo"><span class="material-symbols-outlined" aria-hidden="true">favorite</span> Mis últimas atenciones</h3>
+              <button class="enlace-inicio-est" (click)="navegarA('atenciones')">Ver todas <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span></button>
             </div>
-            <p class="card-inicio-vacio" *ngIf="historialMostrado.length === 0">Aún no tienes atenciones registradas.</p>
-            <div class="tabla-inicio-scroll" *ngIf="historialMostrado.length > 0">
+            <p class="card-inicio-vacio" *ngIf="ultimasAtenciones.length === 0">Aún no tienes atenciones registradas.</p>
+            <div class="tabla-inicio-scroll" *ngIf="ultimasAtenciones.length > 0">
               <table class="tabla-inicio-est">
                 <thead>
-                  <tr><th>Especialidad</th><th>Profesional</th><th>Fecha</th><th>Estado</th></tr>
+                  <tr><th>Especialidad</th><th>Profesional</th><th>Fecha</th><th>Estado</th><th>Acción</th></tr>
                 </thead>
                 <tbody>
-                  <tr *ngFor="let h of historialMostrado.slice(0,3)">
-                    <td>{{ h.especialidad }}</td>
-                    <td>{{ h.profesional }}</td>
-                    <td>{{ h.fecha }}</td>
-                    <td><span class="estado-badge" [ngClass]="h.estado">{{ h.estado }}</span></td>
+                  <tr *ngFor="let h of ultimasAtenciones">
+                    <td data-label="Especialidad">{{ h.especialidad }} <app-tipo-cita-badge [tipo]="h.tipo"></app-tipo-cita-badge></td>
+                    <td data-label="Profesional">{{ h.profesional }}</td>
+                    <td data-label="Fecha" class="celda-fecha-est">{{ fechaCorta(h.fecha) }}</td>
+                    <td data-label="Estado"><span class="estado-badge" [ngClass]="h.estado">{{ h.estado }}</span></td>
+                    <td data-label="Acción"><button type="button" class="enlace-inicio-est" (click)="verDetalleAtencion(h)"><span class="material-symbols-outlined" aria-hidden="true">description</span> Ver detalle</button></td>
                   </tr>
                 </tbody>
               </table>
@@ -279,44 +357,97 @@
           </section>
 
           <section class="card-inicio-est">
+            <div class="card-inicio-cabecera">
+              <h3 class="card-inicio-titulo"><span class="material-symbols-outlined" aria-hidden="true">description</span> Documentos recientes</h3>
+              <button class="enlace-inicio-est" (click)="navegarA('atenciones')">Ver todos <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span></button>
+            </div>
+            <p class="card-inicio-vacio" *ngIf="documentosRecientes.length === 0">Aún no tienes documentos emitidos.</p>
+            <div class="doc-reciente-est" *ngFor="let x of documentosRecientes; trackBy: trackPorDocumento">
+              <span class="doc-reciente-icono"><span class="material-symbols-outlined" aria-hidden="true">{{ x.doc.tipo === 'receta' ? 'prescriptions' : 'description' }}</span></span>
+              <span class="doc-reciente-texto"><strong>{{ x.doc.nombre_tipo }}</strong><small>{{ x.especialidad }}</small></span>
+              <span class="doc-reciente-fecha">{{ fechaCorta(x.fecha) }}</span>
+              <button type="button" class="doc-reciente-descarga" (click)="descargarDocumento(x.doc)" [attr.aria-label]="'Descargar ' + x.doc.nombre_tipo"><span class="material-symbols-outlined" aria-hidden="true">download</span></button>
+            </div>
+          </section>
+
+          <section class="card-inicio-est">
             <h3 class="card-inicio-titulo"><span class="material-symbols-outlined" aria-hidden="true">volunteer_activism</span> Tu salud importa</h3>
             <p class="card-inicio-sub">Si presentas síntomas o necesitas atención urgente, acude al servicio de urgencias de la universidad o comunícate con SESAES.</p>
             <button class="resumen-card-boton resumen-card-boton-contorno" (click)="navegarA('ayuda')">Ver más información <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span></button>
-          </section>
-
-          <section class="card-inicio-est frase-card-est">
-            <span class="material-symbols-outlined" aria-hidden="true">favorite</span>
-            <p>Cuídate hoy para seguir cumpliendo tus metas</p>
           </section>
         </aside>
       </div>
     </div>
 
-    <!-- ══ CUESTIONARIOS PENDIENTES ══ -->
+    <!-- ══ MIS CUESTIONARIOS (lista única: pendientes y respondidos) ══ -->
     <div class="section" *ngIf="seccionActiva === 'cuestionarios'">
-      <section class="card-inicio-est">
-        <h3 class="card-inicio-titulo">Cuestionarios de antecedentes</h3>
-        <p class="card-inicio-sub">Tu profesional los revisa antes de tu primera atención. Responde con la mayor precisión posible.</p>
-        <p class="card-inicio-vacio" *ngIf="cuestionariosPendientes.length === 0">No tienes cuestionarios pendientes.</p>
-        <div class="cuestionario-fila-est" *ngFor="let item of cuestionariosPendientes">
-          <span class="accion-inicio-icono"><span class="material-symbols-outlined" aria-hidden="true">assignment</span></span>
-          <span class="accion-inicio-texto">
-            <strong>{{ item.profesional_nombre }}</strong>
-            <small>{{ item.especialidad }}</small>
-          </span>
-          <button class="resumen-card-boton resumen-card-boton-primario" (click)="abrirCuestionario(item)">Completar</button>
+      <div class="cuestionarios-layout-est">
+
+        <div class="inicio-principal-est">
+          <section class="aviso-cuestionarios-est">
+            <span class="aviso-cuestionarios-icono"><span class="material-symbols-outlined" aria-hidden="true">info</span></span>
+            <div>
+              <strong>Los cuestionarios solo aparecen cuando un profesional necesita recopilar información antes de tu atención.</strong>
+              <p>Algunos cuestionarios son opcionales según el profesional. Te recomendamos responderlos antes de tu cita para una mejor atención.</p>
+            </div>
+          </section>
+
+          <div class="cuestionarios-kpis-est">
+            <div class="kpi-inicio-est kpi-estatico-est">
+              <span class="kpi-inicio-icono aviso"><span class="material-symbols-outlined" aria-hidden="true">assignment</span></span>
+              <span class="kpi-inicio-texto"><small>Pendientes</small><strong>{{ cuestionariosPendientes.length }}</strong></span>
+            </div>
+            <div class="kpi-inicio-est kpi-estatico-est">
+              <span class="kpi-inicio-icono"><span class="material-symbols-outlined" aria-hidden="true">check_circle</span></span>
+              <span class="kpi-inicio-texto"><small>Respondidos</small><strong>{{ cuestionariosRespondidos.length }}</strong></span>
+            </div>
+          </div>
+
+          <section class="card-inicio-est">
+            <h3 class="card-inicio-titulo">Mis cuestionarios</h3>
+            <p class="card-inicio-sub">Los formularios que tus profesionales te han pedido, tanto los pendientes como los que ya respondiste.</p>
+            <p class="card-inicio-vacio" *ngIf="cuestionariosLista.length === 0">No tienes cuestionarios por ahora. Aparecerán aquí cuando un profesional necesite información tuya antes de tu atención.</p>
+            <div class="tabla-inicio-scroll" *ngIf="cuestionariosLista.length > 0">
+              <table class="tabla-inicio-est tabla-cuestionarios-est">
+                <thead>
+                  <tr><th>Cuestionario</th><th>Profesional</th><th>Especialidad</th><th>Fecha</th><th>Estado</th><th>Acciones</th></tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let item of cuestionariosLista; trackBy: trackPorCuestionario" class="fila-cuestionario-est">
+                    <td data-label="Cuestionario"><span class="cuestionario-nombre-est">Cuestionario de antecedentes</span><small>Información de salud previa a tu atención.</small></td>
+                    <td data-label="Profesional"><div class="profesional-cell-est"><span class="mini-avatar">{{ calcularIniciales(item.profesional_nombre) }}</span><span>{{ item.profesional_nombre }}</span></div></td>
+                    <td data-label="Especialidad">{{ item.especialidad }}</td>
+                    <td data-label="Fecha">
+                      <ng-container *ngIf="item.estado === 'pendiente'"><span class="cuestionario-fecha-est">{{ fechaCorta(item.fecha) }}</span><small>Cita · {{ item.hora }}</small></ng-container>
+                      <ng-container *ngIf="item.estado !== 'pendiente'"><span class="cuestionario-fecha-est">{{ fechaCorta(item.fecha_respuesta) }}</span><small>Respuesta</small></ng-container>
+                    </td>
+                    <td data-label="Estado"><span class="estado-cuestionario-est" [ngClass]="item.estado">{{ item.estado }}</span></td>
+                    <td data-label="Acciones">
+                      <button type="button" class="resumen-card-boton resumen-card-boton-primario" *ngIf="item.estado === 'pendiente'" (click)="abrirCuestionario(item)">Responder ahora</button>
+                      <span class="sin-accion-est" *ngIf="item.estado !== 'pendiente'">—</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
         </div>
-      </section>
+
+        <aside class="inicio-lateral-est">
+          <section class="card-inicio-est">
+            <h3 class="card-inicio-titulo"><span class="material-symbols-outlined" aria-hidden="true">info</span> Información importante</h3>
+            <ol class="pasos-info-est">
+              <li><span class="paso-info-num">1</span><div><strong>Solicitud del profesional</strong><p>Los cuestionarios son solicitados por tu profesional cuando necesita conocer más información antes de tu atención.</p></div></li>
+              <li><span class="paso-info-num">2</span><div><strong>Responde antes de tu cita</strong><p>Te recomendamos completar los cuestionarios antes de tu cita para una mejor atención.</p></div></li>
+              <li><span class="paso-info-num">3</span><div><strong>Uso de la información</strong><p>Las respuestas son revisadas por tu profesional de salud y forman parte de tu atención médica.</p></div></li>
+              <li><span class="paso-info-num">4</span><div><strong>Confidencialidad</strong><p>Tu información es confidencial y se maneja según nuestras políticas de privacidad y seguridad de datos.</p></div></li>
+            </ol>
+          </section>
+        </aside>
+      </div>
     </div>
 
-    <!-- ══ AGENDAR HORA ══ -->
-    <!-- ══ MIS CITAS (pestañas: Próximas / Solicitar / Historial) ══ -->
-    <div class="tabs-ayuda" style="margin-bottom:24px;" *ngIf="seccionActiva === 'citas'">
-      <button class="tab-ayuda" [class.active]="citasTab === 'proximas'" (click)="citasTab = 'proximas'">Próximas</button>
-      <button class="tab-ayuda" [class.active]="citasTab === 'solicitar'" (click)="citasTab = 'solicitar'">Solicitar nueva cita</button>
-      <button class="tab-ayuda" [class.active]="citasTab === 'historial'" (click)="citasTab = 'historial'">Historial</button>
-    </div>
-
+    <!-- ══ AGENDAR CITA ══ -->
     <div class="section" *ngIf="seccionActiva === 'citas' && citasTab === 'solicitar'">
 
       <!-- STEPPER -->
@@ -354,13 +485,14 @@
           </select>
         </div>
 
+        <div class="profesionales-zona">
         <div class="profesionales-grid">
 
-          <div class="profesional-card" *ngFor="let p of profesionalesFiltrados()" (click)="seleccionarProfesional(p, $event)">
+          <div class="profesional-card" *ngFor="let p of profesionalesFiltrados(); trackBy: trackPorProfesional" (click)="seleccionarProfesional(p, $event)">
   <div class="profesional-img">
-    <!-- Foto del profesional si existe -->
-    <img *ngIf="p.foto_url" [src]="p.foto_url" class="prof-foto-card" alt="Foto" />
-    <div class="profesional-avatar-full" *ngIf="!p.foto_url">{{ p.iniciales }}</div>
+    <!-- Foto del profesional si tiene una subida; si no existe o no carga, se muestran sus iniciales -->
+    <img *ngIf="mostrarFoto(p)" [src]="p.foto_url" class="prof-foto-card" [alt]="'Foto de ' + p.nombre" (error)="fotoNoCarga(p)" />
+    <div class="profesional-avatar-full" *ngIf="!mostrarFoto(p)">{{ p.iniciales }}</div>
   </div>
   <div class="profesional-info-body">
     <span class="profesional-nombre">{{ p.nombre }}</span>
@@ -373,6 +505,7 @@
           <div *ngIf="profesionalesFiltrados().length === 0" style="grid-column:1/-1;text-align:center;color:var(--est-muted);padding:32px;font-size:14px;">
             No se encontraron profesionales con esos filtros.
           </div>
+        </div>
         </div>
 
         <!-- Paginación de profesionales -->
@@ -517,17 +650,15 @@
       ></app-estudiante-citas-proximas>
     </div>
 
-    <!-- ══ HISTORIAL (pestaña dentro de Mis Citas) ══ -->
-    <div class="section" *ngIf="seccionActiva === 'citas' && citasTab === 'historial'">
+    <!-- ══ MIS ATENCIONES ══ -->
+    <div class="section" *ngIf="seccionActiva === 'atenciones'">
       <app-estudiante-historial
         [historial]="historialCompleto"
-        [totalCitas]="totalCitas"
-        [citasCompletadas]="citasCompletadas"
-        [citasCanceladas]="citasCanceladas"
         [especialidadesDisponibles]="especialidadesDisponibles"
         (reagendar)="reagendarCita($event)"
         (verDetalle)="verDetalleAtencion($event)"
         (descargarPdf)="descargarPdf($event)"
+        (descargarDocumento)="descargarDocumento($event)"
       ></app-estudiante-historial>
     </div>
 
@@ -652,13 +783,14 @@
         <h3 class="config-card-title"><span class="material-symbols-outlined" aria-hidden="true">call</span> Contacto</h3>
         <p class="dato-inst" *ngIf="infoCentro.correo_contacto"><span>Correo</span><strong>{{ infoCentro.correo_contacto }}</strong></p>
         <p class="dato-inst" *ngIf="infoCentro.telefono"><span>Teléfono</span><strong>{{ infoCentro.telefono }}</strong></p>
-        <p class="dato-inst"><span>Ubicación</span><strong>{{ infoCentro.direccion }}</strong></p>
+        <p class="dato-inst" *ngIf="infoCentro.direccion"><span>Ubicación</span><strong>{{ infoCentro.direccion }}</strong></p>
+        <p class="ubicacion-direccion" *ngIf="!infoCentro.correo_contacto && !infoCentro.telefono && !infoCentro.direccion">Los datos de contacto aún no están configurados.</p>
         <a class="btn-cambiar" style="display:inline-block;text-decoration:none;margin-top:8px;" *ngIf="infoCentro.correo_contacto" [href]="'mailto:' + infoCentro.correo_contacto">Escribir un correo</a>
       </div>
 
     </div>
 
-    <!-- ══ MODAL: DETALLE DE ATENCIÓN (medicamento, observaciones, motivo) ══ -->
+    <!-- ══ MODAL: DETALLE DE ATENCIÓN (medicamento, motivo) ══ -->
     <div class="modal-overlay-est" *ngIf="detalleAtencionAbierto" (click)="cerrarDetalleAtencion()">
       <div class="modal-est" (click)="$event.stopPropagation()">
         <div class="modal-header-est">
@@ -673,22 +805,38 @@
           </div>
           <div class="detalle-atencion-fila">
             <span class="detalle-atencion-label">Fecha y hora</span>
-            <span class="detalle-atencion-valor">{{ h.fecha }} — {{ h.hora }}</span>
+            <span class="detalle-atencion-valor">{{ fechaCorta(h.fecha) }} — {{ h.hora }}</span>
           </div>
           <div class="detalle-atencion-fila">
             <span class="detalle-atencion-label">Motivo de consulta</span>
             <span class="detalle-atencion-valor">{{ h.motivo_consulta || 'No especificado' }}</span>
           </div>
+          <div class="detalle-atencion-fila" *ngIf="h.tipo && h.tipo !== 'normal'">
+            <span class="detalle-atencion-label">Tipo de atención</span>
+            <span class="detalle-atencion-valor"><app-tipo-cita-badge [tipo]="h.tipo"></app-tipo-cita-badge></span>
+          </div>
 
           <div class="detalle-atencion-separador"></div>
 
-          <div class="detalle-atencion-fila">
+          <div class="detalle-atencion-fila" *ngIf="h.estado === 'completada'">
             <span class="detalle-atencion-label">Medicamento suministrado</span>
-            <span class="detalle-atencion-valor">{{ h.medicamento || 'No se suministró medicamento.' }}</span>
+            <span class="detalle-atencion-valor">{{ h.medicamento || 'Sin medicamento suministrado en el centro.' }}</span>
           </div>
-          <div class="detalle-atencion-fila">
-            <span class="detalle-atencion-label">Observaciones de la atención</span>
-            <span class="detalle-atencion-valor">{{ h.observaciones_atencion || 'Sin observaciones adicionales.' }}</span>
+          <div class="detalle-atencion-fila" *ngIf="h.estado === 'completada'">
+            <span class="detalle-atencion-label">Documentos emitidos</span>
+            <span class="detalle-atencion-valor detalle-docs-est">
+              <span *ngIf="!h.documentos?.length">Ninguno</span>
+              <button type="button" class="detalle-doc-est" *ngFor="let d of h.documentos; trackBy: trackPorDocId"
+                      [class.anulado]="d.estado === 'anulado'" (click)="descargarDocumento(d)"
+                      [attr.aria-label]="'Descargar ' + d.nombre_tipo + ', folio ' + d.folio">
+                <span class="material-symbols-outlined" aria-hidden="true">{{ d.tipo === 'receta' ? 'prescriptions' : 'description' }}</span>
+                {{ d.nombre_tipo }} · {{ d.folio }}<span *ngIf="d.estado === 'anulado'"> (anulado)</span>
+              </button>
+            </span>
+          </div>
+          <div class="detalle-atencion-fila" *ngIf="h.estado === 'cancelada'">
+            <span class="detalle-atencion-label">Motivo de cancelación</span>
+            <span class="detalle-atencion-valor">{{ h.motivo_cancelacion || 'No informado' }}</span>
           </div>
         </div>
 

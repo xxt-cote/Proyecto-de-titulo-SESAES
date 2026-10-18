@@ -423,6 +423,46 @@ def cuestionarios_pendientes(
     return pendientes
 
 
+@router.get("/cuestionarios-respondidos/{estudiante_id}")
+def cuestionarios_respondidos(
+    estudiante_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Cuestionarios de antecedentes que el propio estudiante ya respondió, del más
+    reciente al más antiguo. Complementa a /cuestionarios-pendientes para que el
+    estudiante vea ambos estados en una sola lista.
+
+    Solo lista las fichas con completado_por="estudiante": una ficha que llenó el
+    profesional en consulta no es un cuestionario respondido por el estudiante.
+    No devuelve las respuestas, solo el estado: "respondido" mientras el
+    profesional no lo revisa y "revisado" cuando ya lo revisó.
+    """
+    # Mismo ownership estricto que /cuestionarios-pendientes: recurso propio del estudiante.
+    from app.auth_dependencies import verificar_acceso
+    verificar_acceso(current_user, id_esperado=estudiante_id, roles_permitidos=["estudiante"])
+
+    fichas = db.query(HistorialPaciente).filter(
+        HistorialPaciente.estudiante_id == estudiante_id,
+        HistorialPaciente.completado_por == "estudiante",
+    ).order_by(HistorialPaciente.fecha_creacion.desc(), HistorialPaciente.id.desc()).all()
+
+    respondidos = []
+    for f in fichas:
+        prof = db.query(Profesional).filter(Profesional.id == f.profesional_id).first()
+        if not prof:
+            continue
+        respondidos.append({
+            "profesional_id": prof.id,
+            "profesional_nombre": prof.nombre,
+            "especialidad": prof.especialidad,
+            "fecha_respuesta": f.fecha_creacion.isoformat() if f.fecha_creacion else None,
+            "estado": "revisado" if f.revisado_por_profesional else "respondido",
+        })
+    return respondidos
+
+
 @router.get("/cuestionario-estudiante/{profesional_id}")
 def obtener_cuestionario_para_estudiante(
     profesional_id: int,

@@ -209,6 +209,19 @@ def _verificar_acceso_a_cita(
     )
 
 
+def tipo_de_cita(cita) -> str:
+    """
+    Tipo de atención que se le muestra al estudiante: "normal", "urgente" o "sobrecupo".
+    Una urgencia prevalece sobre el sobrecupo (misma precedencia que la Agenda del administrador).
+    Es una marca de la cita: no cambia cuando se completa ni cuando el profesional emite documentos.
+    """
+    if cita.urgente:
+        return "urgente"
+    if cita.sobrecupo:
+        return "sobrecupo"
+    return "normal"
+
+
 @router.get("/citas/estudiante/{estudiante_id}")
 def get_citas_estudiante(
     estudiante_id: int,
@@ -230,7 +243,9 @@ def get_citas_estudiante(
             "profesional":  prof.nombre       if prof else "",
             "fecha":        c.fecha,
             "hora":         c.hora,
-            "urgente":      False,
+            "urgente":      bool(c.urgente),
+            "sobrecupo":    bool(c.sobrecupo),
+            "tipo":         tipo_de_cita(c),
             "aviso":        "Cancelación hasta 5 horas antes",
             "estado":       c.estado
         })
@@ -267,6 +282,9 @@ def get_historial(
             "iniciales":              prof.iniciales    if prof else "??",
             "especialidad":           prof.especialidad if prof else "",
             "estado":                 c.estado,
+            "urgente":                bool(c.urgente),
+            "sobrecupo":              bool(c.sobrecupo),
+            "tipo":                   tipo_de_cita(c),
             "tiene_pdf":              c.estado == "completada",
             "documentos":             docs_por_cita.get(c.id, []),
             "motivo_consulta":        c.observaciones,
@@ -712,6 +730,9 @@ def descargar_pdf_cita(
 
     prof = db.query(Profesional).filter(Profesional.id == cita.profesional_id).first()
 
+    from app.services.documento_clinico_service import documentos_por_citas
+    documentos = documentos_por_citas(db, [cita.id]).get(cita.id, [])
+
     from fpdf import FPDF
 
     LOGO_PATH = os.path.join(os.path.dirname(__file__), "..", "static", "temporal.jpg")
@@ -750,6 +771,8 @@ def descargar_pdf_cita(
     campo(pdf, "Fecha:", f" {cita.fecha}")
     campo(pdf, "Hora:", f" {cita.hora}")
     campo(pdf, "Motivo de consulta:", f" {cita.observaciones or 'No especificado'}")
+    if tipo_de_cita(cita) != "normal":
+        campo(pdf, "Tipo de atención:", f" {tipo_de_cita(cita).capitalize()}")
 
     # ── Registro de atención (NO es una receta; ver SA-11.3B) ──
     pdf.ln(6)
@@ -762,7 +785,22 @@ def descargar_pdf_cita(
     pdf.set_font("Helvetica", "B", 11)
     pdf.cell(0, 7, "Medicamento suministrado:", ln=True)
     pdf.set_font("Helvetica", "", 11)
-    pdf.multi_cell(0, 7, cita.medicamento or "No se suministró medicamento.")
+    pdf.multi_cell(0, 7, cita.medicamento or "Sin medicamento suministrado en el centro.")
+
+    # Los documentos que el profesional emitió en esta atención se listan acá para que el
+    # registro y los documentos digan lo mismo (antes el registro decía "sin medicamento"
+    # aunque existieran documentos emitidos).
+    pdf.ln(2)
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 7, "Documentos emitidos en esta atención:", ln=True)
+    pdf.set_font("Helvetica", "", 11)
+    if documentos:
+        for d in documentos:
+            anulado = " (anulado)" if d["estado"] == "anulado" else ""
+            # new_x/new_y: sin esto el cursor queda en el margen derecho y el 2.º documento no cabe.
+            pdf.multi_cell(0, 7, f"- {d['nombre_tipo']} - folio {d['folio']}{anulado}", new_x="LMARGIN", new_y="NEXT")
+    else:
+        pdf.multi_cell(0, 7, "Ninguno.", new_x="LMARGIN", new_y="NEXT")
 
     pdf.ln(2)
     pdf.set_font("Helvetica", "B", 11)

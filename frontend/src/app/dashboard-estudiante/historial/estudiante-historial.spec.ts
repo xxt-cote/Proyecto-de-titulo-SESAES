@@ -1,172 +1,207 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { vi } from 'vitest';
 import { EstudianteHistorialComponent } from './estudiante-historial';
 
-describe('EstudianteHistorialComponent', () => {
+describe('EstudianteHistorialComponent — Mis atenciones', () => {
   let component: EstudianteHistorialComponent;
   let fixture: ComponentFixture<EstudianteHistorialComponent>;
 
-  const crearHistorial = (cantidad: number) =>
-    Array.from({ length: cantidad }, (_, i) => ({
-      id: i + 1,
-      iniciales: `E${i + 1}`,
-      profesional: `Profesional ${i + 1}`,
-      especialidad: i % 2 === 0 ? 'Medicina General' : 'Psicología',
-      fecha: '31/08/2026',
-      fechaRaw: '2026-08-31',
-      hora: '10:00',
-      estado: i === 0 ? 'cancelada' : 'completada',
-      tiene_pdf: i === 1
-    }));
+  const doc = (id: number, tipo = 'receta', estado = 'vigente') =>
+    ({ id, tipo, nombre_tipo: tipo === 'receta' ? 'Receta médica' : 'Justificativo médico', folio: `F-${id}`, estado });
+
+  const crearHistorial = (): any[] => [
+    { id: 1, iniciales: 'CM', profesional: 'Carlos Muñoz', especialidad: 'Nutrición', fecha: '2026-07-20', fechaRaw: '2026-07-20', hora: '06:45', estado: 'completada', tiene_pdf: true, documentos: [doc(10), doc(11, 'justificativo')] },
+    { id: 2, iniciales: 'AM', profesional: 'Dra. Ana Martínez', especialidad: 'Medicina General', fecha: '2026-07-30', fechaRaw: '2026-07-30', hora: '13:15', estado: 'completada', tiene_pdf: true, documentos: [] },
+    { id: 3, iniciales: 'VR', profesional: 'Dra. Valentina Rojas', especialidad: 'Odontología', fecha: '2026-07-29', fechaRaw: '2026-07-29', hora: '12:30', estado: 'cancelada', tiene_pdf: false, documentos: [] },
+    { id: 4, iniciales: 'DS', profesional: 'Diego Soto', especialidad: 'Kinesiología', fecha: '2026-07-31', fechaRaw: '2026-07-31', hora: '13:15', estado: 'inasistencia', tiene_pdf: false, documentos: [doc(12, 'receta', 'anulado')] }
+  ];
+
+  const el = () => fixture.nativeElement as HTMLElement;
 
   beforeEach(async () => {
-    // No se provee HttpClient/HttpTestingController a propósito: si el
-    // componente intentara inyectar HttpClient para cargar el historial,
-    // esta configuración fallaría al crear el fixture. Que el test pase
-    // así confirma que EstudianteHistorialComponent no hace HTTP propio.
+    // No se provee HttpClient a propósito: si el componente intentara inyectarlo,
+    // crear el fixture fallaría. Que pase confirma que no hace HTTP propio.
     await TestBed.configureTestingModule({
       imports: [EstudianteHistorialComponent]
     }).compileComponents();
 
     fixture = TestBed.createComponent(EstudianteHistorialComponent);
     component = fixture.componentInstance;
-    fixture.componentRef.setInput('especialidadesDisponibles', ['Medicina General', 'Psicología']);
+    fixture.componentRef.setInput('especialidadesDisponibles', ['Nutrición', 'Medicina General', 'Odontología', 'Kinesiología']);
+    fixture.componentRef.setInput('historial', crearHistorial());
     fixture.detectChanges();
-  });
-
-  it('debe crearse', () => {
-    expect(component).toBeTruthy();
   });
 
   it('no realiza llamadas HTTP propias', () => {
-    // El componente no declara HttpClient como dependencia — no hay
-    // ningún import de @angular/common/http en este archivo, y el
-    // TestBed de arriba tampoco lo provee.
     expect((component as any).http).toBeUndefined();
   });
 
-  it('muestra los registros recibidos por @Input', () => {
-    const historial = crearHistorial(3);
-    fixture.componentRef.setInput('historial', historial);
-    fixture.detectChanges();
+  describe('indicadores', () => {
+    it('muestra total, completadas, canceladas y documentos emitidos', () => {
+      const nums = Array.from(el().querySelectorAll('.atenciones-kpi-num')).map(n => n.textContent?.trim());
+      expect(nums).toEqual(['4', '2', '1', '3']);
+      const labels = Array.from(el().querySelectorAll('.atenciones-kpi-label')).map(n => n.textContent?.trim());
+      expect(labels).toEqual(['Total de atenciones', 'Completadas', 'Canceladas', 'Documentos emitidos']);
+    });
 
-    expect(component.historialMostrado.length).toBe(3);
-    const texto = fixture.nativeElement.textContent as string;
-    expect(texto).toContain('Profesional 1');
-    expect(texto).toContain('Profesional 3');
+    it('con historial vacío todo queda en cero y se avisa que no hay atenciones', () => {
+      fixture.componentRef.setInput('historial', []);
+      fixture.detectChanges();
+      const nums = Array.from(el().querySelectorAll('.atenciones-kpi-num')).map(n => n.textContent?.trim());
+      expect(nums).toEqual(['0', '0', '0', '0']);
+      expect(el().textContent).toContain('Aún no tienes atenciones registradas.');
+      expect(el().querySelector('table')).toBeNull();
+    });
   });
 
-  it('maneja correctamente un historial vacío', () => {
-    fixture.componentRef.setInput('historial', []);
+  describe('tabla', () => {
+    it('muestra fecha corta, profesional, especialidad y estado de cada atención', () => {
+      const filas = el().querySelectorAll('tbody tr');
+      expect(filas.length).toBe(4);
+      const primera = filas[0].textContent ?? '';
+      expect(primera).toContain('20 jul 2026');
+      expect(primera).toContain('06:45');
+      expect(primera).toContain('Carlos Muñoz');
+      expect(primera).toContain('Nutrición');
+      expect(filas[2].querySelector('.estado-badge')?.classList).toContain('cancelada');
+    });
 
-    expect(() => fixture.detectChanges()).not.toThrow();
+    it('cada documento es un icono descargable y la atención sin documentos muestra un guion', () => {
+      const filas = el().querySelectorAll('tbody tr');
+      expect(filas[0].querySelectorAll('.doc-icono').length).toBe(2);
+      expect(filas[1].querySelectorAll('.doc-icono').length).toBe(0);
+      expect(filas[1].querySelector('.sin-documentos')?.textContent).toContain('—');
+    });
 
-    expect(component.historialMostrado).toEqual([]);
-    expect(fixture.nativeElement.querySelectorAll('tbody tr').length).toBe(0);
+    it('el documento anulado se distingue pero sigue disponible', () => {
+      const icono = el().querySelectorAll('tbody tr')[3].querySelector('.doc-icono') as HTMLButtonElement;
+      expect(icono.classList).toContain('anulado');
+      expect(icono.title).toContain('anulado');
+    });
+
+    it('descargar un documento emite el documento al shell', () => {
+      const emitido: any[] = [];
+      component.descargarDocumento.subscribe(d => emitido.push(d));
+      (el().querySelectorAll('tbody tr')[0].querySelector('.doc-icono') as HTMLButtonElement).click();
+      expect(emitido.length).toBe(1);
+      expect(emitido[0].id).toBe(10);
+    });
+
+    it('"Ver detalle" emite la atención completa', () => {
+      const emitido: any[] = [];
+      component.verDetalle.subscribe(h => emitido.push(h));
+      (el().querySelectorAll('tbody tr')[1].querySelector('.atencion-btn-detalle') as HTMLButtonElement).click();
+      expect(emitido[0].id).toBe(2);
+    });
+
+    it('el menú ofrece PDF solo en completadas con PDF y Reagendar solo en canceladas', () => {
+      const filas = el().querySelectorAll('tbody tr');
+      expect(filas[0].querySelector('.atencion-menu-lista')?.textContent).toContain('Descargar PDF');
+      expect(filas[0].querySelector('.atencion-menu-lista')?.textContent).not.toContain('Reagendar');
+      expect(filas[2].querySelector('.atencion-menu-lista')?.textContent).toContain('Reagendar');
+      expect(filas[2].querySelector('.atencion-menu-lista')?.textContent).not.toContain('Descargar PDF');
+      expect(filas[3].querySelector('.atencion-menu')).toBeNull();
+    });
+
+    it('PDF y Reagendar emiten sus eventos', () => {
+      const pdf: number[] = [];
+      const reag: any[] = [];
+      component.descargarPdf.subscribe(id => pdf.push(id));
+      component.reagendar.subscribe(h => reag.push(h));
+      const filas = el().querySelectorAll('tbody tr');
+      (filas[0].querySelector('.atencion-menu-lista button') as HTMLButtonElement).click();
+      (filas[2].querySelector('.atencion-menu-lista button') as HTMLButtonElement).click();
+      expect(pdf).toEqual([1]);
+      expect(reag[0].id).toBe(3);
+    });
   });
 
-  it('resetea la vista al llegar un nuevo valor de historial (ngOnChanges)', () => {
-    fixture.componentRef.setInput('historial', crearHistorial(5));
-    fixture.detectChanges();
-    expect(component.historialMostrado.length).toBe(5);
+  describe('tipo de cita', () => {
+    const filas = () => Array.from(el().querySelectorAll('tbody tr')) as HTMLElement[];
 
-    fixture.componentRef.setInput('historial', crearHistorial(2));
-    fixture.detectChanges();
-    expect(component.historialMostrado.length).toBe(2);
+    beforeEach(() => {
+      const base = crearHistorial();
+      base[0] = { ...base[0], tipo: 'sobrecupo', sobrecupo: true };
+      base[1] = { ...base[1], tipo: 'urgente', urgente: true };
+      base[2] = { ...base[2], tipo: 'sobrecupo', sobrecupo: true };   // cancelada: conserva su tipo
+      base[3] = { ...base[3], tipo: 'normal' };
+      fixture.componentRef.setInput('historial', base);
+      fixture.detectChanges();
+    });
+
+    it('una atención de sobrecupo con documentos sigue marcada como sobrecupo y con sus documentos', () => {
+      const f = filas()[0];
+      expect(f.querySelector('.tipo-cita')?.textContent?.trim()).toBe('Sobrecupo');
+      expect(f.querySelectorAll('.doc-icono').length).toBe(2);
+      expect(f.classList).toContain('tipo-sobrecupo');
+    });
+
+    it('una urgencia se marca como urgente', () => {
+      expect(filas()[1].querySelector('.tipo-cita')?.textContent?.trim()).toBe('Urgente');
+      expect(filas()[1].classList).toContain('tipo-urgente');
+    });
+
+    it('una cancelada de sobrecupo conserva la marca', () => {
+      expect(filas()[2].querySelector('.tipo-cita')?.textContent?.trim()).toBe('Sobrecupo');
+    });
+
+    it('una atención normal no lleva marca ni barra de color', () => {
+      expect(filas()[3].querySelector('.tipo-cita')).toBeNull();
+      expect(filas()[3].classList).not.toContain('tipo-sobrecupo');
+      expect(filas()[3].classList).not.toContain('tipo-urgente');
+    });
   });
 
-  it('filtra por profesional ignorando espacios, mayúsculas y tildes', () => {
-    const historial = crearHistorial(3);
-    historial[1].profesional = 'José Pérez';
-    fixture.componentRef.setInput('historial', historial);
-    fixture.detectChanges();
+  describe('filtros', () => {
+    const aplicar = () => { component.filtrar(); fixture.detectChanges(); };
 
-    component.filtroProfesional = '  JOSE PEREZ  ';
-    component.historialFiltrado();
-    fixture.detectChanges();
+    it('la búsqueda de texto coincide con profesional o con especialidad, sin tildes ni mayúsculas', () => {
+      component.filtroBusqueda = 'nutricion';
+      aplicar();
+      expect(component.historialMostrado.map(h => h.id)).toEqual([1]);
+      component.filtroBusqueda = 'ana martinez';
+      aplicar();
+      expect(component.historialMostrado.map(h => h.id)).toEqual([2]);
+    });
 
-    expect(component.historialMostrado.length).toBe(1);
-    expect(component.historialMostrado[0].profesional).toBe('José Pérez');
-  });
+    it('filtra por especialidad y por fecha', () => {
+      component.filtroEspecialidad = 'Odontología';
+      aplicar();
+      expect(component.historialMostrado.map(h => h.id)).toEqual([3]);
+      component.filtroEspecialidad = '';
+      component.filtroFecha = '2026-07-31';
+      aplicar();
+      expect(component.historialMostrado.map(h => h.id)).toEqual([4]);
+    });
 
-  it('filtra por especialidad y por fecha exacta (fechaRaw)', () => {
-    const historial = crearHistorial(4);
-    fixture.componentRef.setInput('historial', historial);
-    fixture.detectChanges();
+    it('los filtros no cambian los indicadores y el conteo muestra cuántos se ven', () => {
+      component.filtroEspecialidad = 'Nutrición';
+      aplicar();
+      expect(el().querySelector('.atenciones-kpi-num')?.textContent?.trim()).toBe('4');
+      expect(el().querySelector('.atenciones-conteo')?.textContent).toContain('Mostrando 1 de 4 registros');
+    });
 
-    component.filtroEspecialidad = 'Psicología';
-    component.historialFiltrado();
-    expect(component.historialMostrado.every(h => h.especialidad === 'Psicología')).toBe(true);
+    it('sin coincidencias avisa y oculta la tabla', () => {
+      component.filtroBusqueda = 'zzz';
+      aplicar();
+      expect(el().textContent).toContain('No hay atenciones que coincidan con tu búsqueda.');
+      expect(el().querySelector('table')).toBeNull();
+    });
 
-    component.filtroEspecialidad = '';
-    component.filtroFecha = '2026-08-31';
-    component.historialFiltrado();
-    expect(component.historialMostrado.length).toBe(4);
+    it('Limpiar restaura todo el historial', () => {
+      component.filtroBusqueda = 'nutricion';
+      aplicar();
+      component.limpiarFiltros();
+      fixture.detectChanges();
+      expect(component.historialMostrado.length).toBe(4);
+      expect(component.filtroBusqueda).toBe('');
+    });
 
-    component.filtroFecha = '2099-01-01';
-    component.historialFiltrado();
-    expect(component.historialMostrado.length).toBe(0);
-  });
-
-  it('"Limpiar" restablece los filtros y vuelve a mostrar todo el historial', () => {
-    fixture.componentRef.setInput('historial', crearHistorial(3));
-    fixture.detectChanges();
-
-    component.filtroProfesional = 'Profesional 2';
-    component.historialFiltrado();
-    expect(component.historialMostrado.length).toBe(1);
-
-    component.limpiarFiltros();
-
-    expect(component.filtroProfesional).toBe('');
-    expect(component.filtroEspecialidad).toBe('');
-    expect(component.filtroFecha).toBe('');
-    expect(component.historialMostrado.length).toBe(3);
-  });
-
-  it('emite reagendar con la cita cancelada seleccionada', () => {
-    const historial = crearHistorial(1); // estado 'cancelada'
-    const emitSpy = vi.spyOn(component.reagendar, 'emit');
-    fixture.componentRef.setInput('historial', historial);
-    fixture.detectChanges();
-
-    const boton = fixture.nativeElement.querySelector('.doc-link') as HTMLElement;
-    boton.click();
-
-    expect(emitSpy).toHaveBeenCalledWith(historial[0]);
-  });
-
-  it('emite verDetalle con la atención completada seleccionada', () => {
-    const historial = crearHistorial(2); // el segundo elemento está 'completada'
-    const emitSpy = vi.spyOn(component.verDetalle, 'emit');
-    fixture.componentRef.setInput('historial', historial);
-    fixture.detectChanges();
-
-    const enlaces = Array.from(
-      fixture.nativeElement.querySelectorAll('.doc-link') as NodeListOf<HTMLElement>
-    );
-    const verDetalleLink = enlaces.find(el => el.textContent?.includes('Ver detalle'));
-
-    expect(verDetalleLink).toBeTruthy();
-    verDetalleLink!.click();
-
-    expect(emitSpy).toHaveBeenCalledWith(historial[1]);
-  });
-
-  it('emite descargarPdf con el id cuando la atención tiene PDF', () => {
-    const historial = crearHistorial(2); // el segundo elemento tiene tiene_pdf=true
-    const emitSpy = vi.spyOn(component.descargarPdf, 'emit');
-    fixture.componentRef.setInput('historial', historial);
-    fixture.detectChanges();
-
-    const enlaces = Array.from(
-      fixture.nativeElement.querySelectorAll('.doc-link') as NodeListOf<HTMLElement>
-    );
-    const pdfLink = enlaces.find(el => el.textContent?.includes('PDF'));
-
-    expect(pdfLink).toBeTruthy();
-    pdfLink!.click();
-
-    expect(emitSpy).toHaveBeenCalledWith(historial[1].id);
+    it('si el historial se recarga con un filtro activo, el filtro se mantiene', () => {
+      component.filtroEspecialidad = 'Nutrición';
+      aplicar();
+      fixture.componentRef.setInput('historial', [...crearHistorial(), { id: 5, iniciales: 'XX', profesional: 'Otra', especialidad: 'Nutrición', fecha: '2026-08-01', fechaRaw: '2026-08-01', hora: '09:00', estado: 'completada', documentos: [] }]);
+      fixture.detectChanges();
+      expect(component.historialMostrado.map(h => h.id)).toEqual([1, 5]);
+    });
   });
 });

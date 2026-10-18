@@ -7,7 +7,7 @@
       <div class="cita-card-row">
         <div class="cita-avatar">{{ cita.iniciales || cita.especialidad?.substring(0,2) }}</div>
         <div class="cita-info">
-          <span class="cita-badge" [class.urgente]="cita.urgente"><span *ngIf="cita.urgente" class="material-symbols-outlined" aria-hidden="true">priority_high</span> {{ cita.urgente ? 'Urgente' : cita.especialidad }}</span>
+          <span class="cita-badge">{{ cita.especialidad }}</span> <app-tipo-cita-badge [tipo]="cita.tipo"></app-tipo-cita-badge>
           <p class="cita-nombre">{{ cita.profesional }}</p>
           <p class="cita-profesional">{{ cita.especialidad }}</p>
         </div>

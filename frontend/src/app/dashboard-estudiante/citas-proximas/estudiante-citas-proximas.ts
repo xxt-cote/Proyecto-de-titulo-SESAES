@@ -1,5 +1,6 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { EstudianteTipoCitaBadgeComponent } from '../tipo-cita-badge/estudiante-tipo-cita-badge';
 
 // ══════════════════════════════════════════════════════════════════
 // EstudianteCitasProximasComponent — Student 5B (extracción presentacional)
@@ -15,7 +16,7 @@ import { CommonModule } from '@angular/common';
 @Component({
   selector: 'app-estudiante-citas-proximas',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, EstudianteTipoCitaBadgeComponent],
   templateUrl: './estudiante-citas-proximas.html',
   styleUrl: './estudiante-citas-proximas.css'
 })

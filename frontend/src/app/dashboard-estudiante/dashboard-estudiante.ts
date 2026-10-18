@@ -13,14 +13,18 @@ import { obtenerDiasInternacionales } from '../shared/dias-internacionales';
 import { ToastService } from '../shared/toast/toast.service';
 import { EstudianteHistorialComponent } from './historial/estudiante-historial';
 import { EstudianteCitasProximasComponent } from './citas-proximas/estudiante-citas-proximas';
+import { EstudianteTipoCitaBadgeComponent } from './tipo-cita-badge/estudiante-tipo-cita-badge';
 import { evaluarPassword, type PasswordChecklist } from '../shared/password-validation';
 import { coincideBusqueda } from '../shared/text-normalization';
+import { fechaCorta, fechaLarga } from '../shared/formato-fecha';
+import { guardarBlob, mensajeErrorDescarga } from '../shared/descarga-archivo';
+import type { DocumentoResumen } from '../shared/documentos-cita/documentos-cita';
 const API = environment.apiUrl;
 
 @Component({
   selector: 'app-dashboard-estudiante',
   standalone: true,
-  imports: [CommonModule, FormsModule, PhotoCropperComponent, PhotoViewerComponent, EstudianteHistorialComponent, EstudianteCitasProximasComponent],
+  imports: [CommonModule, FormsModule, PhotoCropperComponent, PhotoViewerComponent, EstudianteHistorialComponent, EstudianteCitasProximasComponent, EstudianteTipoCitaBadgeComponent],
   templateUrl: './dashboard-estudiante.html',
   styleUrl: './dashboard-estudiante.css'
 })
@@ -64,14 +68,14 @@ export class DashboardEstudianteComponent implements OnInit {
   if (this.seccionActiva === 'citas') {
     const map: Record<string, string> = {
       proximas:  'Mis Citas',
-      solicitar: 'Solicitar Nueva Cita',
-      historial: 'Historial de Citas'
+      solicitar: 'Solicitar Nueva Cita'
     };
     return map[this.citasTab] ?? 'Mis Citas';
   }
   const map: Record<string, string> = {
     inicio:         'Inicio',
-    cuestionarios:  'Cuestionarios',
+    atenciones:     'Mis Atenciones',
+    cuestionarios:  'Mis Cuestionarios',
     configuracion:  'Mi Perfil',
     ayuda:          'Ayuda'
   };
@@ -82,14 +86,14 @@ get subtituloSeccionEst(): string {
   if (this.seccionActiva === 'citas') {
     const map: Record<string, string> = {
       proximas:  'Gestiona tus próximas atenciones médicas.',
-      solicitar: 'Sigue los pasos para confirmar tu atención médica.',
-      historial: 'Consulta el registro de todas tus atenciones médicas.'
+      solicitar: 'Sigue los pasos para confirmar tu atención médica.'
     };
     return map[this.citasTab] ?? '';
   }
   const map: Record<string, string> = {
     inicio:        'Gestiona tus atenciones en SESAES.',
-    cuestionarios: 'Completa tus cuestionarios de antecedentes antes de tu atención.',
+    atenciones:    'Consulta el registro de tus atenciones médicas y la documentación asociada.',
+    cuestionarios: 'Completa los formularios que tus profesionales soliciten antes de tu atención.',
     configuracion: 'Gestiona tu información personal y seguridad de tu cuenta.',
     ayuda:         'Mapa de SESAES, preguntas frecuentes y contacto.'
   };
@@ -117,6 +121,7 @@ get subtituloSeccionEst(): string {
     this.cargarNotificaciones();
     this.cargarInfoCentro();
     this.cargarCuestionariosPendientes();
+    this.cargarCuestionariosRespondidos();
     this.cargarDiasCerrados();
 
     // Cuenta creada con contraseña temporal (ej. carga masiva) — se le
@@ -196,6 +201,26 @@ get subtituloSeccionEst(): string {
     });
   }
 
+  cuestionariosRespondidos: any[] = [];
+
+  cargarCuestionariosRespondidos(): void {
+    this.http.get<any[]>(`${API}/historial-clinico/cuestionarios-respondidos/${this.estudianteId}`).subscribe({
+      next: (data) => {
+        this.cuestionariosRespondidos = data ?? [];
+        this.cdr.detectChanges();
+      },
+      error: () => {}
+    });
+  }
+
+  /** Lista única de la sección: primero lo pendiente, después lo ya respondido (del más reciente al más antiguo). */
+  get cuestionariosLista(): any[] {
+    return [
+      ...this.cuestionariosPendientes.map(c => ({ ...c, estado: 'pendiente' })),
+      ...this.cuestionariosRespondidos
+    ];
+  }
+
   abrirCuestionario(item: any): void {
     this.errorCuestionario = '';
     this.http.get<any>(`${API}/historial-clinico/cuestionario-estudiante/${item.profesional_id}`).subscribe({
@@ -238,6 +263,7 @@ get subtituloSeccionEst(): string {
         this.cerrarCuestionario();
         this.mensajeExito = 'Cuestionario enviado correctamente.';
         this.cargarCuestionariosPendientes();
+        this.cargarCuestionariosRespondidos();
         this.cdr.detectChanges();
         setTimeout(() => { this.mensajeExito = ''; this.cdr.detectChanges(); }, 4000);
       },
@@ -400,7 +426,7 @@ get subtituloSeccionEst(): string {
     });
   }
 
-  private calcularIniciales(nombre: string): string {
+  calcularIniciales(nombre: string): string {
     const partes = nombre.split(' ');
     return partes.length >= 2
       ? partes[0][0] + partes[1][0]
@@ -421,14 +447,13 @@ get subtituloSeccionEst(): string {
     this.http.get<any[]>(`${API}/historial/estudiante/${this.estudianteId}`).subscribe({
       next: (data) => {
         this.historialCompleto = data ?? [];
-        this.historialMostrado = this.historialCompleto;
         this.cdr.detectChanges();
       },
       error: () => {}
     });
   }
 
-  citasTab: 'proximas' | 'solicitar' | 'historial' = 'proximas';
+  citasTab: 'proximas' | 'solicitar' = 'proximas';
 
   navegarA(seccion: string, subTab?: string): void {
     this.seccionActiva     = seccion;
@@ -465,6 +490,20 @@ get subtituloSeccionEst(): string {
   get hayPaginaSiguiente(): boolean {
     return (this.pagProf + 1) * this.profPorPagina < this.profesionalesFiltradosTotal.length;
   }
+
+  /** Profesionales cuya foto no cargó (enlace roto): se muestran con sus iniciales. */
+  private fotosFallidas = new Set<number>();
+
+  mostrarFoto(p: any): boolean {
+    return !!p.foto_url && !this.fotosFallidas.has(p.id);
+  }
+
+  fotoNoCarga(p: any): void {
+    this.fotosFallidas.add(p.id);
+    this.cdr.detectChanges();
+  }
+
+  trackPorProfesional = (_: number, p: { id: number }): number => p.id;
 
   paginaAnteriorProf(): void { if (this.hayPaginaAnterior) this.pagProf--; }
   paginaSiguienteProf(): void { if (this.hayPaginaSiguiente) this.pagProf++; }
@@ -510,7 +549,7 @@ get subtituloSeccionEst(): string {
     const vacias = (new Date(anio, mes, 1).getDay() + 6) % 7; // semana desde el lunes
     const diasMes = new Date(anio, mes + 1, 0).getDate();
     const hoy = this.hoyStr();
-    const conCita = new Set(this.proximasCitas.map(c => c.fecha));
+    const conCita = new Set(this.proximasCitas.map(c => this.fechaIsoDe(c)));
     const celdas: ({ num: number; hoy: boolean; conCita: boolean } | null)[] = Array(vacias).fill(null);
     for (let d = 1; d <= diasMes; d++) {
       const iso = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
@@ -528,6 +567,10 @@ get subtituloSeccionEst(): string {
   }
 
   trackPorIndice = (indice: number): number => indice;
+  trackPorId = (_: number, item: { id: string }): string => item.id;
+  trackPorDocId = (_: number, d: { id: number }): number => d.id;
+  trackPorCuestionario = (_: number, item: { estado: string; profesional_id: number }): string => `${item.estado}-${item.profesional_id}`;
+  trackPorDocumento = (_: number, item: { doc: DocumentoResumen }): number => item.doc.id;
 
   private hoyStr(): string {
     const h = new Date();
@@ -661,7 +704,7 @@ get subtituloSeccionEst(): string {
       next: (resp) => {
         this.proximasCitas.push({
           id: resp.id, iniciales: resp.iniciales, especialidad: resp.especialidad,
-          profesional: resp.profesional, fecha: this.getFechaDisplay(),
+          profesional: resp.profesional, fecha: this.getFechaDisplay(), fechaIso: this.fechaSeleccionada,
           hora: resp.hora, urgente: false, aviso: resp.aviso, estado: resp.estado
         });
         this.resetAgendar();
@@ -804,7 +847,6 @@ get subtituloSeccionEst(): string {
   // HISTORIAL
   // ══════════════════════════════════════
   historialCompleto: any[] = [];
-  historialMostrado: any[] = [];
 
   // Ícono representativo por especialidad — con fallback genérico para
   // cualquier especialidad nueva que se agregue desde el backend.
@@ -839,9 +881,84 @@ get subtituloSeccionEst(): string {
   }
 
 
-  get totalCitas()       { return this.historialCompleto.length; }
-  get citasCompletadas() { return this.historialCompleto.filter(h => h.estado === 'completada').length; }
-  get citasCanceladas()  { return this.historialCompleto.filter(h => h.estado === 'cancelada').length; }
+  // ── Datos derivados que usa el Inicio ──
+
+  readonly fechaCorta = fechaCorta;
+  readonly fechaLarga = fechaLarga;
+
+  get atencionesRealizadas(): number {
+    return this.historialCompleto.filter(h => h.estado === 'completada').length;
+  }
+
+  /** Las 3 atenciones más recientes (el backend no entrega el historial ordenado). */
+  get ultimasAtenciones(): any[] {
+    return [...this.historialCompleto]
+      .sort((a, b) => `${b.fechaRaw ?? b.fecha} ${b.hora ?? ''}`.localeCompare(`${a.fechaRaw ?? a.fecha} ${a.hora ?? ''}`))
+      .slice(0, 3);
+  }
+
+  /**
+   * Fecha ISO de una cita. El backend la entrega en ISO en `fecha`, pero una cita recién
+   * agendada (antes de recargar) trae `fecha` como texto legible y su ISO en `fechaIso`.
+   */
+  fechaIsoDe(cita: any): string {
+    return cita?.fechaIso ?? cita?.fecha ?? '';
+  }
+
+  /** La cita pendiente más cercana (el backend tampoco ordena las próximas). */
+  get proximaCita(): any | null {
+    if (this.proximasCitas.length === 0) return null;
+    return [...this.proximasCitas]
+      .sort((a, b) => `${this.fechaIsoDe(a)} ${a.hora ?? ''}`.localeCompare(`${this.fechaIsoDe(b)} ${b.hora ?? ''}`))[0];
+  }
+
+  /** Documentos vigentes de las atenciones completadas, del más reciente al más antiguo. */
+  get documentosDisponibles(): { doc: DocumentoResumen; especialidad: string; fecha: string }[] {
+    return [...this.historialCompleto]
+      .filter(h => h.estado === 'completada')
+      .sort((a, b) => `${b.fechaRaw ?? b.fecha} ${b.hora ?? ''}`.localeCompare(`${a.fechaRaw ?? a.fecha} ${a.hora ?? ''}`))
+      .flatMap(h => (h.documentos ?? [])
+        .filter((d: DocumentoResumen) => d.estado !== 'anulado')
+        .map((d: DocumentoResumen) => ({ doc: d, especialidad: h.especialidad, fecha: h.fechaRaw ?? h.fecha })));
+  }
+
+  get documentosRecientes() { return this.documentosDisponibles.slice(0, 4); }
+
+  descargarDocumento(d: DocumentoResumen): void {
+    this.http.get(`${API}/documentos/${d.id}/pdf`, { responseType: 'blob' }).subscribe({
+      next: (blob) => guardarBlob(blob, `${d.folio}.pdf`),
+      error: (err) => {
+        this.mensajeError = mensajeErrorDescarga(err?.status);
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  // ── Recordatorios y avisos del Inicio (se pueden descartar) ──
+  private recordatoriosOcultos = new Set<string>();
+
+  get recordatorios(): { id: string; icono: string; tono: string; titulo: string; detalle: string }[] {
+    const lista = [];
+    if (this.proximaCita) {
+      lista.push({ id: 'llegar-antes', icono: 'schedule', tono: 'primario', titulo: 'Llega 10 minutos antes de tu cita', detalle: 'Para una mejor atención y evitar retrasos.' });
+      lista.push({ id: 'identificacion', icono: 'badge', tono: 'info', titulo: 'Recuerda llevar tu identificación', detalle: 'Presenta tu TNE o cédula de identidad.' });
+    }
+    const n = this.cuestionariosPendientes.length;
+    if (n > 0) {
+      lista.push({
+        id: 'cuestionarios',
+        icono: 'assignment',
+        tono: 'aviso',
+        titulo: `Tienes ${n} cuestionario${n === 1 ? '' : 's'} pendiente${n === 1 ? '' : 's'}`,
+        detalle: 'Responde para acceder a nuevos servicios.'
+      });
+    }
+    return lista.filter(r => !this.recordatoriosOcultos.has(r.id));
+  }
+
+  descartarRecordatorio(id: string): void {
+    this.recordatoriosOcultos.add(id);
+  }
 
   // ══════════════════════════════════════
   // CONFIGURACIÓN
