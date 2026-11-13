@@ -81,3 +81,64 @@ def registrar_evento_auditoria(
     )
     db.add(evento)
     return evento
+
+
+def describir_cita(cita) -> str:
+    """
+    Identificación no sensible de una cita para el `detalle` de auditoría.
+
+    Usa únicamente ids y fecha/hora (nunca nombre, RUT ni motivo de
+    consulta): el detalle de auditoría no debe convertirse en una copia
+    de datos clínicos ni personales. El nombre del paciente, si se
+    necesita, se resuelve en la vista administrativa cruzando
+    `usuario_id`/`entidad_id`, no se congela acá.
+    """
+    return (
+        f"Estudiante id {cita.estudiante_id} — Profesional id "
+        f"{cita.profesional_id} — {cita.fecha} {cita.hora}"
+    )
+
+
+def registrar_evento_cita(
+    db,
+    current_user: Mapping[str, Any],
+    accion: str,
+    *,
+    cita,
+    detalle: Optional[str] = None,
+    resultado: str = "exito",
+) -> Auditoria:
+    """
+    Variante especializada del helper central para la agenda médica.
+
+    Fija SIEMPRE `entidad="cita"` y `entidad_id=cita.id`, de modo que el
+    historial completo de una cita (creación, modificación, anulación)
+    se reconstruye filtrando:
+
+        Auditoria.entidad == "cita" AND Auditoria.entidad_id == <id>
+
+    El actor y el timestamp exacto siguen saliendo de `current_user` y
+    de `Auditoria.fecha` (DEFAULT now() del motor), respectivamente;
+    esta función no acepta ni infiere ninguno de los dos. Mantiene el
+    mismo contrato transaccional que registrar_evento_auditoria(): solo
+    hace db.add(), el call-site controla commit/rollback.
+
+    `cita` debe tener `id` (flush previo). Si no lo tiene, se falla
+    cerrado con ValueError en vez de persistir un evento huérfano con
+    entidad_id=NULL que no se podría asociar a ninguna cita.
+    """
+    if getattr(cita, "id", None) is None:
+        raise ValueError(
+            "No se puede auditar una cita sin id: haz flush() de la "
+            "cita antes de registrar el evento."
+        )
+
+    return registrar_evento_auditoria(
+        db,
+        current_user,
+        accion,
+        resultado=resultado,
+        entidad="cita",
+        entidad_id=cita.id,
+        detalle=detalle,
+    )

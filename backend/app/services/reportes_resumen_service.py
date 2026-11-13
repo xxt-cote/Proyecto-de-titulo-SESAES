@@ -146,6 +146,23 @@ def _variacion(actual: int, anterior: int | None) -> float | None:
     return round((actual - anterior) / anterior * 100, 1)
 
 
+def tasa_inasistencia(inasistencias: int, completadas: int) -> float | None:
+    """
+    Tasa de inasistencia = inasistencias / (inasistencias + completadas).
+
+    El denominador son las citas RESUELTAS del período: las que ya
+    ocurrieron (completadas) o debían ocurrir y no ocurrieron
+    (inasistencia). Se excluyen a propósito las pendientes (todavía no
+    son inasistencia) y las canceladas (no son una falta del estudiante).
+    Sin citas resueltas se devuelve None — nunca 0.0, que sería inventar
+    una tasa cuando no hay datos.
+    """
+    resueltas = (inasistencias or 0) + (completadas or 0)
+    if resueltas == 0:
+        return None
+    return round((inasistencias or 0) / resueltas * 100, 1)
+
+
 def _ranking(contador: Counter, clave: str) -> list[dict]:
     return [
         {clave: nombre, "cantidad": cantidad}
@@ -210,6 +227,11 @@ def calcular_resumen(
         elif f.estado == "inasistencia":
             p["inasistencias"] += 1
 
+    for p in por_prof.values():
+        p["tasa_inasistencia_pct"] = tasa_inasistencia(
+            p["inasistencias"], p["atenciones"]
+        )
+
     # Jornada y asistencia
     por_dia = Counter()
     for f in completadas:
@@ -219,6 +241,9 @@ def calcular_resumen(
 
     limite = max(1, min(int(limite_ultimas or 10), MAX_ULTIMAS))
     ultimas = sorted(completadas, key=lambda f: (f.fecha, f.hora or ""), reverse=True)[:limite]
+
+    inasistencias_periodo = sum(1 for f in filas if f.estado == "inasistencia")
+    citas_resueltas = len(completadas) + inasistencias_periodo
 
     return {
         "periodo": {"fecha_inicio": inicio.isoformat(), "fecha_fin": fin.isoformat()},
@@ -231,6 +256,15 @@ def calcular_resumen(
             for k in KPIS
         },
         "citas_por_estado": {e: sum(1 for f in filas if f.estado == e) for e in ESTADOS},
+        # Bloque ADITIVO (no forma parte de los 6 KPI oficiales, que se
+        # mantienen intactos): tasa de inasistencia del período y su
+        # desglose, usado por el PDF y el Excel.
+        "inasistencia": {
+            "inasistencias": inasistencias_periodo,
+            "atenciones": len(completadas),
+            "citas_resueltas": citas_resueltas,
+            "tasa_pct": tasa_inasistencia(inasistencias_periodo, len(completadas)),
+        },
         "evolucion_semanal": [{"semana_inicio": k, **v} for k, v in sorted(semanas.items())],
         "por_especialidad": _ranking(Counter(f.especialidad or "Sin especialidad" for f in completadas), "especialidad"),
         "por_carrera": _ranking(Counter(f.carrera or sin_carrera for f in completadas), "carrera"),
@@ -344,6 +378,26 @@ def renderizar_pdf(resumen: dict, filtros: dict[str, str]) -> bytes:
         pdf.set_text_color(*_GRIS)
         pdf.cell(ancho, 5, "No hay citas en el período anterior para comparar.", new_x="LMARGIN", new_y="NEXT")
 
+    titulo("Tasa de inasistencia")
+    inas = resumen["inasistencia"]
+    if inas["tasa_pct"] is None:
+        fila(["Tasa de inasistencia", "Sin datos", "No hay citas resueltas en el período"], [70, 25, 85])
+    else:
+        fila(
+            [
+                "Tasa de inasistencia",
+                f"{inas['tasa_pct']:.1f}%",
+                f"{inas['inasistencias']} inasistencias sobre "
+                f"{inas['citas_resueltas']} citas resueltas",
+            ],
+            [70, 25, 85],
+        )
+    pdf.set_font("Helvetica", "I", 8)
+    pdf.set_text_color(*_GRIS)
+    pdf.cell(ancho, 5, _l1(
+        "Citas resueltas = completadas + inasistencias; las pendientes y canceladas no entran en el denominador."
+    ), new_x="LMARGIN", new_y="NEXT")
+
     titulo("Citas por estado")
     for estado, cantidad in resumen["citas_por_estado"].items():
         fila([estado.capitalize(), str(cantidad)], [70, 25])
@@ -355,11 +409,16 @@ def renderizar_pdf(resumen: dict, filtros: dict[str, str]) -> bytes:
 
     if resumen["profesionales"]:
         titulo("Profesionales")
-        anchos = [62, 40, 20, 14, 18, 26]
-        fila(["Profesional", "Especialidad", "Atenc.", "Citas", "Cancel.", "Inasist."], anchos, negrita=True)
+        anchos = [55, 33, 18, 12, 16, 22, 24]
+        fila(
+            ["Profesional", "Especialidad", "Atenc.", "Citas", "Cancel.", "Inasist.", "Tasa inasist."],
+            anchos, negrita=True,
+        )
         for f in resumen["profesionales"][:15]:
+            tasa = f.get("tasa_inasistencia_pct")
             fila([f["profesional"], f["especialidad"], str(f["atenciones"]), str(f["citas"]),
-                  str(f["canceladas"]), str(f["inasistencias"])], anchos)
+                  str(f["canceladas"]), str(f["inasistencias"]),
+                  "—" if tasa is None else f"{tasa:.1f}%"], anchos)
 
     if resumen["ultimas_atenciones"]:
         titulo("Últimas atenciones")

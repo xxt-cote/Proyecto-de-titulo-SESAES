@@ -410,6 +410,42 @@ Alcance explícito de A.2 (ver auditoría previa de Agenda V2):
   dos solicitudes de sobrecupo concurrentes, la segunda vea `max=2`
   (no `max=1`) tras el commit de la primera, y sea rechazada: nunca
   pueden coexistir 3 citas activas en el mismo intervalo.
+
+── Agenda semanal por bloques: horario APROBADO = bloqueo estricto ──
+
+  El profesional puede solicitar una agenda semanal recurrente por
+  bloques (días de trabajo y hora de colación) que el administrador
+  aprueba; esa agenda reemplaza a la jornada simple como fuente de
+  verdad (ver `_bloques_por_dia`). Antes, sus conflictos
+  (`fuera_de_jornada`, `en_colacion`) se marcaban
+  `overridable_con_sobrecupo=True` igual que los de la jornada simple,
+  así que un Admin/Super Admin con `agenda.sobrecupo` podía agendar
+  encima de un día no trabajado o durante la colación: el acuerdo
+  aprobado no se respetaba de forma estricta.
+
+  Corrección vigente:
+    - `analizar_conflictos_slot()` marca los conflictos derivados de
+      `bloques_dia` como `overridable_con_sobrecupo=False`. Son
+      bloqueos ABSOLUTOS para todos los roles, incluidos Admin y
+      Super Admin: `evaluar_politica_sobrecupo()` los rechaza en su
+      rama de bloqueo absoluto y POST /citas responde HTTP 400 con el
+      motivo concreto (`_mensaje_legacy_para`: día sin atención, fuera
+      de los bloques o colación con su rango).
+    - La colación se informa SOLA (no junto a `fuera_de_jornada`)
+      cuando es la causa real del rechazo, para que el mensaje diga
+      exactamente qué bloque se invade.
+    - `es_bloqueo_de_horario_aprobado()` expone esa condición sobre la
+      MISMA tupla de conflictos, y `listar_disponibilidad_rango()`
+      agrega `bloqueado_por_horario_aprobado` por slot. Las tres
+      agendas (Admin, Super Admin, Profesional) usan ese flag para
+      pintar la celda inactiva y no abrir el formulario de nueva cita.
+    - `validar_horario_aprobado_slot()` replica SOLO esta regla de
+      bloques para canales que no pasan por el evaluador completo
+      (POST /admin/citas/urgente), sin ampliar sus demás reglas.
+
+  La jornada simple (`horario_inicio`/`horario_fin` + `hora_almuerzo_*`)
+  conserva su política anterior (overridable con sobrecupo): esta
+  corrección es específica del acuerdo semanal por bloques aprobado.
 """
 
 from __future__ import annotations
@@ -421,8 +457,10 @@ from typing import Sequence
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app import reglas_horario
 from app.models.cita import Cita
 from app.models.dia_cerrado import DiaCerrado
+from app.models.bloque_horario_semanal import BloqueHorarioSemanal
 from app.models.profesional import Profesional
 
 # Horario general de atención del centro — mismo valor que ya usaba
@@ -712,11 +750,71 @@ def generar_bloques_jornada(duracion_min: int) -> list[time]:
     return bloques
 
 
+def _bloques_por_dia(
+    db: Session, profesional_id: int,
+) -> dict[int, list[BloqueHorarioSemanal]] | None:
+    """
+    Agenda semanal por bloques aprobada del profesional, por dia de semana
+    (0=Lunes ... 6=Domingo), o None si no tiene ninguna (usa su jornada
+    simple, horario_inicio/horario_fin + hora_almuerzo_*). Un dia sin
+    bloques dentro de una agenda por bloques queda en [] : ese dia no atiende.
+    Una sola consulta por profesional.
+    """
+    filas = (
+        db.query(BloqueHorarioSemanal)
+        .filter(BloqueHorarioSemanal.profesional_id == profesional_id)
+        .all()
+    )
+    if not filas:
+        return None
+    por_dia: dict[int, list[BloqueHorarioSemanal]] = {d: [] for d in range(7)}
+    for b in filas:
+        por_dia.setdefault(b.dia_semana, []).append(b)
+    return por_dia
+
+
+def _bloques_del_dia(
+    db: Session, profesional_id: int, fecha_obj: date,
+) -> list[BloqueHorarioSemanal] | None:
+    """Bloques del profesional para el dia de semana de `fecha_obj`, o None."""
+    por_dia = _bloques_por_dia(db, profesional_id)
+    return None if por_dia is None else por_dia[fecha_obj.weekday()]
+
+
+def _evaluar_bloques(
+    hora_obj: time,
+    fin_obj: time,
+    bloques_dia: Sequence[BloqueHorarioSemanal],
+) -> tuple[bool, tuple[time, time] | None]:
+    """
+    Jornada/colacion de un intervalo [hora_obj, fin_obj) contra los bloques
+    de UN dia. Devuelve (fuera_de_jornada, colacion), donde colacion es el
+    (inicio, fin) del primer bloque de colacion que se superpone, o None.
+    fuera_de_jornada es True si el intervalo no cabe entero dentro de algun
+    bloque "disponible" (con bloques_dia vacio, siempre).
+    """
+    cabe = False
+    colacion: tuple[time, time] | None = None
+    for b in bloques_dia:
+        ini, fin = _parsear_hora_24h(b.hora_inicio), _parsear_hora_24h(b.hora_fin)
+        if ini is None or fin is None:
+            continue
+        if b.tipo == "disponible" and ini <= hora_obj and fin_obj <= fin:
+            cabe = True
+        elif b.tipo == "colacion" and colacion is None and _intervalos_se_superponen(
+            hora_obj, fin_obj, ini, fin,
+        ):
+            colacion = (ini, fin)
+    return (not cabe), colacion
+
+
 def _evaluar_reglas_jornada(
     *,
     profesional: Profesional,
     hora_obj: time,
     fin_obj: time,
+    bloques_dia: Sequence[BloqueHorarioSemanal] | None = None,
+    dia_semana: int | None = None,
 ) -> tuple[bool, str | None, str | None, bool]:
     """
     Reglas de jornada/colación contra un profesional y el INTERVALO
@@ -748,8 +846,50 @@ def _evaluar_reglas_jornada(
 
     Devuelve (disponible, motivo, mensaje, overridable_con_sobrecupo).
     """
+    # Agenda por bloques: reemplaza a la jornada simple (bloques_dia=None
+    # significa que el profesional aun no tiene bloques).
+    if bloques_dia is not None:
+        fuera, colacion = _evaluar_bloques(hora_obj, fin_obj, bloques_dia)
+        if fuera:
+            return (
+                False,
+                "fuera_de_jornada",
+                "La hora solicitada está fuera del horario habitual del profesional.",
+                True,
+            )
+        if colacion:
+            return (
+                False,
+                "en_colacion",
+                "La hora solicitada cae en el horario de colación del profesional.",
+                True,
+            )
+        return True, None, None, False
+
     jornada_inicio = _parsear_hora_24h(profesional.horario_inicio)
     jornada_fin = _parsear_hora_24h(profesional.horario_fin)
+
+    # Sin jornada simple aprobada, rige el horario institucional
+    # predeterminado del día (Lun-Jue 09:00-17:30, Vie 09:00-16:30).
+    # Antes se permitía cualquier hora dentro del centro (08:00-18:00),
+    # lo que contradecía el horario que ve el profesional en su agenda.
+    if dia_semana is not None:
+        rango = reglas_horario.rango_institucional_dia(dia_semana)
+        if rango is None:
+            return (
+                False,
+                "fuera_de_jornada",
+                "La hora solicitada está fuera del horario habitual del profesional.",
+                True,
+            )
+        # La jornada simple tampoco puede salir del horario institucional:
+        # registros antiguos con 08:00 no deben ofrecer horas antes de las
+        # 09:00 (ni después del cierre de ese día).
+        if jornada_inicio is None or jornada_inicio < rango[0]:
+            jornada_inicio = rango[0]
+        if jornada_fin is None or jornada_fin > rango[1]:
+            jornada_fin = rango[1]
+
     if jornada_inicio and jornada_fin and (hora_obj < jornada_inicio or fin_obj > jornada_fin):
         return (
             False,
@@ -773,7 +913,11 @@ def _evaluar_reglas_jornada(
     return True, None, None, False
 
 
-def _bloques_grilla_profesional(profesional: Profesional) -> list[time]:
+def _bloques_grilla_profesional(
+    profesional: Profesional,
+    bloques_dia: Sequence[BloqueHorarioSemanal] | None = None,
+    dia_semana: int | None = None,
+) -> list[time]:
     """
     Bloques de la grilla real de este profesional: los generados por
     generar_bloques_jornada() según su duracion_min, filtrados por sus
@@ -801,7 +945,13 @@ def _bloques_grilla_profesional(profesional: Profesional) -> list[time]:
         fin_obj, cruza_medianoche = _fin_intervalo(b, duracion)
         if cruza_medianoche or fin_obj > HORA_FIN_CENTRO:
             continue
-        if _evaluar_reglas_jornada(profesional=profesional, hora_obj=b, fin_obj=fin_obj)[0]:
+        if _evaluar_reglas_jornada(
+            profesional=profesional,
+            hora_obj=b,
+            fin_obj=fin_obj,
+            bloques_dia=bloques_dia,
+            dia_semana=dia_semana,
+        )[0]:
             disponibles.append(b)
     return disponibles
 
@@ -1222,10 +1372,33 @@ def _mensaje_legacy_para(conflicto: ConflictoSlot) -> str:
     acá a partir de `conflicto.metadata["motivo_dia_cerrado"]` en vez
     de recibir el objeto DiaCerrado por separado — así el wrapper
     legacy solo necesita el ConflictoSlot, ninguna otra entrada.
+
+    Agenda por bloques: cuando el motivo viene de la agenda semanal
+    APROBADA del profesional (`metadata["agenda_por_bloques"]`), el
+    texto genérico ("fuera del horario habitual") no describe con
+    precisión el rechazo — el mensaje es la única información que
+    recibe el cliente en el HTTP 400, así que se detalla el caso real
+    (día sin atención, fuera de los bloques o colación con su rango).
     """
     if conflicto.codigo == "dia_cerrado":
         motivo_dia_cerrado = conflicto.metadata.get("motivo_dia_cerrado") or ""
         return f"El centro permanece cerrado ese día. {motivo_dia_cerrado}".strip()
+
+    if conflicto.metadata.get("agenda_por_bloques"):
+        if conflicto.codigo == "fuera_de_jornada":
+            if conflicto.metadata.get("dia_sin_atencion"):
+                return "El profesional no trabaja ese día según su horario semanal aprobado."
+            return "La hora solicitada está fuera del horario semanal aprobado del profesional."
+        if conflicto.codigo == "en_colacion":
+            inicio = conflicto.metadata.get("inicio_colacion")
+            fin = conflicto.metadata.get("fin_colacion")
+            if inicio and fin:
+                return (
+                    "La hora solicitada se superpone con la colación aprobada "
+                    f"del profesional ({inicio}–{fin})."
+                )
+            return "La hora solicitada cae en la colación aprobada del profesional."
+
     return _MENSAJES_LEGACY_POR_CODIGO[conflicto.codigo]
 
 
@@ -1239,6 +1412,7 @@ def analizar_conflictos_slot(
     ocupadas: Sequence[time],
     bloques_grilla: list[time] | None = None,
     ahora: time | None = None,
+    bloques_dia: Sequence[BloqueHorarioSemanal] | None = None,
 ) -> tuple[ConflictoSlot, ...]:
     """
     A.4.2 — ÚNICA implementación de las reglas de UN slot ya parseado
@@ -1446,6 +1620,56 @@ def analizar_conflictos_slot(
             },
         ))
 
+    # ── jornada_profesional con agenda por bloques ──
+    # Si el profesional tiene bloques aprobados, reemplazan por completo a
+    # horario_inicio/horario_fin y hora_almuerzo_* (mismo criterio que
+    # _evaluar_reglas_jornada, que arma la grilla que ve el estudiante).
+    #
+    # El horario semanal por bloques es un ACUERDO APROBADO por el
+    # administrador: a diferencia de la jornada simple, sus conflictos son
+    # bloqueos ABSOLUTOS (overridable_con_sobrecupo=False). Ni un Admin ni
+    # un Super Admin pueden saltárselo con sobrecupo — el backend responde
+    # HTTP 400 con el motivo concreto (ver _mensaje_legacy_para). Si se
+    # dejaran overridables, el horario aprobado no se respetaría de forma
+    # estricta, que es justamente lo que la agenda por bloques promete.
+    #
+    # Cuando la colación es la causa real, se informa SOLO en_colacion
+    # (no fuera_de_jornada): un intervalo 12:45-13:30 no "cabe" en el
+    # bloque 09:00-13:00, pero el motivo que el usuario necesita leer es
+    # la colación que invade, no un genérico "fuera de jornada".
+    if bloques_dia is not None:
+        fuera, colacion = _evaluar_bloques(hora_obj, fin_obj, bloques_dia)
+        if colacion:
+            ini_c, fin_c = colacion
+            conflictos.append(ConflictoSlot(
+                codigo="en_colacion",
+                categoria="jornada_profesional",
+                overridable_con_sobrecupo=False,
+                metadata={
+                    "inicio_colacion": ini_c.strftime("%H:%M"),
+                    "fin_colacion": fin_c.strftime("%H:%M"),
+                    "inicio_conflicto": max(hora_obj, ini_c).strftime("%H:%M"),
+                    "fin_conflicto": min(fin_obj, fin_c).strftime("%H:%M"),
+                    "agenda_por_bloques": True,
+                },
+            ))
+        elif fuera:
+            dia_sin_atencion = not any(
+                b.tipo == "disponible" for b in bloques_dia
+            )
+            conflictos.append(ConflictoSlot(
+                codigo="fuera_de_jornada",
+                categoria="jornada_profesional",
+                overridable_con_sobrecupo=False,
+                metadata={
+                    "inicio_solicitado": hora_hhmm,
+                    "fin_solicitado": fin_hhmm,
+                    "agenda_por_bloques": True,
+                    "dia_sin_atencion": dia_sin_atencion,
+                },
+            ))
+        return tuple(conflictos)
+
     # ── jornada_profesional: fuera_de_jornada ──
     # A diferencia de la cadena legacy original (mutuamente excluyente
     # con en_colacion por cortocircuito), esto NO se cortocircuita:
@@ -1453,6 +1677,21 @@ def analizar_conflictos_slot(
     # intervalo realmente incurre en ambos a la vez.
     jornada_inicio = _parsear_hora_24h(profesional.horario_inicio)
     jornada_fin = _parsear_hora_24h(profesional.horario_fin)
+
+    # Sin jornada simple aprobada, se aplica el horario institucional
+    # predeterminado del día. En fin de semana ya existe el conflicto
+    # absoluto `fin_de_semana`, así que no se agrega otro motivo.
+    if fecha_obj.weekday() < 5:
+        rango = reglas_horario.rango_institucional_dia(fecha_obj.weekday())
+        if rango is not None:
+            # La jornada simple también queda acotada al horario
+            # institucional: un registro antiguo con 08:00 no habilita
+            # citas antes de las 09:00.
+            if jornada_inicio is None or jornada_inicio < rango[0]:
+                jornada_inicio = rango[0]
+            if jornada_fin is None or jornada_fin > rango[1]:
+                jornada_fin = rango[1]
+
     if jornada_inicio and jornada_fin and (
         hora_obj < jornada_inicio or fin_obj > jornada_fin
     ):
@@ -1530,6 +1769,89 @@ def _legacy_desde_conflictos(
     )
 
 
+def es_bloqueo_de_horario_aprobado(
+    conflictos: Sequence[ConflictoSlot],
+) -> bool:
+    """
+    True si el slot está bloqueado por la agenda semanal POR BLOQUES
+    aprobada del profesional — no por jornada simple, ocupación,
+    calendario del centro ni precondiciones temporales.
+
+    Es una lectura de solo-presentación/UX sobre la MISMA tupla que ya
+    produjo analizar_conflictos_slot() (nunca una segunda evaluación):
+    la usa `listar_disponibilidad_rango()` para exponer
+    `bloqueado_por_horario_aprobado` a las tres agendas (Admin,
+    Super Admin y Profesional), que así pueden pintar el bloque inactivo
+    y negarse a abrir el formulario de nueva cita sin reimplementar la
+    regla en TypeScript.
+
+    Solo cuentan conflictos con `metadata["agenda_por_bloques"]=True` y
+    `overridable_con_sobrecupo=False` — es decir, los que esta versión
+    marca como absolutos precisamente por venir de los bloques
+    aprobados. Si en el futuro alguno de ellos volviera a ser
+    overridable, dejaría de considerarse "bloqueado por horario
+    aprobado" automáticamente.
+
+    Y solo cuando el horario aprobado es la causa RELEVANTE: si además
+    hay un conflicto de calendario/precondición/grilla del centro
+    (fin de semana, día cerrado, fecha u hora pasada, hora fuera de
+    grilla, cierre del centro), ese motivo manda — la celda debe seguir
+    viéndose como "centro cerrado"/"pasado", no como bloqueo del
+    profesional. El analizador agrega SIEMPRE el conflicto de bloques
+    de un día sin atención (aunque sea sábado), por eso esta
+    comprobación es necesaria.
+    """
+    categorias_estructurales = ("precondicion", "calendario_centro", "grilla_centro")
+    hay_bloqueo_de_bloques = any(
+        conflicto.metadata.get("agenda_por_bloques") is True
+        and not conflicto.overridable_con_sobrecupo
+        for conflicto in conflictos
+    )
+    if not hay_bloqueo_de_bloques:
+        return False
+    return not any(
+        conflicto.categoria in categorias_estructurales
+        for conflicto in conflictos
+    )
+
+
+def _evaluar_slot_en_contexto_detallado(
+    *,
+    profesional: Profesional,
+    fecha_obj: date,
+    hora_obj: time,
+    hoy: date,
+    dia_cerrado: DiaCerrado | None,
+    ocupadas: Sequence[time],
+    bloques_grilla: list[time] | None = None,
+    ahora: time | None = None,
+    bloques_dia: Sequence[BloqueHorarioSemanal] | None = None,
+) -> tuple[tuple[bool, str | None, str | None, bool], tuple[ConflictoSlot, ...]]:
+    """
+    Igual que `_evaluar_slot_en_contexto()`, pero devuelve además la tupla
+    completa de `ConflictoSlot` que produjo la decisión.
+
+    Existe para que `listar_disponibilidad_rango()` pueda derivar
+    `es_bloqueo_de_horario_aprobado()` de la MISMA evaluación que decide
+    `disponible`/`motivo`, sin llamar dos veces a
+    `analizar_conflictos_slot()` ni reimplementar ninguna regla. El
+    wrapper de 4 valores de siempre (`_evaluar_slot_en_contexto`) delega
+    acá, así que ambos caminos siguen compartiendo una única fuente.
+    """
+    conflictos = analizar_conflictos_slot(
+        profesional=profesional,
+        fecha_obj=fecha_obj,
+        hora_obj=hora_obj,
+        hoy=hoy,
+        dia_cerrado=dia_cerrado,
+        ocupadas=ocupadas,
+        bloques_grilla=bloques_grilla,
+        ahora=ahora,
+        bloques_dia=bloques_dia,
+    )
+    return _legacy_desde_conflictos(conflictos), conflictos
+
+
 def _evaluar_slot_en_contexto(
     *,
     profesional: Profesional,
@@ -1540,6 +1862,7 @@ def _evaluar_slot_en_contexto(
     ocupadas: Sequence[time],
     bloques_grilla: list[time] | None = None,
     ahora: time | None = None,
+    bloques_dia: Sequence[BloqueHorarioSemanal] | None = None,
 ) -> tuple[bool, str | None, str | None, bool]:
     """
     Wrapper delgado sobre `analizar_conflictos_slot()` — A.4.2. Ya NO
@@ -1571,8 +1894,12 @@ def _evaluar_slot_en_contexto(
     evalúa (nunca se sustituye por una lectura de reloj interna).
 
     Devuelve (disponible, motivo, mensaje, overridable_con_sobrecupo).
+
+    Desde la agenda por bloques estricta, delega en
+    `_evaluar_slot_en_contexto_detallado()` para no duplicar la llamada
+    al analizador; el contrato de retorno no cambia.
     """
-    conflictos = analizar_conflictos_slot(
+    decision, _ = _evaluar_slot_en_contexto_detallado(
         profesional=profesional,
         fecha_obj=fecha_obj,
         hora_obj=hora_obj,
@@ -1581,8 +1908,9 @@ def _evaluar_slot_en_contexto(
         ocupadas=ocupadas,
         bloques_grilla=bloques_grilla,
         ahora=ahora,
+        bloques_dia=bloques_dia,
     )
-    return _legacy_desde_conflictos(conflictos)
+    return decision
 
 
 def evaluar_disponibilidad_slot(
@@ -1701,6 +2029,7 @@ def evaluar_disponibilidad_slot(
         dia_cerrado=dia_cerrado,
         ocupadas=ocupadas,
         ahora=ahora_actual,
+        bloques_dia=_bloques_del_dia(db, profesional_id, fecha_obj),
     )
     disponible, motivo, mensaje, overridable = _legacy_desde_conflictos(conflictos)
     return ResultadoDisponibilidad(
@@ -1711,6 +2040,69 @@ def evaluar_disponibilidad_slot(
         profesional=profesional,
         conflictos=conflictos,
     )
+
+
+def validar_horario_aprobado_slot(
+    db: Session,
+    *,
+    profesional: Profesional,
+    fecha: str,
+    hora: str,
+) -> str | None:
+    """
+    Validación ESTRICTA y acotada del horario semanal POR BLOQUES ya
+    aprobado del profesional — para canales que, por diseño, NO pasan
+    por `evaluar_disponibilidad_slot()` completo (hoy:
+    POST /admin/citas/urgente, ver su docstring en admin.py).
+
+    Devuelve un mensaje de error (para usar como `detail` de un HTTP
+    400) o None si el slot es válido. Reglas:
+      - Si el profesional NO tiene agenda por bloques (`_bloques_del_dia`
+        devuelve None), no se valida nada acá: sigue rigiendo su jornada
+        simple con la política de sobrecupo existente. Este helper existe
+        solo para hacer estricto el acuerdo de bloques aprobado.
+      - Un día sin ningún bloque "disponible", o un intervalo que no
+        cabe entero en uno, se rechaza con el mismo texto que produce
+        `evaluar_disponibilidad_slot()` para ese mismo caso (ver
+        `_mensaje_legacy_para`), para que el motivo sea idéntico en
+        todos los canales.
+      - Un intervalo que se superpone con un bloque "colacion" también
+        se rechaza, detallando el rango de colación.
+
+    NO evalúa grilla del centro, fecha/hora pasada, fin de semana, día
+    cerrado ni ocupación: esas reglas siguen siendo responsabilidad del
+    canal llamante (urgencias conserva su semántica histórica). No toca
+    el reloj ni la hora actual.
+    """
+    fecha_obj = _parsear_fecha(fecha)
+    hora_obj = _parsear_hora_flexible(hora)
+    if fecha_obj is None or hora_obj is None:
+        # El canal llamante ya valida formato (canonicalizar_fecha_valida,
+        # SlotInvalidoError). No se inventa aquí un motivo distinto.
+        return None
+
+    bloques_dia = _bloques_del_dia(db, profesional.id, fecha_obj)
+    if bloques_dia is None:
+        return None  # sin agenda por bloques: jornada simple de siempre
+
+    fin_obj, cruza_medianoche = _fin_intervalo(
+        hora_obj, _duracion_efectiva(profesional),
+    )
+    if cruza_medianoche:
+        return "La duración de la cita excede el horario de atención del centro."
+
+    fuera, colacion = _evaluar_bloques(hora_obj, fin_obj, bloques_dia)
+    if colacion:
+        ini_c, fin_c = colacion
+        return (
+            "La hora solicitada se superpone con la colación aprobada "
+            f"del profesional ({ini_c.strftime('%H:%M')}–{fin_c.strftime('%H:%M')})."
+        )
+    if fuera:
+        if not any(b.tipo == "disponible" for b in bloques_dia):
+            return "El profesional no trabaja ese día según su horario semanal aprobado."
+        return "La hora solicitada está fuera del horario semanal aprobado del profesional."
+    return None
 
 
 def listar_horas_disponibles(
@@ -1766,7 +2158,11 @@ def listar_horas_disponibles(
 
     # Misma grilla real que usa evaluar_disponibilidad_slot() para
     # validar un slot puntual — ver _bloques_grilla_profesional().
-    bloques = _bloques_grilla_profesional(profesional)
+    bloques = _bloques_grilla_profesional(
+        profesional,
+        _bloques_del_dia(db, profesional_id, fecha_obj),
+        fecha_obj.weekday(),
+    )
 
     if fecha_obj == hoy:
         ahora = datetime.now().time()
@@ -1953,6 +2349,9 @@ def listar_disponibilidad_rango(
     # "duracion_min" — nunca dos valores distintos para la misma grilla.
     duracion = _duracion_efectiva(profesional)
     bloques_grilla = generar_bloques_jornada(duracion)
+    # Agenda por bloques (una sola consulta para todo el rango); None si el
+    # profesional usa su jornada simple.
+    bloques_por_dia = _bloques_por_dia(db, profesional_id)
 
     hoy = date.today()
     # A.4.2 — mismo patrón que `hoy`: un solo snapshot del reloj para
@@ -1966,9 +2365,11 @@ def listar_disponibilidad_rango(
         fecha_str = fecha_actual.isoformat()
         dia_cerrado = dias_cerrados_por_fecha.get(fecha_str)
         ocupadas = ocupadas_por_fecha.get(fecha_str, [])
+        bloques_dia = None if bloques_por_dia is None else bloques_por_dia[fecha_actual.weekday()]
 
         slots = []
         for hora_obj in bloques_grilla:
+            conflictos: tuple[ConflictoSlot, ...] = ()
             if profesional_inactivo:
                 # Mismo motivo/mensaje que evaluar_disponibilidad_slot()
                 # para este mismo caso — ver docstring de esta función.
@@ -1979,7 +2380,10 @@ def listar_disponibilidad_rango(
                     False,
                 )
             else:
-                disponible, motivo, mensaje, overridable = _evaluar_slot_en_contexto(
+                (
+                    (disponible, motivo, mensaje, overridable),
+                    conflictos,
+                ) = _evaluar_slot_en_contexto_detallado(
                     profesional=profesional,
                     fecha_obj=fecha_actual,
                     hora_obj=hora_obj,
@@ -1988,12 +2392,21 @@ def listar_disponibilidad_rango(
                     ocupadas=ocupadas,
                     ahora=ahora_actual,
                     bloques_grilla=bloques_grilla,
+                    bloques_dia=bloques_dia,
                 )
             slots.append({
                 "hora": hora_obj.strftime("%H:%M"),
                 "disponible": disponible,
                 "motivo": motivo,
                 "overridable_con_sobrecupo": overridable,
+                # Bloqueo ESTRICTO del horario semanal por bloques
+                # aprobado (día sin atención, fuera de bloque o
+                # colación). Las tres agendas lo usan para pintar la
+                # celda como inactiva y negarse a abrir el formulario
+                # de nueva cita, sin replicar la regla en TypeScript.
+                "bloqueado_por_horario_aprobado": (
+                    es_bloqueo_de_horario_aprobado(conflictos)
+                ),
             })
 
         dias_resultado.append({"fecha": fecha_str, "slots": slots})

@@ -17,13 +17,15 @@ import { inicialesDe } from '../dashboard-admin/citas/admin-citas.utils';
 import { CompletarAtencionComponent, type DocumentoEmitido, type PacienteAtencion } from './completar-atencion/completar-atencion';
 import { DocumentosCitaComponent } from '../shared/documentos-cita/documentos-cita';
 import { CuestionarioOpcionalComponent } from './cuestionario-opcional/cuestionario-opcional';
+import { AdminHorarioComponent } from '../dashboard-admin/horario/admin-horario';
+import { imprimirAgendaAislada } from '../dashboard-admin/horario/agenda-impresion';
 
 const API = environment.apiUrl;
 
 @Component({
   selector: 'app-dashboard-profesional',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePipe, PhotoCropperComponent, PhotoViewerComponent, ProfessionalAyudaComponent, CompletarAtencionComponent, DocumentosCitaComponent, CuestionarioOpcionalComponent],
+  imports: [CommonModule, FormsModule, DatePipe, PhotoCropperComponent, PhotoViewerComponent, ProfessionalAyudaComponent, CompletarAtencionComponent, DocumentosCitaComponent, CuestionarioOpcionalComponent, AdminHorarioComponent],
   templateUrl: './dashboard-profesional.html',
   styleUrl: './dashboard-profesional.css'
 })
@@ -328,11 +330,13 @@ eliminarSeleccionadas(): void {
     this.http.get<any>(`${API}/profesional/${this.profDbId}/perfil`).subscribe({
       next: (data) => {
         this.perfil = data;
+        this.sincronizarCitasAgenda();
         this.perfilOriginalFotoUrl = data.foto_url || null;   // ← agregar esta línea
         this.temaOscuro = data.tema_oscuro || false;
         this.configPerfil.nombre      = data.nombre || '';
         this.configPerfil.descripcion = data.descripcion || '';
         this.charCount = (data.descripcion || '').length;
+        this.precargarBloquesAprobados(data.bloques_semanales);
         this.generarHorasGrilla();
         this.cdr.detectChanges();
       },
@@ -700,6 +704,87 @@ eliminarSeleccionadas(): void {
   citasSemana: any[]  = [];
   horasGrilla: string[] = [];
 
+  // ── Agenda compartida con el panel Administrador ──────────────────
+  // El Profesional reutiliza AdminHorarioComponent en modo consulta. Estas
+  // listas vacías y el flag puedeGestionarAgenda=false garantizan que NO
+  // se rendericen filtros de terceros, solicitudes ni acciones de gestión.
+  readonly agendaSolicitudesAdmin: any[] = [];
+  readonly agendaEspecialidades: string[] = [];
+  readonly agendaProfesionales: any[] = [];
+
+  // Citas de la semana enriquecidas con la especialidad del profesional,
+  // que el panel contextual de la agenda compartida muestra bajo el nombre.
+  citasAgenda: any[] = [];
+
+  get perfilBloqueado(): boolean {
+    const estado = String(this.perfil?.estado ?? '').toLowerCase();
+    return !!estado && estado !== 'activo';
+  }
+
+  // Horario personalizado = agenda semanal por bloques ya aprobada por el
+  // administrador. Si no existe, rige el horario institucional
+  // predeterminado (Lun-Jue 09:00-17:30, Vie 09:00-16:30).
+  get tieneHorarioPersonalizadoAprobado(): boolean {
+    return (this.perfil?.bloques_semanales ?? []).length > 0;
+  }
+
+  get horarioVigenteEtiqueta(): string {
+    if (this.solicitudBloquesPendiente) return 'Cambio de horario pendiente';
+    if (this.tieneHorarioPersonalizadoAprobado) return 'Horario personalizado aprobado';
+    return 'Horario predeterminado';
+  }
+
+  get horarioVigenteTexto(): string {
+    if (this.solicitudBloquesPendiente) {
+      return 'Tu solicitud está pendiente. Hasta que el administrador la apruebe, sigue vigente el horario actual.';
+    }
+    if (this.tieneHorarioPersonalizadoAprobado) {
+      return 'Tu horario semanal personalizado fue aprobado por el administrador y ya está aplicado en la agenda.';
+    }
+    return 'Estás usando el horario predeterminado: lunes a jueves de 09:00 a 17:30 y viernes de 09:00 a 16:30.';
+  }
+
+  get agendaPeriodoLabel(): string {
+    const dias = this.semanaActual;
+    // La agenda del profesional muestra lunes a viernes; el período se
+    // rotula hasta el viernes, no hasta el domingo.
+    if (dias.length < 5) return this.semanaLabel;
+    const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    const partes = (fecha: string) => ({
+      anio: Number(fecha.slice(0, 4)),
+      mes: Number(fecha.slice(5, 7)),
+      dia: Number(fecha.slice(8, 10))
+    });
+    const desde = partes(dias[0].fecha);
+    const hasta = partes(dias[4].fecha);
+    if (desde.anio === hasta.anio && desde.mes === hasta.mes) {
+      return `${desde.dia} – ${hasta.dia} de ${meses[hasta.mes - 1]} ${hasta.anio}`;
+    }
+    if (desde.anio === hasta.anio) {
+      return `${desde.dia} ${meses[desde.mes - 1]} – ${hasta.dia} ${meses[hasta.mes - 1]} ${hasta.anio}`;
+    }
+    return `${desde.dia} ${meses[desde.mes - 1]} ${desde.anio} – ${hasta.dia} ${meses[hasta.mes - 1]} ${hasta.anio}`;
+  }
+
+  // Firmas estables: el componente compartido las usa en ngDoCheck.
+  readonly agendaBloqueEstadoFn = (fecha: string, hora: string): string =>
+    this.estadoAgendaCompartida(fecha, hora);
+
+  readonly agendaBloqueCitasFn = (fecha: string, hora: string): any[] =>
+    this.citasEnBloqueAgenda(fecha, hora);
+
+  // El profesional no puede solicitar sobrecupos desde esta vista.
+  readonly agendaSobrecupoDisponibleFn = (): boolean => false;
+
+  readonly agendaFormatearFechaFn = (fecha: string): string =>
+    this.formatearDiaSeleccionado(fecha);
+
+  readonly agendaEsFeriadoFn = (fecha: string | undefined): boolean =>
+    this.esFeriado(fecha);
+
+  readonly agendaNombreFeriadoFn = (fecha: string | undefined): string =>
+    this.nombreFeriado(fecha);
+
   // Genera la grilla de horas según la duración de atención configurada por el profesional
   // (antes estaba fijo a pasos de 60 min, por lo que las citas de 45 min no calzaban con ninguna fila)
   private horaAMinutos(hora: string, fallback: number): number {
@@ -713,8 +798,7 @@ eliminarSeleccionadas(): void {
   // NO puede ser private: el template la llama directamente con
   // [style.left.%]="horaAPosicionPct(cita.hora)".
   horaAPosicionPct(hora: string): number {
-    const inicioMin = this.horaAMinutos(this.perfil.horario_inicio, 8 * 60);
-    const finMin    = this.horaAMinutos(this.perfil.horario_fin, 18 * 60);
+    const { inicioMin, finMin } = this.rangoJornadaMin();
     const horaMin   = this.horaAMinutos(hora, inicioMin);
 
     const rango = finMin - inicioMin;
@@ -724,10 +808,76 @@ eliminarSeleccionadas(): void {
     return Math.min(100, Math.max(0, pct)); // clamp 0–100
   }
 
+  // Día de la semana 0=Lunes ... 6=Domingo, a partir de la fecha local.
+  private diaSemana(fecha: string): number {
+    return (this.parseDateStrLocal(fecha).getDay() + 6) % 7;
+  }
+
+  // Jornada simple vigente, acotada al horario institucional. Los registros
+  // antiguos pueden traer 08:00 (el horario anterior del centro); para el
+  // profesional la atención nunca empieza antes de las 09:00 ni termina
+  // después de las 17:30.
+  private jornadaSimpleEfectiva(): { inicioMin: number; finMin: number } | null {
+    if (!this.perfil.horario_inicio || !this.perfil.horario_fin) return null;
+    const inicioMin = Math.max(9 * 60, this.horaAMinutos(this.perfil.horario_inicio, 9 * 60));
+    const finMin    = Math.min(17 * 60 + 30, this.horaAMinutos(this.perfil.horario_fin, 17 * 60 + 30));
+    return inicioMin < finMin ? { inicioMin, finMin } : null;
+  }
+
+  // Jornada vigente de un día concreto:
+  //   1. Agenda por bloques aprobada: solo los tramos "disponible" de ese día.
+  //   2. Jornada simple aprobada (horario_inicio/horario_fin), acotada al
+  //      horario institucional.
+  //   3. Horario institucional predeterminado (Lun-Jue 09:00-17:30,
+  //      Vie 09:00-16:30). Sábado y domingo no tienen atención.
+  // Devuelve null cuando ese día no tiene jornada (fin de semana o día sin
+  // bloques dentro de una agenda por bloques).
+  private jornadaDelDia(fecha: string): { inicioMin: number; finMin: number } | null {
+    const dia = this.diaSemana(fecha);
+    if (dia > 4) return null; // el centro no atiende fines de semana
+
+    const [inicioInstitucional, finInstitucional] = this.RANGO_INSTITUCIONAL[dia] ?? ['09:00', '17:30'];
+    const piso = this.horaAMinutos(inicioInstitucional, 9 * 60);
+    const techo = this.horaAMinutos(finInstitucional, 17 * 60 + 30);
+
+    const bloques: any[] = this.perfil.bloques_semanales ?? [];
+    if (bloques.length) {
+      const disp = bloques.filter(b => b.dia_semana === dia && b.tipo === 'disponible');
+      if (!disp.length) return null;
+      return {
+        inicioMin: Math.max(piso, Math.min(...disp.map(b => this.horaAMinutos(b.hora_inicio, piso)))),
+        finMin:    Math.min(techo, Math.max(...disp.map(b => this.horaAMinutos(b.hora_fin, techo)))),
+      };
+    }
+
+    const simple = this.jornadaSimpleEfectiva();
+    if (simple) {
+      return {
+        inicioMin: Math.max(piso, simple.inicioMin),
+        finMin:    Math.min(techo, simple.finMin),
+      };
+    }
+
+    return { inicioMin: piso, finMin: techo };
+  }
+
+  // Rango de la jornada en minutos: con agenda por bloques, desde el primer
+  // bloque disponible hasta el ultimo; si no, horario_inicio/horario_fin o
+  // el horario institucional predeterminado. Siempre acotado a 09:00-17:30.
+  private rangoJornadaMin(): { inicioMin: number; finMin: number } {
+    const disp = (this.perfil.bloques_semanales ?? []).filter((b: any) => b.tipo === 'disponible');
+    if (disp.length) {
+      return {
+        inicioMin: Math.max(9 * 60, Math.min(...disp.map((b: any) => this.horaAMinutos(b.hora_inicio, 9 * 60)))),
+        finMin:    Math.min(17 * 60 + 30, Math.max(...disp.map((b: any) => this.horaAMinutos(b.hora_fin, 17 * 60 + 30)))),
+      };
+    }
+    return this.jornadaSimpleEfectiva() ?? { inicioMin: 9 * 60, finMin: 17 * 60 + 30 };
+  }
+
   generarHorasGrilla(): void {
     const pasoMin   = this.perfil.duracion_min || 60;
-    const inicioMin = this.horaAMinutos(this.perfil.horario_inicio, 8 * 60);
-    const finMin    = this.horaAMinutos(this.perfil.horario_fin, 18 * 60);
+    const { inicioMin, finMin } = this.rangoJornadaMin();
     const horas: string[] = [];
     let min = inicioMin;
     while (min < finMin) {
@@ -781,13 +931,38 @@ eliminarSeleccionadas(): void {
     this.http.get<any[]>(`${API}/profesional/${this.profDbId}/citas`).subscribe({
       next: (data) => {
         this.citasSemana = (data ?? []).filter(c => c.fecha >= fechaInicio && c.fecha <= fechaFin);
+        this.sincronizarCitasAgenda();
         this.cdr.detectChanges();
       },
       error: () => {
         this.citasSemana = [];
+        this.citasAgenda = [];
         this.cdr.detectChanges();
       }
     });
+  }
+
+  // La agenda compartida muestra la especialidad bajo el nombre del paciente
+  // en su panel contextual. El endpoint de citas propias no la envía, así que
+  // se completa con la del perfil de la sesión (nunca con datos de terceros).
+  private sincronizarCitasAgenda(): void {
+    const especialidad = this.perfil?.especialidad ?? '';
+    this.citasAgenda = this.citasSemana.map(cita => ({
+      ...cita,
+      especialidad: cita.especialidad || especialidad
+    }));
+  }
+
+  // Con agenda por bloques: 'disponible', 'colacion' o 'fuera' (hora sin bloque
+  // ese dia). null si el profesional no tiene bloques (usa su jornada simple).
+  private estadoPorBloques(fecha: string, hora: string): 'disponible' | 'colacion' | 'fuera' | null {
+    const bloques: any[] = this.perfil.bloques_semanales ?? [];
+    if (!bloques.length) return null;
+    const dia = this.diaSemana(fecha);
+    const h = hora.substring(0, 5);
+    const del_dia = bloques.filter(b => b.dia_semana === dia && h >= b.hora_inicio && h < b.hora_fin);
+    if (del_dia.some(b => b.tipo === 'colacion')) return 'colacion';
+    return del_dia.length ? 'disponible' : 'fuera';
   }
 
 private esHoraDeColacion(hora: string): boolean {
@@ -816,23 +991,101 @@ convertirA24h(hora: string): string {
   esDiaCerrado(fecha: string): boolean { return this.diasCerrados.some(d => d.fecha === fecha); }
 
   getBloqueEstado(fecha: string, hora: string): string {
-    if (this.esDiaCerrado(fecha)) return 'cerrado-centro';
-    if (this.esHoraDeColacion(hora)) return 'bloqueado';
+    if (this.diaSemana(fecha) > 4 || this.esDiaCerrado(fecha)) return 'cerrado-centro';
     const cita = this.citasSemana.find(c => c.fecha === fecha && this.convertirA24h(c.hora) === hora.substring(0,5));
+    const porBloques = this.estadoPorBloques(fecha, hora);
+    if (porBloques === null) {
+      if (this.esHoraDeColacion(hora) || !this.esHoraDentroDeJornada(fecha, hora)) return 'bloqueado';
+    } else if (porBloques !== 'disponible' && !cita) {
+      return 'bloqueado';   // colacion u hora fuera de los bloques; una cita ya agendada igual se muestra
+    }
     if (!cita) return 'libre';
     return cita.urgente ? 'urgente' : 'ocupado';
   }
 
   getBloqueInfo(fecha: string, hora: string): string {
-    if (this.esDiaCerrado(fecha)) return '';
-    if (this.esHoraDeColacion(hora)) return 'Colación';
+    if (this.diaSemana(fecha) > 4 || this.esDiaCerrado(fecha)) return '';
+    const porBloques = this.estadoPorBloques(fecha, hora);
+    if (porBloques === 'colacion' || (porBloques === null && this.esHoraDeColacion(hora))) return 'Colación';
     const cita = this.citasSemana.find(c => c.fecha === fecha && this.convertirA24h(c.hora) === hora.substring(0,5));
     return cita ? cita.estudiante : '';
   }
 
+  // ── Adaptadores para la agenda compartida del Administrador ────────
+  // Traducen el dominio propio del profesional a los estados visuales de
+  // AdminHorarioComponent, sin agregar reglas nuevas: los datos siguen
+  // viniendo de los endpoints self-service ya autorizados.
+  private citasEnBloqueAgenda(fecha: string, hora: string): any[] {
+    return this.citasSemana.filter(cita => {
+      if (cita.fecha !== fecha) return false;
+      if (cita.estado === 'cancelada' || cita.estado === 'inasistencia') return false;
+      return this.convertirA24h(cita.hora) === hora.substring(0, 5);
+    });
+  }
+
+  private estadoAgendaCompartida(fecha: string, hora: string): string {
+    // El centro no atiende sábado ni domingo: nunca se marcan como
+    // disponibles, aunque no exista un DiaCerrado explícito.
+    if (this.diaSemana(fecha) > 4) return 'cerrado-centro';
+    if (this.esDiaCerrado(fecha)) return 'cerrado-centro';
+
+    const citas = this.citasEnBloqueAgenda(fecha, hora);
+    if (citas.some(cita => !!cita.urgente)) return 'urgente';
+    if (citas.some(cita => !!cita.sobrecupo)) return 'sobrecupo';
+    if (citas.length > 0) return 'ocupado';
+
+    const porBloques = this.estadoPorBloques(fecha, hora);
+    // Horario semanal aprobado: la colación y las horas fuera de los
+    // bloques (o un día sin bloques) son bloqueo estricto, con estados
+    // visuales propios — NO el 'colacion'/'fuera-horario' de la jornada
+    // simple, que sí admite sobrecupo del administrador. Así las 3
+    // agendas (Super Admin, Admin, Profesional) pintan lo mismo.
+    if (porBloques === 'colacion') return 'colacion-aprobada';
+    if (porBloques === 'fuera') return 'bloqueado-horario';
+    if (porBloques === 'disponible') return 'disponible';
+
+    // Sin agenda por bloques aprobada: se usa la jornada simple o, si
+    // tampoco hay una jornada aprobada, el horario institucional
+    // predeterminado de ese día (el viernes cierra a las 16:30).
+    if (this.esHoraDeColacion(hora)) return 'colacion';
+    return this.esHoraDentroDeJornada(fecha, hora) ? 'disponible' : 'fuera-horario';
+  }
+
+  private esHoraDentroDeJornada(fecha: string, hora: string): boolean {
+    const jornada = this.jornadaDelDia(fecha);
+    if (!jornada) return false;
+    const horaMin = this.horaAMinutos(hora, jornada.inicioMin);
+    return horaMin >= jornada.inicioMin && horaMin < jornada.finMin;
+  }
+
   get citasDiaSeleccionado(): any[] {
     if (!this.diaSeleccionado) return [];
-    return this.citasSemana.filter(c => c.fecha === this.diaSeleccionado);
+    return this.citasAgenda.filter(c => c.fecha === this.diaSeleccionado);
+  }
+
+  imprimirMiAgenda(): void {
+    const host = document.querySelector<HTMLElement>(
+      'app-dashboard-profesional app-admin-horario'
+    );
+    const tarjeta = host?.querySelector<HTMLElement>('.agenda-calendar-card');
+    if (!tarjeta) {
+      this.mensajeError = 'No se pudo preparar la agenda para imprimir.';
+      return;
+    }
+    try {
+      imprimirAgendaAislada({
+        tarjeta,
+        leyenda: host?.querySelector<HTMLElement>('.agenda-legend') ?? null,
+        profesional: [this.perfil.nombre, this.perfil.especialidad]
+          .filter(Boolean)
+          .join(' — '),
+        vistaNombre: 'Semana',
+        periodo: this.agendaPeriodoLabel,
+        orientacion: 'landscape'
+      });
+    } catch {
+      this.mensajeError = 'No se pudo abrir la vista de impresión.';
+    }
   }
 
   clickBloque(fecha: string, hora: string): void { this.diaSeleccionado = fecha; }
@@ -989,53 +1242,6 @@ limpiarFiltrosAtenciones(): void {
   mostrarContrasenaaNueva  = false;
   mostrarContrasenaConf   = false;
 
-  // Horario de almuerzo
-horarioAlmuerzoEnEdicion = false;
-almuerzoHoraInicio = '';   // valor del <input type="time">, formato "HH:MM"
-
-habilitarEdicionAlmuerzo(): void {
-  this.horarioAlmuerzoEnEdicion = true;
-  this.almuerzoHoraInicio = this.perfil.hora_almuerzo_inicio || '';
-}
-
-cancelarEdicionAlmuerzo(): void {
-  this.horarioAlmuerzoEnEdicion = false;
-  this.almuerzoHoraInicio = this.perfil.hora_almuerzo_inicio || '';
-}
-
-get almuerzoHoraFinPreview(): string {
-  if (!this.almuerzoHoraInicio) return '';
-  const [h, m] = this.almuerzoHoraInicio.split(':').map(Number);
-  const totalMin = h * 60 + m + 60;
-  const finH = Math.floor(totalMin / 60) % 24;
-  const finM = totalMin % 60;
-  return `${String(finH).padStart(2,'0')}:${String(finM).padStart(2,'0')}`;
-}
-
-enviandoAlmuerzo = false;
-
-guardarHorarioAlmuerzo(): void {
-  if (!this.almuerzoHoraInicio || this.enviandoAlmuerzo) return; // evita doble envío por doble clic
-  this.enviandoAlmuerzo = true;
-  this.http.post<any>(`${API}/profesional/${this.profDbId}/solicitar-colacion`, {
-    hora_almuerzo_inicio: this.almuerzoHoraInicio
-  }).subscribe({
-    next: (resp) => {
-      this.horarioAlmuerzoEnEdicion = false;
-      this.enviandoAlmuerzo = false;
-      this.mensajeExito = `Solicitud enviada: colación ${resp.hora_inicio} - ${resp.hora_fin}. Queda pendiente de aprobación del administrador.`;
-      this.cargarSolicitudesHorario();
-      this.cdr.detectChanges();
-      setTimeout(() => { this.mensajeExito = ''; this.cdr.detectChanges(); }, 4000);
-    },
-    error: (err) => {
-      this.mensajeError = err?.error?.detail || 'No se pudo enviar la solicitud de colación.';
-      this.enviandoAlmuerzo = false;
-      this.cdr.detectChanges();
-      setTimeout(() => { this.mensajeError = ''; this.cdr.detectChanges(); }, 3000);
-    }
-  });
-}
   // Edición de Perfil / Contraseña: campos bloqueados hasta que se presiona "Editar"
   perfilEnEdicion   = false;
   passwordEnEdicion = false;
@@ -1139,19 +1345,13 @@ guardarHorarioAlmuerzo(): void {
     });
   }
   // ══════════════════════════════════════
-  // MI HORARIO — solicitud de jornada laboral
+  // MI HORARIO: solicitudes de horario (agenda semanal por bloques)
   // ══════════════════════════════════════
 
-  jornadaHoraInicio = '';
-  jornadaHoraFin    = '';
   solicitudesHorario: any[] = [];
 
-  get solicitudJornadaPendiente(): any {
-    return this.solicitudesHorario.find(s => s.tipo === 'jornada' && s.estado === 'pendiente');
-  }
-
-  get solicitudColacionPendiente(): any {
-    return this.solicitudesHorario.find(s => s.tipo === 'colacion' && s.estado === 'pendiente');
+  get solicitudBloquesPendiente(): any {
+    return this.solicitudesHorario.find(s => s.tipo === 'bloques' && s.estado === 'pendiente');
   }
 
   cargarSolicitudesHorario(): void {
@@ -1164,9 +1364,128 @@ guardarHorarioAlmuerzo(): void {
     });
   }
 
-  get jornadaFormularioValido(): boolean {
-    return !!this.jornadaHoraInicio && !!this.jornadaHoraFin && this.jornadaHoraInicio < this.jornadaHoraFin;
+  // ══════════════════════════════════════
+  // AGENDA SEMANAL POR BLOQUES
+  // Grilla de celdas de 30 minutos que el profesional pinta como
+  // "disponible" o "colacion". Horario institucional: Lun-Jue 09:00 a
+  // 17:30, Vie 09:00 a 16:30 (mismo rango que app/reglas_horario.py en el
+  // backend; si cambia uno, cambia el otro).
+  // ══════════════════════════════════════
+
+  readonly DIAS_BLOQUES = [
+    { valor: 0, nombre: 'Lunes' }, { valor: 1, nombre: 'Martes' }, { valor: 2, nombre: 'Miércoles' },
+    { valor: 3, nombre: 'Jueves' }, { valor: 4, nombre: 'Viernes' },
+  ];
+  private readonly RANGO_INSTITUCIONAL: Record<number, [string, string]> = {
+    0: ['09:00', '17:30'], 1: ['09:00', '17:30'], 2: ['09:00', '17:30'],
+    3: ['09:00', '17:30'], 4: ['09:00', '16:30'],
+  };
+  // Colación del horario PREDETERMINADO. Es solo el punto de partida del
+  // botón "usar horario por defecto": no es una franja fija del sistema.
+  // La colación que respeta la agenda es la que el profesional deja en sus
+  // bloques al enviarlos (puede ser cualquier rango, o ninguna).
+  private readonly HORA_COLACION_DEFECTO: [string, string] = ['12:00', '13:00'];
+
+  bloquesSeleccion: Record<string, 'disponible' | 'colacion'> = {};
+  bloquesModoPincel: 'disponible' | 'colacion' = 'disponible';
+  enviandoBloques = false;
+
+  private sumarMinutos(hora: string, minutos: number): string {
+    const total = this.horaAMinutos(hora, 0) + minutos;
+    return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
   }
+
+  /** Inicio de cada celda de 30 minutos del dia, dentro del horario institucional. */
+  slotsDelDia(dia: number): string[] {
+    const [inicio, fin] = this.RANGO_INSTITUCIONAL[dia];
+    const slots: string[] = [];
+    for (let h = inicio; h < fin; h = this.sumarMinutos(h, 30)) slots.push(h);
+    return slots;
+  }
+
+  claveBloque(dia: number, hora: string): string { return `${dia}-${hora}`; }
+
+  estadoCelda(dia: number, hora: string): 'disponible' | 'colacion' | null {
+    return this.bloquesSeleccion[this.claveBloque(dia, hora)] ?? null;
+  }
+
+  clickCeldaBloque(dia: number, hora: string): void {
+    if (this.solicitudBloquesPendiente) return;
+    const clave = this.claveBloque(dia, hora);
+    if (this.bloquesSeleccion[clave] === this.bloquesModoPincel) delete this.bloquesSeleccion[clave];
+    else this.bloquesSeleccion[clave] = this.bloquesModoPincel;
+  }
+
+  get bloquesSeleccionVacia(): boolean { return Object.keys(this.bloquesSeleccion).length === 0; }
+
+  limpiarSeleccionBloques(): void { this.bloquesSeleccion = {}; }
+
+  /** Horario institucional completo con colacion de 13:00 a 14:00 todos los dias. */
+  aplicarHorarioPorDefecto(): void {
+    if (this.solicitudBloquesPendiente) return;
+    const [ini, fin] = this.HORA_COLACION_DEFECTO;
+    const nueva: Record<string, 'disponible' | 'colacion'> = {};
+    for (const dia of this.DIAS_BLOQUES) {
+      for (const hora of this.slotsDelDia(dia.valor)) {
+        nueva[this.claveBloque(dia.valor, hora)] = hora >= ini && hora < fin ? 'colacion' : 'disponible';
+      }
+    }
+    this.bloquesSeleccion = nueva;
+  }
+
+  /** Pinta la grilla con la agenda por bloques ya aprobada (perfil.bloques_semanales). */
+  precargarBloquesAprobados(bloques: any[] | undefined): void {
+    const sel: Record<string, 'disponible' | 'colacion'> = {};
+    for (const b of bloques ?? []) {
+      if (!this.RANGO_INSTITUCIONAL[b.dia_semana]) continue;
+      for (const hora of this.slotsDelDia(b.dia_semana)) {
+        if (hora >= b.hora_inicio && hora < b.hora_fin) sel[this.claveBloque(b.dia_semana, hora)] = b.tipo;
+      }
+    }
+    this.bloquesSeleccion = sel;
+  }
+
+  /** Celdas pintadas -> bloques contiguos del mismo tipo (menos filas al guardar). */
+  private bloquesDesdeSeleccion(): { dia_semana: number; hora_inicio: string; hora_fin: string; tipo: string }[] {
+    const bloques: { dia_semana: number; hora_inicio: string; hora_fin: string; tipo: string }[] = [];
+    for (const dia of this.DIAS_BLOQUES) {
+      let actual: { tipo: string; ini: string; fin: string } | null = null;
+      for (const hora of this.slotsDelDia(dia.valor)) {
+        const tipo = this.estadoCelda(dia.valor, hora);
+        if (tipo && actual && actual.tipo === tipo && actual.fin === hora) {
+          actual.fin = this.sumarMinutos(hora, 30);
+          continue;
+        }
+        if (actual) bloques.push({ dia_semana: dia.valor, hora_inicio: actual.ini, hora_fin: actual.fin, tipo: actual.tipo });
+        actual = tipo ? { tipo, ini: hora, fin: this.sumarMinutos(hora, 30) } : null;
+      }
+      if (actual) bloques.push({ dia_semana: dia.valor, hora_inicio: actual.ini, hora_fin: actual.fin, tipo: actual.tipo });
+    }
+    return bloques;
+  }
+
+  enviarSolicitudBloques(): void {
+    if (this.bloquesSeleccionVacia || this.enviandoBloques) return;
+    const bloques = this.bloquesDesdeSeleccion();
+    if (!bloques.some(b => b.tipo === 'disponible')) {
+      this.mensajeError = 'Marca al menos un bloque como disponible.';
+      return;
+    }
+    this.enviandoBloques = true;
+    this.http.post<any>(`${API}/profesional/${this.profDbId}/solicitar-bloques-horario`, { bloques }).subscribe({
+      next: () => {
+        this.mensajeExito = 'Solicitud enviada. Queda pendiente de aprobación del administrador.';
+        this.enviandoBloques = false;
+        this.cargarSolicitudesHorario();
+      },
+      error: (err) => {
+        this.mensajeError = err?.error?.detail || 'No se pudo enviar la solicitud de horario.';
+        this.enviandoBloques = false;
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
   solicitudesSeleccionadas = new Set<number>();
 
 get solicitudesHaySeleccionadas(): boolean {
@@ -1216,27 +1535,6 @@ eliminarSolicitudesSeleccionadas(): void {
   });
   this.solicitudesSeleccionadas.clear();
 }
-  solicitarJornada(): void {
-    if (!this.jornadaFormularioValido) return;
-    this.http.post<any>(`${API}/profesional/${this.profDbId}/solicitar-jornada`, {
-      horario_inicio: this.jornadaHoraInicio,
-      horario_fin: this.jornadaHoraFin
-    }).subscribe({
-      next: (resp) => {
-        this.mensajeExito = `Solicitud enviada: jornada ${resp.hora_inicio} - ${resp.hora_fin}. Queda pendiente de aprobación del administrador.`;
-        this.jornadaHoraInicio = '';
-        this.jornadaHoraFin = '';
-        this.cargarSolicitudesHorario();
-        this.cdr.detectChanges();
-        setTimeout(() => { this.mensajeExito = ''; this.cdr.detectChanges(); }, 4000);
-      },
-      error: (err) => {
-        this.mensajeError = err?.error?.detail || 'No se pudo enviar la solicitud de jornada.';
-        this.cdr.detectChanges();
-        setTimeout(() => { this.mensajeError = ''; this.cdr.detectChanges(); }, 3000);
-      }
-    });
-  }
 
   // ══════════════════════════════════════
   // HISTORIAL CLÍNICO

@@ -14,6 +14,7 @@ from app.models.cita import Cita
 from app.models.profesional import Profesional
 from app.models.usuario import Usuario
 from app.models.notificacion import Notificacion
+from app.models.bloque_horario_semanal import BloqueHorarioSemanal
 from app.routers.correos import simular_envio_correo
 from app.auth_dependencies import get_current_user, verificar_acceso_profesional
 from app.rbac.permissions import Permission, has_permission
@@ -192,7 +193,16 @@ def get_perfil(
         "hora_almuerzo_inicio": prof.hora_almuerzo_inicio,
         "hora_almuerzo_fin":    prof.hora_almuerzo_fin,
         "horario_inicio": prof.horario_inicio,
-        "horario_fin":    prof.horario_fin
+        "horario_fin":    prof.horario_fin,
+        # Agenda semanal por bloques ya aprobada (vacia si el profesional
+        # sigue con su jornada simple).
+        "bloques_semanales": [
+            {"dia_semana": b.dia_semana, "hora_inicio": b.hora_inicio,
+             "hora_fin": b.hora_fin, "tipo": b.tipo}
+            for b in db.query(BloqueHorarioSemanal)
+                       .filter(BloqueHorarioSemanal.profesional_id == prof_id)
+                       .order_by(BloqueHorarioSemanal.dia_semana, BloqueHorarioSemanal.hora_inicio)
+        ],
     }
 
 @router.patch("/profesional/{prof_id}/perfil")

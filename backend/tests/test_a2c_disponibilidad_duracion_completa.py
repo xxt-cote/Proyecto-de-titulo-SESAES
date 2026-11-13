@@ -279,17 +279,17 @@ def test_cita_que_excede_jornada_del_profesional_es_rechazada_y_overridable(db_s
 # absoluto (NO overridable, a diferencia de la jornada del profesional)
 # ──────────────────────────────────────────────────────────
 
-def test_cita_que_termina_exactamente_al_cierre_del_centro_es_valida(db_session):
-    """17:30–18:00 (duración 30) con jornada del profesional hasta las
-    18:00 (igual que el cierre del centro): termina justo en el cierre,
-    no lo excede."""
+def test_cita_que_termina_exactamente_al_cierre_institucional_es_valida(db_session):
+    """17:00–17:30 (duración 30) con jornada hasta las 17:30 (cierre
+    institucional de lunes a jueves): termina justo en el límite, no lo
+    excede."""
     prof = _profesional(
-        db_session, horario_inicio="09:00", horario_fin="18:00", duracion_min=30,
+        db_session, horario_inicio="09:00", horario_fin="17:30", duracion_min=30,
     )
     db_session.commit()
 
     resultado = evaluar_disponibilidad_slot(
-        db_session, profesional_id=prof.id, fecha=_dia_habil_futuro(), hora="17:30",
+        db_session, profesional_id=prof.id, fecha=_dia_habil_futuro(), hora="17:00",
     )
 
     assert resultado.disponible is True
@@ -626,7 +626,7 @@ def test_listar_horas_disponibles_excluye_hora_que_invadiria_colacion_por_duraci
 
 def test_listar_horas_disponibles_excluye_hora_que_excederia_cierre_centro(db_session):
     prof = _profesional(
-        db_session, horario_inicio="09:00", horario_fin="18:00", duracion_min=45,
+        db_session, horario_inicio="09:00", horario_fin="17:30", duracion_min=45,
     )
     db_session.commit()
 
@@ -634,10 +634,10 @@ def test_listar_horas_disponibles_excluye_hora_que_excederia_cierre_centro(db_se
         db_session, profesional_id=prof.id, fecha=_dia_habil_futuro(),
     )
 
-    # 17:45–18:30 excede HORA_FIN_CENTRO (18:00): no debe listarse.
-    assert "17:45" not in horas
-    # 17:00–17:45 sí cabe dentro del cierre del centro.
-    assert "17:00" in horas
+    # 17:00–17:45 excede el cierre institucional (17:30): no debe listarse.
+    assert "17:00" not in horas
+    # 16:15–17:00 sí cabe dentro del cierre.
+    assert "16:15" in horas
 
 
 def test_listar_horas_disponibles_excluye_hora_con_solapamiento_parcial(db_session):

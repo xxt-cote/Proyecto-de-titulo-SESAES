@@ -995,7 +995,7 @@ describe('AdminHorarioComponent', () => {
         expect(component.bandaColacion).toEqual({ top: 62 + 48, alto: 48 });
       });
 
-      it('con la grilla real (45 min) el recuadro mide la colación exacta, no las dos filas completas', () => {
+      it('con la grilla real (45 min) el recuadro ocupa las filas completas de colación', () => {
         fixture.componentRef.setInput('horasGrilla', ['11:00', '11:45', '12:30', '13:15']);
         fixture.componentRef.setInput('profesionalActual', {
           nombre: 'Dra. Ana', hora_almuerzo_inicio: '12:00', hora_almuerzo_fin: '13:00', horario_fin: '15:50'
@@ -1004,12 +1004,9 @@ describe('AdminHorarioComponent', () => {
           h === '11:45' || h === '12:30' ? 'colacion' : 'disponible');
         fixture.detectChanges();
 
-        // 12:00 = 15/45 de la fila 11:45 (48px) → 62 + 48 + 16; 13:00 = 30/45 de la fila 12:30 → +32
-        const esperadoTop = 62 + 48 + 48 * (15 / 45);
-        const esperadoFin = 62 + 48 * 3 + 48 * (30 / 45);
-        expect(component.bandaColacion!.top).toBeCloseTo(esperadoTop, 5);
-        expect(component.bandaColacion!.alto).toBeCloseTo(esperadoFin - esperadoTop, 5);
-        expect(component.bandaColacion!.alto).toBeCloseTo(64, 5);
+        // La colación 12:00–13:00 toca las filas 11:45 y 12:30; el recuadro
+        // se ajusta a ambas filas completas para quedar encuadrado.
+        expect(component.bandaColacion).toEqual({ top: 62 + 48, alto: 48 * 2 });
       });
 
       it('funciona igual para cualquier profesional: se ubica según SU colación y SU grilla', () => {
@@ -1024,10 +1021,11 @@ describe('AdminHorarioComponent', () => {
           return component.bandaColacion;
         };
 
-        // 48 px por bloque; 62 px de encabezado.
+        // 48 px por bloque; 62 px de encabezado. La banda siempre se ajusta
+        // a filas completas, aunque la colación dure media fila.
         expect(caso(g30, '13:00', '13:30')).toEqual({ top: 62 + 48 * 10, alto: 48 });
-        expect(caso(g60, '13:00', '13:30')).toEqual({ top: 62 + 48 * 5, alto: 24 });
-        expect(caso(g30, '12:30', '13:15')!.alto).toBeCloseTo(72, 5);
+        expect(caso(g60, '13:00', '13:30')).toEqual({ top: 62 + 48 * 5, alto: 48 });
+        expect(caso(g30, '12:30', '13:15')).toEqual({ top: 62 + 48 * 9, alto: 48 * 2 });
         // Sin colación aprobada o fuera de la grilla: no se dibuja ni se inventa.
         expect(caso(g30, '', '')).toBeNull();
         expect(caso(g30, '18:00', '19:00')).toBeNull();
@@ -1153,6 +1151,172 @@ describe('AdminHorarioComponent', () => {
       const boton = Array.from(fixture.nativeElement.querySelectorAll('button'))
         .find(b => (b as HTMLElement).textContent?.includes('Solicitar sobrecupo')) as HTMLButtonElement;
       expect(boton.disabled).toBe(true);
+    });
+  });
+
+  describe('modo consulta propia (Profesional de Salud)', () => {
+    it('muestra la identidad de la sesión y oculta filtros de terceros', () => {
+      fixture.componentRef.setInput('modoProfesional', true);
+      fixture.componentRef.setInput('filtroProfesionalId', 10);
+      fixture.componentRef.setInput('profesionalActual', {
+        nombre: 'Dra. Propia',
+        especialidad: 'Nutrición'
+      });
+      fixture.detectChanges();
+
+      const texto = fixture.nativeElement.textContent as string;
+      expect(texto).toContain('Dra. Propia');
+      expect(texto).toContain('Nutrición');
+      expect(texto).toContain('Solo consulta');
+      expect(fixture.nativeElement.querySelector('#agenda-profesional')).toBeNull();
+      expect(fixture.nativeElement.querySelector('#agenda-especialidad')).toBeNull();
+    });
+
+    it('no renderiza ninguna acción administrativa', () => {
+      fixture.componentRef.setInput('modoProfesional', true);
+      fixture.componentRef.setInput('filtroProfesionalId', 10);
+      fixture.componentRef.setInput('puedeGestionarAgenda', false);
+      fixture.componentRef.setInput('puedeSobrecupo', false);
+      fixture.detectChanges();
+
+      const texto = fixture.nativeElement.textContent as string;
+      expect(texto).not.toContain('Nueva cita');
+      expect(texto).not.toContain('Solicitar sobrecupo');
+      expect(texto).not.toContain('Solicitudes de horario pendientes');
+    });
+
+    it('solo emite citaClick cuando la tarjeta es clickeable', () => {
+      fixture.componentRef.setInput('filtroProfesionalId', 10);
+      fixture.componentRef.setInput('diaSeleccionado', '2026-11-04');
+      fixture.componentRef.setInput('citasDiaSeleccionado', [
+        { id: 7, estudiante: 'Paciente Propio', hora: '09:00', estado: 'pendiente' }
+      ]);
+      fixture.detectChanges();
+
+      const emitidos: any[] = [];
+      component.citaClick.subscribe(cita => emitidos.push(cita));
+
+      const tarjeta = fixture.nativeElement.querySelector('.detalle-cita') as HTMLElement;
+      tarjeta.click();
+      expect(emitidos).toEqual([]);
+
+      fixture.componentRef.setInput('citaClickable', true);
+      fixture.detectChanges();
+      tarjeta.click();
+      expect(emitidos.length).toBe(1);
+      expect(emitidos[0].id).toBe(7);
+    });
+
+    it('soloDiasLaborables oculta sábado y domingo de la grilla', () => {
+      const semana = [
+        { nombre: 'Lun', num: 2, fecha: '2026-11-02', esHoy: false },
+        { nombre: 'Mar', num: 3, fecha: '2026-11-03', esHoy: false },
+        { nombre: 'Mié', num: 4, fecha: '2026-11-04', esHoy: true },
+        { nombre: 'Jue', num: 5, fecha: '2026-11-05', esHoy: false },
+        { nombre: 'Vie', num: 6, fecha: '2026-11-06', esHoy: false },
+        { nombre: 'Sáb', num: 7, fecha: '2026-11-07', esHoy: false },
+        { nombre: 'Dom', num: 8, fecha: '2026-11-08', esHoy: false },
+      ];
+      fixture.componentRef.setInput('modoProfesional', true);
+      fixture.componentRef.setInput('soloDiasLaborables', true);
+      fixture.componentRef.setInput('filtroProfesionalId', 10);
+      fixture.componentRef.setInput('semanaActual', semana);
+      fixture.componentRef.setInput('horasGrilla', ['09:00']);
+      fixture.detectChanges();
+
+      expect(component.diasGrilla.map(d => d.fecha)).toEqual([
+        '2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06',
+      ]);
+      expect(fixture.nativeElement.querySelectorAll('.dia-col').length).toBe(5);
+      expect(fixture.nativeElement.textContent).not.toContain('Sáb');
+      expect(fixture.nativeElement.textContent).not.toContain('Dom');
+    });
+
+    it('pinta la etiqueta del horario vigente en la identidad del profesional', () => {
+      fixture.componentRef.setInput('modoProfesional', true);
+      fixture.componentRef.setInput('filtroProfesionalId', 10);
+      fixture.componentRef.setInput('profesionalActual', { nombre: 'Dra. Propia' });
+      fixture.componentRef.setInput('horarioVigenteLabel', 'Horario predeterminado');
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain('Horario predeterminado');
+    });
+  });
+
+  // La colación NO es una franja fija del sistema: sale del horario semanal
+  // por bloques que el profesional dejó aprobado. Si no marcó colación, no
+  // se dibuja ninguna, aunque el registro conserve hora_almuerzo_* de una
+  // jornada simple anterior.
+  describe('colación según los bloques aprobados (no estática)', () => {
+    const LUNES = '2026-11-02';
+    const MARTES = '2026-11-03';
+
+    const montar = (bloques: any[], restantes: Record<string, any> = {}) => {
+      fixture.componentRef.setInput('filtroProfesionalId', 10);
+      fixture.componentRef.setInput('vista', 'semana');
+      fixture.componentRef.setInput('semanaActual', [
+        { nombre: 'Lun', num: 2, fecha: LUNES, esHoy: false },
+        { nombre: 'Mar', num: 3, fecha: MARTES, esHoy: false },
+      ]);
+      fixture.componentRef.setInput('horasGrilla', ['09:00', '10:00', '11:00', '12:00', '13:00']);
+      fixture.componentRef.setInput('profesionalActual', {
+        nombre: 'Dra. Ana',
+        // Campos de la jornada SIMPLE: ya no representan la agenda si hay
+        // bloques aprobados.
+        hora_almuerzo_inicio: '13:00',
+        hora_almuerzo_fin: '14:00',
+        horario_fin: '18:00',
+        bloques_semanales: bloques,
+        ...restantes
+      });
+      fixture.detectChanges();
+    };
+
+    it('usa el rango de colación que el profesional aprobó, no hora_almuerzo_*', () => {
+      montar([
+        { dia_semana: 1, hora_inicio: '09:00', hora_fin: '10:30', tipo: 'disponible' },
+        { dia_semana: 1, hora_inicio: '10:30', hora_fin: '11:00', tipo: 'colacion' },
+        { dia_semana: 1, hora_inicio: '11:00', hora_fin: '17:30', tipo: 'disponible' },
+      ]);
+
+      expect(component.colacionTexto).toBe('10:30 – 11:00');
+      expect(fixture.nativeElement.textContent).not.toContain('13:00 – 14:00');
+    });
+
+    it('sin bloque de colación aprobado NO se dibuja ninguna colación', () => {
+      montar([
+        { dia_semana: 1, hora_inicio: '09:00', hora_fin: '17:30', tipo: 'disponible' },
+      ]);
+
+      expect(component.colacionTexto).toBe('');
+      expect(component.bandaColacion).toBeNull();
+      expect(fixture.nativeElement.querySelector('.banda-colacion')).toBeNull();
+    });
+
+    it('la franja solo aparece en los días que tienen colación aprobada', () => {
+      montar([
+        { dia_semana: 1, hora_inicio: '09:00', hora_fin: '10:00', tipo: 'disponible' },
+        { dia_semana: 1, hora_inicio: '10:00', hora_fin: '11:00', tipo: 'colacion' },
+        { dia_semana: 1, hora_inicio: '11:00', hora_fin: '17:30', tipo: 'disponible' },
+        // Lunes sin colación
+        { dia_semana: 0, hora_inicio: '09:00', hora_fin: '17:30', tipo: 'disponible' },
+      ]);
+
+      expect(component.fechasBandaColacion.has(MARTES)).toBe(true);
+      expect(component.fechasBandaColacion.has(LUNES)).toBe(false);
+    });
+
+    it('sin bloques (jornada simple) la colación sigue saliendo de hora_almuerzo_*', () => {
+      montar([]);
+
+      expect(component.colacionTexto).toBe('13:00 – 14:00');
+    });
+
+    it('la salida vigente sale de los bloques disponibles, no de horario_fin', () => {
+      montar([
+        { dia_semana: 1, hora_inicio: '09:00', hora_fin: '16:30', tipo: 'disponible' },
+      ]);
+      expect(component.salidaTexto).toBe('16:30');
     });
   });
 

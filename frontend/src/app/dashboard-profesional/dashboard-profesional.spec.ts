@@ -50,4 +50,36 @@ describe('DashboardProfesionalComponent — modo claro/oscuro e iconos', () => {
     expect(el.querySelectorAll('svg').length).toBe(0);
     expect(el.querySelectorAll('.material-symbols-outlined').length).toBeGreaterThan(5);
   });
+
+  it('la agenda reutiliza la grilla del administrador en modo consulta propia', () => {
+    (c as any).profesionalId = 7;
+    c.seccionActiva = 'horario';
+    c.horarioTab = 'agenda';
+    c.perfil = {
+      ...c.perfil,
+      nombre: 'Dra. Propia',
+      especialidad: 'Nutrición',
+      estado: 'activo'
+    };
+    c.semanaActual = [
+      { nombre: 'Lun', num: 2, fecha: '2026-11-02', esHoy: false },
+      { nombre: 'Mar', num: 3, fecha: '2026-11-03', esHoy: false },
+      { nombre: 'Mié', num: 4, fecha: '2026-11-04', esHoy: true },
+      { nombre: 'Jue', num: 5, fecha: '2026-11-05', esHoy: false },
+      { nombre: 'Vie', num: 6, fecha: '2026-11-06', esHoy: false },
+      { nombre: 'Sáb', num: 7, fecha: '2026-11-07', esHoy: false },
+      { nombre: 'Dom', num: 8, fecha: '2026-11-08', esHoy: false }
+    ];
+    c.horasGrilla = ['09:00', '09:45'];
+    fixture.detectChanges();
+
+    const agenda = fixture.nativeElement.querySelector('app-admin-horario') as HTMLElement;
+    expect(agenda).toBeTruthy();
+    const texto = agenda.textContent ?? '';
+    expect(texto).toContain('Dra. Propia');
+    expect(texto).toContain('Solo consulta');
+    expect(texto).not.toContain('Nueva cita');
+    expect(texto).not.toContain('Solicitar sobrecupo');
+    expect(texto).not.toContain('Solicitudes de horario pendientes');
+  });
 });

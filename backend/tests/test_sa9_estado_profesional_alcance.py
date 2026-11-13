@@ -334,6 +334,16 @@ def test_estado_dentro_de_scope_cancelando_citas_conserva_flujo(
         ),
     )
 
+    # Registro de auditoría de la agenda: además de los eventos
+    # agregados (estado + cancelación masiva), una fila POR CITA.
+    monkeypatch.setattr(
+        admin,
+        "registrar_evento_cita",
+        lambda *args, **kwargs: auditorias.append(
+            (args, kwargs)
+        ),
+    )
+
     resultado = admin.cambiar_estado_profesional(
         prof_id=10,
         body={
@@ -369,8 +379,8 @@ def test_estado_dentro_de_scope_cancelando_citas_conserva_flujo(
     assert len(db.add_calls) == 2
     assert len(correos) == 1
 
-    # Auditor?a estado + auditor?a cancelaci?n masiva.
-    assert len(auditorias) == 2
+    # Auditoría estado + auditoría cancelación masiva + 1 por la cita.
+    assert len(auditorias) == 3
 
     # Conserva los dos commits hist?ricos.
     assert db.commit_calls == 2

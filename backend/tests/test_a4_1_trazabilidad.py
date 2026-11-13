@@ -510,9 +510,14 @@ def test_sobrecupo_genera_evento_de_auditoria_con_actor_de_current_user(db_sessi
     assert "turno de práctica" in evento.detalle
 
 
-def test_cita_normal_no_genera_evento_de_auditoria(db_session):
-    """A.4.1 corrige puntualmente el hueco de sobrecupo — no amplía el
-    alcance a auditar toda cita normal (fuera de alcance del ticket)."""
+def test_cita_normal_genera_evento_de_auditoria(db_session):
+    """Registro de auditoría de la agenda médica: toda creación de cita
+    deja constancia del actor autenticado y del timestamp exacto.
+
+    A.4.1 solo auditaba sobrecupo (el hueco puntual de ese ticket); el
+    requisito de tesis amplía el alcance a TODA cita, por eso este test
+    reemplaza al antiguo `test_cita_normal_no_genera_evento_de_auditoria`.
+    """
     fecha = _dia_habil_futuro()
     prof = _profesional(db_session)
     est = _usuario(db_session, correo="est-sinauditoria-a41@sesaes.cl", rol="estudiante", rut="a41-19")
@@ -521,7 +526,19 @@ def test_cita_normal_no_genera_evento_de_auditoria(db_session):
     payload = CitaCreate(estudiante_id=est.id, profesional_id=prof.id, fecha=fecha, hora="09:30")
     citas.crear_cita(cita=payload, db=db_session, current_user=_current_user(est))
 
-    assert db_session.query(Auditoria).count() == 0
+    creada = db_session.query(Cita).one()
+    eventos = (
+        db_session.query(Auditoria)
+        .filter(Auditoria.entidad == "cita", Auditoria.entidad_id == creada.id)
+        .all()
+    )
+    assert len(eventos) == 1
+    evento = eventos[0]
+    assert evento.accion == "Creó cita"
+    assert evento.usuario_id == est.id
+    assert evento.actor_rol == "estudiante"
+    assert evento.resultado == "exito"
+    assert evento.fecha is not None
 
 
 # ══════════════════════════════════════════════════════════
@@ -588,7 +605,7 @@ def test_falla_tardia_en_sobrecupo_no_deja_metadata_parcial(db_session, monkeypa
     _monkeypatch_admin_institucional(monkeypatch, citas, sobrecupo_policy_service)
     monkeypatch.setattr(
         citas,
-        "registrar_evento_auditoria",
+        "registrar_evento_cita",
         lambda *a, **k: (_ for _ in ()).throw(RuntimeError("falla simulada tardía")),
     )
 

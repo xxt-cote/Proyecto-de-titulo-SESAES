@@ -15,10 +15,15 @@ from app.models.usuario import Usuario
 from app.models.notificacion import Notificacion
 from app.models.configuracion import ConfiguracionSistema
 from app.models.auditoria import Auditoria
-from app.auditoria import registrar_evento_auditoria
+from app.auditoria import (
+    describir_cita,
+    registrar_evento_auditoria,
+    registrar_evento_cita,
+)
 from app.models.historial_estado_profesional import HistorialEstadoProfesional
 from app.models.correo_log import CorreoLog
 from app.models.dia_cerrado import DiaCerrado
+from app.models.bloque_horario_semanal import BloqueHorarioSemanal
 from app.routers.correos import simular_envio_correo
 from app.schemas import (
     ProfesionalCreate, ProfesionalUpdate, ProfesionalOut,
@@ -41,9 +46,11 @@ from app.services.agenda_disponibilidad_service import (
     hay_solapamiento_con_cita_activa,
     SlotInvalidoError,
     canonicalizar_fecha_valida,
+    validar_horario_aprobado_slot,
 )
 from app.services.cita_origen_service import resolver_origen_cita
 from app.services import reportes_resumen_service as reportes_svc
+from app.services import reportes_export_service as reportes_export_svc
 
 
 
@@ -861,6 +868,34 @@ def get_profesionales_admin(db: Session = Depends(get_db), current_user: dict = 
         )
     ]
 
+    # Agenda semanal por bloques aprobada, en UNA sola consulta para todos
+    # los profesionales del alcance (no una por profesional). La agenda
+    # administrativa la necesita para dibujar la colación donde el
+    # profesional realmente la dejó aprobada: un profesional puede no tener
+    # ningún bloque de colación (entonces NO se dibuja ninguna), y el rango
+    # tampoco tiene por qué coincidir con hora_almuerzo_* (que es la
+    # colación de la jornada simple, no la de la agenda por bloques).
+    ids = [p.id for p in profesionales]
+    bloques_por_profesional: dict[int, list[dict]] = {pid: [] for pid in ids}
+    if ids:
+        filas_bloques = (
+            db.query(BloqueHorarioSemanal)
+            .filter(BloqueHorarioSemanal.profesional_id.in_(ids))
+            .order_by(
+                BloqueHorarioSemanal.profesional_id,
+                BloqueHorarioSemanal.dia_semana,
+                BloqueHorarioSemanal.hora_inicio,
+            )
+            .all()
+        )
+        for b in filas_bloques:
+            bloques_por_profesional.setdefault(b.profesional_id, []).append({
+                "dia_semana": b.dia_semana,
+                "hora_inicio": b.hora_inicio,
+                "hora_fin": b.hora_fin,
+                "tipo": b.tipo,
+            })
+
     return [
         {
             "id": p.id, "nombre": p.nombre, "tratamiento": p.tratamiento,
@@ -875,6 +910,10 @@ def get_profesionales_admin(db: Session = Depends(get_db), current_user: dict = 
             "horario_inicio": p.horario_inicio, "horario_fin": p.horario_fin,
             "hora_almuerzo_inicio": p.hora_almuerzo_inicio,
             "hora_almuerzo_fin": p.hora_almuerzo_fin,
+            # Agenda semanal por bloques aprobada (vacía si el profesional
+            # usa su jornada simple). Fuente real de la colación y de los
+            # días de atención en la agenda administrativa.
+            "bloques_semanales": bloques_por_profesional.get(p.id, []),
         }
         for p in profesionales
     ]
@@ -1190,6 +1229,19 @@ def eliminar_profesional(
             "Profesional eliminado del sistema"
         )
 
+        # Registro de auditoría de la agenda: una fila POR CITA, no solo
+        # el evento agregado "Eliminó profesional" de más abajo. Así el
+        # historial de cada cita anulada queda consultable por
+        # entidad="cita"/entidad_id, con actor y timestamp exactos.
+        registrar_evento_cita(
+            db, current_user, "Canceló cita",
+            cita=cita,
+            detalle=(
+                f"{describir_cita(cita)}. Estado: pendiente → cancelada. "
+                f"Motivo: profesional eliminado del sistema."
+            ),
+        )
+
         db.add(
             Notificacion(
                 usuario_id=cita.estudiante_id,
@@ -1364,6 +1416,17 @@ def cambiar_estado_profesional(
             cita.cancelada_por_admin = True
             cita.motivo_cancelacion = (
                 f"Profesional: {estado_nuevo}"
+            )
+
+            # Registro de auditoría de la agenda: una fila POR CITA
+            # anulada por el cambio de estado masivo del profesional.
+            registrar_evento_cita(
+                db, current_user, "Canceló cita",
+                cita=cita,
+                detalle=(
+                    f"{describir_cita(cita)}. Estado: pendiente → cancelada. "
+                    f"Motivo: profesional {estado_nuevo}."
+                ),
             )
 
             db.add(
@@ -1606,6 +1669,23 @@ def crear_cita_urgente(cita: CitaCreate, db: Session = Depends(get_db), current_
         profesional_id=cita.profesional_id,
         fecha=fecha_canon,
     )
+    # Horario semanal por bloques APROBADO — bloqueo estricto: este
+    # endpoint no pasa por evaluar_disponibilidad_slot() (decisión
+    # histórica de A.2), así que sin esta comprobación una urgencia
+    # podía caer en un día que el profesional no trabaja, fuera de sus
+    # bloques o durante su colación aprobada. validar_horario_aprobado_slot()
+    # aplica SOLO esa regla (no la grilla, ni cierres, ni jornada simple),
+    # sin ampliar el resto de la semántica de urgencias, y devuelve el
+    # motivo concreto para que el 400 lo detalle. Es un bloqueo absoluto:
+    # ni Admin ni Super Admin lo pueden forzar con sobrecupo.
+    mensaje_horario = validar_horario_aprobado_slot(
+        db,
+        profesional=prof,
+        fecha=fecha_canon,
+        hora=cita.hora,
+    )
+    if mensaje_horario:
+        raise HTTPException(status_code=400, detail=mensaje_horario)
     # A.3 (v2) — fecha/hora no interpretables deben rechazarse con 400
     # ANTES de decidir si hay solapamiento: nunca "no hay solapamiento"
     # por defecto (fail-open), porque este endpoint no pasa por
@@ -2009,6 +2089,17 @@ def crear_dia_cerrado(body: dict, db: Session = Depends(get_db), current_user: d
         cita.cancelada_por_admin = True
         cita.motivo_cancelacion = f"El centro permanecerá cerrado el {fecha}. {motivo}"
 
+        # Registro de auditoría de la agenda: una fila POR CITA
+        # anulada por el cierre institucional del día.
+        registrar_evento_cita(
+            db, current_user, "Canceló cita",
+            cita=cita,
+            detalle=(
+                f"{describir_cita(cita)}. Estado: pendiente → cancelada. "
+                f"Motivo: centro cerrado ({motivo})."
+            ),
+        )
+
         est = db.query(Usuario).filter(Usuario.id == cita.estudiante_id).first()
         prof = db.query(Profesional).filter(Profesional.id == cita.profesional_id).first()
 
@@ -2316,6 +2407,72 @@ def get_reportes_resumen_pdf(
         io.BytesIO(contenido),
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="reporte-atenciones-{periodo["fecha_fin"]}.pdf"'},
+    )
+
+
+@router.get("/reportes/resumen/excel")
+def get_reportes_resumen_excel(
+    fecha_inicio: str | None = None,
+    fecha_fin: str | None = None,
+    especialidad: str | None = None,
+    carrera: str | None = None,
+    profesional_id: int | None = None,
+    estado: str | None = None,
+    prioridad: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_effective_permission(Permission.REPORTES_VER)),
+):
+    """
+    Excel (.xlsx real, OpenPyXL) con el mismo resumen que el JSON y el PDF:
+    atenciones, citas por estado, profesionales con su tasa de inasistencia,
+    evolución semanal, inasistencias por fecha y últimas atenciones.
+
+    No recalcula nada: consume `_construir_resumen_reportes`, la única
+    fuente de verdad de los indicadores. Registra auditoría con el actor
+    derivado de current_user.
+    """
+    resumen = _construir_resumen_reportes(
+        db, current_user,
+        fecha_inicio=fecha_inicio, fecha_fin=fecha_fin,
+        especialidad=especialidad, carrera=carrera,
+        profesional_id=profesional_id, estado=estado, prioridad=prioridad,
+        limite_ultimas=reportes_svc.MAX_ULTIMAS,
+    )
+    nombre_profesional = None
+    if profesional_id:
+        prof = db.query(Profesional.nombre).filter(Profesional.id == profesional_id).first()
+        nombre_profesional = prof[0] if prof else str(profesional_id)
+
+    contenido = reportes_export_svc.renderizar_excel(
+        resumen,
+        {
+            "Especialidad": especialidad,
+            "Carrera": carrera,
+            "Profesional": nombre_profesional,
+            "Estado": estado,
+            "Prioridad": prioridad,
+        },
+    )
+    periodo = resumen["periodo"]
+    registrar_evento_auditoria(
+        db, current_user,
+        "Exportó el reporte de atenciones e inasistencias (Excel)",
+        entidad="reportes",
+        detalle=f"Período {periodo['fecha_inicio']} a {periodo['fecha_fin']}",
+    )
+    db.commit()
+    return StreamingResponse(
+        io.BytesIO(contenido),
+        media_type=(
+            "application/vnd.openxmlformats-officedocument."
+            "spreadsheetml.sheet"
+        ),
+        headers={
+            "Content-Disposition": (
+                'attachment; filename="reporte-atenciones-inasistencias-'
+                f'{periodo["fecha_fin"]}.xlsx"'
+            )
+        },
     )
 
 
@@ -2661,10 +2818,24 @@ LIMITE_MAXIMO_AUDITORIA = 200
 
 
 @router.get("/auditoria")
-def get_auditoria(fecha_inicio: str = None, fecha_fin: str = None, limit: int = LIMITE_MAXIMO_AUDITORIA, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(Permission.AUDITORIA_VER))):
+def get_auditoria(
+    fecha_inicio: str = None,
+    fecha_fin: str = None,
+    entidad: str = None,
+    entidad_id: int = None,
+    limit: int = LIMITE_MAXIMO_AUDITORIA,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(Permission.AUDITORIA_VER)),
+):
     # Inicio SUPERADMIN: `limit` opcional (default y tope = 200, el valor
     # histórico) y `actor_nombre` aditivo, resuelto con un único LEFT JOIN
     # (sin consultar Usuario fila por fila). Los campos previos no cambian.
+    #
+    # Filtros `entidad`/`entidad_id` (ADITIVOS): permiten reconstruir el
+    # historial completo de un registro concreto. Para la agenda médica,
+    # `?entidad=cita&entidad_id=<id>` devuelve todas las acciones sobre
+    # esa cita (creación, cambios de prioridad/estado y anulación) con
+    # el actor y el timestamp exacto de cada una.
     limite = max(1, min(int(limit), LIMITE_MAXIMO_AUDITORIA))
     query = (
         db.query(Auditoria, Usuario.nombre)
@@ -2675,6 +2846,10 @@ def get_auditoria(fecha_inicio: str = None, fecha_fin: str = None, limit: int = 
         query = query.filter(Auditoria.fecha >= datetime.strptime(fecha_inicio, "%Y-%m-%d"))
     if fecha_fin:
         query = query.filter(Auditoria.fecha <= datetime.strptime(fecha_fin, "%Y-%m-%d").replace(hour=23, minute=59, second=59))
+    if entidad:
+        query = query.filter(Auditoria.entidad == entidad)
+    if entidad_id is not None:
+        query = query.filter(Auditoria.entidad_id == entidad_id)
     registros = query.limit(limite).all()
     return [
         {"id": r.id, "usuario_id": r.usuario_id, "actor_rol": r.actor_rol,

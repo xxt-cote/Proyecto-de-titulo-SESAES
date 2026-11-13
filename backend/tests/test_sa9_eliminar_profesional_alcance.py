@@ -319,6 +319,16 @@ def test_eliminar_dentro_de_scope_conserva_cancelacion_y_desactivacion(
         ),
     )
 
+    # Registro de auditoría de la agenda: además del evento agregado
+    # "Eliminó profesional", se registra una fila POR CITA anulada.
+    monkeypatch.setattr(
+        admin,
+        "registrar_evento_cita",
+        lambda *args, **kwargs: auditorias.append(
+            (args, kwargs)
+        ),
+    )
+
     resultado = admin.eliminar_profesional(
         prof_id=10,
         db=db,
@@ -351,7 +361,8 @@ def test_eliminar_dentro_de_scope_conserva_cancelacion_y_desactivacion(
     # Se elimina ?nicamente el Profesional.
     assert db.delete_calls == [prof]
 
-    assert len(auditorias) == 1
+    # 1 evento agregado ("Eliminó profesional") + 1 por la cita anulada.
+    assert len(auditorias) == 2
     assert db.commit_calls == 1
 
 

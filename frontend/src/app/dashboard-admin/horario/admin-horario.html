@@ -1,58 +1,86 @@
-<section class="agenda-page" aria-label="Agenda clínica administrativa">
+<section
+  class="agenda-page"
+  [attr.aria-label]="modoProfesional ? 'Mi agenda clínica' : 'Agenda clínica administrativa'"
+>
   <div class="agenda-toolbar card">
-    <div class="agenda-filter-grid">
-      <div class="agenda-filter-field">
-        <label for="agenda-profesional">Profesional asignado</label>
-        <select
-          id="agenda-profesional"
-          [(ngModel)]="filtroProfesionalId"
-          (ngModelChange)="filtroProfesionalIdChange.emit($event)"
-          (change)="recargarHorario.emit()"
-        >
-          <option value="">Seleccionar profesional</option>
-          <option *ngFor="let p of profesionalesFiltrados" [value]="p.id">{{ p.nombre }}</option>
-        </select>
-      </div>
-
-      <div class="agenda-filter-field">
-        <label for="agenda-especialidad">Especialidad clínica</label>
-        <select
-          id="agenda-especialidad"
-          [(ngModel)]="filtroEspecialidad"
-          (ngModelChange)="filtroEspecialidadChange.emit($event)"
-          (change)="filtrar.emit()"
-        >
-          <option value="">Todas las especialidades</option>
-          <option *ngFor="let e of especialidades">{{ e }}</option>
-        </select>
-      </div>
-
-      <div class="agenda-view-field">
-        <span class="agenda-filter-label">Vista temporal</span>
-        <div class="agenda-view-switch" role="tablist" aria-label="Vista temporal de agenda">
-          <button
-            type="button"
-            role="tab"
-            [class.active]="vista === 'dia'"
-            [attr.aria-selected]="vista === 'dia'"
-            (click)="cambiarVista('dia')"
-          >Día</button>
-          <button
-            type="button"
-            role="tab"
-            [class.active]="vista === 'semana'"
-            [attr.aria-selected]="vista === 'semana'"
-            (click)="cambiarVista('semana')"
-          >Semana</button>
-          <button
-            type="button"
-            role="tab"
-            [class.active]="vista === 'mes'"
-            [attr.aria-selected]="vista === 'mes'"
-            (click)="cambiarVista('mes')"
-          >Mes</button>
+    <div class="agenda-filter-grid" [class.agenda-filter-grid-prof]="modoProfesional">
+      <ng-container *ngIf="!modoProfesional">
+        <div class="agenda-filter-field">
+          <label for="agenda-profesional">Profesional asignado</label>
+          <select
+            id="agenda-profesional"
+            [(ngModel)]="filtroProfesionalId"
+            (ngModelChange)="filtroProfesionalIdChange.emit($event)"
+            (change)="recargarHorario.emit()"
+          >
+            <option value="">Seleccionar profesional</option>
+            <option *ngFor="let p of profesionalesFiltrados" [value]="p.id">{{ p.nombre }}</option>
+          </select>
         </div>
-      </div>
+
+        <div class="agenda-filter-field">
+          <label for="agenda-especialidad">Especialidad clínica</label>
+          <select
+            id="agenda-especialidad"
+            [(ngModel)]="filtroEspecialidad"
+            (ngModelChange)="filtroEspecialidadChange.emit($event)"
+            (change)="filtrar.emit()"
+          >
+            <option value="">Todas las especialidades</option>
+            <option *ngFor="let e of especialidades">{{ e }}</option>
+          </select>
+        </div>
+
+        <div class="agenda-view-field">
+          <span class="agenda-filter-label">Vista temporal</span>
+          <div class="agenda-view-switch" role="tablist" aria-label="Vista temporal de agenda">
+            <button
+              type="button"
+              role="tab"
+              [class.active]="vista === 'dia'"
+              [attr.aria-selected]="vista === 'dia'"
+              (click)="cambiarVista('dia')"
+            >Día</button>
+            <button
+              type="button"
+              role="tab"
+              [class.active]="vista === 'semana'"
+              [attr.aria-selected]="vista === 'semana'"
+              (click)="cambiarVista('semana')"
+            >Semana</button>
+            <button
+              type="button"
+              role="tab"
+              [class.active]="vista === 'mes'"
+              [attr.aria-selected]="vista === 'mes'"
+              (click)="cambiarVista('mes')"
+            >Mes</button>
+          </div>
+        </div>
+      </ng-container>
+
+      <!-- Modo consulta propia: identidad fija de la sesión en lugar de
+           filtros de terceros. No hay selector de profesional ni de
+           especialidad porque el backend solo entrega la agenda propia. -->
+      <ng-container *ngIf="modoProfesional">
+        <div class="agenda-self-card">
+          <span class="agenda-self-avatar material-symbols-outlined" aria-hidden="true">badge</span>
+          <div class="agenda-self-copy">
+            <span class="agenda-filter-label">Mi agenda</span>
+            <strong>{{ profesionalActual?.nombre || 'Profesional de Salud' }}</strong>
+            <small *ngIf="profesionalActual?.especialidad">{{ profesionalActual?.especialidad }}</small>
+            <small *ngIf="horarioVigenteLabel" class="agenda-self-horario"
+                   [title]="horarioVigenteLabel">
+              <span class="material-symbols-outlined" aria-hidden="true">schedule</span>
+              {{ horarioVigenteLabel }}
+            </small>
+          </div>
+        </div>
+        <span class="agenda-mode-badge">
+          <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+          Solo consulta
+        </span>
+      </ng-container>
     </div>
 
     <div class="agenda-toolbar-actions">
@@ -111,6 +139,8 @@
       <span class="agenda-legend-item"><span class="agenda-dot sobrecupo"></span>Sobrecupo</span>
       <span class="agenda-legend-item"><span class="agenda-dot urgencia"></span>Urgencia</span>
       <span class="agenda-legend-item"><span class="agenda-dot cerrado"></span>Centro cerrado</span>
+      <span class="agenda-legend-item"><span class="agenda-dot bloqueado-horario"></span>Fuera de horario aprobado</span>
+      <span class="agenda-legend-item"><span class="agenda-dot colacion-aprobada"></span>Colación aprobada</span>
       <span class="agenda-legend-item"><span class="agenda-dot feriado"></span>Feriado</span>
     </div>
   </div>
@@ -177,7 +207,7 @@
           <span class="agenda-eyebrow">Calendario clínico</span>
           <h3>{{ tituloVista }}</h3>
         </div>
-        <div class="agenda-profesional-chip" *ngIf="profesionalActual">
+        <div class="agenda-profesional-chip" *ngIf="profesionalActual && !modoProfesional">
           <span class="material-symbols-outlined" aria-hidden="true">person</span>
           <span>{{ profesionalActual?.nombre }}<small>{{ profesionalActual?.especialidad }}</small></span>
         </div>
@@ -224,10 +254,12 @@
             [class.colacion-bloque]="bloqueEstadoFn(dia.fecha, h) === 'colacion'"
             [class.fuera-horario-bloque]="bloqueEstadoFn(dia.fecha, h) === 'fuera-horario'"
             [class.bloqueado]="bloqueEstadoFn(dia.fecha, h) === 'bloqueado'"
+            [class.bloqueado-horario-bloque]="bloqueEstadoFn(dia.fecha, h) === 'bloqueado-horario'"
+            [class.colacion-aprobada-bloque]="bloqueEstadoFn(dia.fecha, h) === 'colacion-aprobada'"
             [class.cerrado-centro-bloque]="bloqueEstadoFn(dia.fecha, h) === 'cerrado-centro'"
             [class.sin-datos-bloque]="bloqueEstadoFn(dia.fecha, h) === 'sin-datos'"
             [class.multi-cita]="bloqueCitasFn(dia.fecha, h).length > 1"
-            [attr.aria-disabled]="bloqueEstadoFn(dia.fecha, h) === 'sin-datos' ? 'true' : null"
+            [attr.aria-disabled]="(bloqueEstadoFn(dia.fecha, h) === 'sin-datos' || bloqueEstadoFn(dia.fecha, h) === 'bloqueado-horario' || bloqueEstadoFn(dia.fecha, h) === 'colacion-aprobada') ? 'true' : null"
             [title]="bloqueTitulo(dia.fecha, h)"
             (click)="bloqueClick.emit({ fecha: dia.fecha, hora: h })"
           >
@@ -380,7 +412,10 @@
         <div class="detalle-lista agenda-context-list">
           <div *ngFor="let cita of citasDiaSeleccionado" class="detalle-cita"
                [class.urgente]="cita.urgente"
-               [class.cita-sobrecupo]="cita.sobrecupo">
+               [class.cita-sobrecupo]="cita.sobrecupo"
+               [class.cita-clickeable]="citaClickable"
+               [attr.title]="citaClickable ? 'Ver historial completo de este paciente' : null"
+               (click)="onCitaClick(cita)">
             <span class="detalle-hora">{{ cita.hora }}</span>
             <div class="detalle-info">
               <span *ngIf="cita.sobrecupo" class="agenda-inline-tag sobrecupo">Sobrecupo</span>
@@ -411,7 +446,11 @@
 
   <div class="card agenda-empty-state" *ngIf="!filtroProfesionalId">
     <span class="material-symbols-outlined" aria-hidden="true">calendar_month</span>
-    <div>
+    <div *ngIf="modoProfesional">
+      <strong>Preparando tu agenda</strong>
+      <span>Estamos cargando tu calendario y tus citas. Esto tomará solo un momento.</span>
+    </div>
+    <div *ngIf="!modoProfesional">
       <strong>Selecciona un profesional</strong>
       <span>El calendario y sus indicadores se actualizarán con la agenda real del profesional seleccionado.</span>
     </div>
@@ -433,8 +472,8 @@
         <tr *ngFor="let s of solicitudesHorarioAdmin">
           <td>{{ s.profesional_nombre }}</td>
           <td><span class="esp-badge">{{ s.especialidad }}</span></td>
-          <td>{{ s.tipo === 'colacion' ? 'Colación' : 'Jornada' }}</td>
-          <td>{{ s.hora_inicio }} – {{ s.hora_fin }}</td>
+          <td>{{ tipoSolicitudLabel(s) }}</td>
+          <td>{{ horarioSolicitado(s) }}</td>
           <td>{{ s.fecha_solicitud | date:'dd/MM/yyyy HH:mm' }}</td>
           <td>
             <div class="tabla-acciones">

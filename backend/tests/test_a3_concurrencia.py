@@ -728,6 +728,8 @@ def test_crear_cita_guarda_fecha_canonica_aunque_llegue_sin_ceros(db_session):
     evaluar_disponibilidad_slot."""
     fecha_canonica = _dia_habil_futuro()
     fecha_cruda = _fecha_sin_ceros(fecha_canonica)
+    if fecha_cruda == fecha_canonica:
+        pytest.skip('la fecha de hoy no tiene ceros de relleno que quitar')
     assert fecha_cruda != fecha_canonica  # strings distintos, misma fecha real
 
     prof = _profesional(db_session, duracion_min=45)
@@ -748,6 +750,8 @@ def test_urgente_guarda_fecha_canonica_aunque_llegue_sin_ceros(db_session, monke
     anterior, en el otro canal de creación de citas."""
     fecha_canonica = _dia_habil_futuro()
     fecha_cruda = _fecha_sin_ceros(fecha_canonica)
+    if fecha_cruda == fecha_canonica:
+        pytest.skip('la fecha de hoy no tiene ceros de relleno que quitar')
 
     prof = _profesional(db_session, duracion_min=45)
     est = _estudiante(db_session, correo="canon-urgente@sesaes.cl", rut="a3-canon-urgente")
@@ -771,6 +775,8 @@ def test_urgente_dia_cerrado_canonico_bloquea_tambien_fecha_sin_ceros(db_session
     encontrar el día cerrado real."""
     fecha_canonica = _dia_habil_futuro()
     fecha_cruda = _fecha_sin_ceros(fecha_canonica)
+    if fecha_cruda == fecha_canonica:
+        pytest.skip('la fecha de hoy no tiene ceros de relleno que quitar')
 
     prof = _profesional(db_session, duracion_min=45)
     est = _estudiante(db_session, correo="canon-diacerrado@sesaes.cl", rut="a3-canon-cerrado")

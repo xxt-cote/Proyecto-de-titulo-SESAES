@@ -17,10 +17,116 @@
   --agenda-bloqueado-bg: #EEF2F6;
   --agenda-feriado: #F59E0B;
   --agenda-feriado-bg: #FFF4D6;
+  --agenda-card-bg: #fff;
+  --agenda-today-bg: #F0F7FF;
+  --agenda-today-text: var(--admin-primary);
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   Base estructural autocontenida
+   La grilla nació apoyándose en clases globales del shell Admin
+   (.semana-grilla, .hora-col, .dia-col, .detalle-*, .estado-badge…),
+   definidas en dashboard-admin.css con ViewEncapsulation.None. Al
+   reutilizar este componente desde el panel del Profesional ese archivo
+   puede no estar cargado, así que la agenda declara aquí su propia base
+   con los mismos valores. No depende del shell y no altera su diseño:
+   las reglas específicas (.agenda-week-grid …) siguen ganando por
+   especificidad.
+   ══════════════════════════════════════════════════════════════ */
+.agenda-toolbar,
+.agenda-period-bar {
+  background: var(--agenda-card-bg);
+  border-radius: 14px;
+}
+.agenda-calendar-card,
+.agenda-context-panel {
+  background: var(--agenda-card-bg);
+  padding: 0;
+  overflow: hidden;
+  margin-bottom: 0;
+}
+.agenda-empty-state { background: var(--agenda-card-bg); }
+.agenda-layout { display: grid; }
+.semana-grilla { display: flex; overflow-x: auto; }
+.hora-col { flex-shrink: 0; width: 60px; }
+.hora-celda {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 8px;
+  font-size: 10px;
+  color: var(--admin-text-secondary);
+  border-bottom: 1px solid var(--admin-border);
+}
+.hora-celda.header { height: 52px; }
+.dia-col { flex: 1; min-width: 100px; border-left: 1px solid var(--admin-border); }
+.dia-header {
+  height: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid var(--admin-border);
+  gap: 2px;
+}
+.dia-header.hoy { background: var(--agenda-today-bg); }
+.dia-nombre { font-size: 10px; font-weight: 600; color: var(--admin-text-secondary); text-transform: uppercase; }
+.dia-num { font-size: 15px; font-weight: 700; color: var(--admin-text); }
+.dia-header.hoy .dia-num { color: var(--agenda-today-text); }
+.bloque-celda {
+  height: 48px;
+  border-bottom: 1px solid var(--admin-border);
+  cursor: pointer;
+  transition: background .1s;
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+}
+.bloque-celda:hover { background: var(--admin-background); }
+.bloque-info {
+  font-size: 10px;
+  color: var(--admin-text);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.detalle-dia-card { padding: 0; overflow: hidden; margin-bottom: 0; }
+.detalle-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--admin-border);
+}
+.detalle-header h4 { margin: 0; font-size: 13px; font-weight: 700; color: var(--admin-text); }
+.detalle-cerrar { background: none; border: none; font-size: 14px; cursor: pointer; color: var(--admin-text-secondary); }
+.detalle-lista { padding: 8px 0; max-height: 400px; overflow-y: auto; }
+.detalle-cita {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--admin-border);
+}
+.detalle-hora { font-size: 12px; font-weight: 700; color: var(--admin-primary); width: 60px; flex-shrink: 0; }
+.detalle-info { flex: 1; }
+.detalle-info strong { display: block; font-size: 12px; color: var(--admin-text); }
+.detalle-info span { display: block; font-size: 11px; color: var(--admin-text-secondary); }
+.estado-badge { padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; background: var(--admin-surface); color: var(--admin-primary-hover); }
+.estado-badge.activo,
+.estado-badge.completada { background: #EAF8F6; color: #0D9488; }
+.estado-badge.inactivo,
+.estado-badge.cancelada,
+.estado-badge.inasistencia { background: #FFF0F0; color: #C53E3E; }
+.estado-badge.enfermo,
+.estado-badge.licencia { background: #FFF6DF; color: #AD7B12; }
+.estado-badge.pendiente { background: #EFF6FF; color: #4F8EF7; }
 
 .agenda-toolbar,
 .agenda-period-bar {
@@ -195,6 +301,16 @@
 .agenda-dot.urgencia { background: var(--agenda-urgencia); }
 .agenda-dot.cerrado { background: var(--agenda-bloqueado); }
 .agenda-dot.feriado { background: var(--agenda-feriado); }
+/* Horario semanal aprobado: mismo patrón que la celda, para que la
+   leyenda explique el rayado gris oscuro de la grilla. */
+.agenda-dot.bloqueado-horario {
+  background: repeating-linear-gradient(135deg, #E9ECEF, #E9ECEF 3px, #D5DAE1 3px, #D5DAE1 6px);
+  box-shadow: inset 0 0 0 1px #8C99AB;
+}
+.agenda-dot.colacion-aprobada {
+  background: repeating-linear-gradient(135deg, #F4EFE6, #F4EFE6 3px, #E5DAC6 3px, #E5DAC6 6px);
+  box-shadow: inset 0 0 0 1px #B39A6B;
+}
 
 .agenda-kpi-grid {
   display: grid;
@@ -271,6 +387,12 @@
    columna izquierda quedan 10px más arriba que las filas de la grilla. */
 .agenda-week-grid .hora-celda.header { height: 62px; box-sizing: border-box; color: var(--admin-text-secondary); font-weight: 600; justify-content: center; padding-right: 0; }
 .agenda-week-grid .dia-header { height: 62px; }
+/* Los altos que calcula el componente (48px por fila, 62px de cabecera)
+   incluyen el borde: sin border-box cada fila crece 1px y la banda de
+   colación queda desalineada respecto de las celdas. */
+.agenda-week-grid .bloque-celda,
+.agenda-week-grid .hora-celda,
+.agenda-week-grid .dia-header { box-sizing: border-box; }
 .agenda-week-grid .dia-header.feriado { background: repeating-linear-gradient(135deg, #FFF8E7, #FFF8E7 7px, #FFF2CD 7px, #FFF2CD 14px); }
 .agenda-week-grid .dia-header.feriado .dia-num { color: #8A4B08; }
 .dia-feriado-label { color: #8A4B08; font-size: 8px; font-weight: 700; text-transform: uppercase; }
@@ -564,6 +686,224 @@
 
 .agenda-ver-dia { margin: 12px 12px 0; width: calc(100% - 24px); min-height: 36px; }
 
+/* Horario semanal APROBADO del profesional: día no trabajado, fuera de sus
+   bloques o colación. Patrón propio (rayas más cerradas y tono más oscuro)
+   para distinguirlo del "bloqueado" genérico y del cierre del centro, y
+   cursor not-allowed porque NO admite clic ni sobrecupo. */
+.agenda-week-grid .bloque-celda.bloqueado-horario-bloque {
+  background: repeating-linear-gradient(135deg, #E9ECEF, #E9ECEF 6px, #D5DAE1 6px, #D5DAE1 12px);
+  border-left: 2px solid #8C99AB;
+  cursor: not-allowed;
+}
+.agenda-week-grid .bloque-celda.bloqueado-horario-bloque:hover { background: repeating-linear-gradient(135deg, #E9ECEF, #E9ECEF 6px, #D5DAE1 6px, #D5DAE1 12px); }
+
+/* Colación del horario semanal APROBADO: mismo bloqueo estricto, tono
+   cálido propio para que se distinga del resto de los bloques cerrados. */
+.agenda-week-grid .bloque-celda.colacion-aprobada-bloque {
+  background: repeating-linear-gradient(135deg, #F4EFE6, #F4EFE6 6px, #E5DAC6 6px, #E5DAC6 12px);
+  border-left: 2px solid #B39A6B;
+  cursor: not-allowed;
+}
+.agenda-week-grid .bloque-celda.colacion-aprobada-bloque:hover { background: repeating-linear-gradient(135deg, #F4EFE6, #F4EFE6 6px, #E5DAC6 6px, #E5DAC6 12px); }
+.agenda-week-grid .bloque-celda.sin-datos-bloque {
+  background: var(--admin-background);
+  box-shadow: inset 0 0 0 1px var(--admin-border);
+  cursor: not-allowed;
+  opacity: .7;
+}
+.agenda-week-grid .bloque-celda.sin-datos-bloque:hover { background: var(--admin-background); }
+
+/* ══════════════════════════════════════════════════════════════
+   Día sin atención y fila al pie (colación / salida)
+   ══════════════════════════════════════════════════════════════ */
+.agenda-week-grid { --pie-alto: 62px; }
+.agenda-week-grid .dia-col { position: relative; }
+
+.agenda-week-grid .dia-cerrado-aviso {
+  position: absolute;
+  top: 62px;
+  bottom: var(--pie-alto);
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 8px;
+  text-align: center;
+  pointer-events: none;
+}
+.agenda-week-grid .dia-cerrado-aviso .material-symbols-outlined { font-size: 24px; color: var(--admin-text-secondary); }
+.agenda-week-grid .dia-cerrado-aviso strong { color: var(--admin-text); font-size: 12px; }
+.agenda-week-grid .dia-cerrado-motivo {
+  max-width: 100%;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--admin-text-secondary);
+  font-size: 11px;
+}
+
+.agenda-week-grid .dia-pie,
+.agenda-week-grid .pie-hora-celda {
+  height: var(--pie-alto);
+  box-sizing: border-box;
+}
+.agenda-week-grid .pie-hora-celda { border-top: 1px solid var(--admin-border); background: var(--admin-background); }
+.agenda-week-grid .dia-pie {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 8px;
+  border-top: 1px solid var(--admin-border);
+  background: var(--admin-background);
+  color: var(--admin-text-secondary);
+  font-size: 10px;
+  overflow: hidden;
+}
+/* Colación: recuadro con el estilo de una cita, en la hora real de colación.
+   No captura clics (las filas de abajo siguen permitiendo solicitar sobrecupo). */
+.agenda-week-grid .banda-colacion {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  border-radius: 0;
+  background: #EEF1F6;
+  border-left: 3px solid #8A97AB;
+  border-top: 1px solid #D5DDE8;
+  border-bottom: 1px solid #D5DDE8;
+  color: var(--admin-text);
+  pointer-events: none;
+  overflow: hidden;
+}
+.agenda-week-grid .banda-colacion-titulo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--admin-text-secondary);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.agenda-week-grid .banda-colacion-titulo .material-symbols-outlined { font-size: 13px; }
+/* Colación corta (poco alto): título y hora en una sola línea. */
+.agenda-week-grid .banda-colacion.compacta { flex-direction: row; align-items: center; justify-content: flex-start; gap: 6px; }
+.agenda-week-grid .banda-colacion-hora { color: var(--admin-text); font-size: 11px; font-weight: 600; white-space: nowrap; }
+/* Las filas de colación quedan sin relleno propio: el recuadro es el que marca la colación. */
+.agenda-week-grid .bloque-celda.colacion-bloque { background: #fff; }
+.agenda-week-grid .pie-linea { display: flex; align-items: center; gap: 5px; min-width: 0; white-space: nowrap; }
+.agenda-week-grid .pie-linea .material-symbols-outlined { font-size: 14px; color: var(--admin-text-secondary); }
+.agenda-week-grid .pie-etq { font-weight: 600; color: var(--admin-text); }
+.agenda-week-grid .pie-hora { overflow: hidden; text-overflow: ellipsis; }
+
+/* ══════════════════════════════════════════════════════════════
+   Vista Día — reutiliza la grilla horaria con una sola columna.
+   ══════════════════════════════════════════════════════════════ */
+.agenda-day-sindatos {
+  margin: 12px 16px 0;
+  padding: 8px 12px;
+  border: 1px dashed var(--admin-border);
+  border-radius: 8px;
+  background: var(--admin-background);
+  color: var(--admin-text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+}
+.agenda-day-grid .dia-col { min-width: 0; }
+.agenda-day-grid .bloque-celda { padding: 0 16px; }
+.agenda-day-grid .bloque-celda .bloque-info { font-size: 12px; }
+
+/* ══════════════════════════════════════════════════════════════
+   Vista Mes — resumen por día (citas + cupos reales de backend).
+   ══════════════════════════════════════════════════════════════ */
+.agenda-month { padding: 12px; overflow-x: auto; }
+.agenda-month-weekdays,
+.agenda-month-body {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+.agenda-month-weekdays { padding-bottom: 8px; }
+.agenda-month-weekdays span {
+  text-align: center;
+  color: var(--admin-text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.agenda-month-cell {
+  min-height: 98px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--admin-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--admin-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, box-shadow .15s;
+}
+.agenda-month-cell:hover:not(:disabled) { border-color: var(--admin-primary); background: var(--admin-surface); }
+.agenda-month-cell:focus-visible { outline: 2px solid var(--admin-primary); outline-offset: 1px; }
+.agenda-month-cell.seleccionado { border-color: var(--admin-primary); box-shadow: 0 0 0 2px rgba(94, 133, 125, .25); }
+.agenda-month-cell.feriado { border-color: #F8D58A; background: var(--agenda-feriado-bg); }
+.agenda-month-cell.fuera-mes { background: var(--admin-background); opacity: .5; cursor: default; }
+
+.agenda-month-num {
+  min-width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.agenda-month-cell.hoy .agenda-month-num { background: var(--admin-primary); color: #fff; }
+.agenda-month-feriado { color: #8A4B08; font-size: 8px; font-weight: 700; text-transform: uppercase; }
+
+.agenda-month-chips { display: flex; flex-direction: column; gap: 3px; width: 100%; }
+.agenda-month-chip {
+  display: block;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.agenda-month-chip.reservada { background: var(--agenda-reservada-bg); color: var(--agenda-reservada); }
+.agenda-month-chip.sobrecupo { background: var(--agenda-sobrecupo-bg); color: var(--agenda-sobrecupo); }
+.agenda-month-chip.urgencia { background: var(--agenda-urgencia-bg); color: var(--agenda-urgencia); }
+.agenda-month-chip.multicita { border: 1px dashed var(--agenda-reservada); color: var(--agenda-reservada); background: #fff; white-space: normal; }
+
+.agenda-month-estado { margin-top: auto; color: var(--admin-text-secondary); font-size: 10px; font-weight: 600; }
+.agenda-month-estado.estado-con-cupos { color: var(--agenda-disponible); }
+.agenda-month-estado.estado-cerrado,
+.agenda-month-estado.estado-bloqueado { color: var(--agenda-bloqueado); }
+.agenda-month-estado.estado-sin-datos { opacity: .7; }
+
+.agenda-ver-dia { margin: 12px 12px 0; width: calc(100% - 24px); min-height: 36px; }
+
 .agenda-context-panel { min-height: 360px; }
 .agenda-context-header { min-height: 64px; }
 .agenda-context-header h4 { margin-top: 3px; font-size: 13px; color: var(--admin-text); }
@@ -639,6 +979,207 @@
 .agenda-requests-card .btn-tabla { display: inline-flex; align-items: center; gap: 4px; }
 .agenda-requests-card .btn-tabla .material-symbols-outlined { font-size: 14px; }
 
+/* ══════════════════════════════════════════════════════════════
+   Modo consulta propia — Profesional de Salud
+   Se reutiliza la MISMA agenda del administrador. El profesional no
+   recibe filtros de terceros ni cambio de vista: su toolbar muestra su
+   identidad y la etiqueta "Solo consulta". Los botones de gestión no
+   existen en el DOM (puedeGestionarAgenda=false).
+   ══════════════════════════════════════════════════════════════ */
+:host-context(.dashboard-prof) .agenda-page {
+  --admin-primary: var(--prof-primary);
+  --admin-primary-hover: var(--prof-primary-hover);
+  --admin-surface: var(--prof-surface);
+  --admin-background: var(--prof-bg);
+  --admin-text: var(--prof-text);
+  --admin-text-secondary: var(--prof-text-2);
+  --admin-border: var(--prof-border);
+  --agenda-card-bg: var(--prof-card);
+  --agenda-today-bg: var(--prof-surface);
+  --agenda-today-text: var(--prof-primary);
+}
+
+.agenda-filter-grid-prof {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+.agenda-self-card { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.agenda-self-avatar {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: var(--admin-surface);
+  color: var(--admin-primary);
+  font-size: 22px;
+}
+.agenda-self-copy { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.agenda-self-copy .agenda-filter-label { margin: 0; }
+.agenda-self-copy strong {
+  color: var(--admin-text);
+  font-size: 14px;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.agenda-self-copy small { color: var(--admin-text-secondary); font-size: 11px; }
+.agenda-self-copy .agenda-self-horario {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  color: var(--admin-primary);
+  font-weight: 600;
+}
+.agenda-self-horario .material-symbols-outlined { font-size: 14px; }
+.agenda-mode-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 11px;
+  border: 1px solid var(--admin-border);
+  border-radius: 999px;
+  background: var(--admin-background);
+  color: var(--admin-text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.agenda-mode-badge .material-symbols-outlined { font-size: 15px; color: var(--admin-primary); }
+
+/* La cita del panel contextual abre el historial del paciente únicamente
+   cuando el padre activa citaClickable (panel Profesional). */
+.detalle-cita.cita-clickeable { cursor: pointer; transition: box-shadow .15s; }
+.detalle-cita.cita-clickeable:hover { box-shadow: 0 3px 10px rgba(16, 46, 41, .12); }
+
+/* Modo oscuro del Profesional: mismos estados que el modo oscuro Admin,
+   expresados con los tokens --prof-* del dashboard que lo contiene. */
+:host-context(.dashboard-prof.tema-oscuro) .agenda-toolbar,
+:host-context(.dashboard-prof.tema-oscuro) .agenda-period-bar,
+:host-context(.dashboard-prof.tema-oscuro) .agenda-kpi-card,
+:host-context(.dashboard-prof.tema-oscuro) .agenda-calendar-card,
+:host-context(.dashboard-prof.tema-oscuro) .agenda-context-panel,
+:host-context(.dashboard-prof.tema-oscuro) .agenda-empty-state {
+  background: var(--prof-card);
+  border-color: var(--prof-border);
+}
+:host-context(.dashboard-prof.tema-oscuro) .agenda-btn-secondary,
+:host-context(.dashboard-prof.tema-oscuro) .agenda-icon-btn,
+:host-context(.dashboard-prof.tema-oscuro) .agenda-today-btn {
+  background: var(--prof-field);
+  border-color: var(--prof-border);
+  color: var(--prof-text-body);
+}
+:host-context(.dashboard-prof.tema-oscuro) .agenda-week-grid .bloque-celda.disponible,
+:host-context(.dashboard-prof.tema-oscuro) .agenda-week-grid .bloque-celda.colacion-bloque,
+:host-context(.dashboard-prof.tema-oscuro) .agenda-week-grid .bloque-celda.multi-cita,
+:host-context(.dashboard-prof.tema-oscuro) .agenda-week-grid .bloque-celda.multi-cita.ocupado,
+:host-context(.dashboard-prof.tema-oscuro) .agenda-week-grid .bloque-celda.multi-cita.sobrecupo-bloque,
+:host-context(.dashboard-prof.tema-oscuro) .agenda-week-grid .bloque-celda.multi-cita.urgente-bloque {
+  background: var(--prof-card);
+}
+:host-context(.dashboard-prof.tema-oscuro) .agenda-week-grid .bloque-celda.disponible:hover {
+  background: var(--prof-surface);
+}
+:host-context(.dashboard-prof.tema-oscuro) .agenda-week-grid .bloque-celda.ocupado {
+  background: rgba(79, 142, 247, .22);
+}
+:host-context(.dashboard-prof.tema-oscuro) .agenda-week-grid .bloque-celda.sobrecupo-bloque {
+  background: rgba(124, 58, 237, .22);
+}
+:host-context(.dashboard-prof.tema-oscuro) .agenda-week-grid .bloque-celda.urgente-bloque {
+  background: rgba(239, 68, 68, .22);
+}
+:host-context(.dashboard-prof.tema-oscuro) .agenda-week-grid .bloque-celda.cerrado-centro-bloque,
+:host-context(.dashboard-prof.tema-oscuro) .agenda-week-grid .bloque-celda.bloqueado {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--prof-inset),
+    var(--prof-inset) 7px,
+    var(--prof-border) 7px,
+    var(--prof-border) 14px
+  );
+}
+:host-context(.dashboard-prof.tema-oscuro) .agenda-week-grid .bloque-celda.bloqueado-horario-bloque {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--prof-inset),
+    var(--prof-inset) 6px,
+    var(--prof-border) 6px,
+    var(--prof-border) 12px
+  );
+  border-left-color: var(--prof-border);
+}
+:host-context(.dashboard-prof.tema-oscuro) .agenda-week-grid .bloque-celda.colacion-aprobada-bloque {
+  background: repeating-linear-gradient(135deg, #2b2519, #2b2519 6px, #3d3423 6px, #3d3423 12px);
+  border-left-color: #7a6844;
+}
+:host-context(.dashboard-prof.tema-oscuro) .agenda-week-grid .bloque-celda .cita-tarjeta {
+  background: var(--prof-surface);
+}
+:host-context(.dashboard-prof.tema-oscuro) .agenda-week-grid .bloque-celda .cita-tarjeta.bloque-info-sobrecupo {
+  background: rgba(124, 58, 237, .22);
+}
+:host-context(.dashboard-prof.tema-oscuro) .agenda-week-grid .bloque-celda .cita-tarjeta.bloque-info-urgente {
+  background: rgba(239, 68, 68, .20);
+}
+:host-context(.dashboard-prof.tema-oscuro) .agenda-week-grid .banda-colacion {
+  background: var(--prof-inset);
+  border-left-color: var(--prof-muted);
+  border-top-color: var(--prof-border);
+  border-bottom-color: var(--prof-border);
+}
+:host-context(.dashboard-prof.tema-oscuro) .agenda-week-grid .dia-pie,
+:host-context(.dashboard-prof.tema-oscuro) .agenda-week-grid .pie-hora-celda {
+  background: var(--prof-inset);
+  border-top-color: var(--prof-border);
+}
+:host-context(.dashboard-prof.tema-oscuro) .agenda-week-grid .dia-header.feriado {
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(245, 158, 11, .10),
+    rgba(245, 158, 11, .10) 7px,
+    rgba(245, 158, 11, .18) 7px,
+    rgba(245, 158, 11, .18) 14px
+  );
+}
+:host-context(.dashboard-prof.tema-oscuro) .agenda-week-grid .dia-header.feriado .dia-num,
+:host-context(.dashboard-prof.tema-oscuro) .dia-feriado-label {
+  color: #FBBF24;
+}
+:host-context(.dashboard-prof.tema-oscuro) .agenda-day-summary > div {
+  background: var(--prof-field);
+  border-color: var(--prof-border);
+}
+:host-context(.dashboard-prof.tema-oscuro) .detalle-cita {
+  background: var(--prof-card);
+  border-color: var(--prof-border);
+}
+:host-context(.dashboard-prof.tema-oscuro) .detalle-cita.cita-sobrecupo {
+  background: rgba(124, 58, 237, .18);
+}
+:host-context(.dashboard-prof.tema-oscuro) .detalle-cita.urgente,
+:host-context(.dashboard-prof.tema-oscuro) .detalle-cita.urgente.cita-sobrecupo {
+  background: rgba(239, 68, 68, .18);
+}
+:host-context(.dashboard-prof.tema-oscuro) .detalle-info > span:not(.agenda-inline-tag) {
+  color: var(--prof-text-2);
+}
+:host-context(.dashboard-prof.tema-oscuro) .agenda-feriado-context {
+  background: rgba(245, 158, 11, .12);
+  border-color: rgba(245, 158, 11, .35);
+  color: #FBBF24;
+}
+:host-context(.dashboard-prof.tema-oscuro) .agenda-profesional-alert {
+  background: var(--prof-field);
+  border-color: var(--prof-border);
+  color: var(--prof-text-body);
+}
+
 :host-context(.admin-shell.tema-oscuro) .agenda-toolbar,
 :host-context(.admin-shell.tema-oscuro) .agenda-period-bar,
 :host-context(.admin-shell.tema-oscuro) .agenda-kpi-card,
@@ -666,10 +1207,21 @@
 :host-context(.admin-shell.tema-oscuro) .agenda-week-grid .bloque-celda .cita-tarjeta.bloque-info-urgente { background: #4a2430; }
 :host-context(.admin-shell.tema-oscuro) .agenda-week-grid .dia-pie,
 :host-context(.admin-shell.tema-oscuro) .agenda-week-grid .pie-hora-celda { background: #1d2636; border-top-color: #3a4a63; }
-:host-context(.admin-shell.tema-oscuro) .agenda-week-grid .banda-colacion { background: #263246; border-left-color: #6B7A93; }
+:host-context(.admin-shell.tema-oscuro) .agenda-week-grid .banda-colacion { background: #263246; border-left-color: #6B7A93; border-top-color: #3a4a63; border-bottom-color: #3a4a63; }
 :host-context(.admin-shell.tema-oscuro) .agenda-week-grid .banda-colacion-titulo { color: #9fb0c8; }
 :host-context(.admin-shell.tema-oscuro) .agenda-week-grid .banda-colacion-hora { color: #e6edf3; }
 :host-context(.admin-shell.tema-oscuro) .agenda-week-grid .bloque-celda.colacion-bloque { background: #1d2636; }
+:host-context(.admin-shell.tema-oscuro) .agenda-week-grid .bloque-celda.bloqueado-horario-bloque {
+  background: repeating-linear-gradient(135deg, #1a2331, #1a2331 6px, #243146 6px, #243146 12px);
+  border-left-color: #4a5c78;
+}
+:host-context(.admin-shell.tema-oscuro) .agenda-week-grid .bloque-celda.bloqueado-horario-bloque:hover {
+  background: repeating-linear-gradient(135deg, #1a2331, #1a2331 6px, #243146 6px, #243146 12px);
+}
+:host-context(.admin-shell.tema-oscuro) .agenda-week-grid .bloque-celda.colacion-aprobada-bloque {
+  background: repeating-linear-gradient(135deg, #241f16, #241f16 6px, #342c1f 6px, #342c1f 12px);
+  border-left-color: #7a6844;
+}
 :host-context(.admin-shell.tema-oscuro) .agenda-week-grid .pie-etq,
 :host-context(.admin-shell.tema-oscuro) .agenda-week-grid .dia-cerrado-aviso strong { color: #e6edf3; }
 

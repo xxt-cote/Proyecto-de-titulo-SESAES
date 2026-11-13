@@ -1,12 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime
+import json
 
 from app.database import get_db
 from app.models.profesional import Profesional
 from app.models.usuario import Usuario
 from app.models.notificacion import Notificacion
 from app.models.solicitud_horario import SolicitudHorario
+from app.models.solicitud_bloques import SolicitudBloques
+from app.models.bloque_horario_semanal import BloqueHorarioSemanal
+from app import reglas_horario
 from app.auth_dependencies import get_current_user, verificar_acceso_profesional
 from app.rbac.dependencies import require_effective_permission
 from app.rbac.admin_authorization import (
@@ -25,6 +29,19 @@ router = APIRouter(tags=["solicitudes-horario"])
 # commit/rollback por sí mismo — ver docstring de app/auditoria.py.
 
 
+def _exigir_agenda_gestionar_propia(current_user: dict) -> None:
+    """
+    Solo el chequeo de permiso (sin tocar la BD).
+
+    Se separa de `_exigir_agenda_gestionar_propia_y_ownership` para poder
+    ejecutarlo ANTES de consultar el recurso: un estudiante debe recibir
+    403 aunque el `solicitud_id` no exista, y nunca 404 (que confirmaría
+    la existencia de filas ajenas por enumeración de IDs).
+    """
+    if not has_permission(current_user, Permission.AGENDA_GESTIONAR_PROPIA):
+        raise HTTPException(status_code=403, detail="No tienes permiso para acceder a este recurso.")
+
+
 def _exigir_agenda_gestionar_propia_y_ownership(current_user: dict, prof_id: int, db) -> None:
     """
     RBAC + ownership para las 4 operaciones "propias" del profesional en
@@ -40,8 +57,7 @@ def _exigir_agenda_gestionar_propia_y_ownership(current_user: dict, prof_id: int
     403. Las rutas administrativas de este módulo siguen usando
     Permission.AGENDA_GESTIONAR vía require_permission, sin pasar por aquí.
     """
-    if not has_permission(current_user, Permission.AGENDA_GESTIONAR_PROPIA):
-        raise HTTPException(status_code=403, detail="No tienes permiso para acceder a este recurso.")
+    _exigir_agenda_gestionar_propia(current_user)
     verificar_acceso_profesional(current_user, prof_id, db, roles_permitidos=["profesional"])
 
 
@@ -223,6 +239,89 @@ def solicitar_jornada(
             "hora_inicio": hora_inicio, "hora_fin": hora_fin}
 
 
+def _bloques_por_solicitud(db, solicitudes) -> dict:
+    """{solicitud_id: [bloques]} para las solicitudes de tipo "bloques" de la lista."""
+    ids = [s.id for s in solicitudes if s.tipo == "bloques"]
+    if not ids:
+        return {}
+    filas = db.query(SolicitudBloques).filter(SolicitudBloques.solicitud_id.in_(ids)).all()
+    return {f.solicitud_id: json.loads(f.bloques_json) for f in filas}
+
+
+@router.post("/profesional/{prof_id}/solicitar-bloques-horario")
+def solicitar_bloques_horario(
+    prof_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    El profesional envia su agenda semanal completa: bloques de atencion
+    ("disponible") y de colacion, por dia (0=Lunes ... 4=Viernes). Cada bloque
+    debe caber en el horario institucional de ese dia. Reemplaza cualquier
+    solicitud de bloques pendiente anterior; el admin aprueba o rechaza el
+    paquete completo.
+
+    body = {"bloques": [{"dia_semana": 0, "hora_inicio": "09:00",
+                          "hora_fin": "13:00", "tipo": "disponible"}, ...]}
+    """
+    _exigir_agenda_gestionar_propia_y_ownership(current_user, prof_id, db)
+    prof = db.query(Profesional).filter(Profesional.id == prof_id).first()
+    if not prof:
+        raise HTTPException(status_code=404, detail="Profesional no encontrado")
+
+    bloques = body.get("bloques")
+    if not isinstance(bloques, list) or not bloques:
+        raise HTTPException(status_code=400, detail="Debes incluir al menos un bloque de horario")
+
+    normalizados = []
+    for b in bloques:
+        dia = b.get("dia_semana")
+        tipo = b.get("tipo") or "disponible"
+        if tipo not in reglas_horario.TIPOS_BLOQUE:
+            raise HTTPException(status_code=400, detail="Tipo de bloque inválido")
+        if not isinstance(dia, int) or not 0 <= dia <= 4:
+            raise HTTPException(status_code=400, detail="Solo se pueden pedir bloques de lunes a viernes")
+        error = reglas_horario.validar_bloque(dia, b.get("hora_inicio"), b.get("hora_fin"))
+        if error:
+            raise HTTPException(status_code=400, detail=f"{reglas_horario.NOMBRES_DIA[dia]}: {error}")
+        normalizados.append({
+            "dia_semana": dia, "hora_inicio": b["hora_inicio"], "hora_fin": b["hora_fin"], "tipo": tipo,
+        })
+
+    if not any(b["tipo"] == "disponible" for b in normalizados):
+        raise HTTPException(status_code=400, detail="Debes incluir al menos un bloque disponible")
+
+    pendiente = db.query(SolicitudHorario).filter(
+        SolicitudHorario.profesional_id == prof_id,
+        SolicitudHorario.tipo == "bloques",
+        SolicitudHorario.estado == "pendiente",
+    ).first()
+    if pendiente:
+        db.query(SolicitudBloques).filter(SolicitudBloques.solicitud_id == pendiente.id).delete()
+        db.delete(pendiente)
+
+    # hora_inicio/hora_fin resumen: el primer inicio y el ultimo fin de la semana,
+    # para que los listados que ya muestran "inicio - fin" sigan siendo legibles.
+    solicitud = SolicitudHorario(
+        profesional_id=prof_id, tipo="bloques",
+        hora_inicio=min(b["hora_inicio"] for b in normalizados),
+        hora_fin=max(b["hora_fin"] for b in normalizados),
+        estado="pendiente",
+    )
+    db.add(solicitud)
+    db.flush()
+    db.add(SolicitudBloques(solicitud_id=solicitud.id, bloques_json=json.dumps(normalizados)))
+
+    _notificar_admin(db, prof.especialidad, f"{prof.nombre} solicitó una agenda semanal por bloques ({len(normalizados)} bloques).")
+    registrar_evento_auditoria(db, current_user, "Profesional solicitó agenda por bloques",
+                                entidad="profesional", entidad_id=prof_id,
+                                detalle=f"{prof.nombre}: {len(normalizados)} bloques")
+    db.commit()
+    return {"message": "Solicitud de agenda semanal enviada. Queda pendiente de aprobación del administrador.",
+            "bloques": normalizados}
+
+
 @router.get("/profesional/{prof_id}/solicitudes-horario")
 def get_mis_solicitudes(
     prof_id: int,
@@ -233,9 +332,11 @@ def get_mis_solicitudes(
     solicitudes = db.query(SolicitudHorario).filter(
         SolicitudHorario.profesional_id == prof_id
     ).order_by(SolicitudHorario.fecha_solicitud.desc()).all()
+    bloques = _bloques_por_solicitud(db, solicitudes)
     return [
         {
             "id": s.id, "tipo": s.tipo, "hora_inicio": s.hora_inicio, "hora_fin": s.hora_fin,
+            "bloques": bloques.get(s.id),
             "estado": s.estado, "motivo_rechazo": s.motivo_rechazo,
             "fecha_solicitud": s.fecha_solicitud.isoformat() if s.fecha_solicitud else None
         }
@@ -249,12 +350,20 @@ def eliminar_solicitud(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
+    # El permiso se exige ANTES de consultar la fila: cualquier rol que no
+    # sea profesional con AGENDA_GESTIONAR_PROPIA (p. ej. estudiante)
+    # recibe 403 aunque el id no exista, sin filtrar la existencia de
+    # solicitudes ajenas vía 404.
+    _exigir_agenda_gestionar_propia(current_user)
+
     solicitud = db.query(SolicitudHorario).filter(SolicitudHorario.id == solicitud_id).first()
     if not solicitud:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
 
     _exigir_agenda_gestionar_propia_y_ownership(current_user, solicitud.profesional_id, db)
 
+    if solicitud.tipo == "bloques":
+        db.query(SolicitudBloques).filter(SolicitudBloques.solicitud_id == solicitud_id).delete()
     db.delete(solicitud)
     db.commit()
     return {"message": "Solicitud eliminada correctamente"}
@@ -316,6 +425,7 @@ def get_solicitudes_admin(
     )
 
     result = []
+    bloques = _bloques_por_solicitud(db, solicitudes)
 
     for s in solicitudes:
         prof = (
@@ -342,6 +452,7 @@ def get_solicitudes_admin(
             "tipo": s.tipo,
             "hora_inicio": s.hora_inicio,
             "hora_fin": s.hora_fin,
+            "bloques": bloques.get(s.id),
             "estado": s.estado,
             "motivo_rechazo": s.motivo_rechazo,
             "fecha_solicitud": (
@@ -426,6 +537,25 @@ def aprobar_solicitud(
             f"({solicitud.hora_inicio} - "
             f"{solicitud.hora_fin}) fue aprobada."
         )
+    elif solicitud.tipo == "bloques":
+        detalle = db.query(SolicitudBloques).filter(
+            SolicitudBloques.solicitud_id == solicitud.id
+        ).first()
+        bloques = json.loads(detalle.bloques_json) if detalle else []
+        if not bloques:
+            raise HTTPException(status_code=400, detail="La solicitud no tiene bloques")
+        # La agenda por bloques es una foto completa de la semana: reemplaza
+        # a la anterior, no se suma.
+        db.query(BloqueHorarioSemanal).filter(
+            BloqueHorarioSemanal.profesional_id == prof.id
+        ).delete()
+        for b in bloques:
+            db.add(BloqueHorarioSemanal(
+                profesional_id=prof.id, dia_semana=b["dia_semana"],
+                hora_inicio=b["hora_inicio"], hora_fin=b["hora_fin"], tipo=b["tipo"],
+            ))
+
+        mensaje_prof = f"Tu agenda semanal por bloques ({len(bloques)} bloques) fue aprobada."
     else:
         prof.horario_inicio = solicitud.hora_inicio
         prof.horario_fin = solicitud.hora_fin
@@ -540,11 +670,10 @@ def rechazar_solicitud(
     solicitud.motivo_rechazo = motivo
     solicitud.fecha_resolucion = datetime.utcnow()
 
-    tipo_desc = (
-        "colaci?n"
-        if solicitud.tipo == "colacion"
-        else "jornada"
-    )
+    tipo_desc = {
+        "colacion": "colaci?n",
+        "bloques": "agenda por bloques",
+    }.get(solicitud.tipo, "jornada")
 
     _notificar_profesional(
         db,

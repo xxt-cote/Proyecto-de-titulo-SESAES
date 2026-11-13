@@ -14,7 +14,11 @@ from app.models.usuario import Usuario
 from app.models.historial_paciente import HistorialPaciente
 from app.models.notificacion import Notificacion
 from app.schemas import CitaCreate
-from app.auditoria import registrar_evento_auditoria
+from app.auditoria import (
+    describir_cita,
+    registrar_evento_auditoria,
+    registrar_evento_cita,
+)
 from app.auth_dependencies import get_current_user, verificar_acceso
 from app.rbac.permissions import Permission
 from app.rbac.admin_authorization import (
@@ -605,14 +609,30 @@ def crear_cita(
                 cita_sobrecupo_id=detalle_sobrecupo.id,
                 codigo=codigo,
             ))
-        registrar_evento_auditoria(
+        registrar_evento_cita(
             db, current_user, "Creó cita con sobrecupo",
-            entidad="cita", entidad_id=nueva.id,
+            cita=nueva,
             detalle=(
-                f"Estudiante id {cita.estudiante_id} — Profesional id "
-                f"{cita.profesional_id} ({nueva.fecha} {nueva.hora}). "
+                f"{describir_cita(nueva)}. "
                 f"Conflicto superado: {motivo_conflicto_superado}. "
                 f"Motivo informado: {cita.sobrecupo_motivo or '(no informado por el cliente)'}. "
+                f"Perfil administrativo del actor: {origen.creado_por_perfil or '-'}."
+            ),
+        )
+    else:
+        # Registro de auditoría de la agenda médica: TODA creación de
+        # cita deja constancia del actor autenticado y del timestamp
+        # exacto (Auditoria.fecha, DEFAULT now() del motor), no solo
+        # las citas con sobrecupo (alcance que tenía A.4.1). Se usa
+        # `else` —y no un evento adicional— para que cada creación
+        # produzca EXACTAMENTE una fila de auditoría: las citas con
+        # sobrecupo efectivo ya quedan registradas arriba con una
+        # acción que describe el caso completo.
+        registrar_evento_cita(
+            db, current_user, "Creó cita",
+            cita=nueva,
+            detalle=(
+                f"{describir_cita(nueva)}. "
                 f"Perfil administrativo del actor: {origen.creado_por_perfil or '-'}."
             ),
         )
@@ -708,7 +728,26 @@ def cancelar_cita(
                 detail="No se puede cancelar: faltan menos de 5 horas para la cita"
             )
 
+    estado_anterior = cita.estado
     cita.estado = "cancelada"
+
+    # Registro de auditoría de la agenda médica — anulación por el
+    # propio estudiante o por el profesional asignado (esta ruta NO es
+    # la administrativa; esa ya audita en PATCH /admin/citas/{id}/cancelar).
+    # Se registra en la MISMA transacción que la mutación: si el commit
+    # falla, no queda ni la cancelación ni el evento. El actor sale de
+    # current_user (nunca del body) y el timestamp exacto de
+    # Auditoria.fecha (DEFAULT now() del motor).
+    registrar_evento_cita(
+        db, current_user, "Canceló cita",
+        cita=cita,
+        detalle=(
+            f"{describir_cita(cita)}. Estado: {estado_anterior} → cancelada. "
+            f"Motivo: cancelación solicitada por el rol "
+            f"{current_user.get('rol') or 'desconocido'}."
+        ),
+    )
+
     db.commit()
     return {"message": "Cita cancelada correctamente"}
 

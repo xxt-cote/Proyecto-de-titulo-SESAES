@@ -691,7 +691,7 @@ def test_n_falla_tardia_no_deja_metadata_parcial(db_session, monkeypatch):
 
     _monkeypatch_router_permisos(monkeypatch, gestionar=True, sobrecupo=True)
     monkeypatch.setattr(
-        citas, "registrar_evento_auditoria",
+        citas, "registrar_evento_cita",
         lambda *a, **k: (_ for _ in ()).throw(RuntimeError("falla simulada tardía")),
     )
 

@@ -396,156 +396,170 @@
 
       </div>
       <!-- ══ MI AGENDA ══ -->
-      <!-- ══ MI HORARIO (agenda semanal + configuración de jornada/colación) ══ -->
+      <!-- ══ MI HORARIO (agenda semanal + solicitud de horario por bloques) ══ -->
       <div *ngIf="seccionActiva==='horario'">
 
         <div class="tabs-prof">
           <button class="tab-prof" [class.active]="horarioTab==='agenda'" (click)="cambiarHorarioTab('agenda')">Agenda semanal</button>
-          <button class="tab-prof" [class.active]="horarioTab==='configuracion'" (click)="cambiarHorarioTab('configuracion')">Jornada y colación</button>
+          <button class="tab-prof" [class.active]="horarioTab==='configuracion'" (click)="cambiarHorarioTab('configuracion')">Solicitar horario semanal</button>
         </div>
 
-        <!-- Sub-vista: agenda semanal -->
+        <!-- Sub-vista: agenda semanal.
+             Misma grilla, KPI y panel contextual del Administrador. El
+             componente se usa en modo consulta propia: sin filtros de
+             terceros, sin cambio de vista y con puedeGestionarAgenda=false,
+             por lo que ninguna acción administrativa existe en el DOM. -->
         <div *ngIf="horarioTab==='agenda'">
-          <div class="semana-nav">
-            <button class="cal-nav-btn" (click)="semanaAnterior()"><span class="material-symbols-outlined icono-inline" aria-hidden="true">chevron_left</span></button>
-            <span class="semana-label">{{ semanaLabel }}</span>
-            <button class="cal-nav-btn" (click)="semanaSiguiente()"><span class="material-symbols-outlined icono-inline" aria-hidden="true">chevron_right</span></button>
-            <button class="btn-hoy-prof" (click)="irAHoy()">Hoy</button>
-          </div>
-
-          <div class="leyenda-prof">
-            <span class="leyenda-item-prof libre"><span class="leyenda-punto-prof" aria-hidden="true"></span> Disponible</span>
-            <span class="leyenda-item-prof ocupado"><span class="leyenda-punto-prof" aria-hidden="true"></span> Cita habitual</span>
-            <span class="leyenda-item-prof urgente"><span class="leyenda-punto-prof" aria-hidden="true"></span> Urgente</span>
-            <span class="leyenda-item-prof"><span class="leyenda-punto-prof" aria-hidden="true"></span> Feriado</span>
-          </div>
-
-          <div class="agenda-layout">
-            <div class="card-prof horario-card-prof">
-              <div class="semana-grilla-prof">
-                <div class="hora-col-prof">
-                  <div class="hora-celda-prof header"></div>
-                  <div class="hora-celda-prof" *ngFor="let h of horasGrilla">{{ h }}</div>
-                </div>
-                <div class="dia-col-prof" *ngFor="let dia of semanaActual">
-                  <div class="dia-header-prof" [class.hoy]="dia.esHoy" [class.feriado]="esFeriado(dia.fecha)" [title]="nombreFeriado(dia.fecha)">
-                    <span class="dia-nombre-prof">{{ dia.nombre }}</span>
-                    <span class="dia-num-prof">{{ dia.num }}</span>
-                  </div>
-                  <div class="bloque-prof" *ngFor="let h of horasGrilla"
-                       [class.libre]="getBloqueEstado(dia.fecha, h) === 'libre'"
-                       [class.ocupado]="getBloqueEstado(dia.fecha, h) === 'ocupado'"
-                       [class.urgente-bloque]="getBloqueEstado(dia.fecha, h) === 'urgente'"
-                       [class.bloqueado-bloque]="getBloqueEstado(dia.fecha, h) === 'bloqueado'"
-                       [class.cerrado-centro-bloque-prof]="getBloqueEstado(dia.fecha, h) === 'cerrado-centro'"
-                       [title]="getBloqueEstado(dia.fecha, h) === 'cerrado-centro' ? 'El centro no atiende este día' : ''"
-                       (click)="clickBloque(dia.fecha, h)">
-                    <span *ngIf="getBloqueInfo(dia.fecha, h) as info" class="bloque-info-prof">{{ info }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Panel detalle del día -->
-            <div class="card-prof detalle-dia-prof" *ngIf="diaSeleccionado">
-              <div class="detalle-header-prof">
-                <h4>{{ formatearDiaSeleccionado(diaSeleccionado) }}</h4>
-                <button class="detalle-cerrar-prof" (click)="diaSeleccionado=null" aria-label="Cerrar"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
-              </div>
-              <div *ngIf="citasDiaSeleccionado.length === 0" class="tabla-vacia-prof">Sin citas este día</div>
-              <div *ngFor="let cita of citasDiaSeleccionado" class="detalle-cita-prof detalle-cita-clickeable-prof" [class.urgente]="cita.urgente" (click)="irAFichaDesdeAgenda(cita)" title="Ver historial completo de este paciente">
-                <span class="detalle-hora-prof">{{ cita.hora }}</span>
-                <div class="detalle-info-prof">
-                  <strong>{{ cita.estudiante }}</strong>
-                  <span>{{ cita.rut }}</span>
-                  <span *ngIf="cita.urgente" class="urgente-tag">URGENTE</span>
-                </div>
-                <span class="estado-badge-prof" [ngClass]="cita.estado">{{ cita.estado }}</span>
-              </div>
-            </div>
-          </div>
+          <app-admin-horario
+            [modoProfesional]="true"
+            [soloDiasLaborables]="true"
+            [horarioVigenteLabel]="horarioVigenteEtiqueta"
+            [puedeGestionarAgenda]="false"
+            [puedeSobrecupo]="false"
+            [solicitudesHorarioAdmin]="agendaSolicitudesAdmin"
+            [especialidades]="agendaEspecialidades"
+            [profesionalesFiltrados]="agendaProfesionales"
+            [filtroProfesionalId]="profDbId || ''"
+            [profesionalActual]="perfil"
+            [profesionalActualBloqueado]="perfilBloqueado"
+            [semanaActual]="semanaActual"
+            [semanaLabel]="semanaLabel"
+            [periodoLabel]="agendaPeriodoLabel"
+            [vista]="'semana'"
+            [horasGrilla]="horasGrilla"
+            [(diaSeleccionado)]="diaSeleccionado"
+            [citasDiaSeleccionado]="citasDiaSeleccionado"
+            [citasHorario]="citasAgenda"
+            [diasCerrados]="diasCerrados"
+            [bloqueEstadoFn]="agendaBloqueEstadoFn"
+            [bloqueCitasFn]="agendaBloqueCitasFn"
+            [bloqueSobrecupoDisponibleFn]="agendaSobrecupoDisponibleFn"
+            [formatearFechaFn]="agendaFormatearFechaFn"
+            [esFeriadoFn]="agendaEsFeriadoFn"
+            [nombreFeriadoFn]="agendaNombreFeriadoFn"
+            [citaClickable]="true"
+            (anterior)="semanaAnterior()"
+            (siguiente)="semanaSiguiente()"
+            (hoy)="irAHoy()"
+            (recargarHorario)="cargarCitasSemana()"
+            (bloqueClick)="clickBloque($event.fecha, $event.hora)"
+            (citaClick)="irAFichaDesdeAgenda($event)"
+            (imprimir)="imprimirMiAgenda()"
+          ></app-admin-horario>
         </div>
 
-        <!-- Sub-vista: jornada y colación -->
+        <!-- Sub-vista: horario por bloques -->
         <div *ngIf="horarioTab==='configuracion'">
-          <div class="perfil-layout">
-
-            <!-- Jornada Laboral -->
-            <div class="card-prof">
-              <div class="card-header-prof">
-                <h3 class="card-title-prof"><span class="material-symbols-outlined icono-inline" aria-hidden="true">schedule</span> Jornada Laboral</h3>
+          <div class="card-prof card-bloques">
+            <div class="bloques-cabecera">
+              <div class="bloques-cabecera-icono">
+                <span class="material-symbols-outlined" aria-hidden="true">calendar_view_week</span>
               </div>
-              <p class="modal-desc" style="margin-bottom:16px">
-                Define tu hora de entrada y salida del centro. Los estudiantes no podrán agendar
-                citas fuera de este rango. Queda pendiente de aprobación del administrador.
-              </p>
-
-              <div class="alerta-estado" *ngIf="solicitudJornadaPendiente">
-                <span class="material-symbols-outlined icono-inline" aria-hidden="true">hourglass_top</span> Tienes una solicitud de jornada pendiente: {{ solicitudJornadaPendiente.hora_inicio }} – {{ solicitudJornadaPendiente.hora_fin }}, esperando aprobación del administrador.
+              <div class="bloques-cabecera-texto">
+                <h3 class="card-title-prof">Mi horario de trabajo semanal</h3>
+                <p class="modal-desc">
+                  Envía tu horario personalizado de lunes a viernes. Marca en verde los bloques en que atiendes y en naranja tu colación. El administrador debe aprobarlo; mientras no lo haga, se mantiene tu horario actual.
+                </p>
               </div>
-
-              <ng-container *ngIf="!solicitudJornadaPendiente">
-                <div class="form-grid">
-                  <div class="campo-grupo-prof">
-                    <label>Hora de entrada</label>
-                    <input type="time" [(ngModel)]="jornadaHoraInicio" />
-                  </div>
-                  <div class="campo-grupo-prof">
-                    <label>Hora de salida</label>
-                    <input type="time" [(ngModel)]="jornadaHoraFin" />
-                  </div>
-                </div>
-
-                <div class="campo-grupo-prof" *ngIf="perfil.horario_inicio">
-                  <label>Jornada aprobada actualmente</label>
-                  <input type="text" [value]="perfil.horario_inicio + ' – ' + perfil.horario_fin" disabled />
-                </div>
-                <div class="campo-grupo-prof" *ngIf="!perfil.horario_inicio">
-                  <span class="texto-gris">Aún no tienes una jornada aprobada (se asume 08:00–18:00 por defecto).</span>
-                </div>
-
-                <div class="perfil-acciones-edicion">
-                  <button class="btn-guardar-prof" [disabled]="!jornadaFormularioValido" (click)="solicitarJornada()">Enviar solicitud</button>
-                </div>
-              </ng-container>
+              <span class="bloques-estado-chip" [class.bloques-estado-chip-aprobado]="tieneHorarioPersonalizadoAprobado">
+                <span class="material-symbols-outlined" aria-hidden="true">{{ tieneHorarioPersonalizadoAprobado ? 'verified' : 'info' }}</span>
+                {{ horarioVigenteEtiqueta }}
+              </span>
             </div>
 
-            <!-- Horario de Almuerzo -->
-            <div class="card-prof">
-              <div class="card-header-prof">
-                <h3 class="card-title-prof"><span class="material-symbols-outlined icono-inline" aria-hidden="true">restaurant</span> Horario de Almuerzo</h3>
-                <button class="btn-editar-perfil" *ngIf="!horarioAlmuerzoEnEdicion && !solicitudColacionPendiente" (click)="habilitarEdicionAlmuerzo()"><span class="material-symbols-outlined icono-inline" aria-hidden="true">edit</span> Editar</button>
-              </div>
-              <p class="modal-desc" style="margin-bottom:16px">
-                Define tu hora de almuerzo. Al enviarla, queda pendiente de aprobación del administrador
-                antes de bloquearse en tu agenda.
-              </p>
-              <div class="alerta-estado" *ngIf="solicitudColacionPendiente">
-                <span class="material-symbols-outlined icono-inline" aria-hidden="true">hourglass_top</span> Tienes una solicitud de colación pendiente: {{ solicitudColacionPendiente.hora_inicio }} – {{ solicitudColacionPendiente.hora_fin }}, esperando aprobación del administrador.
-              </div>
-              <ng-container *ngIf="!solicitudColacionPendiente">
-                <div class="campo-grupo-prof">
-                  <label>Hora de inicio</label>
-                  <input type="time" [(ngModel)]="almuerzoHoraInicio" [disabled]="!horarioAlmuerzoEnEdicion" />
-                </div>
-                <div class="campo-grupo-prof" *ngIf="almuerzoHoraInicio">
-                  <label>Rango a solicitar (1 hora exacta)</label>
-                  <input type="text" [value]="almuerzoHoraInicio + ' – ' + almuerzoHoraFinPreview" disabled />
-                </div>
-                <div class="campo-grupo-prof" *ngIf="!horarioAlmuerzoEnEdicion && perfil.hora_almuerzo_inicio">
-                  <label>Horario aprobado actualmente</label>
-                  <input type="text" [value]="perfil.hora_almuerzo_inicio + ' – ' + perfil.hora_almuerzo_fin" disabled />
-                </div>
-                <div class="campo-grupo-prof" *ngIf="!horarioAlmuerzoEnEdicion && !perfil.hora_almuerzo_inicio">
-                  <span class="texto-gris">Aún no tienes un horario de almuerzo aprobado.</span>
-                </div>
-                <div class="perfil-acciones-edicion" *ngIf="horarioAlmuerzoEnEdicion">
-                  <button class="btn-cancelar-modal-prof" (click)="cancelarEdicionAlmuerzo()">Cancelar</button>
-                  <button class="btn-guardar-prof" [disabled]="!almuerzoHoraInicio || enviandoAlmuerzo" (click)="guardarHorarioAlmuerzo()">{{ enviandoAlmuerzo ? 'Enviando…' : 'Enviar solicitud' }}</button>
-                </div>
-              </ng-container>
+            <div class="alerta-estado alerta-estado-info">
+              <span class="material-symbols-outlined icono-inline" aria-hidden="true">{{ tieneHorarioPersonalizadoAprobado ? 'verified' : 'info' }}</span>
+              <strong>{{ horarioVigenteEtiqueta }}.</strong>
+              {{ horarioVigenteTexto }}
             </div>
 
+            <div class="alerta-estado" *ngIf="solicitudBloquesPendiente">
+              <span class="material-symbols-outlined icono-inline" aria-hidden="true">hourglass_top</span>
+              Tienes una solicitud pendiente de aprobación del administrador.
+            </div>
+
+            <ng-container *ngIf="!solicitudBloquesPendiente">
+              <div class="bloques-panel">
+                <div class="bloques-panel-cabecera">
+                  <div class="bloques-panel-titulo">
+                    <strong>Vista semanal</strong>
+                    <span>Lunes a jueves 09:00–17:30 · Viernes 09:00–16:30</span>
+                  </div>
+                  <div class="bloques-leyenda">
+                    <span><i class="bloques-leyenda-swatch bloques-leyenda-disponible"></i>Disponible</span>
+                    <span><i class="bloques-leyenda-swatch bloques-leyenda-colacion"></i>Colación</span>
+                    <span><i class="bloques-leyenda-swatch bloques-leyenda-cerrada"></i>No disponible</span>
+                  </div>
+                </div>
+
+                <div class="bloques-toolbar">
+                  <div class="bloques-modo-grupo" role="group" aria-label="Qué pintar en la grilla">
+                    <button type="button" class="bloques-modo-btn" [class.activo]="bloquesModoPincel==='disponible'" (click)="bloquesModoPincel='disponible'">
+                      <span class="bloques-swatch bloques-swatch-disponible"></span> Disponible
+                    </button>
+                    <button type="button" class="bloques-modo-btn" [class.activo]="bloquesModoPincel==='colacion'" (click)="bloquesModoPincel='colacion'">
+                      <span class="bloques-swatch bloques-swatch-colacion"></span> Colación
+                    </button>
+                  </div>
+                  <div class="bloques-toolbar-acciones">
+                    <button type="button" class="btn-cancelar-modal-prof" (click)="aplicarHorarioPorDefecto()" title="Lunes a Jueves 09:00 a 17:30, Viernes 09:00 a 16:30, colación a las 13:00">
+                      <span class="material-symbols-outlined icono-inline" aria-hidden="true">restart_alt</span>
+                      Rellenar por defecto
+                    </button>
+                    <button type="button" class="btn-cancelar-modal-prof" (click)="limpiarSeleccionBloques()" [disabled]="bloquesSeleccionVacia">
+                      <span class="material-symbols-outlined icono-inline" aria-hidden="true">delete_sweep</span>
+                      Limpiar todo
+                    </button>
+                  </div>
+                </div>
+
+                <div class="bloques-grilla-wrap">
+                  <table class="bloques-grilla">
+                    <thead>
+                      <tr>
+                        <th class="bloques-esquina" aria-label="Hora">
+                          <span class="material-symbols-outlined" aria-hidden="true">schedule</span>
+                        </th>
+                        <th *ngFor="let dia of DIAS_BLOQUES" class="bloques-dia-cabecera">
+                          <span class="bloques-dia-nombre">{{ dia.nombre | slice:0:3 }}</span>
+                          <span class="bloques-dia-sub">Semanal</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr *ngFor="let hora of slotsDelDia(0)">
+                        <td class="bloques-hora-label">{{ hora }}</td>
+                        <td *ngFor="let dia of DIAS_BLOQUES" class="bloques-celda-td">
+                          <button *ngIf="slotsDelDia(dia.valor).includes(hora); else fueraDeHorario"
+                                  type="button" class="bloques-celda"
+                                  [class.bloques-celda-disponible]="estadoCelda(dia.valor, hora)==='disponible'"
+                                  [class.bloques-celda-colacion]="estadoCelda(dia.valor, hora)==='colacion'"
+                                  (click)="clickCeldaBloque(dia.valor, hora)"
+                                  [attr.aria-label]="dia.nombre + ' ' + hora"
+                                  [title]="dia.nombre + ' ' + hora">
+                            <span *ngIf="estadoCelda(dia.valor, hora)==='disponible'" class="material-symbols-outlined bloques-celda-icono" aria-hidden="true">check</span>
+                            <span *ngIf="estadoCelda(dia.valor, hora)==='colacion'" class="material-symbols-outlined bloques-celda-icono" aria-hidden="true">restaurant</span>
+                          </button>
+                          <ng-template #fueraDeHorario>
+                            <span class="bloques-celda bloques-celda-cerrada" title="Fuera del horario institucional"></span>
+                          </ng-template>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div class="bloques-pie">
+                  <span class="bloques-pie-hint">
+                    <span class="material-symbols-outlined" aria-hidden="true">info</span>
+                    Tu solicitud queda pendiente hasta que el administrador la apruebe.
+                  </span>
+                  <button class="btn-guardar-prof" [disabled]="bloquesSeleccionVacia || enviandoBloques" (click)="enviarSolicitudBloques()">
+                    {{ enviandoBloques ? 'Enviando…' : 'Enviar solicitud' }}
+                  </button>
+                </div>
+              </div>
+            </ng-container>
           </div>
         </div>
       </div>
@@ -660,7 +674,7 @@
             <div *ngFor="let s of solicitudesHorario" class="cita-hoy-item">
               <input type="checkbox" [checked]="solicitudesSeleccionadas.has(s.id)" (change)="toggleSeleccionSolicitud(s)" />
               <div class="cita-hoy-info">
-                <strong><span class="material-symbols-outlined icono-inline" aria-hidden="true">{{ s.tipo === 'colacion' ? 'restaurant' : 'schedule' }}</span> {{ s.tipo === 'colacion' ? 'Colación' : 'Jornada' }}: {{ s.hora_inicio }} – {{ s.hora_fin }}</strong>
+                <strong><span class="material-symbols-outlined icono-inline" aria-hidden="true">{{ s.tipo === 'colacion' ? 'restaurant' : s.tipo === 'bloques' ? 'calendar_view_week' : 'schedule' }}</span> {{ s.tipo === 'colacion' ? 'Colación' : s.tipo === 'bloques' ? 'Horario semanal' : 'Jornada' }}: {{ s.tipo === 'bloques' ? (s.bloques?.length || 0) + ' bloques' : s.hora_inicio + ' a ' + s.hora_fin }}</strong>
                 <span *ngIf="s.estado !== 'pendiente' && s.fecha_respuesta">
                   {{ s.estado === 'rechazado' ? 'Rechazada' : 'Aprobada' }} el {{ s.fecha_respuesta | date:'dd/MM/yyyy HH:mm' }}
                 </span>

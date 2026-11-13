@@ -338,7 +338,9 @@ def test_hora_pasada_sin_ahora_no_se_evalua(db_session):
     assert "hora_pasada" not in _codigos(conflictos)
 
 
-def test_hora_fuera_de_grilla_aislado(db_session):
+def test_hora_fuera_de_grilla_y_fuera_de_jornada_se_reportan_juntas(db_session):
+    # La jornada simple 08:00-17:00 queda acotada al horario institucional
+    # (09:00-17:30), así que las 08:07 también están fuera de jornada.
     prof = _profesional(db_session, horario_inicio="08:00", horario_fin="17:00", duracion_min=30)
     fecha = _dia_habil_futuro_obj()
     db_session.commit()
@@ -348,13 +350,17 @@ def test_hora_fuera_de_grilla_aislado(db_session):
         hoy=date.today(), dia_cerrado=None, ocupadas=set(),
     )
 
-    assert _codigos(conflictos) == ["hora_fuera_de_grilla"]
-    assert conflictos[0].categoria == "grilla_centro"
-    assert conflictos[0].overridable_con_sobrecupo is False
-    json.dumps(conflictos[0].metadata)
+    codigos = _codigos(conflictos)
+    assert codigos == ["hora_fuera_de_grilla", "fuera_de_jornada"]
+    grilla = next(c for c in conflictos if c.codigo == "hora_fuera_de_grilla")
+    assert grilla.categoria == "grilla_centro"
+    assert grilla.overridable_con_sobrecupo is False
+    json.dumps(grilla.metadata)
 
 
-def test_excede_cierre_centro_aislado(db_session):
+def test_excede_cierre_centro_y_fuera_de_jornada_se_reportan_juntas(db_session):
+    # La jornada simple 09:00-20:00 queda acotada al cierre institucional
+    # (17:30), por lo que 17:00-18:30 también excede la jornada.
     prof = _profesional(db_session, horario_inicio="09:00", horario_fin="20:00", duracion_min=90)
     fecha = _dia_habil_futuro_obj()
     db_session.commit()
@@ -364,10 +370,12 @@ def test_excede_cierre_centro_aislado(db_session):
         hoy=date.today(), dia_cerrado=None, ocupadas=set(),
     )
 
-    assert _codigos(conflictos) == ["excede_cierre_centro"]
-    assert conflictos[0].categoria == "grilla_centro"
-    assert conflictos[0].overridable_con_sobrecupo is False
-    metadata = conflictos[0].metadata
+    codigos = _codigos(conflictos)
+    assert codigos == ["excede_cierre_centro", "fuera_de_jornada"]
+    cierre = next(c for c in conflictos if c.codigo == "excede_cierre_centro")
+    assert cierre.categoria == "grilla_centro"
+    assert cierre.overridable_con_sobrecupo is False
+    metadata = cierre.metadata
     assert set(metadata.keys()) == {
         "inicio_solicitado", "fin_solicitado", "duracion_min", "hora_fin_centro",
     }
@@ -915,7 +923,14 @@ def test_listar_disponibilidad_rango_no_gana_campo_conflictos(db_session):
     dia = resultado["dias"][0]
     assert set(dia.keys()) == {"fecha", "slots"}
     for slot in dia["slots"]:
-        assert set(slot.keys()) == {"hora", "disponible", "motivo", "overridable_con_sobrecupo"}
+        # El rango sigue SIN exponer `conflictos` (objetos internos): el
+        # flag booleano que consumen las agendas es la forma pública de
+        # esa información.
+        assert set(slot.keys()) == {
+            "hora", "disponible", "motivo", "overridable_con_sobrecupo",
+            "bloqueado_por_horario_aprobado",
+        }
+        assert isinstance(slot["bloqueado_por_horario_aprobado"], bool)
 
 
 # ══════════════════════════════════════════════════════════
