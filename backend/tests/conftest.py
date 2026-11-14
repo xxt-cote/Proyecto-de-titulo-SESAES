@@ -1,9 +1,14 @@
-﻿"""Bootstrap comun de modelos SQLAlchemy para la suite de tests.
+"""Bootstrap comun de modelos SQLAlchemy para la suite de tests.
 
 Los tests deben poder ejecutarse de forma aislada y en cualquier orden.
 Importar explicitamente los modulos registra todas las clases relacionadas
 en el registry de SQLAlchemy antes de que configure_mappers() sea necesario.
 """
+
+import os
+
+# Clave JWT solo para la suite de tests (el backend exige JWT_SECRET_KEY).
+os.environ.setdefault("JWT_SECRET_KEY", "clave-solo-para-tests-no-usar-en-produccion-0123456789")
 
 import app.models.acceso_administrativo
 import app.models.auditoria

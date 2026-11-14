@@ -88,8 +88,8 @@
 }
 
 .brand-name-block span {
-  font-size: 11px;
-  color: #5c766e;
+  font-size: 12px;
+  color: #4d6760; /* contraste >4,5:1 sobre el fondo del panel (WCAG AA) */
   font-weight: 600;
 }
 
@@ -323,6 +323,21 @@
 }
 .toggle:hover { opacity: 0.7; }
 
+/* El botón de mostrar/ocultar contraseña hereda la regla genérica `button`
+   (ancho 100%, fondo verde): se anula aquí para que parezca el ícono de antes. */
+button.toggle {
+  width: auto;
+  margin: 0;
+  padding: 2px;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: none;
+  color: inherit;
+}
+button.toggle:hover:not(:disabled) { background: transparent; transform: none; box-shadow: none; opacity: 0.7; }
+button.toggle:focus-visible { outline: 2px solid #0d9488; outline-offset: 2px; }
+
 .field-error {
   font-size: 12px;
   color: #e53935;
@@ -337,10 +352,10 @@
   font-size: 13px;
 }
 
-.remember { display: flex; align-items: center; gap: 7px; color: #374151; cursor: pointer; }
+.remember { display: flex; align-items: center; gap: 7px; color: #374151; cursor: pointer; min-height: 24px; }
 .remember input { accent-color: #0d9488; cursor: pointer; }
 
-.forgot { color: #0d9488; cursor: pointer; font-size: 13px; font-weight: 600; }
+.forgot { color: #0d9488; cursor: pointer; font-size: 13px; font-weight: 600; min-height: 24px; display: inline-flex; align-items: center; }
 .forgot:hover { text-decoration: underline; }
 
 button {
@@ -429,7 +444,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
   margin-top: 22px;
   text-align: center;
   font-size: 12px;
-  color: #6b8079;
+  color: #4a5e57; /* contraste ~6:1 sobre #f2f6f3 (WCAG AA) */
   opacity: 0;
   animation: fadeUp 520ms ease-out 480ms forwards;
 }

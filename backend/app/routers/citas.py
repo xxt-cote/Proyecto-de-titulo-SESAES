@@ -16,7 +16,6 @@ from app.models.notificacion import Notificacion
 from app.schemas import CitaCreate
 from app.auditoria import (
     describir_cita,
-    registrar_evento_auditoria,
     registrar_evento_cita,
 )
 from app.auth_dependencies import get_current_user, verificar_acceso

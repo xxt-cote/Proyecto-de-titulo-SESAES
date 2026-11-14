@@ -24,8 +24,25 @@ from app.routers.documentos_clinicos import router as documentos_clinicos_router
 from app.routers.admin_capacidades_clinicas import router as admin_capacidades_clinicas_router
 
 import os
+from contextlib import asynccontextmanager
 
-app = FastAPI()
+# SESAES_ENV=production desactiva la documentación pública de la API
+# (/docs, /redoc, /openapi.json), que revela todos los endpoints.
+_EN_PRODUCCION = os.getenv("SESAES_ENV", "development").strip().lower() == "production"
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    init_db()
+    yield
+
+
+app = FastAPI(
+    lifespan=lifespan,
+    docs_url=None if _EN_PRODUCCION else "/docs",
+    redoc_url=None if _EN_PRODUCCION else "/redoc",
+    openapi_url=None if _EN_PRODUCCION else "/openapi.json",
+)
 
 # Rate limiting — protege endpoints sensibles (login) de intentos masivos
 # de fuerza bruta. El límite específico se define en cada endpoint con el
@@ -50,14 +67,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
-
-
-@app.on_event("startup")
-def startup():
-    init_db()
 
 
 app.include_router(auth_router)
@@ -81,3 +93,9 @@ app.include_router(documentos_clinicos_router)  # recetas, justificativos y vali
 @app.get("/")
 def home():
     return {"message": "SESAES funcionando 🚀"}
+
+
+@app.get("/health")
+def health():
+    """Chequeo de vida para el monitoreo (Render / UptimeRobot). No toca la base."""
+    return {"status": "ok"}

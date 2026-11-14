@@ -1,4 +1,6 @@
 User-agent: *
 Allow: /
+# Las áreas con sesión no deben aparecer en buscadores.
+Disallow: /dashboard/
 
 Sitemap: https://proyecto-de-titulo-sesaes.vercel.app/sitemap.xml

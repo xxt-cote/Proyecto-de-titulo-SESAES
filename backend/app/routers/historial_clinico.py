@@ -761,7 +761,7 @@ def guardar_historial(
     current_user: dict = Depends(get_current_user),
 ):
     _exigir_acceso_clinico(current_user, profesional_id, estudiante_id, db, Permission.FICHA_EDITAR_ASIGNADA)
-    prof = _get_profesional_o_404(profesional_id, db)
+    _get_profesional_o_404(profesional_id, db)
     estudiante = db.query(Usuario).filter(Usuario.id == estudiante_id).first()
     if not estudiante:
         raise HTTPException(status_code=404, detail="Estudiante no encontrado")

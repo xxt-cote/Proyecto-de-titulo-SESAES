@@ -1,7 +1,7 @@
 import bcrypt
 import os
 from datetime import datetime, timedelta, timezone
-from jose import jwt, JWTError
+from jose import jwt
 
 _HASH_PREFIXES = ("$2a$", "$2b$", "$2y$")
 
@@ -39,12 +39,32 @@ def password_cumple_politica(password) -> bool:
 # ══════════════════════════════════════════════════════════
 # JWT
 # ══════════════════════════════════════════════════════════
-# La clave se lee desde la variable de entorno JWT_SECRET_KEY.
-# En producción (Render) esta variable DEBE estar configurada con un
-# valor largo y aleatorio propio; el valor por defecto de acá abajo
-# solo existe para que el proyecto no truene en desarrollo local si
-# alguien olvidó definirla, y nunca debe usarse en producción.
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dev-only-inseguro-cambiar-en-produccion")
+# La clave se lee desde la variable de entorno JWT_SECRET_KEY y es
+# OBLIGATORIA: si falta, está vacía o es uno de los valores de ejemplo, el
+# backend se niega a arrancar. Antes existía un valor por defecto público en
+# el código: si se olvidaba la variable en producción, cualquiera podía
+# fabricar un token válido (incluso de SUPERADMIN).
+#
+# Generar una clave:  python -c "import secrets; print(secrets.token_hex(32))"
+_CLAVES_NO_PERMITIDAS = {
+    "",
+    "dev-only-inseguro-cambiar-en-produccion",
+    "CAMBIAR_POR_UNA_CLAVE_LARGA_Y_ALEATORIA",
+}
+
+
+def _leer_jwt_secret_key() -> str:
+    clave = os.getenv("JWT_SECRET_KEY", "").strip()
+    if clave in _CLAVES_NO_PERMITIDAS:
+        raise RuntimeError(
+            "Falta JWT_SECRET_KEY (o tiene un valor de ejemplo). Defínela en "
+            "backend/.env con una clave larga y aleatoria: "
+            'python -c "import secrets; print(secrets.token_hex(32))"'
+        )
+    return clave
+
+
+JWT_SECRET_KEY = _leer_jwt_secret_key()
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "720"))  # 12 horas
 

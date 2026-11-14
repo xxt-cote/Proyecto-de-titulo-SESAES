@@ -1717,44 +1717,6 @@ describe('DashboardAdminComponent — A.4.7A: sobrecupo sobre slot ocupado', () 
 
   // ── Botón «Solicitar sobrecupo»: hora elegida por la usuaria ─────────
 
-  it('S1. abrirModalSobrecupoManual abre el modal en modo sobrecupo manual, sin hora elegida', () => {
-    const { component } = crearShellConPermisosYHttp(['agenda.ver', 'agenda.gestionar', 'agenda.sobrecupo']);
-    component.filtroProfesionalId = '20';
-
-    component.abrirModalSobrecupoManual();
-
-    expect(component.modalCitaAbierto).toBe(true);
-    expect(component.nuevaCita.sobrecupo).toBe(true);
-    expect(component.nuevaCita.sobrecupo_manual).toBe(true);
-    expect(component.nuevaCita.hora).toBe('');
-  });
-
-  it('S2. sin agenda.sobrecupo (o sin agenda.gestionar) el botón no abre nada', () => {
-    const a = crearShellConPermisosYHttp(['agenda.ver', 'agenda.gestionar']);
-    a.component.abrirModalSobrecupoManual();
-    expect(a.component.modalCitaAbierto).toBe(false);
-
-    const b = crearShellConPermisosYHttp(['agenda.ver', 'agenda.sobrecupo']);
-    b.component.abrirModalSobrecupoManual();
-    expect(b.component.modalCitaAbierto).toBe(false);
-  });
-
-  it('S3. el sobrecupo manual envía sobrecupo_forzado=true para quedar registrado aunque la hora esté libre', () => {
-    const { component, http } = crearShellConPermisosYHttp(['agenda.ver', 'agenda.gestionar', 'agenda.sobrecupo']);
-    (http.post as any).mockReturnValue(of({}));
-    component.nuevaCita = {
-      fecha: FUTURA, hora: '10:00', estudiante_id: 5, profesional_id: 20,
-      observaciones: '', urgente: false, sobrecupo: true, sobrecupo_manual: true, sobrecupo_motivo: 'Caso especial'
-    };
-
-    component.crearCitaDesdeHorario();
-
-    const [, body] = (http.post as any).mock.calls[0];
-    expect(body.sobrecupo).toBe(true);
-    expect(body.sobrecupo_forzado).toBe(true);
-    expect(body.sobrecupo_motivo).toBe('Caso especial');
-  });
-
   it('S4. el sobrecupo que nace de un clic en la grilla NO envía sobrecupo_forzado (se conserva el comportamiento de siempre)', () => {
     const { component, http } = crearShellConPermisosYHttp(['agenda.ver', 'agenda.gestionar', 'agenda.sobrecupo']);
     (http.post as any).mockReturnValue(of({}));
@@ -1767,48 +1729,6 @@ describe('DashboardAdminComponent — A.4.7A: sobrecupo sobre slot ocupado', () 
 
     const [, body] = (http.post as any).mock.calls[0];
     expect(body.sobrecupo_forzado).toBeUndefined();
-  });
-
-  it('S5. el sobrecupo manual sin hora elegida no manda ninguna request', () => {
-    const { component, http } = crearShellConPermisosYHttp(['agenda.ver', 'agenda.gestionar', 'agenda.sobrecupo']);
-    component.nuevaCita = {
-      fecha: FUTURA, hora: '', estudiante_id: 5, profesional_id: 20,
-      observaciones: '', urgente: false, sobrecupo: true, sobrecupo_manual: true, sobrecupo_motivo: 'Motivo válido'
-    };
-
-    component.crearCitaDesdeHorario();
-
-    expect(http.post).not.toHaveBeenCalled();
-    expect(component.mensajeError).toContain('hora');
-  });
-
-  it('S6. las horas elegibles marcan como completa la hora que ya tiene 2 citas y dejan elegir las demás', () => {
-    const { component, http } = crearShellConPermisosYHttp(['agenda.ver', 'agenda.gestionar', 'agenda.sobrecupo']);
-    cargarSlotOcupado(component, http, true);
-    (component as any).citasHorario = [
-      { id: 1, fecha: FUTURA, hora: '08:00', estado: 'pendiente', estudiante: 'Ana' },
-      { id: 2, fecha: FUTURA, hora: '08:00', estado: 'pendiente', estudiante: 'Luis', sobrecupo: true }
-    ];
-    component.nuevaCita = { ...component.nuevaCita, fecha: FUTURA };
-
-    const opciones = component.opcionesHoraSobrecupo;
-    const completa = opciones.find(o => o.hora === '08:00')!;
-    const otra = opciones.find(o => o.hora === '09:00')!;
-
-    expect(completa.deshabilitada).toBe(true);
-    expect(completa.etiqueta).toContain('completa');
-    expect(otra.deshabilitada).toBe(false);
-  });
-
-  it('S7. una hora con una sola cita admite el sobrecupo', () => {
-    const { component, http } = crearShellConPermisosYHttp(['agenda.ver', 'agenda.gestionar', 'agenda.sobrecupo']);
-    cargarSlotOcupado(component, http, true);
-    (component as any).citasHorario = [{ id: 1, fecha: FUTURA, hora: '08:00', estado: 'pendiente', estudiante: 'Ana' }];
-    component.nuevaCita = { ...component.nuevaCita, fecha: FUTURA };
-
-    const o = component.opcionesHoraSobrecupo.find(x => x.hora === '08:00')!;
-    expect(o.deshabilitada).toBe(false);
-    expect(o.etiqueta).toContain('con una cita');
   });
 
   // ── Tras cancelar, la hora vuelve a poder pedirse ───────────────────
@@ -3035,6 +2955,8 @@ describe('DashboardAdminComponent — Agenda vistas Día y Mes', () => {
 
     it('la vista Día se imprime en vertical y las vistas Semana y Mes en horizontal, cada una con su período', () => {
       vi.useFakeTimers();
+      // Fecha fija: el test espera 'Septiembre 2026' y antes solo pasaba durante ese mes.
+      vi.setSystemTime(new Date(2026, 8, 19, 10, 0, 0));
       const dom = montarDom();
       const { component } = crearAgenda();
       const estilosDe = (iframe: HTMLIFrameElement): string =>

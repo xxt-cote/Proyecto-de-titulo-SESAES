@@ -1,0 +1,18 @@
+# Dependencias del backend SESAES (versiones probadas con la suite de tests).
+# Instalar: pip install -r requirements.txt
+fastapi==0.163.0
+uvicorn==0.54.0
+SQLAlchemy==2.0.50
+psycopg2-binary==2.9.13
+pydantic==2.14.3
+slowapi==0.1.10
+python-jose==3.5.0
+bcrypt==5.0.0
+python-dotenv==1.2.4
+openpyxl==3.1.5
+fpdf2==2.9.0
+segno==1.6.6
+
+# Solo para correr los tests (pytest y el cliente HTTP de FastAPI).
+pytest
+httpx

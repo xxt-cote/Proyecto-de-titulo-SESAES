@@ -55,7 +55,17 @@ export class ValidarDocumentoComponent implements OnInit, OnDestroy {
       && !!navigator.mediaDevices?.getUserMedia;
   }
 
+  // El index.html declara como canonical la raíz del sitio; en esta ruta debe
+  // apuntar a sí misma (si no, Google la trata como duplicado de la portada).
+  private static readonly CANONICAL_RAIZ = 'https://proyecto-de-titulo-sesaes.vercel.app/';
+  private static readonly CANONICAL_PROPIA = 'https://proyecto-de-titulo-sesaes.vercel.app/validar-documento';
+
+  private fijarCanonical(href: string): void {
+    document.querySelector('link[rel="canonical"]')?.setAttribute('href', href);
+  }
+
   ngOnInit(): void {
+    this.fijarCanonical(ValidarDocumentoComponent.CANONICAL_PROPIA);
     const desdeUrl = this.route.snapshot.queryParamMap.get('codigo');
     if (desdeUrl) {
       this.codigo = desdeUrl.toUpperCase();
@@ -63,7 +73,10 @@ export class ValidarDocumentoComponent implements OnInit, OnDestroy {
     }
   }
 
-  ngOnDestroy(): void { this.detenerEscaner(); }
+  ngOnDestroy(): void {
+    this.detenerEscaner();
+    this.fijarCanonical(ValidarDocumentoComponent.CANONICAL_RAIZ);
+  }
 
   onCodigoChange(valor: string): void {
     this.codigo = (valor || '').toUpperCase();

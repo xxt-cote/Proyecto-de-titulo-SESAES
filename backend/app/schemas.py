@@ -1,7 +1,31 @@
-from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
+from pydantic import AfterValidator, BaseModel, Field, StringConstraints, field_validator, model_validator
 from typing import Annotated, Literal, Optional
 from datetime import date, datetime
 import re
+
+
+# ══════════════════════════════════════
+# FOTO DE PERFIL
+# ══════════════════════════════════════
+# La foto se guarda en la base como data URL (el recorte del frontend genera
+# un JPEG de 400x400, ~100 KB) o como URL https. Se valida el formato y el
+# tamaño para que nadie guarde archivos arbitrarios o gigantes en la tabla.
+_FOTO_MAX_CHARS = 600_000
+_FOTO_DATA_URL = re.compile(r"^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$")
+_FOTO_HTTPS_URL = re.compile(r"^https://[^\s]{1,500}$")
+
+
+def _validar_foto_url(valor: Optional[str]) -> Optional[str]:
+    if valor is None or valor == "":
+        return valor  # vacío = quitar la foto
+    if len(valor) > _FOTO_MAX_CHARS:
+        raise ValueError("La foto es demasiado grande (máximo ~450 KB).")
+    if _FOTO_DATA_URL.match(valor) or _FOTO_HTTPS_URL.match(valor):
+        return valor
+    raise ValueError("La foto debe ser una imagen JPEG/PNG/WEBP en base64 o una URL https.")
+
+
+FotoUrl = Annotated[Optional[str], AfterValidator(_validar_foto_url)]
 
 
 # ══════════════════════════════════════
@@ -132,7 +156,7 @@ class EstudianteUpdate(BaseModel):
     nombre:      Optional[str]  = None
     telefono:    Optional[str]  = None
     correo_secundario: Optional[str] = None
-    foto_url:    Optional[str]  = None
+    foto_url:    FotoUrl = None
     tema_oscuro: Optional[bool] = None
     carrera:     Optional[str]  = None
     rut:         Optional[str]  = None
@@ -424,7 +448,7 @@ class UsuarioMeUpdate(BaseModel):
     model_config = {"extra": "forbid"}
 
     nombre:   Optional[str] = None
-    foto_url: Optional[str] = None
+    foto_url: FotoUrl = None
     telefono: Optional[str] = None
 
 

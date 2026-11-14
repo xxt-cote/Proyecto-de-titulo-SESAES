@@ -1,4 +1,4 @@
-import { ChangeDetectorRef } from '@angular/core';
+import { ChangeDetectorRef, ElementRef, Injector, NgZone, runInInjectionContext } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { describe, expect, it, vi } from 'vitest';
@@ -157,7 +157,14 @@ describe('Fase 3.5B — integración frontend RBAC', () => {
   it('los componentes presentacionales ocultan privilegios sensibles por defecto', () => {
     const config = new AdminConfiguracionComponent();
     const historial = new AdminHistorialComponent();
-    const reportes = new AdminReportesComponent();
+    // AdminReportesComponent usa inject(NgZone/ElementRef): se crea en un contexto de inyección.
+    const injector = Injector.create({
+      providers: [
+        { provide: NgZone, useValue: new NgZone({ enableLongStackTrace: false }) },
+        { provide: ElementRef, useValue: new ElementRef(document.createElement('div')) }
+      ]
+    });
+    const reportes = runInInjectionContext(injector, () => new AdminReportesComponent());
 
     expect(config.puedeVerAuditoria).toBe(false);
     expect(historial.puedeExportarCgr).toBe(false);

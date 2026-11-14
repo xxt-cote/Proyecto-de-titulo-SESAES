@@ -1,4 +1,3 @@
-import re
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -21,13 +20,11 @@ from app.auditoria import (
     registrar_evento_cita,
 )
 from app.models.historial_estado_profesional import HistorialEstadoProfesional
-from app.models.correo_log import CorreoLog
 from app.models.dia_cerrado import DiaCerrado
 from app.models.bloque_horario_semanal import BloqueHorarioSemanal
 from app.routers.correos import simular_envio_correo
 from app.schemas import (
-    ProfesionalCreate, ProfesionalUpdate, ProfesionalOut,
-    ConfiguracionOut, ConfiguracionUpdate, CitaCreate,
+    ProfesionalCreate, ProfesionalUpdate, ConfiguracionOut, ConfiguracionUpdate, CitaCreate,
     color_identificador_es_valido
 )
 from app.auth_dependencies import get_current_user

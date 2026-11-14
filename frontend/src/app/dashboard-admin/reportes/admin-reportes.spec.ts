@@ -1,3 +1,4 @@
+import { ElementRef, Injector, NgZone, runInInjectionContext } from '@angular/core';
 import { describe, it, expect, vi } from 'vitest';
 import { AdminReportesComponent, ResumenReportes } from './admin-reportes';
 
@@ -10,6 +11,21 @@ import { AdminReportesComponent, ResumenReportes } from './admin-reportes';
  * estados vacíos, filtros, tabs), que es datos reales de
  * GET /admin/reportes/resumen, nunca inventados aquí.
  */
+
+/**
+ * El componente obtiene NgZone y ElementRef con inject() (campos de la clase),
+ * así que ya no se puede hacer `crearComponente()` a secas: hay que
+ * crearlo dentro de un contexto de inyección con esos dos servicios simulados.
+ */
+function crearComponente(): AdminReportesComponent {
+  const injector = Injector.create({
+    providers: [
+      { provide: NgZone, useValue: new NgZone({ enableLongStackTrace: false }) },
+      { provide: ElementRef, useValue: new ElementRef(document.createElement('div')) }
+    ]
+  });
+  return runInInjectionContext(injector, () => new AdminReportesComponent());
+}
 
 function resumenBase(overrides: Partial<ResumenReportes> = {}): ResumenReportes {
   return {
@@ -48,20 +64,20 @@ function resumenBase(overrides: Partial<ResumenReportes> = {}): ResumenReportes 
 
 describe('AdminReportesComponent — se crea sin depender de Chart.js', () => {
   it('debe crearse', () => {
-    expect(new AdminReportesComponent()).toBeTruthy();
+    expect(crearComponente()).toBeTruthy();
   });
 });
 
 describe('AdminReportesComponent — KPIs (regla cita != atención, backend es la fuente)', () => {
   it('kpisFilas expone exactamente los 6 KPI oficiales, en el orden de negocio', () => {
-    const c = new AdminReportesComponent();
+    const c = crearComponente();
     c.reportesResumen = resumenBase();
     const claves = c.kpisFilas.map(k => k.clave);
     expect(claves).toEqual(['total_atenciones', 'completadas', 'canceladas', 'urgentes', 'sobrecupos', 'estudiantes_atendidos']);
   });
 
   it('urgente + sobrecupo simultáneos: el componente NO recalcula, solo refleja los valores ya independientes del backend', () => {
-    const c = new AdminReportesComponent();
+    const c = crearComponente();
     c.reportesResumen = resumenBase();
     const urgentes = c.kpisFilas.find(k => k.clave === 'urgentes')!;
     const sobrecupos = c.kpisFilas.find(k => k.clave === 'sobrecupos')!;
@@ -72,14 +88,14 @@ describe('AdminReportesComponent — KPIs (regla cita != atención, backend es l
   });
 
   it('variación null se preserva tal cual (no se inventa 0% ni se oculta) — "Sin datos comparables" es responsabilidad del template', () => {
-    const c = new AdminReportesComponent();
+    const c = crearComponente();
     c.reportesResumen = resumenBase();
     expect(c.kpisFilas.find(k => k.clave === 'canceladas')!.variacion).toBeNull();
     expect(c.kpisFilas.find(k => k.clave === 'total_atenciones')!.variacion).toBe(200);
   });
 
   it('sin resumen cargado, todos los getters devuelven vacíos/ceros en vez de fallar', () => {
-    const c = new AdminReportesComponent();
+    const c = crearComponente();
     expect(c.reportesResumen).toBeNull();
     expect(c.kpisFilas).toEqual([]);
     expect(c.porEspecialidad).toEqual([]);
@@ -90,13 +106,13 @@ describe('AdminReportesComponent — KPIs (regla cita != atención, backend es l
 
 describe('AdminReportesComponent — pestaña Citas (cita != atención)', () => {
   it('citasPorEstado expone los 4 estados reales, incluyendo pendiente/inasistencia (que NO son KPI oficiales)', () => {
-    const c = new AdminReportesComponent();
+    const c = crearComponente();
     c.reportesResumen = resumenBase();
     expect(c.citasPorEstado).toEqual({ completada: 3, cancelada: 2, pendiente: 1, inasistencia: 1 });
   });
 
   it('sinDatosCitas es true solo cuando los 4 estados están en cero', () => {
-    const c = new AdminReportesComponent();
+    const c = crearComponente();
     c.reportesResumen = resumenBase({ citas_por_estado: { completada: 0, cancelada: 0, pendiente: 0, inasistencia: 0 } });
     expect(c.sinDatosCitas).toBe(true);
     c.reportesResumen = resumenBase();
@@ -106,7 +122,7 @@ describe('AdminReportesComponent — pestaña Citas (cita != atención)', () => 
 
 describe('AdminReportesComponent — estados vacíos honestos (nunca fabrican datos)', () => {
   it('sinDatosGeneral es true cuando no hay completadas, canceladas ni últimas atenciones', () => {
-    const c = new AdminReportesComponent();
+    const c = crearComponente();
     c.reportesResumen = resumenBase({
       kpis: { ...resumenBase().kpis, completadas: { valor: 0, variacion_pct: null }, canceladas: { valor: 0, variacion_pct: null } },
       ultimas_atenciones: []
@@ -115,13 +131,13 @@ describe('AdminReportesComponent — estados vacíos honestos (nunca fabrican da
   });
 
   it('sinDatosGeneral es false apenas hay algún dato real', () => {
-    const c = new AdminReportesComponent();
+    const c = crearComponente();
     c.reportesResumen = resumenBase();
     expect(c.sinDatosGeneral).toBe(false);
   });
 
   it('sinDatosSobrecupos / sinDatosCancelaciones / sinDatosProfesionales / sinDatosJornada reflejan datos reales, no un mock fijo', () => {
-    const c = new AdminReportesComponent();
+    const c = crearComponente();
     c.reportesResumen = resumenBase({
       kpis: { ...resumenBase().kpis, sobrecupos: { valor: 0, variacion_pct: null } },
       cancelaciones: { total: 0, por_origen: [] },
@@ -137,7 +153,7 @@ describe('AdminReportesComponent — estados vacíos honestos (nunca fabrican da
 
 describe('AdminReportesComponent — barras propias (sin librería, proporcional al máximo real)', () => {
   it('anchoBarra calcula el porcentaje respecto del máximo de la serie', () => {
-    const c = new AdminReportesComponent();
+    const c = crearComponente();
     const serie = [{ cantidad: 2 }, { cantidad: 4 }, { cantidad: 8 }];
     expect(c.anchoBarra(8, serie)).toBe(100);
     expect(c.anchoBarra(4, serie)).toBe(50);
@@ -145,14 +161,14 @@ describe('AdminReportesComponent — barras propias (sin librería, proporcional
   });
 
   it('serie vacía no produce división por cero', () => {
-    const c = new AdminReportesComponent();
+    const c = crearComponente();
     expect(c.anchoBarra(0, [])).toBe(0);
   });
 });
 
 describe('AdminReportesComponent — tabs (100% local, sin volver a pedir datos)', () => {
   it('seleccionarTab actualiza el estado local y emite reportesTabActivaChange (el padre no vuelve a hacer HTTP)', () => {
-    const c = new AdminReportesComponent();
+    const c = crearComponente();
     const spy = vi.spyOn(c.reportesTabActivaChange, 'emit');
     c.seleccionarTab('profesionales');
     expect(c.reportesTabActiva).toBe('profesionales');
@@ -161,7 +177,7 @@ describe('AdminReportesComponent — tabs (100% local, sin volver a pedir datos)
   });
 
   it('tabs incluye las 7 secciones pedidas, en el orden de la referencia visual', () => {
-    const c = new AdminReportesComponent();
+    const c = crearComponente();
     expect(c.tabs.map(t => t.id)).toEqual([
       'general', 'citas', 'sobrecupos', 'cancelaciones', 'demanda', 'profesionales', 'jornada'
     ]);
@@ -170,7 +186,7 @@ describe('AdminReportesComponent — tabs (100% local, sin volver a pedir datos)
 
 describe('AdminReportesComponent — filtros y exportaciones emiten al padre (que hace el HTTP real)', () => {
   it('aplicarFiltros / limpiarFiltros / reintentar se emiten sin lógica propia (backend decide)', () => {
-    const c = new AdminReportesComponent();
+    const c = crearComponente();
     const aplicar = vi.spyOn(c.aplicarFiltros, 'emit');
     const limpiar = vi.spyOn(c.limpiarFiltros, 'emit');
     const reintentar = vi.spyOn(c.reintentar, 'emit');
@@ -185,7 +201,7 @@ describe('AdminReportesComponent — filtros y exportaciones emiten al padre (qu
   });
 
   it('exportarReportesExcel / exportarReportesPdf / exportarCgr / exportarAlumnos se emiten al padre (Excel/PDF/CGR reales viven en dashboard-admin.ts)', () => {
-    const c = new AdminReportesComponent();
+    const c = crearComponente();
     const excel = vi.spyOn(c.exportarReportesExcel, 'emit');
     const pdf = vi.spyOn(c.exportarReportesPdf, 'emit');
     const cgr = vi.spyOn(c.exportarCgr, 'emit');
@@ -205,7 +221,7 @@ describe('AdminReportesComponent — filtros y exportaciones emiten al padre (qu
 
 describe('AdminReportesComponent — etiquetas de presentación', () => {
   it('etiquetaEstadoCita traduce los 4 estados reales', () => {
-    const c = new AdminReportesComponent();
+    const c = crearComponente();
     expect(c.etiquetaEstadoCita('completada')).toBe('Completada');
     expect(c.etiquetaEstadoCita('cancelada')).toBe('Cancelada');
     expect(c.etiquetaEstadoCita('pendiente')).toBe('Pendiente');
@@ -213,7 +229,7 @@ describe('AdminReportesComponent — etiquetas de presentación', () => {
   });
 
   it('etiquetaOrigenCancelacion distingue admin de paciente (sin inventar "causas")', () => {
-    const c = new AdminReportesComponent();
+    const c = crearComponente();
     expect(c.etiquetaOrigenCancelacion('admin')).toContain('administración');
     expect(c.etiquetaOrigenCancelacion('paciente')).toContain('estudiante');
   });
@@ -221,7 +237,7 @@ describe('AdminReportesComponent — etiquetas de presentación', () => {
 
 describe('AdminReportesComponent — dona "Atenciones por especialidad" (datos reales, sin inventar)', () => {
   it('con 5 o menos especialidades no agrega "Otras" y los porcentajes salen de los datos', () => {
-    const c = new AdminReportesComponent();
+    const c = crearComponente();
     c.reportesResumen = resumenBase({ por_especialidad: [{ especialidad: 'Psicología', cantidad: 3 }, { especialidad: 'Nutrición', cantidad: 1 }] });
     expect(c.especialidadesDona.map(f => f.nombre)).toEqual(['Psicología', 'Nutrición']);
     expect(c.especialidadesDona.map(f => f.pct)).toEqual([75, 25]);
@@ -229,7 +245,7 @@ describe('AdminReportesComponent — dona "Atenciones por especialidad" (datos r
   });
 
   it('con más de 5 especialidades agrupa el resto en "Otras" sumando cantidades reales', () => {
-    const c = new AdminReportesComponent();
+    const c = crearComponente();
     c.reportesResumen = resumenBase({
       por_especialidad: [
         { especialidad: 'A', cantidad: 10 }, { especialidad: 'B', cantidad: 8 }, { especialidad: 'C', cantidad: 6 },
@@ -243,7 +259,7 @@ describe('AdminReportesComponent — dona "Atenciones por especialidad" (datos r
   });
 
   it('sin datos devuelve vacío (el template muestra el estado vacío, no una dona en cero)', () => {
-    const c = new AdminReportesComponent();
+    const c = crearComponente();
     expect(c.especialidadesDona).toEqual([]);
     c.reportesResumen = resumenBase({ por_especialidad: [] });
     expect(c.especialidadesDona).toEqual([]);
@@ -252,7 +268,7 @@ describe('AdminReportesComponent — dona "Atenciones por especialidad" (datos r
 
 describe('AdminReportesComponent — cancelaciones por origen (no se inventan "causas")', () => {
   it('cancelacionesDona agrupa por origen real con su porcentaje', () => {
-    const c = new AdminReportesComponent();
+    const c = crearComponente();
     c.reportesResumen = resumenBase();
     const filas = c.cancelacionesDona;
     expect(filas).toHaveLength(2);
@@ -262,7 +278,7 @@ describe('AdminReportesComponent — cancelaciones por origen (no se inventan "c
   });
 
   it('sin cancelaciones no hay dona', () => {
-    const c = new AdminReportesComponent();
+    const c = crearComponente();
     c.reportesResumen = resumenBase({ cancelaciones: { total: 0, por_origen: [] } });
     expect(c.cancelacionesDona).toEqual([]);
   });
@@ -270,7 +286,7 @@ describe('AdminReportesComponent — cancelaciones por origen (no se inventan "c
 
 describe('AdminReportesComponent — ranking de profesionales y avatares', () => {
   it('topProfesionales limita a 5 y conserva el orden del backend', () => {
-    const c = new AdminReportesComponent();
+    const c = crearComponente();
     const mk = (id: number) => ({
       profesional_id: id, profesional: `Prof ${id}`, especialidad: 'X', atenciones: 10 - id, citas: 1,
       canceladas: 0, inasistencias: 0, sobrecupos: 0, urgentes: 0
@@ -280,7 +296,7 @@ describe('AdminReportesComponent — ranking de profesionales y avatares', () =>
   });
 
   it('inicialesProfesional usa nombre + apellido y descarta el prefijo Dr./Dra.', () => {
-    const c = new AdminReportesComponent();
+    const c = crearComponente();
     expect(c.inicialesProfesional('Dra. Valentina Rojas')).toBe('VR');
     expect(c.inicialesProfesional('Dr. Carlos Muñoz')).toBe('CM');
     expect(c.inicialesProfesional('Ana Martínez')).toBe('AM');
@@ -288,7 +304,7 @@ describe('AdminReportesComponent — ranking de profesionales y avatares', () =>
   });
 
   it('colorProfesional es determinístico por id', () => {
-    const c = new AdminReportesComponent();
+    const c = crearComponente();
     expect(c.colorProfesional(3)).toBe(c.colorProfesional(3));
     expect(c.colorProfesional(1)).not.toBe(c.colorProfesional(2));
   });
@@ -296,7 +312,7 @@ describe('AdminReportesComponent — ranking de profesionales y avatares', () =>
 
 describe('AdminReportesComponent — formato y navegación', () => {
   it('fmt agrupa miles con punto, también en 4 dígitos (1.248)', () => {
-    const c = new AdminReportesComponent();
+    const c = crearComponente();
     expect(c.fmt(1248)).toBe('1.248');
     expect(c.fmt(812)).toBe('812');
     expect(c.fmt(1234567)).toBe('1.234.567');
@@ -304,14 +320,14 @@ describe('AdminReportesComponent — formato y navegación', () => {
   });
 
   it('"Ver todas" emite irAHistorial para que el shell navegue (sin lógica propia)', () => {
-    const c = new AdminReportesComponent();
+    const c = crearComponente();
     const spy = vi.spyOn(c.irAHistorial, 'emit');
     c.irAHistorial.emit();
     expect(spy).toHaveBeenCalledTimes(1);
   });
 
   it('totalInasistencias refleja citas_por_estado.inasistencia (dato real, no un reloj de jornada)', () => {
-    const c = new AdminReportesComponent();
+    const c = crearComponente();
     c.reportesResumen = resumenBase();
     expect(c.totalInasistencias).toBe(1);
   });
