@@ -1,0 +1,38 @@
+.fp { display: flex; flex-direction: column; gap: 12px; color: #111827; }
+.fp-pestanas { display: flex; gap: 4px; border-bottom: 1px solid #d1d5db; }
+.fp-pestana {
+  background: transparent; border: 0; border-bottom: 3px solid transparent; padding: 10px 14px;
+  font: inherit; font-weight: 600; color: #4b5563; cursor: pointer; min-height: 40px;
+}
+.fp-pestana:hover { color: #0f766e; }
+.fp-pestana.activa { color: #0f766e; border-bottom-color: #0f766e; }
+.fp-pestana:focus-visible, .fp-btn:focus-visible, .fp-input:focus-visible {
+  outline: 2px solid #0d9488; outline-offset: 2px;
+}
+.fp-panel { display: flex; flex-direction: column; gap: 8px; }
+.fp-panel[hidden] { display: none; }
+
+/* La firma siempre se dibuja sobre blanco, también en modo oscuro. */
+.fp-marco {
+  position: relative; background: #fff; border: 2px dashed #94a3b8; border-radius: 10px;
+  min-height: 120px; display: flex; align-items: center; justify-content: center; overflow: hidden;
+}
+.fp-lienzo { width: 100%; aspect-ratio: 3 / 1; display: block; touch-action: none; cursor: crosshair; }
+.fp-pista { position: absolute; pointer-events: none; color: #6b7280; font-size: 14px; }
+.fp-vista { padding: 12px; }
+.fp-texto-vista { font-size: 40px; font-style: italic; color: #111827; max-width: 100%; overflow-wrap: anywhere; }
+.fp-img { max-width: 100%; max-height: 160px; }
+
+.fp-etiqueta { font-size: 13px; font-weight: 600; color: #374151; }
+.fp-input { border: 1px solid #cbd5e1; border-radius: 8px; padding: 9px 10px; font: inherit; background: #fff; color: #111827; }
+.fp-ayuda { margin: 0; font-size: 12px; color: #4b5563; }
+.fp-error { margin: 0; color: #b91c1c; font-size: 13px; font-weight: 600; }
+
+.fp-acciones { display: flex; justify-content: flex-end; gap: 8px; }
+.fp-btn {
+  border-radius: 8px; padding: 10px 16px; font: inherit; font-weight: 600; cursor: pointer; min-height: 40px;
+  border: 1px solid #0f766e;
+}
+.fp-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.fp-btn-prim { background: #0f766e; color: #fff; }
+.fp-btn-sec { background: #fff; color: #0f766e; align-self: flex-start; }

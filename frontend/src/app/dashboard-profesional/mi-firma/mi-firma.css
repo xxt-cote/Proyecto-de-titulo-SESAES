@@ -1,0 +1,28 @@
+.mf {
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 18px 20px;
+  display: flex; flex-direction: column; gap: 12px; color: #111827; margin-bottom: 18px;
+}
+.mf-compacto { padding: 12px 14px; gap: 8px; margin-bottom: 12px; background: #f8fafc; }
+.mf-titulo { margin: 0; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+.mf-compacto .mf-titulo { font-size: 14px; }
+.mf-titulo .material-symbols-outlined { color: #0f766e; font-size: 22px; }
+.mf-texto { margin: 0; font-size: 13px; line-height: 1.5; color: #374151; }
+.mf-estado, .mf-meta { margin: 0; font-size: 13px; color: #4b5563; }
+.mf-ok { margin: 0; font-size: 13px; color: #166534; font-weight: 600; }
+.mf-error { margin: 0; font-size: 13px; color: #b91c1c; font-weight: 600; }
+.mf-aviso { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 13px; color: #92400e; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px; padding: 8px 10px; }
+.mf-actual, .mf-vacio { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.mf-vista { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 14px; }
+.mf-vista img { display: block; max-width: 260px; max-height: 90px; }
+.mf-compacto .mf-vista img { max-height: 54px; }
+.mf-acciones, .mf-confirmar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.mf-confirmar p { margin: 0; font-size: 13px; flex-basis: 100%; }
+.mf-btn {
+  background: #fff; color: #0f766e; border: 1px solid #0f766e; border-radius: 8px;
+  padding: 9px 14px; font: inherit; font-weight: 600; cursor: pointer; min-height: 38px;
+}
+.mf-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.mf-btn-prim { background: #0f766e; color: #fff; }
+.mf-btn-peligro { color: #b91c1c; border-color: #b91c1c; }
+.mf-enlace { background: none; border: 0; padding: 0; font: inherit; font-weight: 700; color: #0f766e; text-decoration: underline; cursor: pointer; }
+.mf-btn:focus-visible, .mf-enlace:focus-visible { outline: 2px solid #0d9488; outline-offset: 2px; }

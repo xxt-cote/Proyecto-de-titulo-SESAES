@@ -170,3 +170,26 @@ detrás del login, así que se validan **desde el navegador, con sesión iniciad
 - El comportamiento en Render (proxy, plan gratuito que se duerme) y la base real.
 - Los dashboards en uso real: no se midieron con PageSpeed ni CompliaScan.
 - Esta revisión es de código y no reemplaza una prueba de penetración.
+
+## 8. Firma del profesional en recetas y justificativos
+
+El profesional puede registrar su **firma manuscrita digitalizada** (dibujarla, escribirla con letra manuscrita o subir una imagen) en **Mi perfil → Mi firma**. También se ve, en versión corta, dentro de "Completar atención". La imagen se copia dentro de cada receta y justificativo que emite, queda cubierta por la huella SHA-256 y se dibuja en el PDF sobre la línea de firma.
+
+| Qué | Detalle |
+|---|---|
+| Qué es | Una **imagen** de la firma. El documento se rotula como **"documento electrónico verificable"** (folio + QR). **No es una firma electrónica avanzada** con certificado digital. Antes el PDF decía "Firmado electrónicamente", lo que podía inducir a error. |
+| Cambios de firma | Si el profesional cambia o elimina su firma, los documentos **ya emitidos no cambian**. |
+| Sin firma registrada | Los documentos salen igual, sin imagen. Hacerla **obligatoria** es un cambio pequeño, pero es una decisión del equipo y de la unidad de salud. |
+| Quién puede | Solo el propio profesional (permiso + ownership). La imagen nunca se escribe en la auditoría ni la devuelve la validación pública. |
+| Base de datos | Tabla nueva `firma_profesional`. El backend la crea al arrancar; no hay script de migración. |
+
+**Corrección incluida:** si una receta tenía más medicamentos de los que caben en la hoja, el PDF **omitía los sobrantes en silencio** (con 10 medicamentos se veían 3). Ahora continúa en otra hoja y la firma y el QR quedan en la última.
+
+**Pendiente de decisión (equipo + Minsal / UTEM):**
+
+- [ ] Qué firma exige hoy cada documento. Si se requiere **firma electrónica avanzada**, hay que contratar un prestador acreditado que emita certificados; la imagen digitalizada no la reemplaza.
+- [ ] Si la firma será obligatoria para poder emitir.
+- [ ] Vigencia de la receta y medicamentos controlados (hoy el PDF no muestra vigencia).
+
+**Sin probar:** el dibujo en el lienzo, la escritura y la subida de imagen necesitan un navegador real (las pruebas automáticas no tienen lienzo). Probar en computador y en celular.
+

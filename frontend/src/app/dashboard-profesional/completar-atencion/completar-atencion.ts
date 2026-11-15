@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../config';
+import { MiFirmaComponent } from '../mi-firma/mi-firma';
 
 const API = environment.apiUrl;
 
@@ -62,7 +63,7 @@ function justVacio(): FormJustificativo {
 @Component({
   selector: 'app-completar-atencion',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, MiFirmaComponent],
   templateUrl: './completar-atencion.html',
   styleUrls: ['./completar-atencion.css']
 })

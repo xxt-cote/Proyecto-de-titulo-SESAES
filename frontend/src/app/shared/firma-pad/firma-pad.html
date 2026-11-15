@@ -1,0 +1,52 @@
+<div class="fp">
+  <div class="fp-pestanas" role="tablist" aria-label="Cómo quieres registrar tu firma">
+    <button *ngFor="let p of pestanas" type="button" role="tab" class="fp-pestana"
+            [id]="'fp-tab-' + p.id" [attr.aria-controls]="'fp-panel-' + p.id"
+            [attr.aria-selected]="pestana === p.id" [class.activa]="pestana === p.id"
+            (click)="elegirPestana(p.id)">{{ p.texto }}</button>
+  </div>
+
+  <!-- Dibujar -->
+  <div class="fp-panel" role="tabpanel" id="fp-panel-dibujar" aria-labelledby="fp-tab-dibujar" [hidden]="pestana !== 'dibujar'">
+    <div class="fp-marco">
+      <canvas #lienzo class="fp-lienzo" role="img"
+              aria-label="Área para dibujar tu firma con el mouse, el dedo o un lápiz digital. Si no puedes dibujar, usa la pestaña Escribir."
+              (pointerdown)="empezarTrazo($event)" (pointermove)="moverTrazo($event)"
+              (pointerup)="terminarTrazo()" (pointerleave)="terminarTrazo()" (pointercancel)="terminarTrazo()"></canvas>
+      <span class="fp-pista" *ngIf="!hayTrazo">Dibuja tu firma aquí</span>
+    </div>
+    <button type="button" class="fp-btn fp-btn-sec" (click)="borrar()" [disabled]="!hayTrazo">Borrar</button>
+  </div>
+
+  <!-- Escribir -->
+  <div class="fp-panel" role="tabpanel" id="fp-panel-escribir" aria-labelledby="fp-tab-escribir" [hidden]="pestana !== 'escribir'">
+    <label class="fp-etiqueta" for="fp-texto">Tu nombre</label>
+    <input id="fp-texto" class="fp-input" type="text" maxlength="60" [(ngModel)]="texto" autocomplete="off" />
+    <label class="fp-etiqueta" for="fp-estilo">Estilo de letra</label>
+    <select id="fp-estilo" class="fp-input" [(ngModel)]="estilo">
+      <option *ngFor="let e of estilosEscritura; let i = index" [ngValue]="i">{{ e.nombre }}</option>
+    </select>
+    <div class="fp-marco fp-vista" aria-hidden="true">
+      <span class="fp-texto-vista" [style.font-family]="estilosEscritura[estilo].familia">{{ texto || 'Vista previa' }}</span>
+    </div>
+  </div>
+
+  <!-- Subir -->
+  <div class="fp-panel" role="tabpanel" id="fp-panel-subir" aria-labelledby="fp-tab-subir" [hidden]="pestana !== 'subir'">
+    <label class="fp-etiqueta" for="fp-archivo">Imagen de tu firma (PNG, JPG o WEBP, hasta 3 MB)</label>
+    <input id="fp-archivo" class="fp-input" type="file" accept="image/png,image/jpeg,image/webp" (change)="alElegirArchivo($event)" />
+    <p class="fp-ayuda">Firma con tinta oscura sobre papel blanco y toma la foto con buena luz. El fondo blanco se vuelve transparente.</p>
+    <div class="fp-marco fp-vista" *ngIf="imagenSubida">
+      <img [src]="imagenSubida" alt="Vista previa de la firma subida" class="fp-img" />
+    </div>
+  </div>
+
+  <p class="fp-error" role="alert" *ngIf="error">{{ error }}</p>
+
+  <div class="fp-acciones">
+    <button type="button" class="fp-btn fp-btn-sec" (click)="cancelar.emit()" [disabled]="guardando">Cancelar</button>
+    <button type="button" class="fp-btn fp-btn-prim" (click)="confirmar()" [disabled]="guardando">
+      {{ guardando ? 'Guardando…' : 'Guardar firma' }}
+    </button>
+  </div>
+</div>

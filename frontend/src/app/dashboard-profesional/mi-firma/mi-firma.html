@@ -1,0 +1,49 @@
+<section class="mf" [class.mf-compacto]="compacto" aria-labelledby="mf-titulo">
+  <h3 id="mf-titulo" class="mf-titulo">
+    <span class="material-symbols-outlined" aria-hidden="true">draw</span>
+    {{ compacto ? 'Tu firma en los documentos' : 'Mi firma' }}
+  </h3>
+
+  <p class="mf-texto" *ngIf="!compacto">
+    La imagen de tu firma se incorpora a las recetas y justificativos que emitas, junto con el folio y el
+    código QR de verificación. Es una <strong>firma manuscrita digitalizada</strong>: el documento es un
+    <strong>documento electrónico verificable</strong>, pero no equivale a una firma electrónica avanzada con
+    certificado digital.
+  </p>
+
+  <p class="mf-estado" *ngIf="cargando" role="status">Cargando tu firma…</p>
+  <p class="mf-error" *ngIf="errorCarga" role="alert">
+    No se pudo consultar tu firma. <button type="button" class="mf-enlace" (click)="cargar()">Reintentar</button>
+  </p>
+
+  <ng-container *ngIf="!cargando && !errorCarga && !editando">
+    <div class="mf-actual" *ngIf="tieneFirma">
+      <div class="mf-vista"><img [src]="firma!.imagen" alt="Vista previa de tu firma registrada" /></div>
+      <p class="mf-meta" *ngIf="!compacto">Registrada: {{ metodoTexto }}<span *ngIf="firma!.actualizada_en"> · {{ firma!.actualizada_en | date:'dd/MM/yyyy HH:mm' }}</span></p>
+      <p class="mf-ok" *ngIf="compacto">Se incorporará a los documentos que emitas.</p>
+      <div class="mf-acciones">
+        <button type="button" class="mf-btn" (click)="abrirEditor()">Cambiar firma</button>
+        <button type="button" class="mf-btn mf-btn-peligro" *ngIf="!confirmandoEliminar" (click)="pedirEliminar()">Eliminar</button>
+      </div>
+      <div class="mf-confirmar" *ngIf="confirmandoEliminar" role="group" aria-label="Confirmar eliminación de la firma">
+        <p>¿Eliminar tu firma? Los documentos que ya emitiste no cambian.</p>
+        <button type="button" class="mf-btn" (click)="cancelarEliminar()" [disabled]="guardando">Cancelar</button>
+        <button type="button" class="mf-btn mf-btn-peligro" (click)="eliminar()" [disabled]="guardando">Sí, eliminar</button>
+      </div>
+    </div>
+
+    <div class="mf-vacio" *ngIf="!tieneFirma">
+      <p class="mf-aviso">
+        <span class="material-symbols-outlined" aria-hidden="true">info</span>
+        Aún no registras tu firma: tus recetas y justificativos saldrán sin ella.
+      </p>
+      <button type="button" class="mf-btn mf-btn-prim" (click)="abrirEditor()">Registrar mi firma</button>
+    </div>
+  </ng-container>
+
+  <app-firma-pad *ngIf="editando" [guardando]="guardando" [nombreSugerido]="nombreSugerido"
+                 (guardar)="guardar($event)" (cancelar)="cerrarEditor()"></app-firma-pad>
+
+  <p class="mf-ok" *ngIf="mensaje" role="status">{{ mensaje }}</p>
+  <p class="mf-error" *ngIf="error" role="alert">{{ error }}</p>
+</section>

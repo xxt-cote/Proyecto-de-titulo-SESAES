@@ -61,6 +61,8 @@
             Tu especialidad no tiene habilitada la emisión de recetas ni de justificativos.
           </p>
 
+          <app-mi-firma *ngIf="puedeReceta || puedeJustificativo" [profId]="profId" [compacto]="true"></app-mi-firma>
+
           <!-- RECETA -->
           <section class="ca-card" *ngIf="puedeReceta">
             <div class="ca-card-cab">

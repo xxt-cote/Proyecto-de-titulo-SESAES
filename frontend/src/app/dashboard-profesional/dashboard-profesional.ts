@@ -18,6 +18,7 @@ import { CompletarAtencionComponent, type DocumentoEmitido, type PacienteAtencio
 import { DocumentosCitaComponent } from '../shared/documentos-cita/documentos-cita';
 import { CuestionarioOpcionalComponent } from './cuestionario-opcional/cuestionario-opcional';
 import { AdminHorarioComponent } from '../dashboard-admin/horario/admin-horario';
+import { MiFirmaComponent } from './mi-firma/mi-firma';
 import { imprimirAgendaAislada } from '../dashboard-admin/horario/agenda-impresion';
 
 const API = environment.apiUrl;
@@ -25,7 +26,7 @@ const API = environment.apiUrl;
 @Component({
   selector: 'app-dashboard-profesional',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePipe, PhotoCropperComponent, PhotoViewerComponent, ProfessionalAyudaComponent, CompletarAtencionComponent, DocumentosCitaComponent, CuestionarioOpcionalComponent, AdminHorarioComponent],
+  imports: [CommonModule, FormsModule, DatePipe, PhotoCropperComponent, PhotoViewerComponent, ProfessionalAyudaComponent, CompletarAtencionComponent, DocumentosCitaComponent, CuestionarioOpcionalComponent, AdminHorarioComponent, MiFirmaComponent],
   templateUrl: './dashboard-profesional.html',
   styleUrl: './dashboard-profesional.css'
 })

@@ -29,3 +29,7 @@ Thumbs.db
 fix_*.py
 tmp_ajustes/
 backend/gen_hash.py
+
+# Archivos de entrega temporales
+*.zip
+*.patch

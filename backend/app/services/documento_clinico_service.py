@@ -27,6 +27,7 @@ from typing import Optional
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from app.services import firma_profesional_service as _firma_svc
 from app.models.cita import Cita
 from app.models.documento_clinico import (
     DocumentoClinico,
@@ -258,6 +259,7 @@ def emitir_documentos(
         pedidos.append((TIPO_JUSTIFICATIVO, _contenido_justificativo(cita, prof, est, justificativo, ahora)))
 
     for tipo, contenido in pedidos:
+        contenido = _firma_svc.agregar_firma(db, prof, contenido)  # copia de la firma vigente, dentro de la huella
         folio = generar_folio(db)
         doc = DocumentoClinico(
             tipo=tipo,
@@ -511,7 +513,19 @@ def renderizar_pdf(doc: DocumentoClinico) -> bytes:
             y0 = pdf.get_y()
             alto = 34 if (m.get("indicacion") or m.get("marca")) else 24
             if y0 + alto > 215:
-                break
+                # No cortar la receta en silencio: continúa en otra hoja.
+                pdf.set_xy(15, y0)
+                pdf.set_font("Helvetica", "I", 8)
+                pdf.set_text_color(*_GRIS)
+                pdf.cell(ancho_util, 5, "Continúa en la página siguiente", align="R")
+                pdf.add_page()
+                pdf.set_fill_color(*_VERDE)
+                pdf.rect(0, 0, pdf.w, 3, style="F")
+                pdf.set_xy(15, 12)
+                pdf.set_font("Helvetica", "B", 8)
+                pdf.set_text_color(*_VERDE)
+                pdf.cell(0, 6, _l1("RP (continuación) - Folio " + doc.folio), ln=True)
+                y0 = pdf.get_y()
             pdf.set_draw_color(226, 232, 240)
             pdf.rect(15, y0, ancho_util, alto)
             pdf.set_fill_color(*_FONDO)
@@ -577,8 +591,12 @@ def renderizar_pdf(doc: DocumentoClinico) -> bytes:
         pdf.set_text_color(*_GRIS)
         pdf.multi_cell(0, 4, _l1("Diagnóstico: no incluido. Este documento justifica la inasistencia del estudiante en la fecha indicada y no constituye licencia médica."))
 
-    # Firma
+    # Firma: imagen manuscrita digitalizada (si el profesional la registró) y una
+    # leyenda honesta: el documento se verifica por folio y QR; NO usa certificado
+    # de firma electrónica avanzada.
     y_firma = 235
+    firma = c.get("firma") or {}
+    con_imagen = bool(firma.get("imagen")) and _firma_svc.dibujar_imagen(pdf, firma["imagen"], pdf.w / 2, y_firma - 1)
     pdf.set_draw_color(*_TINTA)
     pdf.line(pdf.w / 2 - 35, y_firma, pdf.w / 2 + 35, y_firma)
     pdf.set_xy(15, y_firma + 1)
@@ -587,7 +605,9 @@ def renderizar_pdf(doc: DocumentoClinico) -> bytes:
     pdf.cell(ancho_util, 5, _l1(prof["nombre"]), align="C", ln=True)
     pdf.set_font("Helvetica", "", 7)
     pdf.set_text_color(*_GRIS)
-    pdf.cell(ancho_util, 4, _l1("Firmado electrónicamente el " + fecha_larga(emitido_local) + ", " + emitido_local.strftime("%H:%M") + " h"), align="C")
+    leyenda = ("Firma manuscrita digitalizada. " if con_imagen else "") + \
+        "Documento electrónico verificable emitido el " + fecha_larga(emitido_local) + ", " + emitido_local.strftime("%H:%M") + " h"
+    pdf.cell(ancho_util, 4, _l1(leyenda), align="C")
 
     # Verificación + QR
     y_ver = 252
