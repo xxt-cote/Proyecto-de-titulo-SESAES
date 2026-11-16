@@ -2,7 +2,7 @@
 # Instalar: pip install -r requirements.txt
 fastapi==0.163.0
 uvicorn==0.54.0
-SQLAlchemy==2.0.50
+SQLAlchemy==2.1.8
 psycopg2-binary==2.9.13
 pydantic==2.14.3
 slowapi==0.1.10
