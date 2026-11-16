@@ -356,7 +356,9 @@ button.toggle:focus-visible { outline: 2px solid #0d9488; outline-offset: 2px; }
 .remember input { accent-color: #0d9488; cursor: pointer; }
 
 .forgot { color: #0d9488; cursor: pointer; font-size: 13px; font-weight: 600; min-height: 24px; display: inline-flex; align-items: center; }
+.forgot { text-decoration: none; }
 .forgot:hover { text-decoration: underline; }
+.forgot:focus-visible { outline: 2px solid #0d9488; outline-offset: 2px; border-radius: 4px; }
 
 button {
   width: 100%;

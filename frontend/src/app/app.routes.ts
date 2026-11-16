@@ -8,6 +8,19 @@ export const routes: Routes = [
   { path: '', redirectTo: 'login', pathMatch: 'full' },
   { path: 'login', component: LoginComponent },
   {
+    // Públicas (sin sesión): recuperar la contraseña por correo.
+    path: 'recuperar',
+    loadComponent: () =>
+      import('./recuperar-password/recuperar-password')
+        .then(m => m.RecuperarPasswordComponent)
+  },
+  {
+    path: 'restablecer',
+    loadComponent: () =>
+      import('./recuperar-password/restablecer-password')
+        .then(m => m.RestablecerPasswordComponent)
+  },
+  {
     // Pública (sin sesión): validar receta/justificativo por código o QR.
     path: 'validar-documento',
     loadComponent: () =>

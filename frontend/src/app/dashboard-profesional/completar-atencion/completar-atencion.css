@@ -117,3 +117,9 @@ h1 { font-size: 26px; margin: 0 0 4px; color: var(--prof-text, #102e29); }
   .ca-acciones { flex-direction: column-reverse; }
   .ca-btn { width: 100%; }
 }
+
+/* Aviso normativo: SESAES no sustituye el formato oficial de los medicamentos de control legal. */
+.ca-aviso-legal {
+  margin: 0 0 12px; padding: 10px 12px; border-radius: 8px; font-size: 13px; line-height: 1.45;
+  background: #fffbeb; border: 1px solid #fcd34d; color: #92400e;
+}

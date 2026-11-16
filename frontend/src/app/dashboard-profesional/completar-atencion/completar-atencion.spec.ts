@@ -42,6 +42,24 @@ describe('CompletarAtencionComponent', () => {
     expect(texto).not.toContain('¿Se emite receta');
   });
 
+  it('al activar la receta avisa que no sirve para estupefacientes ni psicotrópicos', async () => {
+    const { fixture, http } = crear(TODAS);
+    // El aviso de firma (Mi firma) consulta el estado de la firma al aparecer.
+    http.expectOne(`${API}/profesional/5/firma`).flush({ tiene_firma: false, metodo: null, actualizada_en: null, imagen: null });
+    const el = fixture.nativeElement as HTMLElement;
+    // ngModel conecta el campo al formulario en una microtarea: se le da un turno antes de pulsar.
+    await new Promise<void>(resolver => setTimeout(resolver));
+    fixture.detectChanges();
+    expect(el.querySelector('.ca-aviso-legal')).toBeNull();
+    const interruptor = el.querySelector('input[aria-label="Emitir receta médica"]') as HTMLInputElement;
+    interruptor.click();            // el cambio del checkbox actualiza el modelo en el acto
+    fixture.detectChanges();
+    const aviso = el.querySelector('.ca-aviso-legal');
+    expect(aviso?.getAttribute('role')).toBe('note');
+    expect(aviso?.textContent).toContain('estupefacientes ni psicotrópicos');
+    expect(aviso?.textContent).toContain('receta retenida o receta cheque');
+  });
+
   it('sin capacidades (o si falla la consulta) no ofrece documentos: fail-closed', () => {
     const { c, fixture } = crear('error');
     expect(c.puedeReceta).toBe(false);

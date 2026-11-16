@@ -626,6 +626,14 @@ def renderizar_pdf(doc: DocumentoClinico) -> bytes:
     h = doc.huella_sha256
     pdf.cell(0, 4, f"Huella SHA-256: {h[:4]}...{h[-4:]}")
 
+    # Aviso normativo: SESAES no sustituye el formato oficial de los medicamentos de
+    # control legal (estupefacientes y psicotrópicos: receta retenida o receta cheque).
+    if es_receta:
+        pdf.set_xy(15, 284)
+        pdf.set_font("Helvetica", "I", 7)
+        pdf.set_text_color(*_GRIS)
+        pdf.cell(ancho_util, 3.5, _l1("No válido para estupefacientes ni psicotrópicos (receta retenida o receta cheque): requieren su formato oficial."), align="C")
+
     if doc.estado == ESTADO_ANULADO:
         with pdf.rotation(40, pdf.w / 2, 140):
             pdf.set_font("Helvetica", "B", 56)

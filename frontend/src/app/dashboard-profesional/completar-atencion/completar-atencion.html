@@ -77,6 +77,10 @@
             </div>
 
             <div *ngIf="recetaActiva" class="ca-cuerpo">
+              <p class="ca-aviso-legal" role="note">
+                <strong>No uses esta receta para estupefacientes ni psicotrópicos.</strong>
+                Los medicamentos de control legal (receta retenida o receta cheque) requieren su formato oficial.
+              </p>
               <div class="ca-item" *ngFor="let it of items; let i = index">
                 <div class="ca-item-cab">
                   <strong>Medicamento {{ i + 1 }}</strong>

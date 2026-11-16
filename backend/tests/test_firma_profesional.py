@@ -314,3 +314,31 @@ def test_una_receta_corta_sigue_en_una_sola_hoja(db):
     pdf = docs_svc.renderizar_pdf(db.query(DocumentoClinico).one())
     assert _paginas(pdf) == 1
     assert "Continúa en la página siguiente" not in _texto_de_contenido(pdf)
+
+
+# ───────────────────── aviso normativo en la receta ─────────────────────
+AVISO_CONTROLADOS = "No válido para estupefacientes ni psicotrópicos"
+
+
+def test_la_receta_lleva_el_aviso_de_medicamentos_de_control_legal(db):
+    _setup(db)
+    _completar(db, receta=RECETA)
+    pdf = docs_svc.renderizar_pdf(db.query(DocumentoClinico).filter(DocumentoClinico.tipo == "receta").one())
+    assert AVISO_CONTROLADOS in _texto_de_contenido(pdf)
+    assert "receta retenida o receta cheque" in _texto_de_contenido(pdf)
+
+
+def test_el_justificativo_no_lleva_el_aviso_de_recetas(db):
+    _setup(db)
+    _completar(db, justificativo={"reposo": False})
+    pdf = docs_svc.renderizar_pdf(db.query(DocumentoClinico).filter(DocumentoClinico.tipo == "justificativo").one())
+    assert AVISO_CONTROLADOS not in _texto_de_contenido(pdf)
+
+
+def test_la_receta_larga_conserva_el_aviso_y_sigue_en_dos_o_mas_hojas(db):
+    _setup(db)
+    meds = [{"medicamento": f"Medicamento {i + 1}", "dosis": "1", "frecuencia": "c/8h", "periodo": "7 días",
+             "indicacion": "con alimentos"} for i in range(8)]
+    _completar(db, receta={"medicamentos": meds})
+    pdf = docs_svc.renderizar_pdf(db.query(DocumentoClinico).one())
+    assert _paginas(pdf) >= 2 and AVISO_CONTROLADOS in _texto_de_contenido(pdf)

@@ -85,16 +85,16 @@ Marcar al terminar y poner responsable.
 - [ ] **Pasar la CSP de "solo reporte" a "obligatoria".** Abrir cada pantalla con F12 → Consola y corregir lo que se reporte (Angular puede necesitar ajustes por scripts en línea). Después cambiar `Content-Security-Policy-Report-Only` por `Content-Security-Policy`.
 - [ ] **Definir `JWT_SECRET_KEY` y `SESAES_ENV=production`** en Render. El backend ya no arranca sin la clave.
 - [ ] **Migrar contraseñas** (script de la sección 2) y luego quitar la rama de texto plano.
-- [ ] **Recuperar contraseña.** Hoy "¿Olvidaste tu contraseña?" es solo un texto. Hace falta un enlace de un solo uso, con vencimiento, enviado por correo.
+- [x] **Recuperar contraseña.** Hecho (sección 9): enlace de un solo uso que vence a los 30 minutos, enviado por correo. Falta probarlo con el correo real (SMTP configurado) y definir `FRONTEND_BASE_URL`.
 - [ ] **Zona horaria.** Hay 37 usos de `datetime.now()` / `date.today()` sin zona; el servidor corre en UTC y las citas son en `America/Santiago`. Centralizar un único reloj (esto además permite arreglar el test que hoy se salta en fines de semana).
 - [ ] **Respaldos automáticos de la base y prueba de restauración.**
-- [ ] **Límite de login detrás del proxy.** Arrancar con `--proxy-headers` en Render y agregar un límite por cuenta, no solo por IP (hoy todos podrían compartir el mismo límite de 5 por minuto).
+- [x] **Límite de login por cuenta.** Hecho (sección 9): 5 fallos seguidos bloquean la cuenta 15 minutos. **Falta** (depende de dónde se despliegue): arrancar con `--proxy-headers` detrás de un proxy, para que el límite por IP vea la IP real.
 
 ### Importante (primer mes)
 
 - [ ] **Migraciones versionadas (Alembic)** en lugar de `create_all` + scripts sueltos.
 - [ ] **Logging y monitoreo de errores** (hoy el backend tiene 0 llamadas a logging) y un monitor que consulte `/health`.
-- [ ] **CI en GitHub Actions**: tests del backend y frontend, `pip-audit`, `npm audit`; más Dependabot y CodeQL.
+- [x] **CI en GitHub Actions**: archivos agregados en `.github/` (tests de backend y frontend, build, `pip-audit`, `npm audit`, Dependabot y CodeQL). Se activan solos al subirlos a GitHub; revisar la pestaña *Actions* y, cuando las auditorías estén limpias, quitar `continue-on-error`.
 - [ ] **Correo transaccional con dominio propio** (SPF/DKIM) en vez de una cuenta Gmail con contraseña de aplicación.
 - [ ] **Ambiente de pruebas separado** de producción, con datos ficticios.
 - [ ] **Auditoría de lecturas de ficha clínica** (revisar que quede registro de quién la consulta).
@@ -192,4 +192,46 @@ El profesional puede registrar su **firma manuscrita digitalizada** (dibujarla, 
 - [ ] Vigencia de la receta y medicamentos controlados (hoy el PDF no muestra vigencia).
 
 **Sin probar:** el dibujo en el lienzo, la escritura y la subida de imagen necesitan un navegador real (las pruebas automáticas no tienen lienzo). Probar en computador y en celular.
+
+## 9. Normativa chilena revisada (noviembre de 2026) y lo que se hizo
+
+> Esto es una **síntesis de fuentes públicas**, no asesoría legal. Debe confirmarla la unidad de salud y el área jurídica de UTEM.
+
+| Tema | Qué se encontró |
+|---|---|
+| Firma electrónica (Ley 19.799) | Hay dos tipos: **simple** (incluye una firma digitalizada) y **avanzada** (la certifica un prestador acreditado). Un documento con firma simple vale como instrumento privado; con firma avanzada, como instrumento público. En junio de 2026 ingresó al Congreso un proyecto que modifica la ley. |
+| Receta electrónica | Desde diciembre de 2025 existe el **Sistema Nacional de Receta Electrónica (SNRE)** del Minsal, gratuito, con firma por Clave Única o firma electrónica avanzada. El Decreto 466 (art. 38) exige que la receta electrónica lleve firma. |
+| ¿Es obligatoria? | **Todavía no.** El proyecto de ley (Boletín 17.355-11) está en el Senado; el 10 de septiembre de 2026 pasó a la Comisión de Hacienda. El texto da 3 años (receta cheque) y 4 años (receta retenida) desde su publicación. |
+| Vigencia | La receta simple no tiene plazo legal de vigencia; la receta retenida vale 30 días corridos (fuente periodística). |
+| Medicamentos de control legal | Estupefacientes y psicotrópicos usan formatos oficiales (receta retenida y receta cheque, con talonarios entregados por el Servicio de Salud). SESAES **no los reemplaza**. |
+| Datos personales | La Ley 21.719 estaba fijada para el 1 de diciembre de 2026, con un proyecto en trámite para postergarla. Los datos de salud son sensibles. Confirmar la fecha vigente. |
+
+**Qué cambió en SESAES por esto:**
+
+- El PDF de la receta ahora dice: *"No válido para estupefacientes ni psicotrópicos (receta retenida o receta cheque): requieren su formato oficial."*
+- El formulario de receta muestra el mismo aviso al profesional.
+- El justificativo y la receta se rotulan **"documento electrónico verificable"**, no "firmado electrónicamente".
+
+**Preguntas para UTEM (unidad de salud y área jurídica):**
+
+1. ¿Las recetas de SESAES se llevan a farmacias o son indicaciones internas?
+2. ¿Los profesionales de UTEM ya emiten por el SNRE?
+3. ¿Se exige firma electrónica avanzada para los justificativos?
+4. ¿Qué vigencia se declara en el documento?
+5. ¿Quién es el responsable de datos personales (Ley 21.719)?
+
+Según las respuestas, el paso siguiente es registrar el folio del SNRE en la atención y dejar el PDF de SESAES como copia informativa.
+
+**Recuperar contraseña y bloqueo de login (hecho):**
+
+| Qué | Detalle |
+|---|---|
+| Enlace | `/recuperar` pide el correo; `/restablecer?token=…` elige la contraseña nueva. El token se guarda solo como hash (SHA-256), vence a los 30 minutos y sirve una vez. |
+| Privacidad | La respuesta es igual exista o no el correo. El correo con el enlace **no** se guarda en el registro de correos (lo ve el panel de administración). |
+| Límites | 5 solicitudes por hora por IP y 3 enlaces por hora por cuenta. |
+| Bloqueo | 5 fallos seguidos bloquean la cuenta 15 minutos, exista o no el correo. Restablecer la contraseña la desbloquea. |
+| Variables | `FRONTEND_BASE_URL` (enlace del correo), `SMTP_EMAIL` y `SMTP_APP_PASSWORD`. Opcional: `RESET_TOKEN_MINUTES`. |
+| Tablas nuevas | `restablecimiento_password` e `intento_login`: el backend las crea al arrancar. |
+
+**Sigue pendiente de esta etapa:** migrar las contraseñas en texto plano y luego quitar esa rama; zona horaria; respaldos; ausencias (vacaciones, licencias, permisos, faltas) y permisos y roles del superadmin.
 

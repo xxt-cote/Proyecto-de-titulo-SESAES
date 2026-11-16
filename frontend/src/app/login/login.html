@@ -148,7 +148,7 @@
             <label class="remember">
               <input type="checkbox" [(ngModel)]="recordarme"> Recordarme
             </label>
-            <span class="forgot">¿Olvidaste tu contraseña?</span>
+            <a class="forgot" routerLink="/recuperar">¿Olvidaste tu contraseña?</a>
           </div>
 
           <div class="error-msg" *ngIf="error" [class.shake]="error" role="alert">
