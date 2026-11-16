@@ -22,7 +22,7 @@ jobs:
       DATABASE_URL: "sqlite:///:memory:"
       JWT_SECRET_KEY: clave-solo-para-ci-no-usar-en-produccion-0123456789
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -43,7 +43,7 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
