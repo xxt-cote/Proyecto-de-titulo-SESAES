@@ -28,6 +28,11 @@ from app.routers.admin_capacidades_clinicas import router as admin_capacidades_c
 import os
 from contextlib import asynccontextmanager
 
+from app import tiempo
+
+# Antes que nada: la hora del servidor debe ser la de Chile (ver app/tiempo.py).
+tiempo.fijar_zona_horaria()
+
 # SESAES_ENV=production desactiva la documentación pública de la API
 # (/docs, /redoc, /openapi.json), que revela todos los endpoints.
 _EN_PRODUCCION = os.getenv("SESAES_ENV", "development").strip().lower() == "production"

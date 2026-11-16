@@ -86,7 +86,7 @@ Marcar al terminar y poner responsable.
 - [ ] **Definir `JWT_SECRET_KEY` y `SESAES_ENV=production`** en Render. El backend ya no arranca sin la clave.
 - [ ] **Migrar contraseñas** (script de la sección 2) y luego quitar la rama de texto plano.
 - [x] **Recuperar contraseña.** Hecho (sección 9): enlace de un solo uso que vence a los 30 minutos, enviado por correo. Falta probarlo con el correo real (SMTP configurado) y definir `FRONTEND_BASE_URL`.
-- [ ] **Zona horaria.** Hay 37 usos de `datetime.now()` / `date.today()` sin zona; el servidor corre en UTC y las citas son en `America/Santiago`. Centralizar un único reloj (esto además permite arreglar el test que hoy se salta en fines de semana).
+- [x] **Zona horaria.** Hecho: el backend fija la hora de Chile al arrancar (`app/tiempo.py`, variable opcional `SESAES_TZ`). Antes, en un servidor en UTC, la regla de "mínimo 5 horas para cancelar" se desfasaba 3 o 4 horas y, pasadas las 21:00, el sistema creía que ya era "mañana". Solo aplica en Linux/macOS; en Windows se usa la hora del equipo.
 - [ ] **Respaldos automáticos de la base y prueba de restauración.**
 - [x] **Límite de login por cuenta.** Hecho (sección 9): 5 fallos seguidos bloquean la cuenta 15 minutos. **Falta** (depende de dónde se despliegue): arrancar con `--proxy-headers` detrás de un proxy, para que el límite por IP vea la IP real.
 
@@ -94,7 +94,7 @@ Marcar al terminar y poner responsable.
 
 - [ ] **Migraciones versionadas (Alembic)** en lugar de `create_all` + scripts sueltos.
 - [ ] **Logging y monitoreo de errores** (hoy el backend tiene 0 llamadas a logging) y un monitor que consulte `/health`.
-- [x] **CI en GitHub Actions**: archivos agregados en `.github/` (tests de backend y frontend, build, `pip-audit`, `npm audit`, Dependabot y CodeQL). Se activan solos al subirlos a GitHub; revisar la pestaña *Actions* y, cuando las auditorías estén limpias, quitar `continue-on-error`.
+- [x] **CI en GitHub Actions**: archivos en `.github/workflows/` (tests de backend y frontend, build, `pip-audit`, `npm audit` y CodeQL). Se activan solos al subirlos; revisar la pestaña *Actions* y, cuando las auditorías estén limpias, quitar `continue-on-error`. **Dependabot se quitó a propósito**: abría una rama y un Pull Request por cada librería desactualizada y el equipo quiere trabajar solo en `main`. Las vulnerabilidades se siguen revisando con `npm audit` y `pip-audit`.
 - [ ] **Correo transaccional con dominio propio** (SPF/DKIM) en vez de una cuenta Gmail con contraseña de aplicación.
 - [ ] **Ambiente de pruebas separado** de producción, con datos ficticios.
 - [ ] **Auditoría de lecturas de ficha clínica** (revisar que quede registro de quién la consulta).
