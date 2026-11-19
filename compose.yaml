@@ -1,0 +1,58 @@
+name: sesaes-local
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB:-sesaes}"
+      POSTGRES_USER: "${POSTGRES_USER:-sesaes}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env.docker}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: "postgresql+psycopg2://${POSTGRES_USER:-sesaes}:${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-sesaes}"
+      JWT_SECRET_KEY: "${JWT_SECRET_KEY:?Define JWT_SECRET_KEY en .env.docker}"
+      JWT_EXPIRE_MINUTES: "${JWT_EXPIRE_MINUTES:-720}"
+      CORS_ORIGINS: "http://localhost:4200"
+      FRONTEND_BASE_URL: "http://localhost:4200"
+      SESAES_ENV: "development"
+      SEED_DEMO_DATA: "false"
+      RESET_TOKEN_MINUTES: "${RESET_TOKEN_MINUTES:-30}"
+      SMTP_EMAIL: "${SMTP_EMAIL:-}"
+      SMTP_APP_PASSWORD: "${SMTP_APP_PASSWORD:-}"
+      SMTP_NOMBRE_REMITENTE: "${SMTP_NOMBRE_REMITENTE:-SESAES}"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=3)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NG_APP_API_URL: "http://localhost:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:4200:80"
+volumes:
+  postgres_data:

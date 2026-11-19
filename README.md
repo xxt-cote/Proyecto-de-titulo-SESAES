@@ -1,234 +1,119 @@
-<div align="center">
-
 # SESAES
 
-### Sistema de Agendamiento Estudiantil de Salud
+**Agenda y atención de salud estudiantil · Proyecto de título UTEM**
 
-**Proyecto de Título · UTEM**
+[![CI](https://github.com/xxt-cote/Proyecto-de-titulo-SESAES/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/xxt-cote/Proyecto-de-titulo-SESAES/actions/workflows/ci.yml)
+[![Cobertura](https://img.shields.io/badge/cobertura-no%20medida-lightgrey)](docs/PRUEBAS.md)
+![Angular 22](https://img.shields.io/badge/Angular-22-DD0031)
+![FastAPI 0.163](https://img.shields.io/badge/FastAPI-0.163-009688)
+![Python 3.13](https://img.shields.io/badge/Python-3.13-3776AB)
+![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-4169E1)
+[![Licencia](https://img.shields.io/badge/licencia-pendiente%20de%20definici%C3%B3n-lightgrey)](LICENSE)
 
-![Angular](https://img.shields.io/badge/Angular-DD0031?style=flat&logo=angular&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=flat&logo=postgresql&logoColor=white)
-![Status](https://img.shields.io/badge/status-en%20desarrollo-yellow)
+SESAES centraliza profesionales, disponibilidad, citas, antecedentes, documentos
+y operación administrativa del servicio de salud estudiantil. Angular presenta
+la interfaz; FastAPI aplica las reglas, permisos y alcance; PostgreSQL conserva
+el estado transaccional.
 
-Plataforma web para la gestión de atenciones y agenda del servicio de salud estudiantil.
+**La entrega contiene código y migraciones, no una base local ni un dump con datos.**
+El esquema se genera con Alembic. Las cuentas reales las carga el responsable de
+la instalación; los datos demo son optativos y ficticios.
 
-</div>
+> Versión documentada: integración del 19-11-2026. El badge CI consulta GitHub;
+> los resultados locales y sus límites están en docs/PRUEBAS.md.
+> No se declara cobertura porcentual ni licencia abierta no aprobada.
 
----
+## Empezar aquí
 
-## Descripción
+- **Usar la aplicación:** [manual de los cuatro roles](docs/MANUAL_USUARIO.md).
+- **Recibir e instalar el proyecto:** [instalación desde cero](docs/INSTALACION.md).
+- **Continuar el desarrollo:** [arquitectura](docs/ARQUITECTURA.md),
+  [diagramas](docs/DIAGRAMAS.md) y [contribución](CONTRIBUTING.md).
+- **Consultar todo:** [índice de documentación](docs/INDICE.md).
 
-SESAES centraliza la gestión de estudiantes, profesionales de salud, agenda, citas y administración del servicio. La aplicación utiliza una arquitectura con frontend Angular y backend FastAPI, con autorización aplicada en backend mediante roles, permisos y alcance.
+## Qué permite hacer
+
+| Perfil      | Funciones principales                                                                              |
+| ----------- | -------------------------------------------------------------------------------------------------- |
+| Estudiante  | Reservar horas permitidas, gestionar citas, responder cuestionarios y descargar documentos propios |
+| Profesional | Consultar agenda/pacientes autorizados, solicitar bloques y registrar atenciones/documentos        |
+| Admin       | Operar agenda, profesionales, estudiantes, solicitudes y reportes según permiso y alcance          |
+| Superadmin  | Configurar acceso administrativo, capacidades, cierres y consultar actividad institucional         |
+
+ADMIN no recibe permisos efectivos por defecto. SUPERADMIN no obtiene acceso
+clínico universal. La API verifica identidad, permiso, alcance y pertenencia.
 
 ## Instalación desde cero
 
-La entrega contiene **solo código: la base se entrega vacía, sin dump ni datos locales**.
-Seguir [Guía de instalación](PLAN_DE_MEJORAS.md#guia-instalacion), guía autocontenida con comandos y ejemplos.
-Crear una base PostgreSQL propia y configurar `backend/.env` desde `.env.example`.
-Aplicar Alembic con `python -m alembic upgrade head` (o `python -m app.init_db`) y crear el primer superadmin con `python -m app.init_db --superadmin`.
-Cargar profesionales/especialidades y alumnos por las vías documentadas, y aprobar los bloques horarios.
-Levantar FastAPI y Angular y verificar el login y una reserva; **no hacen falta archivos `.sql` ni migraciones sueltas**.
+1. Preparar PostgreSQL, Python y Node compatibles, o elegir Docker local.
+2. Crear una base vacía y configurar secretos propios desde las plantillas.
+3. Ejecutar **python -m app.init_db**, equivalente al upgrade Alembic vigente.
+4. Crear el primer superadmin con **python -m app.init_db --superadmin**.
+5. Cargar datos autorizados y aprobar los bloques profesionales.
+6. Levantar la interfaz y verificar acceso y una reserva.
 
-El alta profesional del panel exige contraseña explícita y confirmación; no tiene clave fija. El alta de alumnos permanece solo por `POST /admin/estudiantes` (limitación visible y ejemplos en la guía). Las listas de especialidades normalizan tildes, mayúsculas y espacios (`Nutricion` y `Nutrición` se agrupan); cada profesional conserva una sola especialidad y no hay catálogo autónomo. Catálogo y múltiples especialidades quedan como deuda técnica.
+La [guía de instalación](docs/INSTALACION.md) contiene comandos completos de
+PowerShell, ejemplos de carga por API y alternativas para otros entornos.
+No hacen falta dumps ni parches SQL. Si se quiere demo y superadmin, el seed se
+ejecuta primero, sobre una base sin usuarios.
 
-Para desplegar el frontend: definir `NG_APP_API_URL` en el entorno y ejecutar `npm run build`; no editar TypeScript. El valor por defecto para desarrollo es `http://localhost:8080`. La variable no es un secreto y se incorpora al bundle.
+## Inicio rápido con Docker
 
-Revisión completa: [Cierre de entrega](PLAN_DE_MEJORAS.md#cierre-entrega). Migraciones activas y revisión base Alembic: [Guía de migraciones](PLAN_DE_MEJORAS.md#guia-migraciones), [Cierre Alembic y demo](PLAN_DE_MEJORAS.md#cierre-alembic). Requisitos de producción con información de salud: [Datos sensibles](PLAN_DE_MEJORAS.md#datos-sensibles).
+Incluye PostgreSQL, backend y frontend en Nginx. Requiere Docker Engine activo,
+Compose v2 y conexión a los registros de imágenes y dependencias.
 
-## Estado actual
+**Estado:** la ejecución de contenedores está pendiente de validar; el motor
+Docker no estaba activo durante esta ronda. No se anuncia como un despliegue
+productivo. Instrucciones y alcance en [DOCKER](docs/DOCKER.md).
 
-| Área                          | Estado                 |
-| ----------------------------- | ---------------------- |
-| Autenticación y sesión        | ✅ Operativo           |
-| Dashboard Estudiante          | ✅ Integrado en `main` |
-| Dashboard Profesional         | ✅ Integrado en `main` |
-| ADMIN / SUPERADMIN            | 🚧 En evolución        |
-| Permisos y alcance de ADMIN   | ✅ Implementado        |
-| Agenda clínica semanal V2     | 🚧 En desarrollo       |
-| Citas                         | ✅ Base operativa      |
-| Auditoría / gobernanza        | 🚧 En evolución        |
-| Documentos clínicos avanzados | ⏳ Pendiente por fases |
-| Responsive                    | 🚧 En progreso         |
-
-> El proyecto está en desarrollo activo. No todos los módulos se consideran cerrados aunque ya tengan una base funcional.
-
-## Arquitectura
-
-```text
-Angular (frontend)
-    │
-    ▼
-FastAPI (backend)
-    │
-    ▼
-PostgreSQL
-```
-
-Desarrollo local:
-
-```text
-Frontend → http://localhost:4200
-Backend  → http://127.0.0.1:8080
-```
-
-## Roles
-
-| Rol           | Responsabilidad general                                                  |
-| ------------- | ------------------------------------------------------------------------ |
-| `ESTUDIANTE`  | Gestiona sus citas y consulta información propia permitida               |
-| `PROFESIONAL` | Gestiona agenda y atenciones dentro de su ámbito                         |
-| `ADMIN`       | Operación administrativa según permisos y alcance asignados              |
-| `SUPERADMIN`  | Gobernanza institucional, roles, permisos y configuración administrativa |
-
-### Principios de autorización
-
-- El backend es la autoridad de seguridad.
-- El frontend solo oculta o muestra acciones como ayuda de experiencia de usuario.
-- Los accesos ADMIN son **fail-closed**: sin configuración válida no se conceden permisos.
-- Los permisos administrativos pueden limitarse por especialidad.
-- `SUPERADMIN` no recibe acceso clínico universal por su rol.
-- Las operaciones sensibles deben conservar trazabilidad y auditoría.
-
-## Permisos administrativos
-
-La administración utiliza permisos efectivos y alcance, por ejemplo:
-
-```text
-usuarios.ver
-usuarios.gestionar
-profesionales.ver
-profesionales.gestionar
-agenda.ver
-agenda.gestionar
-reportes.ver
-roles.gestionar
-auditoria.ver
-configuracion.gestionar
-```
-
-Un ADMIN puede tener alcance institucional o restringido a especialidades, según la configuración asignada por SUPERADMIN.
-
-## Estructura del repositorio
-
-```text
-Proyecto-de-titulo-SESAES/
-├── backend/      # API FastAPI, modelos, RBAC, servicios y tests
-├── frontend/     # Aplicación Angular
-├── .gitignore
-├── README.md
-└── vercel.json
-```
-
-> No se deben guardar en el repositorio cachés, entornos virtuales, `node_modules`, builds, archivos `.env`, respaldos temporales ni documentación obsoleta.
-
-## Diseño
-
-Reglas actuales de interfaz:
-
-- Tipografía: **Inter**
-- Iconografía: **Google Material Symbols Outlined**
-- Cada dashboard mantiene sus estilos de forma independiente.
-- Los estados clínicos conservan significado semántico.
-- Los nuevos componentes deben ser responsive cuando corresponda.
-- No introducir nuevas librerías de iconos sin una decisión explícita de arquitectura.
-
-## Desarrollo local y PostgreSQL desde cero
-
-Requisitos: Python 3.13, PostgreSQL 17 y Node.js compatible con Angular 22.
-
-### Crear una base vacía
-
-Desde `psql` con una cuenta autorizada para crear bases y roles:
-
-```sql
-CREATE ROLE sesaes LOGIN PASSWORD 'REEMPLAZAR_POR_UN_SECRETO_PROPIO';
-CREATE DATABASE sesaes OWNER sesaes;
-```
-
-No importar dumps antiguos ni ejecutar parches de `backend/scripts/`. Los modelos
-SQLAlchemy son la fuente del esquema, incluidas auditoría, solicitudes de bloques,
-documentos, firmas, permisos, índices y restricciones de unicidad.
-
-### Backend y esquema completo
+Desde la raíz:
 
 ```powershell
-cd backend
-python -m venv venv
-.\venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-Copy-Item .env.example .env
+Copy-Item .env.docker.example .env.docker
+# Editar .env.docker: definir POSTGRES_PASSWORD y JWT_SECRET_KEY propios.
+docker compose --env-file .env.docker config --quiet
+docker compose --env-file .env.docker up -d --build
+docker compose --env-file .env.docker ps
 ```
 
-Editar `.env` con la URL de la base recién creada y un secreto JWT propio:
+Abrir http://localhost:4200. La API está en http://localhost:8080.
+Al iniciar se crea el esquema, pero todavía no hay usuarios.
 
-```dotenv
-DATABASE_URL=postgresql+psycopg2://sesaes:TU_PASSWORD@localhost:5432/sesaes
-JWT_SECRET_KEY=TU_SECRETO_ALEATORIO_LARGO
-CORS_ORIGINS=http://localhost:4200
-SEED_DEMO_DATA=false
+Para crear el primer superadmin:
+
+```powershell
+$env:SUPERADMIN_BOOTSTRAP_EMAIL = 'superadmin@utem.cl'
+$env:SUPERADMIN_BOOTSTRAP_NAME = 'Superadministrador SESAES'
+$env:SUPERADMIN_BOOTSTRAP_PASSWORD = Read-Host -MaskInput 'Contraseña nueva'
+docker compose --env-file .env.docker run --rm -e SUPERADMIN_BOOTSTRAP_EMAIL -e SUPERADMIN_BOOTSTRAP_NAME -e SUPERADMIN_BOOTSTRAP_PASSWORD backend python -m app.init_db --superadmin
+Remove-Item Env:SUPERADMIN_BOOTSTRAP_PASSWORD
 ```
 
-Generar un secreto, por ejemplo, con `python -c "import secrets; print(secrets.token_urlsafe(48))"`.
-Codificar los caracteres especiales de usuario/contraseña al construir la URL PostgreSQL.
+Para practicar con once cuentas ficticias y 90 bloques, seguir el orden
+**seed primero, bootstrap después** de [Docker](docs/DOCKER.md).
+No hay contraseñas demo publicadas.
+
+Para detener conservando datos:
+
+```powershell
+docker compose --env-file .env.docker down
+```
+
+## Desarrollo local sin contenedores
+
+Referencias: Python 3.13, PostgreSQL 17 y npm 11. Angular instalado admite Node
+^22.22.3, ^24.15.0 o >=26.0.0. CI también contempla Python 3.12.
+La guía explica instalación de dependencias, rol/base y variables antes de estos
+comandos.
+
+Terminal backend, desde backend y con el entorno virtual activo:
 
 ```powershell
 python -m app.init_db
 python -m uvicorn app.main:app --reload --port 8080
 ```
 
-El inicializador ejecuta **Alembic upgrade head**, revisión base `253cae9c234a`.
-Ya no usa `create_all`. El arranque de FastAPI ejecuta el mismo flujo, que es
-idempotente en bases versionadas. Una base histórica SESAES sin versión Alembic
-se rechaza antes de ejecutar DDL; no se adopta ni migra por accidente.
-No borrar ni estampar a ciegas una base con datos.
-
-### Migraciones futuras
-
-Desde `backend/`, con `DATABASE_URL` de desarrollo/pruebas y su esquema en head:
-
-```powershell
-python -m alembic revision --autogenerate -m "descripcion del cambio"
-# Revisar upgrade/downgrade antes de aplicar:
-python -m alembic upgrade head
-python -m alembic current
-python -m alembic check
-```
-
-Modelo, revisión y pruebas se versionan juntos. No crear parches de esquema sueltos
-en `backend/scripts/`. Ver [Guía de migraciones](PLAN_DE_MEJORAS.md#guia-migraciones) para revisión,
-reversión, backup y límites de autogenerate. Alembic está instalado y probado;
-ya no es una deuda pendiente.
-
-### Primer superadministrador
-
-Definir temporalmente en el entorno `SUPERADMIN_BOOTSTRAP_EMAIL`, `SUPERADMIN_BOOTSTRAP_PASSWORD` y,
-opcionalmente, `SUPERADMIN_BOOTSTRAP_NAME`. La contraseña debe cumplir la política
-vigente: mínimo ocho caracteres, mayúscula, minúscula, número y carácter especial, sin espacios.
-
-```powershell
-python -m app.init_db --superadmin
-```
-
-Crea primero el esquema y luego el primer superadmin. Rechaza un correo ocupado
-y una segunda ejecución del bootstrap; no cambia roles de cuentas existentes.
-Retirar las credenciales de bootstrap del entorno después de utilizarlo.
-El comando antiguo `python -m app.bootstrap_superadmin` se conserva por compatibilidad
-y requiere que el esquema ya exista. El arranque HTTP nunca crea superadmins.
-
-### Datos demo opcionales
-
-Solo en una base sin usuarios, establecer `SEED_DEMO_DATA=true` y
-`SEED_DEMO_PASSWORD` con una contraseña propia, y ejecutar `python -m app.init_db`.
-Se crean once cuentas demo (cuatro estudiantes, seis profesionales y un admin),
-con hashes bcrypt, seis profesionales de duración 60 minutos y 90 bloques aprobados:
-disponible 09:00–13:00, colación 13:00–14:00 y disponible 14:00–17:30
-de lunes a jueves o hasta 16:30 el viernes. Una única transacción evita semillas parciales y otra ejecución
-no duplica usuarios. El admin demo no obtiene permisos efectivos sin configurar
-su acceso administrativo. Si se necesitan demo y superadmin, activar el seed antes
-de ejecutar `python -m app.init_db --superadmin`. Desactivar el seed al terminar.
-
-### Frontend
+Terminal frontend:
 
 ```powershell
 cd frontend
@@ -236,127 +121,50 @@ npm ci
 npm start
 ```
 
-Frontend: http://localhost:4200. API local: http://127.0.0.1:8080.
-La API local predeterminada es `http://localhost:8080`. Para otra URL, definir `NG_APP_API_URL` antes de `npm start` o `npm run build`, como explica la guía.
+NG_APP_API_URL permite configurar la API antes de serve/build; su valor local
+predeterminado es http://localhost:8080. Consultar [CONFIGURACION](docs/CONFIGURACION.md).
+En desarrollo, Swagger está en /docs y el chequeo de vida en /health.
 
-## Agendamiento por días aprobados
+## Reglas que conviene conocer
 
-El estudiante solo puede seleccionar fechas con horas reales disponibles dentro
-de los próximos siete días y bloques disponibles en la agenda semanal aprobada
-del profesional. Se bloquean visualmente fines de semana, cierres institucionales,
-días sin bloques y días sin cupos. Mientras carga el calendario o falla la consulta,
-las fechas permanecen deshabilitadas. Cambiar de profesional descarta respuestas anteriores.
+- El calendario estudiantil depende de bloques aprobados y disponibilidad real.
+  Una solicitud pendiente no habilita días.
+- Una hora libre se agenda como normal. El sobrecupo necesita permiso adicional,
+  motivo y capacidad; conserva la cita anterior.
+- El horario de negocio es America/Santiago. La colación se configura explícitamente.
+- Los documentos nuevos incluyen identificación, folio, barras y QR, sin firma
+  gráfica. Autenticidad, cobertura de ausencia y vigencia son comprobaciones distintas.
+- No existe SSO, consulta académica o verificación de matrícula conectados.
+  Correo institucional no equivale a alumno matriculado.
+- Una especialidad textual por profesional; alta de estudiantes disponible por API.
+- Head de esquema: **8d2e4f6a901b**, posterior a **253cae9c234a**.
 
-`GET /disponibilidad/{id}/calendario` publica esas fechas y `GET /disponibilidad/{id}`
-publica sus horas. El servidor comprueba nuevamente al crear la cita: forzar por
-API un día sin bloques aprobados devuelve HTTP 400. Una jornada genérica o una
-solicitud pendiente/rechazada no habilitan días; aprobar una solicitud de bloques
-reemplaza la agenda semanal vigente. Se mantienen RBAC, alcance administrativo,
-auditoría y las políticas de urgencia/sobrecupo.
+## Documentación técnica y operativa
 
-Ver el inventario de módulos, archivos eliminados y decisiones en
-[Historial técnico](PLAN_DE_MEJORAS.md#historial-tecnico).
+| Tema                                       | Guía                                                                 |
+| ------------------------------------------ | -------------------------------------------------------------------- |
+| Arquitectura y decisiones                  | [ARQUITECTURA](docs/ARQUITECTURA.md)                                 |
+| Diagramas de arquitectura, ER y secuencias | [DIAGRAMAS](docs/DIAGRAMAS.md), [MODELO_DATOS](docs/MODELO_DATOS.md) |
+| API y rutas                                | [API](docs/API.md), [referencia HTTP](docs/API_REFERENCIA.md)        |
+| Configuración y secretos                   | [CONFIGURACION](docs/CONFIGURACION.md)                               |
+| Migraciones, backups y restauración        | [OPERACION](docs/OPERACION.md)                                       |
+| Pruebas, evidencia y cobertura             | [PRUEBAS](docs/PRUEBAS.md)                                           |
+| Continuación de integración universitaria  | [INTEGRACION_INSTITUCIONAL](docs/INTEGRACION_INSTITUCIONAL.md)       |
+| Problemas frecuentes                       | [SOLUCION_PROBLEMAS](docs/SOLUCION_PROBLEMAS.md)                     |
+| Vulnerabilidades                           | [SECURITY](SECURITY.md)                                              |
+| Trabajo del equipo                         | [CONTRIBUTING](CONTRIBUTING.md)                                      |
+| Cambios visibles                           | [CHANGELOG](CHANGELOG.md)                                            |
+| Historial y pendientes detallados          | [PLAN_DE_MEJORAS](PLAN_DE_MEJORAS.md)                                |
 
-## Pruebas
+## Estado de calidad y licencia
 
-### Backend
+La integración registró 1.691 pruebas backend aprobadas, 8 omitidas y 20 subtests;
+1.007 frontend aprobadas, y build correcto con dos avisos CSS. Los 52 casos
+PostgreSQL forman parte de la comprobación conjunta. No es una cifra de cobertura.
 
-```powershell
-cd backend
-python -m pytest -q
-# Solo integración de esquema en PostgreSQL, con schema temporal aislado:
-$env:TEST_POSTGRES_URL = 'postgresql+psycopg2://usuario:password@localhost:5432/sesaes_test'
-python -m pytest tests/test_esquema_inicial.py -q
-```
+SMTP institucional, ejecución Docker, despliegue y decisiones de datos/SSO
+conservan pendientes expresos. Para cambios nuevos, ejecutar las comprobaciones
+correspondientes; no reutilizar una cifra histórica como resultado de otro commit.
 
-### Frontend
-
-```powershell
-cd frontend
-npm test -- --watch=false
-npm run build
-npx tsc --noEmit --noUnusedLocals --noUnusedParameters -p tsconfig.app.json
-```
-
-Antes de integrar una rama a `main`, los cambios deben quedar sin errores de tests/build relacionados con su alcance.
-
-## Flujo Git del equipo
-
-`main` es la base oficial del proyecto.
-
-### Antes de comenzar una tarea
-
-```powershell
-git fetch origin
-git switch main
-git pull --ff-only origin main
-git switch -c feature/nombre-de-la-tarea
-```
-
-### Guardar y publicar avances
-
-```powershell
-git add .
-git commit -m "feat(modulo): descripcion del cambio"
-git push -u origin feature/nombre-de-la-tarea
-```
-
-### Integración
-
-1. Abrir un **Pull Request** desde la rama de trabajo hacia `main`.
-2. No hacer push directo a `main`.
-3. El Pull Request debe revisarse antes de integrarse.
-4. Si `main` avanzó mientras se trabajaba, actualizar la rama antes del merge.
-5. No resolver conflictos reemplazando carpetas completas sin revisar los cambios.
-
-### Autoría de commits
-
-Cada integrante debe revisar una vez:
-
-```powershell
-git config user.name
-git config user.email
-```
-
-El correo usado en los commits debe estar asociado a su cuenta de GitHub para que la autoría se atribuya correctamente.
-
-## Convenciones de ramas
-
-Ejemplos:
-
-```text
-feature/student-...
-feature/professional-...
-feature/admin-...
-feature/superadmin-...
-fix/...
-test/...
-```
-
-Evitar reutilizar ramas antiguas para tareas nuevas.
-
-## Variables y datos sensibles
-
-- No versionar `.env`.
-- No subir contraseñas, tokens ni credenciales.
-- No utilizar contraseñas genéricas de producción.
-- Evitar pruebas destructivas contra bases compartidas.
-- Los cambios de esquema de base de datos deben coordinarse antes de integrarse.
-
----
-
-SESAES se desarrolla de manera incremental: cada módulo debe conservar seguridad, trazabilidad y compatibilidad con la arquitectura vigente antes de integrarse a `main`.
-
-
-## Versión integrada del equipo
-
-Esta copia combina main (854a727) con los avances locales. Las decisiones,
-procedencia y comprobaciones están en la sección 9.11 de [PLAN_DE_MEJORAS.md](PLAN_DE_MEJORAS.md).
-La revisión base 253cae9c234a se conserva y el head actual es 8d2e4f6a901b
-(seguridad de cuenta): 28 tablas de dominio y alembic_version.
-
-El login ofrece recuperación en /recuperar y restablecimiento en /restablecer.
-Se requieren FRONTEND_BASE_URL y SMTP configurado para enviar enlaces reales;
-RESET_TOKEN_MINUTES controla el vencimiento (30 minutos por defecto).
-Cinco fallos bloquean la cuenta quince minutos. Esta copia no incluye cuentas,
-contraseñas ni una base de datos local.
+[LICENSE](LICENSE) registra que la licencia propia todavía está por definir con
+el equipo y la institución. Las dependencias conservan sus licencias respectivas.

@@ -44,3 +44,6 @@ backend/gen_hash.py
 # Archivos de entrega temporales
 *.zip
 *.patch
+
+# Plantilla pública de Docker; .env.docker permanece privado.
+!.env.docker.example

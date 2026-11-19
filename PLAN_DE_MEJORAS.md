@@ -1357,10 +1357,89 @@ comparados y retirados, fuera del proyecto entregable.
 - [ ] Completar pendientes de respaldo, despliegue, CSP, privacidad e integración
   institucional ya recogidos en 4 y 9.6.
 
+### 9.12. Documentación profesional de entrega — 19-11-2026
+
+**Qué se hizo y por qué.** Se creó una documentación para personas sin contexto
+del desarrollo: usuarios finales, instaladores, responsables técnicos y quienes
+continuarán el código. La nueva solicitud pide guías en docs; por ello se separan
+las instrucciones actuales del historial central, sin eliminar los aportes
+consolidados de ambos integrantes ni reescribir su evidencia.
+
+**Cómo se organizó.** README es la entrada breve y docs/INDICE.md dirige por tarea.
+MANUAL_USUARIO explica los cuatro roles con nombres de pantallas y consecuencias
+de sus acciones. ARQUITECTURA, DIAGRAMAS y MODELO_DATOS describen el sistema;
+el diccionario y el ER completo se obtuvieron de los modelos SQLAlchemy, sin
+consultar registros de usuarios: 28 tablas de dominio y 196 columnas.
+API y API_REFERENCIA incluyen ejemplos y 119 operaciones obtenidas de los
+decoradores de main.py y routers, con enlaces a su implementación.
+INSTALACION deriva de la guía ya verificada y actualiza el head a 8d2e4f6a901b.
+
+**Guías adicionales.** CONFIGURACION reúne todas las variables de aplicación,
+pruebas, frontend y Compose. OPERACION explica migraciones, respaldo y restauración
+sobre una base separada. PRUEBAS distingue evidencia de integración, checks de esta
+ronda y cobertura no medida. SOLUCION_PROBLEMAS permite interpretar errores.
+INTEGRACION_INSTITUCIONAL separa las capacidades actuales del contrato propuesto
+para la universidad; no se afirma que SSO o matrícula ya estén conectados.
+
+**Archivos de comunidad.** SECURITY.md establece reporte privado y límites reales;
+CONTRIBUTING.md describe ramas, revisión, pruebas y documentación; CHANGELOG.md
+resume cambios visibles sin inventar una versión de release. LICENSE registra
+que la licencia está pendiente de decisión del equipo/institución. No se eligió
+MIT ni se concedieron permisos de distribución sin aprobación. El README incluye
+badge CI enlazado al workflow, versiones de archivos, cobertura no medida y
+licencia pendiente, sin porcentajes o checks de éxito fabricados.
+
+**Docker.** Para que el inicio rápido tenga archivos reales se añadieron
+compose.yaml, Dockerfiles y .dockerignore para backend/frontend, nginx.conf y
+.env.docker.example. La plantilla privada .env.docker queda ignorada en Git.
+El manifiesto es local: PostgreSQL 17 con volumen propio, FastAPI y frontend
+compilado en Nginx; no reemplaza un despliegue productivo con HTTPS y custodia de
+datos. Se conserva el seed optativo y el bootstrap existente; no se creó lógica
+de aplicación nueva.
+
+**Validación y límites de esta ronda.** Se comprueban enlaces relativos, anclas,
+rutas de ejemplos, JSON, cercos Markdown, inventario de esquema y formato.
+No se vuelve a anunciar la suite de integración como ejecutada por escribir
+Markdown: los resultados de 1.691/1.007 y 52 PostgreSQL pertenecen al cierre 9.11.
+Docker Engine no estaba iniciado. La validación con docker compose config fue
+solicitada, pero el sistema de aprobación automática no pudo procesarla por un
+límite de uso y el comando no se ejecutó. No es una aprobación rechazada por
+inseguridad. Por tanto, build/arranque Docker y render visual de Mermaid en GitHub
+se mantienen pendientes; se hace revisión estructural local de los diagramas.
+
+**Resultado de comprobaciones documentales:** 18 documentos principales revisados,
+188 enlaces internos válidos, 7 bloques JSON válidos, 9 diagramas Mermaid con
+estructura revisada y formato Prettier aprobado para Markdown/YAML.
+git diff --check sin errores. .env.docker y backend/.env permanecen ignorados,
+mientras .env.docker.example se permite como plantilla pública.
+No se ejecutaron pytest, npm test ni un nuevo build de aplicación en esta ronda:
+no hay modificaciones de lógica. Docker y su recorrido siguen pendientes según
+la limitación anterior.
+
+**Archivos creados:** docs/INDICE.md, INSTALACION.md, MANUAL_USUARIO.md,
+ARQUITECTURA.md, DIAGRAMAS.md, MODELO_DATOS.md, API.md, API_REFERENCIA.md,
+CONFIGURACION.md, DOCKER.md, PRUEBAS.md, OPERACION.md,
+INTEGRACION_INSTITUCIONAL.md y SOLUCION_PROBLEMAS.md; SECURITY.md,
+CONTRIBUTING.md, CHANGELOG.md y LICENSE; compose.yaml, .env.docker.example;
+backend/Dockerfile y .dockerignore; frontend/Dockerfile, .dockerignore y nginx.conf.
+**Modificados:** README.md, .gitignore y este plan.
+No se modificaron rutas, modelos, permisos ni reglas de negocio.
+
+- [x] Manual de los cuatro perfiles y catálogo de documentación.
+- [x] Arquitectura, ER y secuencias solicitadas.
+- [x] Instalación, configuración, API, operación y pruebas explicadas.
+- [x] Archivos de comunidad y changelog visible.
+- [x] Badges con estado real, sin inventar licencia ni cobertura.
+- [ ] Definir licencia con el equipo y la institución.
+- [ ] Validar build y recorrido de Docker con el motor activo.
+- [ ] Revisar render de Mermaid y Markdown en el Pull Request de GitHub.
+- [ ] Ejecutar los checks remotos tras publicar estos archivos.
+
 ## 10. Guías operativas e historial consolidado
 
-Se conservan los seis documentos retirados. Las guías de instalación y migraciones
-son operativas; los cierres y el changelog documentan rondas anteriores.
+Se conservan los seis documentos retirados. Las guías vigentes están ahora en [docs/INDICE.md](docs/INDICE.md).
+Los textos consolidados a continuación preservan rondas anteriores; contrastar
+comandos, revisiones y resultados con la guía actual antes de ejecutarlos.
 Las rutas de archivos eliminados en inventarios históricos describen su estado
 en esa ronda, no instrucciones para recrearlos. Las credenciales siguen fuera del documento.
 Las referencias legales se conservan como revisión del 15-11-2026, sin nueva certificación jurídica.
