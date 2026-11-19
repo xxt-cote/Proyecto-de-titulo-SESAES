@@ -48,11 +48,7 @@ class CitaCreate(BaseModel):
     # actualizar el modal de Angular antes de evaluar si corresponde
     # exigirlo para sobrecupos nuevos.
     sobrecupo_motivo: Optional[str] = None
-    # Solo lo envía el botón «Solicitar sobrecupo» de la agenda administrativa:
-    # la cita queda registrada como sobrecupo AUNQUE la hora esté libre.
-    # Exige sobrecupo=True, agenda.gestionar, agenda.sobrecupo y motivo. Sin
-    # este campo, un sobrecupo=True sobre una hora libre sigue creando una cita
-    # normal (comportamiento A.4.1: nunca un sobrecupo "fantasma" por accidente).
+    # Compatibilidad con clientes anteriores: no fuerza sobrecupo en horas libres.
     sobrecupo_forzado: Optional[bool] = False
 
 
@@ -76,6 +72,7 @@ class MedicamentoRecetaIn(BaseModel):
 
 
 class RecetaIn(BaseModel):
+    valida_hasta: date  # Fecha límite de uso, independiente de los períodos de tratamiento.
     medicamentos: Annotated[list[MedicamentoRecetaIn], Field(min_length=1, max_length=10)]
 
 
@@ -135,6 +132,27 @@ class CompletarCitaBody(BaseModel):
 # ══════════════════════════════════════
 # ESTUDIANTE
 # ══════════════════════════════════════
+
+class EstudianteCreate(BaseModel):
+    """Alta institucional; el cliente no puede elegir rol ni permisos."""
+    model_config = {"extra": "forbid"}
+
+    nombre: str = Field(min_length=1, max_length=160)
+    correo: str = Field(pattern=r"^[a-zA-Z0-9._%+\-]+@utem\.cl$")
+    password: str = Field(min_length=8, max_length=72)
+    carrera: str = Field(min_length=1, max_length=200)
+    rut: Optional[str] = None
+    telefono: Optional[str] = None
+
+    @field_validator("nombre", "carrera", "correo", mode="before")
+    @classmethod
+    def normalizar_alta(cls, valor, info):
+        if isinstance(valor, str):
+            valor = valor.strip()
+            if info.field_name == "correo":
+                valor = valor.lower()
+        return valor
+
 
 class EstudianteOut(BaseModel):
     id:          int
@@ -204,7 +222,7 @@ class ProfesionalCreate(BaseModel):
     duracion_min: Optional[int] = 45
     correo:       Optional[str] = None
     rut:          Optional[str] = None
-    password:     Optional[str] = None  # None = el backend genera una contraseña temporal aleatoria
+    password:     Optional[str] = None  # Obligatoria al crear: validación de política en el router, sin fallback.
     color_identificador: Optional[str] = None  # hex de COLORES_PERMITIDOS, o null = sin color propio (usa fallback visual). Validado en el router (ver admin.py) para responder 400, no aquí.
 
 
@@ -215,11 +233,16 @@ class ProfesionalUpdate(BaseModel):
     iniciales:    Optional[str] = None
     descripcion:  Optional[str] = None
     duracion_min: Optional[int] = None
-    correo:       Optional[str] = None
+    correo:       Optional[str] = Field(default=None, pattern=r"^[a-zA-Z0-9._%+\-]+@utem\.cl$")
     rut:          Optional[str] = None
     estado:       Optional[str] = None
     hora_almuerzo_inicio: Optional[str] = None 
     color_identificador: Optional[str] = None  # ídem: validado en el router, no acá.
+
+    @field_validator("correo", mode="before")
+    @classmethod
+    def normalizar_correo_profesional(cls, valor):
+        return valor.strip().lower() if isinstance(valor, str) else valor
 
 class ProfesionalOut(BaseModel):
     id:           int

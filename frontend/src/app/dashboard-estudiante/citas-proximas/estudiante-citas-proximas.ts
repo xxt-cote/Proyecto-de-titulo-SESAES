@@ -1,3 +1,4 @@
+import { instanteCentro } from '../../shared/tiempo-centro';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { EstudianteTipoCitaBadgeComponent } from '../tipo-cita-badge/estudiante-tipo-cita-badge';
@@ -35,7 +36,7 @@ export class EstudianteCitasProximasComponent {
     if (!cita.fecha_raw || !cita.hora) return null;
     const horaMatch = cita.hora.match(/(\d{1,2}):(\d{2})/);
     if (!horaMatch) return null;
-    const fechaHora = new Date(`${cita.fecha_raw}T${horaMatch[1].padStart(2,'0')}:${horaMatch[2]}:00`);
+    const fechaHora = instanteCentro(`${cita.fecha_raw}T${horaMatch[1].padStart(2,'0')}:${horaMatch[2]}:00`);
     return (fechaHora.getTime() - Date.now()) / (1000 * 60 * 60);
   }
 

@@ -112,6 +112,17 @@
               <span class="campo-error" *ngIf="!rutValido">RUT inválido</span>
             </div>
             <!-- Color identificador del calendario -->
+            <div class="campo-grupo">
+              <label for="prof-password">Contraseña inicial *</label>
+              <input id="prof-password" type="password" autocomplete="new-password" [(ngModel)]="profNuevoDatos.password" />
+              <span class="campo-ayuda">Mínimo 8 caracteres: mayúscula, minúscula, número y carácter especial; sin espacios. Máximo 72 bytes UTF-8.</span>
+              <span class="campo-error" *ngIf="profNuevoDatos.password && !passwordValida">La contraseña no cumple la política.</span>
+            </div>
+            <div class="campo-grupo">
+              <label for="prof-password-confirmacion">Confirmar contraseña *</label>
+              <input id="prof-password-confirmacion" type="password" autocomplete="new-password" [(ngModel)]="passwordConfirmacion" />
+              <span class="campo-error" *ngIf="passwordConfirmacion && passwordConfirmacion !== profNuevoDatos.password">Las contraseñas no coinciden.</span>
+            </div>
             <div class="campo-grupo" style="grid-column: 1 / -1">
               <label>Color identificador del calendario</label>
               <p class="campo-ayuda">Color con el que se identificarán los bloques de agenda y referencias visuales de este profesional.</p>
@@ -175,7 +186,7 @@
             <div class="conf-row"><span class="conf-label">RUT</span><span class="conf-val">{{ profNuevoDatos.rut || '—' }}</span></div>
             <div class="conf-row"><span class="conf-label">Duración atención</span><span class="conf-val">{{ duracionEnMinutos }} minutos</span></div>
             <div class="conf-row"><span class="conf-label">Estado</span><span class="conf-val"><span class="estado-badge activo">Activo</span></span></div>
-            <div class="conf-row conf-password"><span class="conf-label">Contraseña temporal</span><span class="conf-val conf-val-password">prof123</span></div>
+            <div class="conf-row"><span class="conf-label">Contraseña inicial</span><span class="conf-val">Configurada por el administrador; no se muestra.</span></div>
           </div>
           <div class="modal-footer">
             <button class="btn-cancelar-modal" (click)="volverFormProf()">← Volver</button>
@@ -218,11 +229,11 @@
             <div class="gestionar-card-datos">
               <div class="dato-row">
                 <span class="material-symbols-outlined dato-icono">mail</span>
-                <div><span class="dato-label">Correo electrónico</span><span class="dato-val">{{ profSeleccionado.correo || '—' }}</span></div>
+                <div class="campo-grupo"><label class="dato-label" for="editar-correo-prof">Correo institucional</label><input id="editar-correo-prof" type="email" [(ngModel)]="profSeleccionado.nuevoCorreo" placeholder="nombre@utem.cl" /></div>
               </div>
               <div class="dato-row">
                 <span class="material-symbols-outlined dato-icono">fingerprint</span>
-                <div><span class="dato-label">RUT</span><span class="dato-val">{{ profSeleccionado.rut || '—' }}</span></div>
+                <div class="campo-grupo"><label class="dato-label" for="editar-rut-prof">RUT</label><input id="editar-rut-prof" [(ngModel)]="profSeleccionado.nuevoRut" placeholder="12.345.678-5" /></div>
               </div>
               <div class="dato-row">
                 <span class="material-symbols-outlined dato-icono">medical_services</span>
@@ -230,6 +241,8 @@
               </div>
             </div>
           </div>
+
+          <button type="button" class="btn-guardar-modal" (click)="guardarContactoProfesional()">Guardar correo y RUT</button>
 
           <!-- Configuración de agenda -->
           <div class="gestionar-card">

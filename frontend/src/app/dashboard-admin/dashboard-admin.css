@@ -557,51 +557,6 @@ tr.fila-urgente { background: #fff6f5; }
 .admin-shell .inicio-lateral { display: flex; flex-direction: column; gap: 20px; }
 .admin-shell .inicio-calendario { padding: 18px; margin-bottom: 0; }
 
-.admin-shell .calendario-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-.admin-shell .calendario-header span { font-size: 13px; font-weight: 700; color: var(--admin-text); text-transform: capitalize; }
-.admin-shell .cal-nav-btn {
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  border: 1.5px solid var(--admin-border);
-  background: #fff;
-  color: var(--admin-text-secondary);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all .15s;
-}
-.admin-shell .cal-nav-btn:hover { border-color: var(--admin-primary); color: var(--admin-primary); }
-
-.admin-shell .cal-grid-dias-nombre-admin { display: grid; grid-template-columns: repeat(7, 1fr); padding-bottom: 8px; margin-bottom: 6px; border-bottom: 1px solid var(--admin-background); }
-.admin-shell .cal-grid-dias-nombre-admin span { text-align: center; font-size: 9.5px; font-weight: 700; color: var(--admin-text-secondary); letter-spacing: .3px; }
-
-.admin-shell .cal-grid-admin { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
-.admin-shell .cal-celda-admin { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; }
-.admin-shell .cal-celda-admin.clickeable { cursor: pointer; }
-.admin-shell .cal-celda-admin span { width: 27px; height: 27px; display: flex; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 500; color: var(--admin-text); border-radius: 50%; }
-.admin-shell .cal-celda-admin span.hoy { background: var(--admin-primary); color: white; font-weight: 700; }
-.admin-shell .cal-celda-admin span.feriado { background: #FFF0DD; color: #A65F13; font-weight: 600; }
-.admin-shell .cal-celda-admin span.feriado.hoy { background: var(--admin-primary); color: white; }
-.admin-shell.tema-oscuro .cal-celda-admin span.feriado { background: rgba(234,88,12,0.15); color: #fb923c; }
-
-.admin-shell .info-dia-admin {
-  margin-top: 10px;
-  padding: 10px 12px;
-  background: var(--admin-background);
-  border: 1px solid var(--admin-border);
-  border-radius: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.admin-shell .info-dia-admin-item { font-size: 12px; color: var(--admin-text); line-height: 1.4; }
-.admin-shell .info-dia-admin-vacio { margin: 10px 0 0 0; font-size: 12px; color: var(--admin-text-secondary); text-align: center; }
-.admin-shell.tema-oscuro .info-dia-admin { background: #1a2333; border-color: #3a4a63; }
-.admin-shell.tema-oscuro .info-dia-admin-item { color: #c9d1d9; }
-.admin-shell.tema-oscuro .info-dia-admin-vacio { color: #56637a; }
-
 .admin-shell .btn-ver-agenda { font-size: 12px; color: var(--admin-primary-hover); background: none; border: none; cursor: pointer; font-weight: 500; }
 .admin-shell .actividad-lista { display: flex; flex-direction: column; gap: 14px; }
 .admin-shell .actividad-item  { display: flex; gap: 10px; align-items: flex-start; }
@@ -814,9 +769,6 @@ tr.fila-urgente { background: #fff6f5; }
 
 .semana-header { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid #f6f8fb; }
 .semana-titulo { font-size: 15px; font-weight: 700; color: #17202a; flex: 1; }
-
-.cal-nav-btn { width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid #e7ebef; background: white; color: #66727e; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; transition: all .15s; }
-.cal-nav-btn:hover { border-color: #0d9488; color: #0d9488; }
 
 .btn-hoy { padding: 5px 14px; border: 1.5px solid #0d9488; border-radius: 7px; background: white; color: #0d9488; font-size: 12px; font-weight: 600; cursor: pointer; }
 
@@ -1576,11 +1528,11 @@ tr.fila-urgente { background: #fff6f5; }
 .dashboard.tema-oscuro .btn-pag { background: #2d3b52; border-color: #3a4a63; color: #8b96a8; }
 .dashboard.tema-oscuro .actividad-texto p { color: #c9d1d9; }
 .dashboard.tema-oscuro .actividad-texto span { color: #8b96a8; }
-.dashboard.tema-oscuro .calendario-header span { color: #e6edf3; }
-.dashboard.tema-oscuro .cal-grid-dias-nombre-admin { border-color: #3a4a63; }
-.dashboard.tema-oscuro .cal-grid-dias-nombre-admin span { color: #56637a; }
-.dashboard.tema-oscuro .cal-celda-admin span { color: #c9d1d9; }
-.dashboard.tema-oscuro .cal-celda-admin span.hoy { background: linear-gradient(135deg, #0d9488, #0f766e); color: #fff; }
+
+
+
+
+
 .dashboard.tema-oscuro .disponibilidad-item { background: #2d3b52; }
 .dashboard.tema-oscuro .disp-nombre { color: #e6edf3; }
 .dashboard.tema-oscuro .confirmacion-resumen { background: #2d3b52; }
@@ -1853,3 +1805,19 @@ tr.fila-urgente { background: #fff6f5; }
 .dashboard.tema-oscuro .admins-mobile-card-label { color: #8b96a8; }
 .dashboard.tema-oscuro .admins-mobile-card-acciones { border-color: #3a4a63; }
 
+
+/* En teléfono, separar búsqueda y acciones evita comprimir el saludo. */
+@media (max-width: 640px) {
+  .admin-shell .topbar {
+    display: grid; grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px; height: auto;
+  }
+  .admin-shell .topbar-left { min-width: 0; }
+  .admin-shell .topbar-title { margin: 0; overflow-wrap: anywhere; }
+  .admin-shell .topbar-actions {
+    grid-column: 1 / -1; width: 100%; min-width: 0; gap: 8px;
+  }
+  .admin-shell .topbar-buscador { flex: 1; min-width: 0; }
+  .admin-shell .topbar-buscador input { width: 100%; min-width: 0; box-sizing: border-box; }
+  .admin-shell .topbar-perfil { flex-shrink: 0; }
+}

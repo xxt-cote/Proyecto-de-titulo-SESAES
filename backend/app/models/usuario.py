@@ -24,10 +24,8 @@ class Usuario(Base):
     debe_cambiar_password = Column(Boolean, default=False)
 
     # Momento real de registro de la cuenta, para filas NUEVAS (DEFAULT a
-    # nivel de motor: server_default en el modelo / ALTER ... SET DEFAULT
-    # en la migración). Nullable a propósito: las cuentas anteriores a la
-    # migración NO tienen este dato real y quedan en NULL — nunca se les
-    # inventa una fecha retroactiva (mismo criterio que Cita.fecha_creacion
-    # de A.4.1; ver scripts/migrar_usuario_fecha_creacion.py). La UI debe
+    # nivel de motor: server_default). Nullable a propósito para permitir
+    # importar históricos sin inventarles una fecha retroactiva.
+    # La UI debe
     # mostrar "—" cuando es NULL.
     fecha_creacion = Column(DateTime, server_default=func.now(), nullable=True)

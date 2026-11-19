@@ -7,6 +7,7 @@ from app.models.profesional import Profesional
 from app.models.usuario import Usuario
 from app.routers import estudiante as m
 from app.routers import profesionales as p
+from app.routers import configuracion_centro as admin_config
 from app.security import password_cumple_politica
 
 
@@ -32,6 +33,85 @@ class FakeDB:
 
     def commit(self):
         self.commit_called = True
+
+
+@pytest.mark.parametrize("rol", ["admin", "superadmin"])
+@pytest.mark.parametrize("nueva", [
+    "corta", "nueva456!", "NUEVA456!", "NuevaClave!", "Nueva456",
+    "Nueva 456!", "A1!" + "a" * 70, "A1!" + "á" * 35, 12345678, ["Nueva456!"],
+])
+def test_password_administrativa_rechaza_debil_larga_o_tipo_invalido(rol, nueva):
+    usuario = SimpleNamespace(id=99, password="hash-original")
+    db = FakeDB([usuario])
+    with pytest.raises(HTTPException) as exc:
+        admin_config.cambiar_password_admin(
+            {"contrasena_actual": "Actual123!", "contrasena_nueva": nueva},
+            db=db, current_user={"id": 99, "rol": rol},
+        )
+    assert exc.value.status_code == 400
+    assert usuario.password == "hash-original"
+    assert not db.commit_called
+
+
+@pytest.mark.parametrize("rol", ["admin", "superadmin"])
+@pytest.mark.parametrize("actual,nueva", [
+    ("Incorrecta123!", "Nueva456!"), ("Actual123!", "Actual123!"),
+])
+def test_password_administrativa_exige_actual_correcta_y_nueva_distinta(monkeypatch, rol, actual, nueva):
+    usuario = SimpleNamespace(id=99, password="hash-original")
+    db = FakeDB([usuario])
+    monkeypatch.setattr(admin_config, "verify_password", lambda plain, stored: plain == "Actual123!")
+    with pytest.raises(HTTPException) as exc:
+        admin_config.cambiar_password_admin(
+            {"contrasena_actual": actual, "contrasena_nueva": nueva},
+            db=db, current_user={"id": 99, "rol": rol},
+        )
+    assert exc.value.status_code == 400
+    assert usuario.password == "hash-original"
+    assert not db.commit_called
+
+
+@pytest.mark.parametrize("rol", ["estudiante", "profesional"])
+def test_password_administrativa_rechaza_otros_roles(rol):
+    db = FakeDB([])
+    with pytest.raises(HTTPException) as exc:
+        admin_config.cambiar_password_admin(
+            {"contrasena_actual": "Actual123!", "contrasena_nueva": "Nueva456!"},
+            db=db, current_user={"id": 99, "rol": rol},
+        )
+    assert exc.value.status_code == 403
+    assert not db.commit_called
+
+
+@pytest.mark.parametrize("rol", ["admin", "superadmin"])
+def test_password_administrativa_cambia_solo_cuenta_autenticada_con_bcrypt(rol):
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+    from app.database import Base
+    from app.security import hash_password, verify_password
+    import app.models.init  # noqa: F401
+
+    motor = create_engine("sqlite://")
+    Base.metadata.create_all(motor)
+    original = hash_password("Actual123!")
+    try:
+        with Session(motor) as db:
+            actor = Usuario(correo="actor@utem.cl", rol=rol, password=original)
+            otra = Usuario(correo="otra@utem.cl", rol="admin", password=original)
+            db.add_all([actor, otra])
+            db.commit()
+            resultado = admin_config.cambiar_password_admin(
+                {"contrasena_actual": "Actual123!", "contrasena_nueva": "Nueva456!", "usuario_id": otra.id},
+                db=db, current_user={"id": actor.id, "rol": rol},
+            )
+            db.expire_all()
+            assert resultado["message"]
+            assert actor.password.startswith("$2b$")
+            assert verify_password("Nueva456!", actor.password)
+            assert not verify_password("Actual123!", actor.password)
+            assert otra.password == original
+    finally:
+        motor.dispose()
 
 
 def estudiante():

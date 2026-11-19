@@ -22,6 +22,7 @@ Reglas (cubiertas por tests/test_reportes_resumen*.py):
 """
 
 from __future__ import annotations
+from app.tiempo import ahora_local
 
 from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta
@@ -29,7 +30,7 @@ from io import BytesIO
 
 from sqlalchemy.orm import Session
 
-from app.busqueda import filtro_texto, igual_normalizado
+from app.busqueda import filtro_texto, igual_normalizado, normalizar_busqueda
 from app.models.cita import Cita
 from app.models.profesional import Profesional
 from app.models.usuario import Usuario
@@ -67,9 +68,9 @@ def resolver_periodo(fecha_inicio: str | None, fecha_fin: str | None) -> tuple[d
     fin = _fecha(fecha_fin)
     inicio = _fecha(fecha_inicio)
     if fin is None and inicio is None:
-        fin = date.today()
+        fin = ahora_local().date()
     if fin is None:
-        fin = max(inicio, date.today()) if inicio else date.today()
+        fin = max(inicio, ahora_local().date()) if inicio else ahora_local().date()
     if inicio is None:
         inicio = fin - timedelta(days=DIAS_DEFECTO - 1)
     if inicio > fin:
@@ -164,6 +165,14 @@ def tasa_inasistencia(inasistencias: int, completadas: int) -> float | None:
 
 
 def _ranking(contador: Counter, clave: str) -> list[dict]:
+    if clave == "especialidad":
+        etiquetas = {}
+        acumulado = Counter()
+        for nombre, cantidad in contador.items():
+            normalizada = normalizar_busqueda(nombre)
+            etiquetas.setdefault(normalizada, nombre)
+            acumulado[normalizada] += cantidad
+        contador = Counter({etiquetas[k]: n for k, n in acumulado.items()})
     return [
         {clave: nombre, "cantidad": cantidad}
         for nombre, cantidad in sorted(contador.items(), key=lambda kv: (-kv[1], kv[0]))

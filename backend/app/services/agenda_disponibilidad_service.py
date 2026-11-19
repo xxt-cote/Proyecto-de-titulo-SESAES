@@ -321,8 +321,8 @@ Alcance explícito de A.2 (ver auditoría previa de Agenda V2):
   RELOJ DETERMINISTA: `analizar_conflictos_slot()` nunca lee el reloj
   global — el chequeo `hora_pasada` recibe la hora "actual" como
   parámetro inyectado (`ahora: time | None`), nunca vía
-  `datetime.now()` interno. `evaluar_disponibilidad_slot()` captura
-  `datetime.now()` UNA sola vez por evaluación y pasa ese mismo
+  `ahora_local()` interno. `evaluar_disponibilidad_slot()` captura
+  `ahora_local()` UNA sola vez por evaluación y pasa ese mismo
   snapshot tanto al análisis estructurado como (indirectamente, por
   ser la misma reducción) a la decisión legacy — no hay forma de que
   ambos discrepen porque el minuto cambió entre dos lecturas del
@@ -449,6 +449,7 @@ Alcance explícito de A.2 (ver auditoría previa de Agenda V2):
 """
 
 from __future__ import annotations
+from app.tiempo import ahora_local, ZONA_CENTRO
 
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
@@ -695,7 +696,7 @@ def _fin_intervalo(hora_obj: time, duracion_min: int) -> tuple[time, bool]:
     cruza_medianoche=True como "excede el cierre operativo del centro"
     sin más cálculo.
     """
-    base = datetime.combine(date.today(), hora_obj)
+    base = datetime.combine(date(2000, 1, 1), hora_obj)
     fin = base + timedelta(minutes=duracion_min)
     return fin.time(), fin.date() != base.date()
 
@@ -742,8 +743,8 @@ def generar_bloques_jornada(duracion_min: int) -> list[time]:
         else DURACION_MIN_POR_DEFECTO
     )
     bloques: list[time] = []
-    actual = datetime.combine(date.today(), HORA_INICIO_CENTRO)
-    fin = datetime.combine(date.today(), HORA_FIN_CENTRO)
+    actual = datetime.combine(date(2000, 1, 1), HORA_INICIO_CENTRO)
+    fin = datetime.combine(date(2000, 1, 1), HORA_FIN_CENTRO)
     while actual < fin:
         bloques.append(actual.time())
         actual += timedelta(minutes=duracion)
@@ -1344,7 +1345,7 @@ def excede_ventana_agendamiento_estudiante(
     fecha_obj = _parsear_fecha(fecha)
     if fecha_obj is None:
         return False
-    return fecha_obj > (date.today() + timedelta(days=ventana_dias))
+    return fecha_obj > (ahora_local().date() + timedelta(days=ventana_dias))
 
 
 # Mismo texto exacto que devolvía _evaluar_slot_en_contexto() antes de
@@ -1452,7 +1453,7 @@ def analizar_conflictos_slot(
 
     RELOJ DETERMINISTA: el chequeo `hora_pasada` compara `hora_obj`
     contra `ahora` — la hora "actual" INYECTADA por quien llama, nunca
-    `datetime.now()` leído acá dentro. Si `ahora` es `None`
+    `ahora_local()` leído acá dentro. Si `ahora` es `None`
     (compatibilidad hacia atrás con callers que no la necesitan, p.
     ej. tests que ya fijan `fecha_obj != hoy`), el chequeo
     `hora_pasada` simplemente no se evalúa — no se sustituye por una
@@ -1460,7 +1461,7 @@ def analizar_conflictos_slot(
     problema que se corrigió: dos lecturas del reloj en momentos
     distintos podrían discrepar entre sí. Quien necesite este chequeo
     debe pasar `ahora` explícitamente (ver `evaluar_disponibilidad_slot()`
-    y `listar_disponibilidad_rango()`, que capturan `datetime.now()`
+    y `listar_disponibilidad_rango()`, que capturan `ahora_local()`
     UNA sola vez y reutilizan ese mismo snapshot).
 
     NO incluye (a propósito, ver docstring del módulo):
@@ -1717,8 +1718,8 @@ def analizar_conflictos_slot(
         fin_conflicto = min(fin_obj, almuerzo_fin)
         minutos_afectados = int(
             (
-                datetime.combine(date.today(), fin_conflicto)
-                - datetime.combine(date.today(), inicio_conflicto)
+                datetime.combine(date(2000, 1, 1), fin_conflicto)
+                - datetime.combine(date(2000, 1, 1), inicio_conflicto)
             ).total_seconds()
             // 60
         )
@@ -1939,7 +1940,7 @@ def evaluar_disponibilidad_slot(
     disponible/motivo/mensaje/overridable_con_sobrecupo como para
     `ResultadoDisponibilidad.conflictos`.
 
-    RELOJ DETERMINISTA (A.4.2): `datetime.now()` se captura UNA sola
+    RELOJ DETERMINISTA (A.4.2): `ahora_local()` se captura UNA sola
     vez acá abajo; ese mismo snapshot alimenta el análisis estructurado
     y, por ser la misma tupla, también la decisión legacy — no hay
     forma de que ambos discrepen porque el minuto cambió entre dos
@@ -1995,12 +1996,13 @@ def evaluar_disponibilidad_slot(
             profesional=profesional,
         )
 
-    hoy = date.today()
+    snapshot_centro = datetime.now(ZONA_CENTRO)
+    hoy = snapshot_centro.date()
     # A.4.2 — un solo snapshot del reloj para toda esta evaluación (ver
     # "RELOJ DETERMINISTA" arriba); nunca se vuelve a leer
-    # datetime.now() más abajo, ni en el análisis estructurado ni en la
+    # ahora_local() más abajo, ni en el análisis estructurado ni en la
     # reducción legacy.
-    ahora_actual = datetime.now().time()
+    ahora_actual = snapshot_centro.time()
 
     # Canonicalización (corrección v6, punto 1): las queries de fecha
     # deben usar la forma canónica ya parseada (fecha_canon), no el
@@ -2105,12 +2107,29 @@ def validar_horario_aprobado_slot(
     return None
 
 
+def tiene_dia_aprobado(db: Session, profesional_id: int, fecha: date) -> bool:
+    """Solo los bloques disponibles de la agenda aprobada habilitan un día.
+
+    Las solicitudes pendientes/rechazadas y la jornada genérica no conceden
+    disponibilidad estudiantil. La aprobación reemplaza estos bloques.
+    """
+    if fecha.weekday() >= 5:
+        return False
+    return db.query(BloqueHorarioSemanal.id).filter(
+        BloqueHorarioSemanal.profesional_id == profesional_id,
+        BloqueHorarioSemanal.dia_semana == fecha.weekday(),
+        BloqueHorarioSemanal.tipo == "disponible",
+        BloqueHorarioSemanal.hora_inicio < BloqueHorarioSemanal.hora_fin,
+    ).first() is not None
+
+
 def listar_horas_disponibles(
     db: Session,
     *,
     profesional_id: int,
     fecha: str,
     ventana_dias: int = VENTANA_AGENDAMIENTO_ESTUDIANTE_DIAS,
+    exigir_bloques_aprobados: bool = False,
 ) -> tuple[list[str], str | None]:
     """
     Devuelve (horas_disponibles, mensaje) para un profesional en una
@@ -2135,7 +2154,8 @@ def listar_horas_disponibles(
     if fecha_obj is None:
         return [], "Fecha inválida"
 
-    hoy = date.today()
+    snapshot_centro = datetime.now(ZONA_CENTRO)
+    hoy = snapshot_centro.date()
     ventana_maxima = hoy + timedelta(days=ventana_dias)
 
     if fecha_obj < hoy or fecha_obj > ventana_maxima or fecha_obj.weekday() >= 5:
@@ -2156,6 +2176,9 @@ def listar_horas_disponibles(
     if profesional.estado and profesional.estado != "activo":
         return [], "Sin horas disponibles por esta semana"
 
+    if exigir_bloques_aprobados and not tiene_dia_aprobado(db, profesional_id, fecha_obj):
+        return [], "El profesional no tiene bloques aprobados para este día."
+
     # Misma grilla real que usa evaluar_disponibilidad_slot() para
     # validar un slot puntual — ver _bloques_grilla_profesional().
     bloques = _bloques_grilla_profesional(
@@ -2165,7 +2188,7 @@ def listar_horas_disponibles(
     )
 
     if fecha_obj == hoy:
-        ahora = datetime.now().time()
+        ahora = snapshot_centro.time()
         bloques = [b for b in bloques if b > ahora]
 
     # Comparación normalizada (24h vs "HH:MM AM/PM") — corrección v2
@@ -2353,12 +2376,13 @@ def listar_disponibilidad_rango(
     # profesional usa su jornada simple.
     bloques_por_dia = _bloques_por_dia(db, profesional_id)
 
-    hoy = date.today()
+    snapshot_centro = datetime.now(ZONA_CENTRO)
+    hoy = snapshot_centro.date()
     # A.4.2 — mismo patrón que `hoy`: un solo snapshot del reloj para
     # todo el rango (no uno por slot ni por día), reutilizado en cada
     # llamada a _evaluar_slot_en_contexto() de abajo — ver "RELOJ
     # DETERMINISTA" en el docstring del módulo.
-    ahora_actual = datetime.now().time()
+    ahora_actual = snapshot_centro.time()
     dias_resultado: list[dict] = []
     fecha_actual = fecha_inicio_obj
     while fecha_actual <= fecha_fin_obj:

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, ForeignKey, DateTime, JSON, String, Boolean
+from sqlalchemy import Column, Integer, ForeignKey, DateTime, JSON, String, Boolean, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
@@ -11,6 +11,9 @@ class HistorialPaciente(Base):
     de las de otros profesionales — no se comparte entre ellos.
     """
     __tablename__ = "historial_paciente"
+    __table_args__ = (
+        UniqueConstraint("profesional_id", "estudiante_id", name="uq_historial_paciente_par"),
+    )
 
     id             = Column(Integer, primary_key=True, index=True)
     profesional_id = Column(Integer, ForeignKey("profesional.id"), nullable=False, index=True)

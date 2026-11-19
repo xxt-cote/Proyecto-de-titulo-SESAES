@@ -14,6 +14,61 @@ from app.routers import admin
 from app.schemas import ProfesionalUpdate
 
 
+@pytest.fixture
+def contacto_real(monkeypatch):
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+    from app.database import Base
+    import app.models.init  # noqa: F401
+    motor = create_engine("sqlite://")
+    Base.metadata.create_all(motor)
+    with Session(motor) as db:
+        actor = Usuario(nombre="Gestor prueba", correo="gestor@utem.cl", password="hash", rol="superadmin")
+        usuario = Usuario(nombre="Profesional prueba", correo="original@utem.cl", password="hash", rol="profesional")
+        ocupado = Usuario(nombre="Otra cuenta", correo="ocupado@utem.cl", password="hash", rol="estudiante")
+        db.add_all([actor, usuario, ocupado])
+        db.flush()
+        profesional = Profesional(nombre=usuario.nombre, usuario_id=usuario.id, correo=usuario.correo, especialidad="Nutrición")
+        db.add(profesional)
+        db.commit()
+        monkeypatch.setattr(admin, "obtener_alcance_administrativo_efectivo", lambda *_: _alcance_institucional())
+        yield db, profesional, usuario, {"id": actor.id, "rol": "superadmin"}
+    motor.dispose()
+
+
+def test_contacto_sincroniza_cuenta_y_ficha_y_audita(contacto_real):
+    from app.models.auditoria import Auditoria
+    db, prof, usuario, actor = contacto_real
+    admin.actualizar_profesional(prof.id, ProfesionalUpdate(correo=" NUEVO@UTEM.CL ", rut="12.345.678-5"), db, actor)
+    db.expire_all()
+    assert prof.correo == usuario.correo == "nuevo@utem.cl"
+    assert prof.rut == usuario.rut == "12.345.678-5"
+    assert db.query(Auditoria).filter(Auditoria.entidad == "profesional", Auditoria.entidad_id == prof.id).count() == 1
+
+
+def test_contacto_duplicado_no_modifica_ninguna_cuenta(contacto_real):
+    db, prof, usuario, actor = contacto_real
+    with pytest.raises(HTTPException) as error:
+        admin.actualizar_profesional(prof.id, ProfesionalUpdate(correo="OCUPADO@UTEM.CL", rut="12.345.678-5"), db, actor)
+    assert error.value.status_code == 409
+    assert prof.correo == usuario.correo == "original@utem.cl"
+    assert prof.rut is None and usuario.rut is None
+
+
+def test_contacto_rut_invalido_no_cambia_correo(contacto_real):
+    db, prof, usuario, actor = contacto_real
+    with pytest.raises(HTTPException) as error:
+        admin.actualizar_profesional(prof.id, ProfesionalUpdate(correo="nuevo@utem.cl", rut="12.345.678-0"), db, actor)
+    assert error.value.status_code == 400
+    assert prof.correo == usuario.correo == "original@utem.cl"
+
+
+def test_contacto_rechaza_correo_no_institucional():
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        ProfesionalUpdate(correo="externo@example.com")
+
+
 class RecordingQuery:
     def __init__(self, rows=None):
         self.rows = list(rows or [])

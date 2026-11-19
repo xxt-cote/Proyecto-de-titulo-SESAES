@@ -7,8 +7,7 @@ class Auditoria(Base):
     __tablename__ = "auditoria"
     # Índice compuesto de consulta: el historial de un registro concreto
     # (p. ej. todas las acciones sobre una cita) filtra por entidad +
-    # entidad_id y ordena por fecha. En bases ya desplegadas se crea con
-    # backend/scripts/migrar_auditoria_agenda.py (idempotente).
+    # entidad_id y ordena por fecha. Se crea con el esquema definitivo.
     __table_args__ = (
         Index(
             "ix_auditoria_entidad_entidad_id_fecha",

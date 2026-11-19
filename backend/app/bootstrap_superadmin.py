@@ -1,23 +1,20 @@
 """
 SESAES — Fase SA-1: bootstrap controlado del PRIMER SUPERADMIN.
 
-Mecanismo local/CLI, deliberadamente SEPARADO del API HTTP y de
-init_db()/SEED_DEMO_DATA (SA-0). Se ejecuta explícitamente por una
+Mecanismo local/CLI, separado del API HTTP y del seed demo.
+El flujo recomendado crea primero el esquema y llama a este servicio:
 persona con acceso al servidor/proyecto, nunca automáticamente:
 
     cd backend
-    python -m app.bootstrap_superadmin
+    python -m app.init_db --superadmin
 
 NO se llama desde main.py, NO se llama desde el evento de startup, y
-NO se integra con el seed demo de SA-0 (no usa ni depende de
+No depende del seed demo de SA-0 (no usa ni depende de
 SEED_DEMO_DATA / SEED_DEMO_PASSWORD).
 
-Esquema de BD: este script asume que las tablas ya existen (mismo
-patrón que el resto del proyecto: Base.metadata.create_all() vive en
-init_db() / arranque normal de la app). El bootstrap NO llama
-create_all() para no volver a acoplar seed/init y bootstrap — si las
-tablas no existen todavía, la consulta de abajo fallará con un error
-claro de SQLAlchemy en vez de crear tablas por un camino separado.
+Esquema de BD: este servicio asume que las tablas ya existen.
+init_db() ejecuta Alembic upgrade head antes de llamarlo; el bootstrap
+no crea ni migra tablas y conserva su transacción de creación de cuenta.
 
 Reglas de negocio (ver diagnóstico SA-1):
   - Solo puede crear el PRIMER superadmin. Si ya existe cualquier

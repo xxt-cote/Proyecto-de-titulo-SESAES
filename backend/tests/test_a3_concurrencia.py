@@ -33,6 +33,9 @@ real se valida en test_a3_concurrencia_postgres.py, marcada
 
 from __future__ import annotations
 
+from tests.agenda_fixtures import aprobar_jornada
+
+
 from datetime import date, timedelta
 from unittest.mock import MagicMock
 
@@ -264,6 +267,7 @@ def test_crear_cita_adquiere_lock_antes_de_reevaluar_disponibilidad(db_session, 
     existe para cerrar."""
     fecha = _dia_habil_futuro()
     prof = _profesional(db_session)
+    aprobar_jornada(db_session, prof)
     est = _estudiante(db_session, correo="orden-a3@sesaes.cl", rut="a3-1")
     db_session.commit()
 
@@ -327,6 +331,7 @@ def test_crear_cita_conflicto_secuencial_responde_409_no_sobrecupo(db_session):
     como sobrecupo automático."""
     fecha = _dia_habil_futuro()
     prof = _profesional(db_session, duracion_min=45)
+    aprobar_jornada(db_session, prof)
     ocupante = _estudiante(db_session, correo="ocupante-409@sesaes.cl", rut="a3-2")
     perdedor = _estudiante(db_session, correo="perdedor-409@sesaes.cl", rut="a3-3")
     _cita(db_session, estudiante_id=ocupante.id, profesional_id=prof.id, fecha=fecha, hora="10:00")
@@ -355,6 +360,7 @@ def test_crear_cita_conflicto_secuencial_responde_409_no_sobrecupo(db_session):
 def test_cita_cancelada_no_bloquea_bajo_flujo_con_lock(db_session):
     fecha = _dia_habil_futuro()
     prof = _profesional(db_session, duracion_min=45)
+    aprobar_jornada(db_session, prof)
     otro = _estudiante(db_session, correo="cancelada-a3@sesaes.cl", rut="a3-4")
     nuevo = _estudiante(db_session, correo="nuevo-cancelada-a3@sesaes.cl", rut="a3-5")
     _cita(db_session, estudiante_id=otro.id, profesional_id=prof.id, fecha=fecha, hora="10:00", estado="cancelada")
@@ -370,6 +376,7 @@ def test_cita_cancelada_no_bloquea_bajo_flujo_con_lock(db_session):
 def test_cita_inasistencia_no_bloquea_bajo_flujo_con_lock(db_session):
     fecha = _dia_habil_futuro()
     prof = _profesional(db_session, duracion_min=45)
+    aprobar_jornada(db_session, prof)
     otro = _estudiante(db_session, correo="inasistencia-a3@sesaes.cl", rut="a3-6")
     nuevo = _estudiante(db_session, correo="nuevo-inasistencia-a3@sesaes.cl", rut="a3-7")
     _cita(db_session, estudiante_id=otro.id, profesional_id=prof.id, fecha=fecha, hora="10:00", estado="inasistencia")
@@ -385,6 +392,7 @@ def test_cita_inasistencia_no_bloquea_bajo_flujo_con_lock(db_session):
 def test_cita_completada_bloquea_bajo_flujo_con_lock(db_session):
     fecha = _dia_habil_futuro()
     prof = _profesional(db_session, duracion_min=45)
+    aprobar_jornada(db_session, prof)
     otro = _estudiante(db_session, correo="completada-a3@sesaes.cl", rut="a3-8")
     nuevo = _estudiante(db_session, correo="nuevo-completada-a3@sesaes.cl", rut="a3-9")
     _cita(db_session, estudiante_id=otro.id, profesional_id=prof.id, fecha=fecha, hora="10:00", estado="completada")
@@ -402,6 +410,7 @@ def test_cita_completada_bloquea_bajo_flujo_con_lock(db_session):
 def test_cita_pendiente_bloquea_bajo_flujo_con_lock(db_session):
     fecha = _dia_habil_futuro()
     prof = _profesional(db_session, duracion_min=45)
+    aprobar_jornada(db_session, prof)
     otro = _estudiante(db_session, correo="pendiente-a3@sesaes.cl", rut="a3-10")
     nuevo = _estudiante(db_session, correo="nuevo-pendiente-a3@sesaes.cl", rut="a3-11")
     _cita(db_session, estudiante_id=otro.id, profesional_id=prof.id, fecha=fecha, hora="10:00", estado="pendiente")
@@ -421,6 +430,7 @@ def test_solapamiento_parcial_por_duracion_bloquea_bajo_flujo_con_lock(db_sessio
     ejemplo de A.2C, ahora a través del flujo completo con lock."""
     fecha = _dia_habil_futuro()
     prof = _profesional(db_session, duracion_min=45)
+    aprobar_jornada(db_session, prof)
     otro = _estudiante(db_session, correo="parcial-a3@sesaes.cl", rut="a3-12")
     nuevo = _estudiante(db_session, correo="nuevo-parcial-a3@sesaes.cl", rut="a3-13")
     _cita(db_session, estudiante_id=otro.id, profesional_id=prof.id, fecha=fecha, hora="10:00")

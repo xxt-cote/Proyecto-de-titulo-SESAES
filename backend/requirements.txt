@@ -3,6 +3,7 @@
 fastapi==0.163.0
 uvicorn==0.54.0
 SQLAlchemy==2.0.50
+alembic==1.20.1
 psycopg2-binary==2.9.13
 pydantic==2.14.3
 slowapi==0.1.10
@@ -16,3 +17,6 @@ segno==1.6.6
 # Solo para correr los tests (pytest y el cliente HTTP de FastAPI).
 pytest
 httpx
+
+# Base IANA para America/Santiago en Windows (zoneinfo).
+tzdata==2026.6

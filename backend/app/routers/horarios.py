@@ -1,11 +1,14 @@
+from app.tiempo import ahora_local
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from datetime import date
+from datetime import date, timedelta
 
 from app.database import get_db
 from app.models.dia_cerrado import DiaCerrado
 from app.auth_dependencies import get_current_user
-from app.services.agenda_disponibilidad_service import listar_horas_disponibles
+from app.services.agenda_disponibilidad_service import (
+    listar_horas_disponibles, VENTANA_AGENDAMIENTO_ESTUDIANTE_DIAS,
+)
 
 router = APIRouter(tags=["horarios"])
 
@@ -17,7 +20,7 @@ def listar_dias_cerrados_publico(db: Session = Depends(get_db), current_user: di
     (no solo admin) — la usan estudiante y profesional para bloquear/marcar
     esas fechas en sus propios calendarios.
     """
-    dias = db.query(DiaCerrado).filter(DiaCerrado.fecha >= date.today().isoformat()).order_by(DiaCerrado.fecha).all()
+    dias = db.query(DiaCerrado).filter(DiaCerrado.fecha >= ahora_local().date().isoformat()).order_by(DiaCerrado.fecha).all()
     return [{"fecha": d.fecha, "motivo": d.motivo} for d in dias]
 
 
@@ -46,5 +49,30 @@ def get_disponibilidad(
         db,
         profesional_id=profesional_id,
         fecha=fecha,
+        exigir_bloques_aprobados=current_user.get("rol") == "estudiante",
     )
     return {"horas": horas, "mensaje": mensaje}
+
+
+@router.get("/disponibilidad/{profesional_id}/calendario")
+def get_calendario_disponible(
+    profesional_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Fechas seleccionables del estudiante, evaluadas con la disponibilidad real.
+
+    Incluye ventana, bloques aprobados, estado, cierres, colación y ocupación.
+    No publica información de pacientes ni solicitudes aún no aprobadas.
+    """
+    hoy = ahora_local().date()
+    fechas = []
+    for offset in range(VENTANA_AGENDAMIENTO_ESTUDIANTE_DIAS + 1):
+        fecha = (hoy + timedelta(days=offset)).isoformat()
+        horas, _ = listar_horas_disponibles(
+            db, profesional_id=profesional_id, fecha=fecha,
+            exigir_bloques_aprobados=True,
+        )
+        if horas:
+            fechas.append(fecha)
+    return {"fechas": fechas}

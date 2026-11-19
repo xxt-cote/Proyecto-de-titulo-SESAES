@@ -2,7 +2,7 @@ import { ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit, ViewChild 
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { environment } from '../config';
 
 type EstadoValidacion = 'vigente' | 'anulado' | 'modificado' | 'no_encontrado';
@@ -14,6 +14,7 @@ interface ResultadoValidacion {
   emitido_por?: string;
   fecha_emision?: string;
   estudiante?: string;
+  verificacion_uso?: { estado: string; desde?: string; hasta?: string; fecha_consultada?: string; apto_para_uso: boolean | null; mensaje: string };
 }
 
 /**
@@ -32,6 +33,7 @@ interface ResultadoValidacion {
 export class ValidarDocumentoComponent implements OnInit, OnDestroy {
 
   codigo = '';
+  fechaConsulta = '';
   cargando = false;
   resultado: ResultadoValidacion | null = null;
   errorRed = '';
@@ -46,7 +48,6 @@ export class ValidarDocumentoComponent implements OnInit, OnDestroy {
   constructor(
     private http: HttpClient,
     private route: ActivatedRoute,
-    private router: Router,
     private cdr: ChangeDetectorRef
   ) {}
 
@@ -80,6 +81,7 @@ export class ValidarDocumentoComponent implements OnInit, OnDestroy {
 
   onCodigoChange(valor: string): void {
     this.codigo = (valor || '').toUpperCase();
+    this.fechaConsulta = '';
     this.resultado = null;
     this.errorRed = '';
   }
@@ -93,7 +95,7 @@ export class ValidarDocumentoComponent implements OnInit, OnDestroy {
     this.errorRed = '';
 
     this.http.get<ResultadoValidacion>(
-      `${environment.apiUrl}/documentos/validar/${encodeURIComponent(codigo)}`
+      `${environment.apiUrl}/documentos/validar/${encodeURIComponent(codigo)}${this.fechaConsulta ? '?fecha=' + encodeURIComponent(this.fechaConsulta) : ''}`
     ).subscribe({
       next: (res) => {
         this.resultado = res;
@@ -168,7 +170,7 @@ export class ValidarDocumentoComponent implements OnInit, OnDestroy {
 
   get titulo(): string {
     switch (this.resultado?.estado) {
-      case 'vigente':       return 'Documento válido';
+      case 'vigente':       return 'Documento registrado y no anulado';
       case 'anulado':       return 'Documento anulado';
       case 'modificado':    return 'Documento no válido';
       case 'no_encontrado': return 'Código no encontrado';

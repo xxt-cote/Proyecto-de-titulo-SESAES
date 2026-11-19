@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 
 import { LoginComponent } from './login';
 import { AuthService, type LoginResponse } from '../auth.service';
@@ -81,5 +81,21 @@ describe('LoginComponent', () => {
     expect(navegar).toHaveBeenCalledTimes(1);
   });
 
+
+  it.each([
+    [0, 'No pudimos conectar con el servidor.'],
+    [503, 'El servicio no está disponible en este momento.'],
+    [401, 'Correo o contraseña incorrectos.']
+  ])('muestra un error coherente con HTTP %s sin guardar una sesión', (status, mensaje) => {
+    const auth = TestBed.inject(AuthService);
+    vi.spyOn(auth, 'login').mockReturnValue(throwError(() => ({ status })));
+    const guardar = vi.spyOn(auth, 'guardarSesion');
+    component.correo = 'prueba@utem.cl';
+    component.password = 'Password1!';
+    component.onLogin();
+    expect(component.error).toContain(mensaje);
+    expect(component.cargando).toBe(false);
+    expect(guardar).not.toHaveBeenCalled();
+  });
 
 });

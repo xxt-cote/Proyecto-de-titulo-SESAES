@@ -1,3 +1,4 @@
+import { calendarioCentro, instanteCentro } from '../../shared/tiempo-centro';
 /**
  * Utilidades puras del Inicio de SUPERADMIN (formato, etiquetas y
  * geometría de gráficos). Sin Angular ni HTTP: se prueban aisladas.
@@ -32,7 +33,7 @@ export function formatearFechaDiaMesAnio(iso: string | null | undefined): string
 
 function aFecha(iso: string | null | undefined): Date | null {
   if (!iso) return null;
-  const d = new Date(iso);
+  const d = instanteCentro(iso);
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
@@ -40,14 +41,16 @@ function aFecha(iso: string | null | undefined): Date | null {
 export function formatearFecha(iso: string | null | undefined): string {
   const d = aFecha(iso);
   if (!d) return '—';
-  return `${d.getDate()} ${MESES_CORTOS[d.getMonth()]} ${d.getFullYear()}`;
+  const civil = calendarioCentro(d);
+  return `${civil.getDate()} ${MESES_CORTOS[civil.getMonth()]} ${civil.getFullYear()}`;
 }
 
 /** Timestamp del backend → '19 sep 2026, 14:05'. */
 export function formatearFechaHora(iso: string | null | undefined): string {
   const d = aFecha(iso);
   if (!d) return '—';
-  return `${formatearFecha(iso)}, ${dos(d.getHours())}:${dos(d.getMinutes())}`;
+  const civil = calendarioCentro(d);
+  return `${formatearFecha(iso)}, ${dos(civil.getHours())}:${dos(civil.getMinutes())}`;
 }
 
 /** Mismo criterio que el resumen de actividad del Inicio de ADMIN. */

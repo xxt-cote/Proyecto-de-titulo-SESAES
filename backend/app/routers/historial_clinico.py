@@ -1,3 +1,4 @@
+from app.tiempo import ahora_local
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -748,7 +749,7 @@ def obtener_historial(
         ],
         "total_atenciones":         len(citas_completadas),
         "ultima_visita":            max(fechas_completadas).isoformat() if fechas_completadas else None,
-        "dias_desde_ultima_visita": (datetime.now().date() - max(fechas_completadas)).days if fechas_completadas else None,
+        "dias_desde_ultima_visita": (ahora_local().date() - max(fechas_completadas)).days if fechas_completadas else None,
     }
 
 

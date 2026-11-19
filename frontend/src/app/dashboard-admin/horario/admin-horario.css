@@ -65,6 +65,13 @@
 .hora-celda.header { height: 52px; }
 .dia-col { flex: 1; min-width: 100px; border-left: 1px solid var(--admin-border); }
 .dia-header {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
   height: 52px;
   display: flex;
   flex-direction: column;
@@ -73,6 +80,9 @@
   border-bottom: 1px solid var(--admin-border);
   gap: 2px;
 }
+.dia-header:hover { box-shadow: inset 0 0 0 1px var(--agenda-today-text); }
+.dia-header.seleccionado { box-shadow: inset 0 -3px var(--agenda-today-text); }
+.dia-header:focus-visible { outline: 2px solid var(--agenda-today-text); outline-offset: -3px; }
 .dia-header.hoy { background: var(--agenda-today-bg); }
 .dia-nombre { font-size: 10px; font-weight: 600; color: var(--admin-text-secondary); text-transform: uppercase; }
 .dia-num { font-size: 15px; font-weight: 700; color: var(--admin-text); }

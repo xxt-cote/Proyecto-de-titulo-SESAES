@@ -25,6 +25,9 @@ resultados.
 
 from __future__ import annotations
 
+from tests.agenda_fixtures import aprobar_jornada
+
+
 from datetime import date, timedelta
 
 import pytest
@@ -591,6 +594,7 @@ def test_admin_con_gestionar_y_sobrecupo_pero_sin_motivo_recibe_400(db_session, 
 def test_slot_libre_sobrecupo_true_sin_permisos_crea_cita_normal(db_session, monkeypatch):
     fecha = _dia_habil_futuro()
     prof = _profesional(db_session, horario_inicio="09:00", horario_fin="17:00")
+    aprobar_jornada(db_session, prof)
     est = _usuario(db_session, correo="paciente-libre-sinperm-a43@sesaes.cl", rol="estudiante", rut="a43-11")
     db_session.commit()
 
@@ -706,3 +710,17 @@ def test_n_falla_tardia_no_deja_metadata_parcial(db_session, monkeypatch):
     assert db_session.query(Cita).count() == 0
     assert db_session.query(CitaSobrecupo).count() == 0
     assert db_session.query(CitaSobrecupoConflicto).count() == 0
+
+
+@pytest.mark.parametrize("gestionar,sobrecupo", [(False, False), (True, False), (True, True)])
+def test_hora_libre_no_admite_sobrecupo_forzado(monkeypatch, gestionar, sobrecupo):
+    decision = _evaluar(
+        monkeypatch, gestionar=gestionar, sobrecupo=sobrecupo,
+        sobrecupo_solicitado=True, sobrecupo_forzado=True,
+        sobrecupo_motivo="Coordinado con el profesional",
+        resultado_disponibilidad=_resultado(disponible=True),
+    )
+    assert decision.permitido is True
+    assert decision.es_sobrecupo_efectivo is False
+    assert decision.requiere_motivo is False
+    assert decision.motivo_normalizado is None

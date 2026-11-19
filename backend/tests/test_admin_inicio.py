@@ -345,6 +345,7 @@ def test_especialidades_se_deduplican_normalizadas_y_omiten_vacias(db):
     _prof(db, "B", "  psicología ")
     _prof(db, "C", "PSICOLOGÍA")
     _prof(db, "D", "Nutrición")
+    _prof(db, "G", "nutricion")
     _prof(db, "E", "")
     _prof(db, "F", None)
 

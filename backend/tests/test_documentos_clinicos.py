@@ -10,6 +10,7 @@ DB real en SQLite en memoria (mismo patrón que test_sa11_3b).
 from __future__ import annotations
 
 import re
+from datetime import date, datetime, timezone
 
 import pytest
 from fastapi import FastAPI, HTTPException
@@ -41,7 +42,7 @@ PROF_USER = {"id": USUARIO_PROF_ID, "rol": "profesional"}
 EST_USER = {"id": EST_ID, "rol": "estudiante"}
 OTRO_EST_USER = {"id": 123, "rol": "estudiante"}
 
-RECETA = {"medicamentos": [{"medicamento": "Amoxicilina 500 mg cápsula", "dosis": "1 cápsula",
+RECETA = {"valida_hasta": "2099-12-31", "medicamentos": [{"medicamento": "Amoxicilina 500 mg cápsula", "dosis": "1 cápsula",
                             "frecuencia": "Cada 8 horas", "periodo": "7 días",
                             "indicacion": "Tomar con alimentos"}]}
 JUSTIFICATIVO = {"reposo": True, "reposo_desde": "2020-01-01", "reposo_hasta": "2020-01-03",
@@ -139,7 +140,7 @@ def test_segunda_receta_vigente_en_la_misma_atencion_409(db):
 
 def test_validaciones_de_esquema():
     with pytest.raises(Exception):
-        RecetaIn(medicamentos=[])
+        RecetaIn(valida_hasta="2099-12-31", medicamentos=[])
     with pytest.raises(Exception):
         JustificativoIn(reposo=True)                                     # falta desde/hasta
     with pytest.raises(Exception):
@@ -218,6 +219,112 @@ def test_validacion_acepta_codigo_sin_guiones_y_en_minusculas(db):
     _completar(db, receta=RECETA)
     doc = db.query(DocumentoClinico).one()
     assert svc.validar_publicamente(db, doc.folio.replace("-", "").lower())["valido"] is True
+
+
+@pytest.mark.parametrize("fecha,cubre", [
+    ("2020-01-01", True), ("2020-01-03", True),
+    ("2019-12-31", False), ("2020-01-04", False),
+])
+def test_justificativo_cubre_solo_sus_fechas_inclusivas_aunque_se_presente_despues(db, fecha, cubre):
+    _setup(db)
+    _completar(db, justificativo=JUSTIFICATIVO)
+    doc = db.query(DocumentoClinico).one()
+    r = svc.validar_publicamente(db, doc.folio, date.fromisoformat(fecha))
+    assert r["valido"] is True  # autenticidad independiente de cobertura
+    assert r["verificacion_uso"]["apto_para_uso"] is cubre
+    assert r["verificacion_uso"]["hasta"] == "2020-01-03"
+    assert "restricciones" not in str(r) and "19.876.543-2" not in str(r)
+
+
+def test_justificativo_sin_reposo_solo_cubre_dia_de_atencion(db):
+    _setup(db)
+    _completar(db, justificativo={"reposo": False})
+    doc = db.query(DocumentoClinico).one()
+    assert svc.validar_publicamente(db, doc.folio)["verificacion_uso"]["estado"] == "requiere_fecha"
+    assert svc.validar_publicamente(db, doc.folio, date(2020, 1, 1))["verificacion_uso"]["apto_para_uso"] is True
+    assert svc.validar_publicamente(db, doc.folio, date(2020, 1, 2))["verificacion_uso"]["apto_para_uso"] is False
+
+
+@pytest.mark.parametrize("instante,estado", [
+    ("2026-11-24T02:59:59+00:00", "vigente"),  # aún es 23 en Santiago
+    ("2026-11-24T03:00:00+00:00", "vencida"),
+    ("2026-11-18T12:00:00+00:00", "aun_no_vigente"),
+])
+def test_receta_usa_limite_y_reloj_santiago_no_fecha_elegida_por_visitante(db, instante, estado):
+    _setup(db)
+    _completar(db, receta=RECETA)
+    doc = db.query(DocumentoClinico).one()
+    doc.contenido = {**doc.contenido, "emitido_en": "2026-11-19T12:00:00+00:00", "valida_hasta": "2026-11-23"}
+    doc.huella_sha256 = svc.calcular_huella(doc.tipo, doc.folio, doc.cita_id, doc.contenido)
+    r = svc.validar_publicamente(db, doc.folio, date(2026, 11, 20), ahora=datetime.fromisoformat(instante))
+    assert r["valido"] is True
+    assert r["verificacion_uso"]["estado"] == estado
+    assert r["verificacion_uso"]["apto_para_uso"] is (estado == "vigente")
+    assert "Amoxicilina" not in str(r)
+
+
+def test_receta_nueva_exige_limite_y_rechaza_pasado_antes_de_mutar_cita(db):
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        RecetaIn(medicamentos=RECETA["medicamentos"])
+    _setup(db)
+    with pytest.raises(HTTPException) as error:
+        _completar(db, receta={**RECETA, "valida_hasta": "2000-01-01"})
+    assert error.value.status_code == 400
+    assert db.query(Cita).get(CITA_ID).estado == "pendiente"
+    assert db.query(DocumentoClinico).count() == 0
+
+
+def test_receta_legacy_no_recibe_vencimiento_inventado_y_limite_esta_en_huella(db):
+    _setup(db)
+    _completar(db, receta=RECETA)
+    doc = db.query(DocumentoClinico).one()
+    assert doc.contenido["valida_hasta"] == "2099-12-31"
+    doc.contenido = {**doc.contenido, "valida_hasta": "2099-12-30"}
+    assert svc.validar_publicamente(db, doc.folio)["estado"] == "modificado"
+    contenido = dict(doc.contenido)
+    contenido.pop("valida_hasta")
+    doc.contenido = contenido
+    doc.huella_sha256 = svc.calcular_huella(doc.tipo, doc.folio, doc.cita_id, doc.contenido)
+    uso = svc.validar_publicamente(db, doc.folio)["verificacion_uso"]
+    assert uso["estado"] == "sin_vigencia_definida" and uso["apto_para_uso"] is None
+
+
+def test_pdf_codifica_folio_unico_en_barras_y_conserva_datos_del_emisor(db, monkeypatch):
+    from fpdf import FPDF
+    _setup(db)
+    _completar(db, receta=RECETA)
+    doc = db.query(DocumentoClinico).one()
+    llamadas = []
+    original = FPDF.code39
+    def registrar(pdf, text, *args, **kwargs):
+        llamadas.append(text)
+        return original(pdf, text, *args, **kwargs)
+    monkeypatch.setattr(FPDF, "code39", registrar)
+    pdf = svc.renderizar_pdf(doc)
+    assert pdf.startswith(b"%PDF")
+    assert llamadas == ["*" + doc.folio + "*"]
+    assert doc.contenido["profesional"]["rut"] == "12.345.678-5"
+    assert "firma" not in doc.contenido
+
+
+def test_endpoint_publico_rechaza_sexto_dia_de_reposo_y_fecha_mal_formada(db):
+    from fastapi.testclient import TestClient
+    from app.database import get_db
+    _setup(db)
+    _completar(db, justificativo={"reposo": True, "reposo_desde": "2026-11-19", "reposo_hasta": "2026-11-23"})
+    doc = db.query(DocumentoClinico).one()
+    app = FastAPI()
+    app.include_router(docs_router.router)
+    app.dependency_overrides[get_db] = lambda: db
+    with TestClient(app) as client:
+        base = "/documentos/validar/" + doc.folio
+        quinto = client.get(base, params={"fecha": "2026-11-23"})
+        sexto = client.get(base, params={"fecha": "2026-11-24"})
+        assert quinto.status_code == sexto.status_code == 200
+        assert quinto.json()["verificacion_uso"]["apto_para_uso"] is True
+        assert sexto.json()["verificacion_uso"]["apto_para_uso"] is False
+        assert client.get(base, params={"fecha": "2026-02-30"}).status_code == 422
 
 
 def test_validacion_detecta_documento_modificado(db):

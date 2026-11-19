@@ -4,7 +4,7 @@ import { provideHttpClientTesting, HttpTestingController } from '@angular/common
 import { vi } from 'vitest';
 
 import { AdminCitasComponent } from './admin-citas';
-import { indiceColorAvatar } from './admin-citas.utils';
+import { indiceColorAvatar, fechaISOLocal } from './admin-citas.utils';
 
 /**
  * Cada respuesta HTTP se refleja en la vista recién cuando Angular corre un
@@ -66,7 +66,7 @@ describe('AdminCitasComponent', () => {
         rut: '11.111.111-1',
         especialidad: 'Psicología',
         profesional: 'Dr. Pérez',
-        fecha: new Date().toISOString().slice(0, 10),
+        fecha: fechaISOLocal(new Date()),
         hora: '10:00',
         estado: 'pendiente',
         urgente: false,
@@ -80,7 +80,7 @@ describe('AdminCitasComponent', () => {
   });
 
   it('debe emitir cancelarCita con la cita correcta desde el menú de la fila', () => {
-    const hoy = new Date().toISOString().slice(0, 10);
+    const hoy = fechaISOLocal(new Date());
     const cita = {
       id: 5,
       estudiante: 'Bruno Ríos',
@@ -109,7 +109,7 @@ describe('AdminCitasComponent', () => {
   });
 
   it('debe emitir marcarPrioridad con la cita y el flag urgente correctos desde el menú', () => {
-    const hoy = new Date().toISOString().slice(0, 10);
+    const hoy = fechaISOLocal(new Date());
     const cita = {
       id: 7,
       estudiante: 'Carla Díaz',
@@ -150,7 +150,7 @@ describe('AdminCitasComponent', () => {
   });
 
   it('read-only oculta las acciones de mutación', () => {
-    const hoy = new Date().toISOString().slice(0, 10);
+    const hoy = fechaISOLocal(new Date());
     flushInit(fixture, httpMock, [
       {
         id: 9,
@@ -186,34 +186,37 @@ describe('AdminCitasComponent', () => {
     const cita = { id: 10, estudiante: 'Elena Ruiz', estado: 'pendiente', urgente: false };
     const cancelarSpy = vi.spyOn(component.cancelarCita, 'emit');
     const prioridadSpy = vi.spyOn(component.marcarPrioridad, 'emit');
-    const horarioSpy = vi.spyOn(component.irAHorario, 'emit');
+    const agendaSpy = vi.spyOn(component.irAAgenda, 'emit');
 
     component.puedeGestionarAgenda = false;
     component.onCancelarCita(cita);
     component.onMarcarPrioridad(cita, true);
-    component.onIrAHorario();
+    component.onIrAAgenda();
 
     expect(cancelarSpy).not.toHaveBeenCalled();
     expect(prioridadSpy).not.toHaveBeenCalled();
-    expect(horarioSpy).not.toHaveBeenCalled();
+    expect(agendaSpy).toHaveBeenCalledOnce();
   });
 
-  it('las pestañas cuentan las citas del período por estado', () => {
-    const hoy = new Date().toISOString().slice(0, 10);
+  it('el selector mantiene el conteo real de citas de cada estado', () => {
+    const hoy = fechaISOLocal(new Date());
     flushInit(fixture, httpMock, [
       { id: 1, estudiante: 'A', estado: 'pendiente', urgente: false, fecha: hoy, hora: '09:00' },
       { id: 2, estudiante: 'B', estado: 'pendiente', urgente: false, fecha: hoy, hora: '10:00' },
       { id: 3, estudiante: 'C', estado: 'completada', urgente: false, fecha: hoy, hora: '11:00' },
     ]);
 
-    expect(component.contar('')).toBe(3);
-    expect(component.contar('pendiente')).toBe(2);
-    expect(component.contar('completada')).toBe(1);
-    expect(component.contar('cancelada')).toBe(0);
+    expect(component.citasFiltradas).toHaveLength(3);
+    component.seleccionarFiltroEstado('pendiente');
+    expect(component.citasFiltradas).toHaveLength(2);
+    component.seleccionarFiltroEstado('completada');
+    expect(component.citasFiltradas).toHaveLength(1);
+    component.seleccionarFiltroEstado('cancelada');
+    expect(component.citasFiltradas).toHaveLength(0);
   });
 
-  it('seleccionar una pestaña filtra el listado por ese estado', () => {
-    const hoy = new Date().toISOString().slice(0, 10);
+  it('seleccionar un estado filtra el listado por ese estado', () => {
+    const hoy = fechaISOLocal(new Date());
     flushInit(fixture, httpMock, [
       { id: 1, estudiante: 'A', estado: 'pendiente', urgente: false, fecha: hoy, hora: '09:00' },
       { id: 2, estudiante: 'B', estado: 'completada', urgente: false, fecha: hoy, hora: '10:00' },
@@ -227,7 +230,7 @@ describe('AdminCitasComponent', () => {
   });
 
   it('la búsqueda filtra localmente por estudiante/RUT/profesional sin pedir nada nuevo al servidor', () => {
-    const hoy = new Date().toISOString().slice(0, 10);
+    const hoy = fechaISOLocal(new Date());
     flushInit(fixture, httpMock, [
       { id: 1, estudiante: 'Ana Soto', rut: '11.111.111-1', profesional: 'Dr. Pérez', estado: 'pendiente', urgente: false, fecha: hoy, hora: '09:00' },
       { id: 2, estudiante: 'Bruno Ríos', rut: '22.222.222-2', profesional: 'Dra. Rojas', estado: 'pendiente', urgente: false, fecha: hoy, hora: '10:00' },
@@ -243,7 +246,7 @@ describe('AdminCitasComponent', () => {
   });
 
   it('el filtro de tipo de servicio filtra localmente sin pedir nada nuevo al servidor', () => {
-    const hoy = new Date().toISOString().slice(0, 10);
+    const hoy = fechaISOLocal(new Date());
     flushInit(fixture, httpMock, [
       { id: 1, estudiante: 'A', especialidad: 'Odontología', estado: 'pendiente', urgente: false, fecha: hoy, hora: '09:00' },
       { id: 2, estudiante: 'B', especialidad: 'Nutrición', estado: 'pendiente', urgente: false, fecha: hoy, hora: '10:00' },
@@ -288,7 +291,7 @@ describe('AdminCitasComponent', () => {
   });
 
   it('no inventa un porcentaje cuando el período previo no tuvo citas', () => {
-    const hoy = new Date().toISOString().slice(0, 10);
+    const hoy = fechaISOLocal(new Date());
     // 60 días atrás cae fuera de la ventana previa de "últimos 30 días" (que
     // cubre los 30 días anteriores al período actual): la previa queda vacía.
     const lejos = new Date();
@@ -302,14 +305,14 @@ describe('AdminCitasComponent', () => {
     expect(kpiTotal?.nota).toBe('Sin citas en el período anterior');
   });
 
-  it('alternarSoloUrgentes filtra solo las citas urgentes', () => {
-    const hoy = new Date().toISOString().slice(0, 10);
+  it('Solo urgentes filtra solo las citas urgentes', () => {
+    const hoy = fechaISOLocal(new Date());
     flushInit(fixture, httpMock, [
       { id: 1, estudiante: 'A', estado: 'pendiente', urgente: true, fecha: hoy, hora: '09:00' },
       { id: 2, estudiante: 'B', estado: 'pendiente', urgente: false, fecha: hoy, hora: '10:00' },
     ]);
 
-    component.alternarSoloUrgentes();
+    component.seleccionarFiltroEstado(component.filtroEstadoSeleccionado === 'urgente' ? '' : 'urgente');
     fixture.detectChanges();
 
     expect(component.citasFiltradas.length).toBe(1);
@@ -317,7 +320,7 @@ describe('AdminCitasComponent', () => {
   });
 
   it('la columna N.º numera las filas según su posición real en el listado filtrado', () => {
-    const hoy = new Date().toISOString().slice(0, 10);
+    const hoy = fechaISOLocal(new Date());
     const citas = Array.from({ length: 10 }, (_, i) => ({
       id: i + 1,
       estudiante: `Estudiante ${i + 1}`,
@@ -342,7 +345,7 @@ describe('AdminCitasComponent', () => {
   });
 
   it('"Ver detalles" del menú "Acciones" emite verDetalle incluso en modo solo lectura', () => {
-    const hoy = new Date().toISOString().slice(0, 10);
+    const hoy = fechaISOLocal(new Date());
     const cita = { id: 1, estudiante: 'A', estado: 'pendiente', urgente: false, fecha: hoy, hora: '09:00' };
     flushInit(fixture, httpMock, [cita]);
     fixture.componentRef.setInput('puedeGestionarAgenda', false);
@@ -359,7 +362,7 @@ describe('AdminCitasComponent', () => {
   });
 
   it('el menú se cierra si la fila deja de estar en la página visible', () => {
-    const hoy = new Date().toISOString().slice(0, 10);
+    const hoy = fechaISOLocal(new Date());
     const cita = {
       id: 1,
       estudiante: 'A',
@@ -385,7 +388,7 @@ describe('AdminCitasComponent', () => {
   });
 
   it('no recalcula en cada ciclo de detección de cambios: una mutación directa sin pasar por un método no se refleja sola', () => {
-    const hoy = new Date().toISOString().slice(0, 10);
+    const hoy = fechaISOLocal(new Date());
     flushInit(fixture, httpMock, [
       { id: 1, estudiante: 'A', estado: 'pendiente', urgente: false, fecha: hoy, hora: '09:00' },
     ]);
@@ -422,8 +425,8 @@ describe('AdminCitasComponent', () => {
     expect(component.citasFiltradas.length).toBe(2);
   });
 
-  it('A: Tipo de servicio, Estado y pestañas son 100% locales — nunca disparan HTTP ni "Cargando"', () => {
-    const hoy = new Date().toISOString().slice(0, 10);
+  it('A: Tipo de servicio, Estado y urgencia son 100% locales — nunca disparan HTTP ni "Cargando"', () => {
+    const hoy = fechaISOLocal(new Date());
     flushInit(fixture, httpMock, [
       { id: 1, estudiante: 'A', especialidad: 'Odontología', estado: 'pendiente', urgente: false, fecha: hoy, hora: '09:00' },
       { id: 2, estudiante: 'B', especialidad: 'Nutrición', estado: 'completada', urgente: true, fecha: hoy, hora: '10:00' },
@@ -441,7 +444,7 @@ describe('AdminCitasComponent', () => {
     fixture.detectChanges();
     expect(component.citasCargando).toBe(false);
 
-    // Estado (select "Estado" y pestañas usan el mismo método)
+    // Estado (selector único)
     component.seleccionarEstado('completada');
     fixture.detectChanges();
     expect(component.citasCargando).toBe(false);
@@ -452,7 +455,7 @@ describe('AdminCitasComponent', () => {
     expect(component.citasCargando).toBe(false);
 
     // "Solo urgentes"
-    component.alternarSoloUrgentes();
+    component.seleccionarFiltroEstado(component.filtroEstadoSeleccionado === 'urgente' ? '' : 'urgente');
     fixture.detectChanges();
     expect(component.citasCargando).toBe(false);
     expect(component.citasFiltradas.map((c: any) => c.id)).toEqual([2]);
@@ -483,7 +486,7 @@ describe('AdminCitasComponent', () => {
   });
 
   it('claseAvatar usa estudiante_id (no el nombre) para elegir el color, tal como pide la regla de negocio', () => {
-    const hoy = new Date().toISOString().slice(0, 10);
+    const hoy = fechaISOLocal(new Date());
     // Mismo nombre, distinto id: si claseAvatar usara el nombre, ambas
     // citas tendrían la misma clase de color pese a ser estudiantes
     // distintos con id distinto.
@@ -498,5 +501,19 @@ describe('AdminCitasComponent', () => {
     // llamar indiceColorAvatar directamente sobre cada estudiante_id.
     expect(component.claseAvatar(citaA)).toBe('av-' + indiceColorAvatar(501));
     expect(component.claseAvatar(citaB)).toBe('av-' + indiceColorAvatar(999));
+  });
+
+  it('un único selector alterna estado y urgencia sin conservar filtros ocultos', () => {
+    flushInit(fixture, httpMock);
+    component.seleccionarFiltroEstado('pendiente');
+    component.seleccionarFiltroEstado('urgente');
+    expect(component.citasFiltroEstado).toBe('');
+    expect(component.citasFiltroPrioridad).toBe('urgente');
+    component.seleccionarFiltroEstado('cancelada');
+    expect(component.citasFiltroPrioridad).toBe('');
+    expect(component.citasFiltroEstado).toBe('cancelada');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[role="tablist"]')).toBeNull();
+    expect(fixture.nativeElement.textContent).not.toContain('Agendar cita');
   });
 });

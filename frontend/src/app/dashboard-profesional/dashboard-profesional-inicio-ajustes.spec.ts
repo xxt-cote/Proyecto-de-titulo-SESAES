@@ -32,10 +32,13 @@ describe('DashboardProfesionalComponent — ajustes del Inicio', () => {
     c.pacientesHistorial = [];
   });
 
-  it('la barra superior no muestra "Bienvenido/a" en el Inicio', () => {
+  it('la barra superior saluda por nombre sin duplicar el saludo en el contenido', () => {
     c.seccionActiva = 'inicio';
     fixture.detectChanges();
-    expect((el.querySelector('.topbar-title') as HTMLElement).style.visibility).toBe('hidden');
+    const titulo = el.querySelector('.topbar-prof .topbar-title') as HTMLElement;
+    expect(titulo.textContent).toBe('¡Hola, Dra. Ana Martínez!');
+    expect(getComputedStyle(titulo).visibility).toBe('visible');
+    expect(el.querySelector('.inicio-cab-titulo-prof')).toBeNull();
     expect(el.textContent).not.toContain('Bienvenido');
   });
 
@@ -43,7 +46,7 @@ describe('DashboardProfesionalComponent — ajustes del Inicio', () => {
     c.seccionActiva = 'solicitudes';
     fixture.detectChanges();
     const titulo = el.querySelector('.topbar-title') as HTMLElement;
-    expect(titulo.style.visibility).toBe('visible');
+    expect(getComputedStyle(titulo).visibility).toBe('visible');
     expect(titulo.textContent).toContain('Solicitudes');
   });
 

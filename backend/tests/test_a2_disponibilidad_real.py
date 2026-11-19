@@ -39,6 +39,9 @@ determinístico relativo al momento real de ejecución.
 
 from __future__ import annotations
 
+from tests.agenda_fixtures import aprobar_jornada
+
+
 from datetime import date, datetime, timedelta
 
 import pytest
@@ -974,6 +977,7 @@ def test_crear_cita_normal_rechaza_hora_fuera_de_grilla(db_session):
 
 def test_crear_cita_normal_permitida_dentro_de_jornada(db_session):
     prof = _profesional(db_session, horario_inicio="09:00", horario_fin="13:00")
+    aprobar_jornada(db_session, prof)
     est = _estudiante(db_session)
     db_session.commit()
 
@@ -997,6 +1001,7 @@ def test_crear_cita_normal_permitida_dentro_de_jornada(db_session):
 def test_crear_cita_rechaza_slot_ya_ocupado_por_otra_cita(db_session):
     fecha = _dia_habil_futuro()
     prof = _profesional(db_session, horario_inicio="09:00", horario_fin="13:00")
+    aprobar_jornada(db_session, prof)
     est = _estudiante(db_session, correo="a@sesaes.cl", rut="1-1")
     otro = _estudiante(db_session, correo="b@sesaes.cl", rut="2-2")
     _cita(
@@ -1036,6 +1041,7 @@ def test_crear_cita_estudiante_rechaza_slot_ocupado_guardado_en_ampm(db_session)
     pendiente guardada como "09:30 AM"."""
     fecha = _dia_habil_futuro()
     prof = _profesional(db_session, horario_inicio="09:00", horario_fin="13:00")
+    aprobar_jornada(db_session, prof)
     est = _estudiante(db_session, correo="a@sesaes.cl", rut="1-1")
     otro = _estudiante(db_session, correo="b@sesaes.cl", rut="2-2")
     _cita(

@@ -1,3 +1,4 @@
+import { fechaISOLocal } from '../dashboard-admin/citas/admin-citas.utils';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -16,7 +17,7 @@ describe('DashboardProfesionalComponent — Inicio y flujo de atención', () => 
   let el: HTMLElement;
   let http: HttpTestingController;
 
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = fechaISOLocal(new Date());
   const cita = (id: number, hora: string, estado: string, extra: any = {}) =>
     ({ id, hora, estado, fecha: hoy, estudiante: `Estudiante ${id}`, estudiante_id: 100 + id, carrera: 'Kinesiología', observaciones: 'Control', urgente: false, ...extra });
 
@@ -45,7 +46,7 @@ describe('DashboardProfesionalComponent — Inicio y flujo de atención', () => 
   describe('Inicio', () => {
     it('saluda por el nombre, sin saludo según la hora del día', () => {
       fixture.detectChanges();
-      const titulo = el.querySelector('.inicio-cab-titulo-prof')?.textContent?.trim();
+      const titulo = el.querySelector('.topbar-prof .topbar-title')?.textContent?.trim();
       expect(titulo).toBe('¡Hola, Carlos Muñoz!');
       expect(el.textContent).not.toMatch(/Buenos días|Buenas tardes|Buenas noches/);
     });

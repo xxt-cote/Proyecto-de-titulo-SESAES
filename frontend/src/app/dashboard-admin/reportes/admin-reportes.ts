@@ -1,3 +1,4 @@
+import { ZONA_CENTRO, calendarioCentro } from '../../shared/tiempo-centro';
 import {
   Component,
   ElementRef,
@@ -207,7 +208,7 @@ export class AdminReportesComponent implements OnChanges, AfterViewChecked, OnDe
   @Output() exportarReportesPdf = new EventEmitter<void>();
 
   @Input() puedeExportarCgr = false;
-  @Input() cgrAnio: number | string = new Date().getFullYear();
+  @Input() cgrAnio: number | string = calendarioCentro().getFullYear();
   @Output() cgrAnioChange = new EventEmitter<number | string>();
   @Input() cgrAniosDisponibles: number[] = [];
   @Input() cgrFechaFin = '';
@@ -417,7 +418,7 @@ export class AdminReportesComponent implements OnChanges, AfterViewChecked, OnDe
       </style></head><body>
       <div class="encabezado-impresion">
         <h2>Reporte SESAES — ${this.etiquetaTabActiva}</h2>
-        <p>${filtros} · Generado: ${new Date().toLocaleString('es-CL')}</p>
+        <p>${filtros} · Generado: ${new Date().toLocaleString('es-CL', { timeZone: ZONA_CENTRO })}</p>
       </div>
       <div class="reportes">${copia.outerHTML}</div></body></html>`);
     doc.close();

@@ -18,27 +18,16 @@ Uso (desde backend/, con el venv activado):
 Haz un respaldo de la base antes de usar --aplicar.
 """
 
-import importlib
-import pkgutil
 import sys
 
-import app.models as _paquete_modelos
+import app.models.init  # noqa: F401 — registro central de modelos
 
 from app.database import SessionLocal
 from app.models.usuario import Usuario
 from app.security import hash_password, is_legacy_plaintext
 
 
-def _registrar_todos_los_modelos() -> None:
-    """Importa todos los módulos de app/models para que SQLAlchemy resuelva las
-    relaciones entre tablas (si no, consultar Usuario falla al configurar mappers)."""
-    for modulo in pkgutil.iter_modules(_paquete_modelos.__path__):
-        if modulo.name != "init":
-            importlib.import_module(f"app.models.{modulo.name}")
-
-
 def main(aplicar: bool) -> int:
-    _registrar_todos_los_modelos()
     db = SessionLocal()
     try:
         pendientes = [

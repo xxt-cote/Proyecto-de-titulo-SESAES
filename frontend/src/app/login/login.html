@@ -1,8 +1,8 @@
 <div class="container">
 
-  <a class="skip-link" href="#main">Saltar al contenido</a>
+  <a class="skip-link" (click)="$event.preventDefault(); contenidoPrincipal.focus()" href="#main">Saltar al contenido</a>
 
-  <main class="stage" id="main">
+  <main #contenidoPrincipal class="stage" id="main" tabindex="-1">
 
     <!-- PANEL IZQUIERDO -->
     <div class="side">
@@ -63,7 +63,7 @@
           </div>
           <div class="feature-text">
             <strong>Atención segura</strong>
-            <span>Tus datos están protegidos con altos estándares.</span>
+            <span>El acceso a la información depende del rol de cada usuario.</span>
           </div>
         </div>
         <div class="feature">
@@ -93,9 +93,9 @@
       <div class="form-card">
 
         <h2 class="form-title">Iniciar sesión</h2>
-        <p class="form-sub">Accede con tus credenciales UTEM</p>
+        <p class="form-sub">Ingresa con tu cuenta de SESAES.</p>
 
-        <div class="form">
+        <div class="form" [attr.aria-busy]="cargando">
 
           <div class="field">
             <label class="input-label" for="login-correo">Correo institucional</label>
@@ -111,10 +111,12 @@
                 type="email"
                 placeholder="nombre@utem.cl"
                 [(ngModel)]="correo"
+                [attr.aria-invalid]="errorCorreo"
+                [attr.aria-describedby]="errorCorreo ? 'error-correo' : null"
                 (blur)="validarCorreo()"
                 (keyup.enter)="onLogin()">
             </div>
-            <span class="field-error" *ngIf="errorCorreo">Ingresa un correo @utem.cl válido</span>
+            <span id="error-correo" class="field-error" *ngIf="errorCorreo" role="alert">Ingresa un correo @utem.cl válido</span>
           </div>
 
           <div class="field">
@@ -144,12 +146,7 @@
             </div>
           </div>
 
-          <div class="extras">
-            <label class="remember">
-              <input type="checkbox" [(ngModel)]="recordarme"> Recordarme
-            </label>
-            <a class="forgot" routerLink="/recuperar">¿Olvidaste tu contraseña?</a>
-          </div>
+          <a class="forgot" routerLink="/recuperar">¿Olvidaste tu contraseña?</a>
 
           <div class="error-msg" *ngIf="error" [class.shake]="error" role="alert">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#e53935" stroke-width="2">
@@ -165,14 +162,14 @@
                 <path d="M5 12h14M13 6l6 6-6 6" />
               </svg>
             </span>
-            <span *ngIf="cargando" class="spinner-text">
+            <span *ngIf="cargando" class="spinner-text" role="status">
               <span class="spinner"></span>
               Verificando...
             </span>
           </button>
 
           <p *ngIf="cargandoLento" class="aviso-carga-lenta">
-            El servidor estaba inactivo y está despertando, esto puede tardar unos segundos…
+            La respuesta está tardando más de lo habitual. Espera unos segundos antes de intentarlo de nuevo.
           </p>
 
           <a class="btn-validar-doc" routerLink="/validar-documento">
@@ -188,7 +185,7 @@
             Utiliza tu correo institucional @utem.cl
           </div>
 
-          <p class="soporte">¿Necesitas ayuda técnica? <span>Soporte SIAC</span></p>
+          <p class="soporte">¿Necesitas recuperar el acceso? Contacta a la administración de SESAES.</p>
 
         </div>
       </div>

@@ -22,3 +22,14 @@ export function coincideBusqueda(consulta: unknown, ...valores: unknown[]): bool
 
   return valores.some(valor => normalizarTexto(valor).includes(q));
 }
+
+/** Una etiqueta por clave normalizada; conserva la primera grafía visible. */
+export function etiquetasUnicas(valores: unknown[]): string[] {
+  const etiquetas = new Map<string, string>();
+  for (const valor of valores) {
+    const etiqueta = String(valor ?? '').trim().replace(/\s+/g, ' ');
+    const clave = normalizarTexto(etiqueta);
+    if (clave && !etiquetas.has(clave)) etiquetas.set(clave, etiqueta);
+  }
+  return [...etiquetas.values()];
+}

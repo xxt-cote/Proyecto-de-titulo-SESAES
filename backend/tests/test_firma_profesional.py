@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 Firma manuscrita digitalizada del profesional: validación de la imagen,
-endpoints (solo el propio profesional), copia dentro de cada documento emitido
-(protegida por la huella), PDF con la imagen y leyenda honesta.
+endpoints (solo el propio profesional), compatibilidad de instantáneas antiguas
+y PDFs nuevos sin imagen de firma.
 
 DB real en SQLite en memoria (mismo patrón que test_documentos_clinicos).
 """
@@ -42,7 +42,7 @@ PROF_ID, USUARIO_PROF_ID, EST_ID, CITA_ID = 5, 10, 99, 7
 PROF_USER = {"id": USUARIO_PROF_ID, "rol": "profesional"}
 EST_USER = {"id": EST_ID, "rol": "estudiante"}
 OTRO_PROF_USER = {"id": 55, "rol": "profesional"}
-RECETA = {"medicamentos": [{"medicamento": "Amoxicilina 500 mg", "dosis": "1 cápsula",
+RECETA = {"valida_hasta": "2099-12-31", "medicamentos": [{"medicamento": "Amoxicilina 500 mg", "dosis": "1 cápsula",
                             "frecuencia": "Cada 8 horas", "periodo": "7 días"}]}
 
 
@@ -192,12 +192,24 @@ def test_la_auditoria_registra_el_hecho_pero_nunca_la_imagen(db):
 
 
 # ───────────────────── dentro del documento ─────────────────────
+def _documento_historico_con_firma(db, doc):
+    """Simula una instantánea versión 1 anterior al retiro de firma, sin reemitirla."""
+    contenido = {**doc.contenido, "version": 1}
+    contenido.pop("valida_hasta", None)
+    doc.contenido = svc.agregar_firma(db, db.query(Profesional).get(PROF_ID), contenido)
+    doc.huella_sha256 = docs_svc.calcular_huella(doc.tipo, doc.folio, doc.cita_id, doc.contenido)
+    db.commit()
+    return doc
+
+
 def test_el_documento_emitido_lleva_copia_de_la_firma_y_la_huella_la_cubre(db):
     _setup(db)
     url = _url()
     _registrar(db, url)
     _completar(db, receta=RECETA)
     doc = db.query(DocumentoClinico).one()
+    assert "firma" not in doc.contenido
+    _documento_historico_con_firma(db, doc)
     assert doc.contenido["firma"]["imagen"] == url
     assert doc.contenido["firma"]["tipo"] == "imagen_manuscrita_digitalizada"
     assert docs_svc.huella_es_valida(doc)
@@ -215,6 +227,7 @@ def test_cambiar_o_borrar_la_firma_no_altera_documentos_ya_emitidos(db):
     original = _url(ancho=300)
     _registrar(db, original)
     _completar(db, receta=RECETA)
+    _documento_historico_con_firma(db, db.query(DocumentoClinico).one())
     _registrar(db, _url(ancho=450), "escrita")
     firma_router.eliminar_firma(PROF_ID, db=db, current_user=PROF_USER)
     db.expire_all()
@@ -244,13 +257,13 @@ def _texto_pdf(pdf: bytes) -> str:
     return pdf.decode("latin-1", errors="ignore")
 
 
-def test_el_pdf_incluye_la_imagen_y_la_leyenda_de_firma_digitalizada(db):
+def test_el_pdf_omite_firma_aunque_el_profesional_la_tenga_registrada(db):
     _setup(db)
     _registrar(db)
     _completar(db, receta=RECETA)
     pdf = docs_svc.renderizar_pdf(db.query(DocumentoClinico).one())
     assert pdf.startswith(b"%PDF")
-    assert _texto_pdf(pdf).count("/Subtype /Image") >= 2        # logo + firma
+    assert _texto_pdf(pdf).count("/Subtype /Image") == 1        # solo logo; barras y QR son vectoriales
     assert "Documento electr" in _texto_pdf(pdf) or len(pdf) > 0
 
 
@@ -264,7 +277,7 @@ def test_el_pdf_sin_firma_no_agrega_imagen_extra(db):
     _registrar(db)
     _completar(db, receta=RECETA)
     con = docs_svc.renderizar_pdf(db.query(DocumentoClinico).one())
-    assert _texto_pdf(con).count("/Subtype /Image") == _texto_pdf(sin).count("/Subtype /Image") + 1
+    assert _texto_pdf(con).count("/Subtype /Image") == _texto_pdf(sin).count("/Subtype /Image")
 
 
 def test_un_documento_con_firma_corrupta_se_renderiza_igual_sin_la_imagen(db):
@@ -299,7 +312,7 @@ def test_una_receta_con_muchos_medicamentos_no_omite_ninguno_en_el_pdf(db):
     _registrar(db)
     meds = [{"medicamento": f"Medicamento {i + 1} 500 mg", "dosis": "1 comprimido", "frecuencia": "Cada 8 horas",
              "periodo": "7 días", "indicacion": "Tomar con alimentos"} for i in range(10)]
-    _completar(db, receta={"medicamentos": meds})
+    _completar(db, receta={"valida_hasta": "2099-12-31", "medicamentos": meds})
     pdf = docs_svc.renderizar_pdf(db.query(DocumentoClinico).one())
     texto = _texto_de_contenido(pdf)
     for i in range(10):
@@ -339,6 +352,6 @@ def test_la_receta_larga_conserva_el_aviso_y_sigue_en_dos_o_mas_hojas(db):
     _setup(db)
     meds = [{"medicamento": f"Medicamento {i + 1}", "dosis": "1", "frecuencia": "c/8h", "periodo": "7 días",
              "indicacion": "con alimentos"} for i in range(8)]
-    _completar(db, receta={"medicamentos": meds})
+    _completar(db, receta={"valida_hasta": "2099-12-31", "medicamentos": meds})
     pdf = docs_svc.renderizar_pdf(db.query(DocumentoClinico).one())
     assert _paginas(pdf) >= 2 and AVISO_CONTROLADOS in _texto_de_contenido(pdf)

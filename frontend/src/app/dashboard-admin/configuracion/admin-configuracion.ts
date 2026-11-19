@@ -1,3 +1,4 @@
+import { FechaCentroPipe } from '../../shared/fecha-centro.pipe';
 import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -14,7 +15,7 @@ export type ConfigTab =
 @Component({
   selector: 'app-admin-configuracion',
   standalone: true,
-  imports: [CommonModule, FormsModule, AdminCapacidadesClinicasComponent],
+  imports: [FechaCentroPipe, CommonModule, FormsModule, AdminCapacidadesClinicasComponent],
   templateUrl: './admin-configuracion.html'
 })
 export class AdminConfiguracionComponent {

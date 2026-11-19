@@ -1,5 +1,8 @@
+import { CalendarioInstitucionalComponent } from '../shared/calendario-institucional/calendario-institucional';
+import { FechaCentroPipe } from '../shared/fecha-centro.pipe';
+import { ZONA_CENTRO, calendarioCentro, fechaCentro } from '../shared/tiempo-centro';
 import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
-import { CommonModule, DatePipe } from '@angular/common';
+import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HttpClient, HttpParams } from '@angular/common/http';
@@ -7,9 +10,7 @@ import { environment } from '../config';
 import { PhotoCropperComponent } from '../shared/photo-cropper/photo-cropper';
 import { PhotoViewerComponent } from '../shared/photo-viewer/photo-viewer';
 import { obtenerFeriado } from '../shared/feriados-chile';
-import { obtenerDiasInternacionales } from '../shared/dias-internacionales';
 import { ToastService } from '../shared/toast/toast.service';
-import { ProfessionalAyudaComponent } from './ayuda/professional-ayuda';
 import { evaluarPassword, type PasswordChecklist } from '../shared/password-validation';
 import { coincideBusqueda } from '../shared/text-normalization';
 import { AuthService } from '../auth.service';
@@ -26,7 +27,7 @@ const API = environment.apiUrl;
 @Component({
   selector: 'app-dashboard-profesional',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePipe, PhotoCropperComponent, PhotoViewerComponent, ProfessionalAyudaComponent, CompletarAtencionComponent, DocumentosCitaComponent, CuestionarioOpcionalComponent, AdminHorarioComponent, MiFirmaComponent],
+  imports: [CalendarioInstitucionalComponent, FechaCentroPipe, CommonModule, FormsModule, PhotoCropperComponent, PhotoViewerComponent, CompletarAtencionComponent, DocumentosCitaComponent, CuestionarioOpcionalComponent, AdminHorarioComponent, MiFirmaComponent],
   templateUrl: './dashboard-profesional.html',
   styleUrl: './dashboard-profesional.css'
 })
@@ -70,8 +71,7 @@ toggleSidebarMovil(): void {
       pacientes:          'Pacientes',
       'historial-clinico': 'Historial Clínico',
       solicitudes:        'Solicitudes',
-      perfil:             'Configuración',
-      ayuda:              'Ayuda'
+      perfil:             'Configuración'
     };
     return map[this.seccionActiva] ?? 'SESAES';
   }
@@ -156,7 +156,6 @@ toggleSidebarMovil(): void {
     this.cargarProximasSemana();
     this.cargarNotificaciones();
     this.generarSemanaActual();
-    this.generarCalendarioInicio();
     this.cargarSolicitudesHorario();
     this.cargarDiasCerrados();
     this.cargarCitasPendientes();
@@ -202,7 +201,7 @@ toggleSidebarMovil(): void {
   // ══════════════════════════════════════
 
   private hoyStr(): string {
-    const hoy = new Date();
+    const hoy = calendarioCentro();
     return `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-${String(hoy.getDate()).padStart(2,'0')}`;
   }
 
@@ -385,7 +384,7 @@ eliminarSeleccionadas(): void {
   // por lo que requiere que citasSemana esté cargado (se pide también en cargarDatos()).
 
   get fechaHoyStr(): string {
-    const d = new Date();
+    const d = calendarioCentro();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
 
@@ -465,7 +464,7 @@ eliminarSeleccionadas(): void {
   }
 
   get fechaHoyLarga(): string {
-    return new Date().toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    return new Date().toLocaleDateString('es-CL', { timeZone: ZONA_CENTRO, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   }
 
   // ── Inicio: avance del día ──
@@ -626,73 +625,6 @@ eliminarSeleccionadas(): void {
   // Solo se puede completar/marcar inasistencia si la cita ya llegó a su fecha (no citas futuras)
   puedeGestionarCita(cita: any): boolean {
     return cita.fecha <= this.hoyStr();
-  }
-
-  // ══════════════════════════════════════
-  // CALENDARIO DE INICIO (solo visual — mes completo, sin seleccion de dia)
-  // ══════════════════════════════════════
-
-  readonly NOMBRES_MES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
-    'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-
-  calMesVisible  = new Date().getMonth();
-  calAnioVisible = new Date().getFullYear();
-  calDiasMes: any[] = [];
-
-  get calNombreMesVisible(): string {
-    return `${this.NOMBRES_MES[this.calMesVisible]} ${this.calAnioVisible}`;
-  }
-
-  generarCalendarioInicio(): void {
-    const anio = this.calAnioVisible;
-    const mes  = this.calMesVisible;
-    const hoy  = this.hoyStr();
-    const fecha = (a: number, m: number, d: number) => `${a}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    const ultimoDia = new Date(anio, mes + 1, 0).getDate();
-    const offset    = (new Date(anio, mes, 1).getDay() + 6) % 7;      // lunes = 0
-    const ultimoPrev = new Date(anio, mes, 0).getDate();
-    const celdas: any[] = [];
-    // Días del mes anterior y del siguiente completan la primera y la última semana (en gris).
-    for (let i = offset - 1; i >= 0; i--) {
-      const d = ultimoPrev - i;
-      const f = mes === 0 ? fecha(anio - 1, 11, d) : fecha(anio, mes - 1, d);
-      celdas.push({ num: d, fecha: f, esHoy: f === hoy, otroMes: true });
-    }
-    for (let d = 1; d <= ultimoDia; d++) {
-      const f = fecha(anio, mes, d);
-      celdas.push({ num: d, fecha: f, esHoy: f === hoy, otroMes: false });
-    }
-    for (let d = 1; celdas.length % 7 !== 0; d++) {
-      const f = mes === 11 ? fecha(anio + 1, 0, d) : fecha(anio, mes + 1, d);
-      celdas.push({ num: d, fecha: f, esHoy: f === hoy, otroMes: true });
-    }
-    this.calDiasMes = celdas;
-  }
-
-  calMesAnterior(): void {
-    this.calMesVisible--;
-    if (this.calMesVisible < 0) { this.calMesVisible = 11; this.calAnioVisible--; }
-    this.generarCalendarioInicio();
-  }
-
-  calMesSiguiente(): void {
-    this.calMesVisible++;
-    if (this.calMesVisible > 11) { this.calMesVisible = 0; this.calAnioVisible++; }
-    this.generarCalendarioInicio();
-  }
-
-  diaSeleccionadoInfo: string | null = null;
-  seleccionarDiaInfo(dia: any): void {
-    if (!dia) return;
-    this.diaSeleccionadoInfo = this.diaSeleccionadoInfo === dia.fecha ? null : dia.fecha;
-  }
-  infoDelDia(fecha: string | undefined): string[] {
-    if (!fecha) return [];
-    const info: string[] = [];
-    const feriado = obtenerFeriado(fecha);
-    if (feriado) info.push(`Feriado: ${feriado.nombre}`);
-    for (const d of obtenerDiasInternacionales(fecha)) info.push(d.nombre);
-    return info;
   }
 
   // ══════════════════════════════════════
@@ -890,7 +822,7 @@ eliminarSeleccionadas(): void {
     this.horasGrilla = horas;
   }
   generarSemanaActual(): void {
-    const hoy = new Date();
+    const hoy = calendarioCentro();
     const lunes = new Date(hoy);
     lunes.setDate(hoy.getDate() - ((hoy.getDay() + 6) % 7));
     this.buildSemana(lunes);
@@ -898,7 +830,7 @@ eliminarSeleccionadas(): void {
 
   private buildSemana(lunes: Date): void {
     const nombres = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
-    const hoyStr  = this.toDateStr(new Date());
+    const hoyStr  = this.toDateStr(calendarioCentro());
     this.semanaActual = Array.from({ length: 7 }, (_, i) => {
       const d = new Date(lunes); d.setDate(lunes.getDate() + i);
       const f = this.toDateStr(d);
@@ -1089,7 +1021,7 @@ convertirA24h(hora: string): string {
     }
   }
 
-  clickBloque(fecha: string, hora: string): void { this.diaSeleccionado = fecha; }
+  clickBloque(fecha: string, _hora: string): void { this.diaSeleccionado = fecha; }
 
   // Desde la Agenda (u otras vistas): te lleva directo al Historial Clínico
   // y abre la ficha completa de ese paciente (con su historial de atenciones:
@@ -1578,7 +1510,7 @@ eliminarSolicitudesSeleccionadas(): void {
   guardandoPlantilla = false;
 
   get aniosHistorialDisponibles(): number[] {
-    const actual = new Date().getFullYear();
+    const actual = calendarioCentro().getFullYear();
     return [actual, actual - 1, actual - 2, actual - 3];
   }
 
@@ -1701,7 +1633,7 @@ eliminarSolicitudesSeleccionadas(): void {
   }
 
   get fichaProximaCita(): any {
-    const hoy = new Date().toISOString().slice(0, 10);
+    const hoy = fechaCentro();
     const futuras = this.fichaCitas.filter(c => c.estado === 'pendiente' && c.fecha >= hoy);
     if (futuras.length === 0) return null;
     return futuras.reduce((min, c) => ((c.fecha + c.hora) < (min.fecha + min.hora) ? c : min));

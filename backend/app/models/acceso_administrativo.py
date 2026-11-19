@@ -142,13 +142,8 @@ class AccesoAdminPermiso(Base):
             "'agenda.gestionar', "
             # A.4.3 — agenda.sobrecupo: capacidad DISTINTA de
             # agenda.gestionar (ver app.rbac.permissions.Permission y
-            # app.services.sobrecupo_policy_service). En una base ya
-            # desplegada antes de A.4.3, este valor solo queda
-            # aceptado por el motor tras correr
-            # scripts/migrar_a4_3_permiso_sobrecupo.py — este
-            # CheckConstraint es la fuente de verdad para esquemas
-            # NUEVOS (tests, instalaciones frescas); no reescribe
-            # ninguna base ya existente por sí solo.
+            # app.services.sobrecupo_policy_service). El constraint
+            # definitivo se crea directamente desde los modelos.
             "'agenda.sobrecupo', "
             "'reportes.ver'"
             ")",

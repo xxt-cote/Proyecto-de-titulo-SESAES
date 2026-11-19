@@ -61,7 +61,6 @@
             Tu especialidad no tiene habilitada la emisión de recetas ni de justificativos.
           </p>
 
-          <app-mi-firma *ngIf="puedeReceta || puedeJustificativo" [profId]="profId" [compacto]="true"></app-mi-firma>
 
           <!-- RECETA -->
           <section class="ca-card" *ngIf="puedeReceta">
@@ -81,6 +80,12 @@
                 <strong>No uses esta receta para estupefacientes ni psicotrópicos.</strong>
                 Los medicamentos de control legal (receta retenida o receta cheque) requieren su formato oficial.
               </p>
+              <div class="ca-campo">
+                <label for="ca-r-valida">Fecha límite para usar la receta *</label>
+                <input id="ca-r-valida" type="date" required [min]="fechaMinimaReceta" [(ngModel)]="recetaValidaHasta" />
+                <p>Incluye ese día. Esta fecha no cambia la duración del tratamiento de cada medicamento.</p>
+              </div>
+
               <div class="ca-item" *ngFor="let it of items; let i = index">
                 <div class="ca-item-cab">
                   <strong>Medicamento {{ i + 1 }}</strong>
@@ -221,6 +226,7 @@
 
             <div *ngIf="recetaActiva && puedeReceta">
               <dt>Receta médica</dt>
+              <dd>Fecha límite de uso: {{ fechaLegible(recetaValidaHasta) }}. La consulta no registra entregas ni autoriza repeticiones.</dd>
               <dd>
                 <ul>
                   <li *ngFor="let it of items">

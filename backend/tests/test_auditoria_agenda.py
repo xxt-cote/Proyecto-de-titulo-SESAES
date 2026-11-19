@@ -14,6 +14,9 @@ entidad="cita" + entidad_id=<id>.
 
 from __future__ import annotations
 
+from tests.agenda_fixtures import aprobar_jornada
+
+
 from datetime import date, datetime, timedelta
 
 import pytest
@@ -105,6 +108,7 @@ def _eventos_de_cita(db, cita_id):
 def test_crear_cita_registra_actor_id_y_timestamp(db_session):
     fecha = _dia_habil_futuro()
     prof = _profesional(db_session)
+    aprobar_jornada(db_session, prof)
     est = _usuario(
         db_session, correo="est-crea-aud@sesaes.cl",
         rol="estudiante", rut="aud-1",
@@ -172,6 +176,7 @@ def test_crear_cita_admin_registra_al_admin_no_al_paciente(db_session):
 def test_cancelar_cita_registra_actor_id_y_timestamp(db_session):
     fecha = _dia_habil_futuro()
     prof = _profesional(db_session)
+    aprobar_jornada(db_session, prof)
     est = _usuario(
         db_session, correo="est-cancela-aud@sesaes.cl",
         rol="estudiante", rut="aud-4",

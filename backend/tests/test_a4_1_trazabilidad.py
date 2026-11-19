@@ -29,6 +29,9 @@ de eso.
 
 from __future__ import annotations
 
+from tests.agenda_fixtures import aprobar_jornada
+
+
 from datetime import date, timedelta
 
 import pytest
@@ -171,6 +174,7 @@ def _monkeypatch_admin_institucional(
 def test_estudiante_crea_cita_registra_su_propio_origen(db_session):
     fecha = _dia_habil_futuro()
     prof = _profesional(db_session)
+    aprobar_jornada(db_session, prof)
     est = _usuario(db_session, correo="est-origen@sesaes.cl", rol="estudiante", rut="a41-1")
     db_session.commit()
 
@@ -416,6 +420,7 @@ def test_sobrecupo_fuera_de_jornada_crea_detalle_y_conflicto_estructurado(db_ses
 def test_cita_normal_no_crea_detalle_de_sobrecupo(db_session):
     fecha = _dia_habil_futuro()
     prof = _profesional(db_session)
+    aprobar_jornada(db_session, prof)
     est = _usuario(db_session, correo="est-normal-a41@sesaes.cl", rol="estudiante", rut="a41-14")
     db_session.commit()
 
@@ -520,6 +525,7 @@ def test_cita_normal_genera_evento_de_auditoria(db_session):
     """
     fecha = _dia_habil_futuro()
     prof = _profesional(db_session)
+    aprobar_jornada(db_session, prof)
     est = _usuario(db_session, correo="est-sinauditoria-a41@sesaes.cl", rol="estudiante", rut="a41-19")
     db_session.commit()
 

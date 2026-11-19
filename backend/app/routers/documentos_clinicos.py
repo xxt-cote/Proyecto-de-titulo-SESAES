@@ -13,6 +13,7 @@ Este router solo los consulta, descarga, anula y valida:
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from datetime import date
 from fastapi.responses import Response
 from pydantic import BaseModel, StringConstraints
 from sqlalchemy.orm import Session
@@ -56,14 +57,14 @@ def _cita_de(doc: DocumentoClinico, db: Session) -> Cita:
 # interprete como un id.
 @router.get("/documentos/validar/{codigo}")
 @limiter.limit("20/minute")
-def validar_documento(request: Request, codigo: str, db: Session = Depends(get_db)):
+def validar_documento(request: Request, codigo: str, db: Session = Depends(get_db), fecha: date | None = None):
     """
     Sin autenticación: lo usa la pantalla pública "Validar documento" y el
     QR del PDF. Responde siempre 200 con {valido, estado, ...}; solo expone
     tipo, profesional, fecha y nombre enmascarado (ver
     documento_clinico_service.validar_publicamente).
     """
-    return svc.validar_publicamente(db, codigo)
+    return svc.validar_publicamente(db, codigo, fecha_consulta=fecha)
 
 
 # ── CON SESIÓN ───────────────────────────────────────────────────────

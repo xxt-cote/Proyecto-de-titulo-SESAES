@@ -1,5 +1,8 @@
+import { FechaCentroPipe } from '../shared/fecha-centro.pipe';
+import { calendarioCentro, fechaCentro, instanteCentro } from '../shared/tiempo-centro';
+import { etiquetasUnicas, normalizarTexto } from '../shared/text-normalization';
 import { Component, OnInit, ViewChild, ViewEncapsulation, ChangeDetectorRef } from '@angular/core';
-import { CommonModule, DatePipe } from '@angular/common';
+import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
@@ -71,7 +74,7 @@ const API = environment.apiUrl;
 @Component({
   selector: 'app-dashboard-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePipe, AdminCitasComponent, AdminProfesionalesComponent, AdminPerfilComponent, AdminHistorialComponent, AdminReportesComponent, AdminEstudiantesComponent, AdminInicioComponent, SuperadminInicioComponent, AdminHorarioComponent, AdminConfiguracionComponent, AdminAdministradoresComponent],
+  imports: [FechaCentroPipe, CommonModule, FormsModule, AdminCitasComponent, AdminProfesionalesComponent, AdminPerfilComponent, AdminHistorialComponent, AdminReportesComponent, AdminEstudiantesComponent, AdminInicioComponent, SuperadminInicioComponent, AdminHorarioComponent, AdminConfiguracionComponent, AdminAdministradoresComponent],
   templateUrl: './dashboard-admin.html',
   styleUrl: './dashboard-admin.css',
   encapsulation: ViewEncapsulation.None
@@ -788,7 +791,7 @@ toggleSidebarMovil(): void {
 
   private tiempoRelativo(fechaStr: string): string {
     if (!fechaStr) return '';
-    const diff = Date.now() - new Date(fechaStr).getTime();
+    const diff = Date.now() - instanteCentro(fechaStr).getTime();
     const min  = Math.floor(diff / 60000);
     if (min < 1)  return 'Hace un momento';
     if (min < 60) return `Hace ${min} min`;
@@ -892,7 +895,7 @@ toggleSidebarMovil(): void {
   graficoEspecialidad: any[] = [];
   graficoSemana: any[] = [];
   filtroGraficoMes = '';
-  filtroGraficoAnio = new Date().getFullYear();
+  filtroGraficoAnio = calendarioCentro().getFullYear();
   filtroGraficoCarrera = '';
 
   cargarGraficoEspecialidad(): void {
@@ -960,11 +963,11 @@ toggleSidebarMovil(): void {
   }
 
   // Selector de año dinámico para CGR (reemplaza los botones fijos 2025/2026)
-  cgrAnio     = new Date().getFullYear();
+  cgrAnio     = calendarioCentro().getFullYear();
   cgrFechaFin = '';
 
   get cgrAniosDisponibles(): number[] {
-    const actual = new Date().getFullYear();
+    const actual = calendarioCentro().getFullYear();
     const anios: number[] = [];
     for (let a = actual + 1; a >= actual - 3; a--) anios.push(a);
     return anios;
@@ -1189,7 +1192,7 @@ toggleSidebarMovil(): void {
 
   get profesionalesFiltrados(): any[] {
     return this.filtroEspecialidad
-      ? this.profesionales.filter(p => p.especialidad === this.filtroEspecialidad)
+      ? this.profesionales.filter(p => normalizarTexto(p.especialidad) === normalizarTexto(this.filtroEspecialidad))
       : this.profesionales;
   }
 
@@ -1261,6 +1264,10 @@ toggleSidebarMovil(): void {
   }
 
   cargarHorarioProfesional(): void {
+    const seleccionado = this.profesionales.find(p => Number(p.id) === Number(this.filtroProfesionalId));
+    if (seleccionado) {
+      this.filtroEspecialidad = this.especialidades.find(e => normalizarTexto(e) === normalizarTexto(seleccionado.especialidad)) || seleccionado.especialidad;
+    }
     const requestId = this.invalidarDisponibilidadRango();
     this.citasHorario = [];
 
@@ -1330,7 +1337,7 @@ toggleSidebarMovil(): void {
   }
 
   generarSemanaActual(): void {
-    const hoy = new Date();
+    const hoy = calendarioCentro();
     const lunes = new Date(hoy);
     lunes.setDate(hoy.getDate() - ((hoy.getDay() + 6) % 7));
     this.buildSemana(lunes);
@@ -1338,7 +1345,7 @@ toggleSidebarMovil(): void {
 
   private buildSemana(lunes: Date): void {
     const nombres = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
-    const hoyStr  = this.toDateStr(new Date());
+    const hoyStr  = this.toDateStr(calendarioCentro());
     this.semanaActual = Array.from({ length: 7 }, (_, i) => {
       const d = new Date(lunes); d.setDate(lunes.getDate() + i);
       const f = this.toDateStr(d);
@@ -1427,7 +1434,7 @@ toggleSidebarMovil(): void {
   // no, el primer día del período.
   private fechaAnclaAgenda(): string {
     const { inicio, fin } = this.rangoAgendaVisible();
-    const hoy = this.toDateStr(new Date());
+    const hoy = this.toDateStr(calendarioCentro());
     const sel = this.diaSeleccionado;
     if (sel && sel >= inicio && sel <= fin) return sel;
     if (hoy >= inicio && hoy <= fin) return hoy;
@@ -1436,12 +1443,14 @@ toggleSidebarMovil(): void {
 
   private buildDia(fecha: string): void {
     const d = this.parseDateStrLocal(fecha);
+    while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+    fecha = this.toDateStr(d);
     this.fechaDiaAgenda = fecha;
     this.diaAgenda = {
       nombre: this.NOMBRES_DIA_CORTO[(d.getDay() + 6) % 7],
       num: d.getDate(),
       fecha,
-      esHoy: fecha === this.toDateStr(new Date())
+      esHoy: fecha === this.toDateStr(calendarioCentro())
     };
     this.diaLabel = `${this.formatearFecha(fecha)} ${d.getFullYear()}`;
     // El panel contextual acompaña al día visible.
@@ -1456,7 +1465,7 @@ toggleSidebarMovil(): void {
     const ultimo = new Date(anio, mes + 1, 0);
     const previos = (primero.getDay() + 6) % 7;
     const total = Math.ceil((previos + ultimo.getDate()) / 7) * 7;
-    const hoy = this.toDateStr(new Date());
+    const hoy = this.toDateStr(calendarioCentro());
 
     this.mesInicioAgenda = this.toDateStr(primero);
     this.mesFinAgenda = this.toDateStr(ultimo);
@@ -1512,7 +1521,7 @@ toggleSidebarMovil(): void {
     if (!this.puedeVerAgendaVistas()) return;
     if (this.vistaAgenda === 'dia') {
       const d = this.parseDateStrLocal(this.fechaDiaAgenda);
-      d.setDate(d.getDate() + sentido);
+      do { d.setDate(d.getDate() + sentido); } while (d.getDay() === 0 || d.getDay() === 6);
       this.buildDia(this.toDateStr(d));
     } else if (this.vistaAgenda === 'mes') {
       const d = this.parseDateStrLocal(this.mesInicioAgenda);
@@ -1530,9 +1539,9 @@ toggleSidebarMovil(): void {
   agendaHoy(): void {
     if (!this.puedeVerAgendaVistas()) return;
     if (this.vistaAgenda === 'dia') {
-      this.buildDia(this.toDateStr(new Date()));
+      this.buildDia(this.toDateStr(calendarioCentro()));
     } else if (this.vistaAgenda === 'mes') {
-      this.buildMes(this.toDateStr(new Date()));
+      this.buildMes(this.toDateStr(calendarioCentro()));
     } else {
       this.irAHoy();
       return;
@@ -1595,28 +1604,6 @@ toggleSidebarMovil(): void {
       'profesional_inactivo', 'fecha_pasada', 'hora_pasada', 'hora_fuera_de_grilla'
     )) return 'sin-datos';
     return 'sin-cupos';
-  }
-
-// ¿La hora indicada cae dentro del horario de almuerzo del profesional actual?
-  private esHoraDeAlmuerzo(hora: string): boolean {
-    const prof = this.profesionalActual;
-    if (!prof || !prof.hora_almuerzo_inicio || !prof.hora_almuerzo_fin) return false;
-    const h = hora.substring(0, 5);
-    return h >= prof.hora_almuerzo_inicio && h < prof.hora_almuerzo_fin;
-  }
-
-  // ¿La hora indicada cae fuera del horario declarado por el profesional?
-  // (pero SÍ dentro del horario institucional del centro, por eso igual
-  // aparece en la grilla — solo que en gris, y solo agendable por el admin
-  // como sobrecupo). Sin jornada propia aprobada rige el horario
-  // institucional más amplio (09:00–17:30).
-  private esFueraDeHorarioProfesional(hora: string): boolean {
-    const prof = this.profesionalActual;
-    if (!prof) return false;
-    const inicio = prof.horario_inicio || '09:00';
-    const fin    = prof.horario_fin    || '17:30';
-    const h = hora.substring(0, 5);
-    return h < inicio || h >= fin;
   }
 
   // A.4.7A.1 — orden determinista de presentación dentro de un mismo
@@ -1907,7 +1894,7 @@ toggleSidebarMovil(): void {
       // frontend no expone conteo, eso lo decide backend en A.4.4).
       const fechaFormateada = this.formatearFecha(fecha);
       const mensaje = `A las ${hora} del ${fechaFormateada}: este horario ya presenta ocupación. `
-        + 'El sistema permite solicitar un sobrecupo. La disponibilidad volverá a validarse al confirmar. '
+        + 'Puedes agendar un sobrecupo directamente. La cita original conservará su horario. '
         + '¿Confirmas?';
 
       this.sobrecupoPendiente = { fecha, hora, mensaje };
@@ -1945,7 +1932,12 @@ toggleSidebarMovil(): void {
   // directamente, sin pasar por clickBloque()).
   private esFechaPasada(fecha: string): boolean {
     if (!fecha) return false;
-    return fecha < this.toDateStr(new Date());
+    return fecha < this.toDateStr(calendarioCentro());
+  }
+
+  abrirModalSobrecupo(): void {
+    if (!this.filtroProfesionalId || !this.hasPermission('agenda.gestionar') || !this.hasPermission('agenda.sobrecupo')) return;
+    this.abrirModalNuevaCitaConFechaHora(this.diaSeleccionado ?? '', '', true);
   }
 
   abrirModalNuevaCita(): void { this.abrirModalNuevaCitaConFechaHora(this.diaSeleccionado ?? '', '', false); }
@@ -2028,11 +2020,27 @@ toggleSidebarMovil(): void {
     this.resultadosEstudiante    = [];
   }
 
+  // La clasificación sigue la disponibilidad del servidor, también al editar
+  // manualmente fecha/hora. Backend vuelve a evaluarla dentro del lock.
+  actualizarTipoNuevaCita(): void {
+    if (this.nuevaCita.urgente) return;
+    const slot = this.buscarDisponibilidadEnBloque(this.nuevaCita.fecha, this.nuevaCita.hora);
+    if (!slot) return;
+    if (slot.disponible) {
+      this.nuevaCita.sobrecupo = false;
+      this.nuevaCita.sobrecupo_motivo = '';
+    } else if (slot.motivo === 'slot_ocupado' && slot.overridable_con_sobrecupo
+        && this.hasPermission('agenda.gestionar') && this.hasPermission('agenda.sobrecupo')) {
+      this.nuevaCita.sobrecupo = true;
+    }
+  }
+
   creandoCita = false;
 
   crearCitaDesdeHorario(): void {
     if (!this.hasPermission('agenda.gestionar')) return;
     if (this.creandoCita) return; // evita doble envío por doble clic
+    this.actualizarTipoNuevaCita();
     if (!this.nuevaCita.estudiante_id) {
       this.mensajeError = 'Debes seleccionar un estudiante.';
       setTimeout(() => this.mensajeError = '', 3000); return;
@@ -2121,9 +2129,11 @@ toggleSidebarMovil(): void {
     const esSobrecupo = this.nuevaCita.sobrecupo === true;
 
     this.http.post<any>(endpoint, payload).subscribe({
-      next: () => {
+      next: (cita) => {
         this.cerrarModalCita(); this.cargarHorarioProfesional();
-        this.mensajeExito = 'Cita creada correctamente.';
+        this.mensajeExito = cita?.sobrecupo
+          ? 'Sobrecupo agendado. La cita original conserva su horario.'
+          : 'Cita creada correctamente.';
         setTimeout(() => this.mensajeExito = '', 3000);
         this.creandoCita = false;
         this.cdr.detectChanges();
@@ -2273,7 +2283,7 @@ toggleSidebarMovil(): void {
   get especialidades(): string[] {
     const fromProfs = this.profesionales.map(p => p.especialidad).filter(Boolean);
     const base = ['Medicina General','Psicología','Kinesiología','Odontología','Nutrición','Oftalmología','Psicopedagogía'];
-    return Array.from(new Set([...base, ...fromProfs]));
+    return etiquetasUnicas([...base, ...fromProfs]);
   }
 
   get profesionalesActivos(): number { return this.profesionales.filter(p => p.estado === 'activo').length; }
@@ -2322,7 +2332,7 @@ toggleSidebarMovil(): void {
       next: () => {
         this.adminProfesionalesRef?.cerrarModal();
         this.cargarProfesionales();
-        this.mensajeExito = 'Profesional creado. Contraseña temporal: prof123';
+        this.mensajeExito = 'Profesional creado con la contraseña indicada.';
         setTimeout(() => this.mensajeExito = '', 5000);
         this.cdr.detectChanges();
       },
@@ -2345,6 +2355,19 @@ toggleSidebarMovil(): void {
         this.cdr.detectChanges();
       },
       error: () => { this.mensajeError = 'No se pudo actualizar el estado.'; setTimeout(() => this.mensajeError = '', 3000); }
+    });
+  }
+
+  onCambiarContactoProfesional(payload: { profesional: any; correo: string; rut: string }): void {
+    if (!this.hasPermission('profesionales.gestionar')) return;
+    this.http.patch(API + '/admin/profesionales/' + payload.profesional.id, { correo: payload.correo, rut: payload.rut }).subscribe({
+      next: () => {
+        this.adminProfesionalesRef?.cerrarModalAcciones();
+        this.cargarProfesionales();
+        this.mensajeExito = 'Correo institucional y RUT actualizados.';
+        this.cdr.detectChanges();
+      },
+      error: err => { this.mensajeError = err?.error?.detail || 'No se pudieron actualizar los datos de contacto.'; this.cdr.detectChanges(); }
     });
   }
 
@@ -3223,7 +3246,7 @@ toggleSidebarMovil(): void {
   citasDiaCerradoSeleccionado: any[] = [];
   cargandoCitasDiaCerrado = false;
 
-  get hoyISO(): string { return new Date().toISOString().split('T')[0]; }
+  get hoyISO(): string { return fechaCentro(); }
 
   cargarDiasCerrados(): void {
     if (!this.hasPermission('agenda.ver')) {
@@ -3348,7 +3371,7 @@ toggleSidebarMovil(): void {
     const blob = new Blob([contenido], { type: 'text/tab-separated-values;charset=utf-8;' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
-    a.href = url; a.download = `${nombreArchivo}_${new Date().toISOString().slice(0,10)}.xls`;
+    a.href = url; a.download = `${nombreArchivo}_${fechaCentro()}.xls`;
     a.click(); URL.revokeObjectURL(url);
   }
 
@@ -3360,6 +3383,6 @@ toggleSidebarMovil(): void {
   private exportarComoXlsx(datos: any[], nombreArchivo: string, nombreHoja: string): void {
     if (!datos.length) { alert('No hay datos para exportar.'); return; }
     const libro = construirLibroXlsx(datos, nombreHoja);
-    XLSX.writeFile(libro, `${nombreArchivo}_${new Date().toISOString().slice(0,10)}.xlsx`);
+    XLSX.writeFile(libro, `${nombreArchivo}_${fechaCentro()}.xlsx`);
   }
 }

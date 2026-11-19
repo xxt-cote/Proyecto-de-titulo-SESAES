@@ -3,8 +3,6 @@
 Tests contra PostgreSQL REAL — Inicio institucional de SUPERADMIN.
 
 Valida lo que SQLite no puede garantizar:
-  · la migración scripts/migrar_usuario_fecha_creacion.py (ALTER TABLE
-    ... IF NOT EXISTS, SET DEFAULT, idempotencia y NULL histórico);
   · que las consultas agrupadas del Inicio (substr + GROUP BY,
     subconsultas escalares, JOIN) se ejecutan y devuelven lo esperado en
     el motor de producción.
@@ -32,12 +30,12 @@ TEST_POSTGRES_URL = os.environ.get("TEST_POSTGRES_URL")
 if not TEST_POSTGRES_URL:
     pytest.skip(
         "Inicio SUPERADMIN: TEST_POSTGRES_URL no está definida — la "
-        "migración de usuario.fecha_creacion y las consultas agrupadas "
+        "consultas agrupadas "
         "NO se validaron contra Postgres real en esta ejecución.",
         allow_module_level=True,
     )
 
-from sqlalchemy import create_engine, inspect, text  # noqa: E402
+from sqlalchemy import create_engine, text  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 
 import app.models.init  # noqa: E402,F401
@@ -50,9 +48,6 @@ from app.models.solicitud_horario import SolicitudHorario  # noqa: E402
 from app.models.usuario import Usuario  # noqa: E402
 from app.routers import admin  # noqa: E402
 from app.routers.admin_inicio import construir_gestion, construir_resumen  # noqa: E402
-from scripts.migrar_usuario_fecha_creacion import (  # noqa: E402
-    migrar_usuario_fecha_creacion,
-)
 
 HOY = date(2026, 9, 19)
 AHORA = datetime(2026, 9, 19, 12, 0, 0)
@@ -77,43 +72,6 @@ def engine_pg():
         with base.begin() as conn:
             conn.execute(text(f'DROP SCHEMA "{schema}" CASCADE'))
         base.dispose()
-
-
-def _simular_base_legacy(engine) -> None:
-    """Deja `usuario` como estaba antes de la migración (sin la columna)."""
-    with engine.begin() as conn:
-        conn.execute(text("ALTER TABLE usuario DROP COLUMN fecha_creacion"))
-
-
-def test_migracion_corre_dos_veces_y_no_inventa_fechas_historicas(engine_pg):
-    _simular_base_legacy(engine_pg)
-    with engine_pg.begin() as conn:
-        conn.execute(text(
-            "INSERT INTO usuario (correo, password, rol, activo) "
-            "VALUES ('historico@sesaes.cl', 'x', 'estudiante', true)"
-        ))
-
-    migrar_usuario_fecha_creacion(bind=engine_pg, emitir_mensaje=False)
-    migrar_usuario_fecha_creacion(bind=engine_pg, emitir_mensaje=False)  # idempotente
-
-    columnas = {c["name"]: c for c in inspect(engine_pg).get_columns("usuario")}
-    assert columnas["fecha_creacion"]["nullable"] is True
-    assert "now" in (columnas["fecha_creacion"]["default"] or "").lower()
-
-    with engine_pg.begin() as conn:
-        # Histórico: NULL, NO la fecha de la migración.
-        assert conn.execute(text(
-            "SELECT fecha_creacion FROM usuario WHERE correo = 'historico@sesaes.cl'"
-        )).scalar_one() is None
-
-        # Cuenta nueva (sin indicar la columna): recibe la fecha real.
-        conn.execute(text(
-            "INSERT INTO usuario (correo, password, rol, activo) "
-            "VALUES ('nuevo@sesaes.cl', 'x', 'estudiante', true)"
-        ))
-        assert conn.execute(text(
-            "SELECT fecha_creacion FROM usuario WHERE correo = 'nuevo@sesaes.cl'"
-        )).scalar_one() is not None
 
 
 def _poblar(engine):

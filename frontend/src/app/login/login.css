@@ -345,20 +345,13 @@ button.toggle:focus-visible { outline: 2px solid #0d9488; outline-offset: 2px; }
   animation: fadeUp 200ms ease-out both;
 }
 
-.extras {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 13px;
-}
 
-.remember { display: flex; align-items: center; gap: 7px; color: #374151; cursor: pointer; min-height: 24px; }
-.remember input { accent-color: #0d9488; cursor: pointer; }
 
-.forgot { color: #0d9488; cursor: pointer; font-size: 13px; font-weight: 600; min-height: 24px; display: inline-flex; align-items: center; }
-.forgot { text-decoration: none; }
-.forgot:hover { text-decoration: underline; }
-.forgot:focus-visible { outline: 2px solid #0d9488; outline-offset: 2px; border-radius: 4px; }
+
+
+
+
+
 
 button {
   width: 100%;
@@ -401,8 +394,8 @@ button:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
 .trust-line svg { width: 14px; height: 14px; }
 
 .soporte { text-align: center; font-size: 13px; color: #64748b; }
-.soporte span { color: #0d9488; cursor: pointer; font-weight: 700; }
-.soporte span:hover { text-decoration: underline; }
+
+
 
 /* ══════════ ERROR INLINE + SPINNER DEL BOTÓN ══════════ */
 .error-msg {
@@ -527,3 +520,8 @@ button:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
   transition: background .15s;
 }
 .btn-validar-doc:hover { background: #f0fdfa; }
+
+/* Recuperación conectada al flujo del equipo, sin el antiguo Recordarme inerte. */
+.forgot { color: #0d9488; font-size: 13px; font-weight: 600; min-height: 24px; display: inline-flex; align-items: center; justify-content: flex-end; }
+.forgot:hover { text-decoration: underline; }
+.forgot:focus-visible { outline: 2px solid #0d9488; outline-offset: 2px; }

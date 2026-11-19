@@ -1652,7 +1652,7 @@ describe('DashboardAdminComponent — A.4.7A: sobrecupo sobre slot ocupado', () 
     expect(mensaje.toLowerCase()).not.toContain('dos citas');
     expect(mensaje).toBe(
       `A las 08:00 del ${component.formatearFecha(FUTURA)}: este horario ya presenta ocupación. `
-      + 'El sistema permite solicitar un sobrecupo. La disponibilidad volverá a validarse al confirmar. '
+      + 'Puedes agendar un sobrecupo directamente. La cita original conservará su horario. '
       + '¿Confirmas?'
     );
   });
@@ -2305,15 +2305,15 @@ describe('DashboardAdminComponent — Agenda vistas Día y Mes', () => {
       expect(urls[0]).toContain('fecha_fin=2026-09-17');
     });
 
-    it('sin día seleccionado usa hoy si está en el período visible', () => {
+    it('si hoy es fin de semana, Día abre el siguiente lunes', () => {
       fijarHoy();
       const { component } = crearAgenda();
       component.diaSeleccionado = null;
 
       component.cambiarVistaAgenda('dia');
 
-      expect(component.diaAgenda.fecha).toBe('2026-09-19');
-      expect(component.diaAgenda.esHoy).toBe(true);
+      expect(component.diaAgenda.fecha).toBe('2026-09-21');
+      expect(component.diaAgenda.esHoy).toBe(false);
     });
 
     it('Día siguiente/anterior mueve un día, cruza de mes y refresca el rango', () => {
@@ -2337,7 +2337,7 @@ describe('DashboardAdminComponent — Agenda vistas Día y Mes', () => {
       expect(urls[3]).toContain('fecha_inicio=2026-09-29&fecha_fin=2026-09-29');
     });
 
-    it('Hoy vuelve al día actual', () => {
+    it('Hoy en fin de semana vuelve al siguiente día hábil', () => {
       fijarHoy();
       const { component } = crearAgenda();
       component.cambiarVistaAgenda('dia');
@@ -2346,15 +2346,14 @@ describe('DashboardAdminComponent — Agenda vistas Día y Mes', () => {
 
       component.agendaHoy();
 
-      expect(component.diaAgenda.fecha).toBe('2026-09-19');
+      expect(component.diaAgenda.fecha).toBe('2026-09-21');
     });
 
     it('volver a Semana muestra la semana (lunes a domingo) que contiene el día visible', () => {
       fijarHoy();
       const { component } = crearAgenda();
       component.cambiarVistaAgenda('dia');
-      component.agendaSiguiente(); // domingo 20
-      component.agendaSiguiente(); // lunes 21
+      // El sábado 19 se normaliza al lunes 21 sin mostrar fin de semana.
 
       component.cambiarVistaAgenda('semana');
 
@@ -2362,7 +2361,7 @@ describe('DashboardAdminComponent — Agenda vistas Día y Mes', () => {
       expect(component.semanaActual[6].fecha).toBe('2026-09-27');
 
       component.cambiarVistaAgenda('dia');
-      component.agendaAnterior(); // domingo 20 → semana que empieza el lunes 14
+      component.agendaAnterior(); // viernes 18 → semana que empieza el lunes 14
       component.cambiarVistaAgenda('semana');
       expect(component.semanaActual[0].fecha).toBe('2026-09-14');
     });
@@ -2612,7 +2611,7 @@ describe('DashboardAdminComponent — Agenda vistas Día y Mes', () => {
       const revocar = () => vi.spyOn(component as any, 'hasPermission').mockReturnValue(false);
 
       component.cambiarVistaAgenda('dia');
-      component.agendaSiguiente();                     // Día 20
+      component.agendaSiguiente();                     // Martes 22
       let consultas = urlsDisponibilidad(http).length;
       const restaurar = revocar();
       component.agendaSiguiente();
@@ -2621,7 +2620,7 @@ describe('DashboardAdminComponent — Agenda vistas Día y Mes', () => {
       component.abrirDiaAgenda('2026-09-08');
       component.cambiarVistaAgenda('mes');
       expect(component.vistaAgenda).toBe('dia');
-      expect(component.diaAgenda.fecha).toBe('2026-09-20');
+      expect(component.diaAgenda.fecha).toBe('2026-09-22');
       expect(urlsDisponibilidad(http)).toHaveLength(consultas);
       restaurar.mockRestore();
 
@@ -3020,5 +3019,67 @@ describe('DashboardAdminComponent — Agenda vistas Día y Mes', () => {
       printPagina.mockRestore();
       abrirVentana.mockRestore();
     });
+  });
+});
+
+describe('Agenda administrativa: selección y sobrecupo', () => {
+  it('seleccionar profesional sincroniza la especialidad sin perder su identidad', () => {
+    const c = crearShell();
+    c.profesionales = [{ id: 9, nombre: 'Profesional', especialidad: 'Nutrición' }];
+    c.filtroProfesionalId = '9';
+    c.cargarHorarioProfesional();
+    expect(c.filtroEspecialidad).toBe('Nutrición');
+    expect(c.filtroProfesionalId).toBe('9');
+  });
+
+  it('el botón de sobrecupo exige ambos permisos antes de abrir el modal', () => {
+    const c = crearShell();
+    c.filtroProfesionalId = '9';
+    const abrir = vi.spyOn(c, 'abrirModalNuevaCitaConFechaHora').mockImplementation(() => {});
+    vi.spyOn(c, 'hasPermission').mockImplementation(p => p === 'agenda.gestionar');
+    c.abrirModalSobrecupo();
+    expect(abrir).not.toHaveBeenCalled();
+    vi.mocked(c.hasPermission).mockReturnValue(true);
+    c.abrirModalSobrecupo();
+    expect(abrir).toHaveBeenCalledWith('', '', true);
+  });
+});
+
+
+describe('Agendamiento directo: clasificación por disponibilidad', () => {
+  function preparar(disponible: boolean, permisoSobrecupo = true) {
+    const c = crearShell();
+    vi.spyOn(c, 'hasPermission').mockImplementation(p =>
+      p === 'agenda.gestionar' || (p === 'agenda.sobrecupo' && permisoSobrecupo));
+    vi.spyOn(c as any, 'buscarDisponibilidadEnBloque').mockReturnValue({
+      disponible, motivo: disponible ? null : 'slot_ocupado',
+      overridable_con_sobrecupo: !disponible
+    });
+    c.nuevaCita = { fecha: '2099-11-23', hora: '10:00', urgente: false,
+      sobrecupo: true, sobrecupo_motivo: 'Motivo anterior' };
+    return c;
+  }
+
+  it('cambiar a una hora libre convierte el formulario en cita normal y limpia el motivo anterior', () => {
+    const c = preparar(true);
+    c.actualizarTipoNuevaCita();
+    expect(c.nuevaCita.sobrecupo).toBe(false);
+    expect(c.nuevaCita.sobrecupo_motivo).toBe('');
+    expect(c.mostrarToggleUrgente).toBe(true);
+  });
+
+  it('escribir una hora ocupada habilitada activa el sobrecupo con sus controles', () => {
+    const c = preparar(false);
+    c.nuevaCita.sobrecupo = false;
+    c.actualizarTipoNuevaCita();
+    expect(c.nuevaCita.sobrecupo).toBe(true);
+    expect(c.mostrarToggleUrgente).toBe(false);
+  });
+
+  it('editar la hora no concede permiso de sobrecupo al administrador', () => {
+    const c = preparar(false, false);
+    c.nuevaCita.sobrecupo = false;
+    c.actualizarTipoNuevaCita();
+    expect(c.nuevaCita.sobrecupo).toBe(false);
   });
 });

@@ -49,6 +49,7 @@ porque ROLE_DEFAULT_PERMISSIONS lo lista explícitamente.
 """
 
 from __future__ import annotations
+from app.tiempo import ahora_local
 
 from datetime import date, datetime, timedelta
 from typing import Callable, Optional
@@ -64,7 +65,7 @@ from app.models.cita import Cita
 from app.models.profesional import Profesional
 from app.models.solicitud_horario import SolicitudHorario
 from app.models.usuario import Usuario
-from app.rbac.admin_access import normalizar_especialidad
+from app.busqueda import normalizar_busqueda
 from app.rbac.admin_authorization import (
     obtener_alcance_administrativo_efectivo,
     tiene_permiso_efectivo,
@@ -148,11 +149,9 @@ def _contar_especialidades(db: Session) -> int:
     claves: set[str] = set()
 
     for (especialidad,) in db.query(Profesional.especialidad).distinct().all():
-        try:
-            claves.add(normalizar_especialidad(especialidad).normalizada)
-        except ValueError:
-            # Vacía o no textual: no cuenta como especialidad.
-            continue
+        clave = normalizar_busqueda(especialidad)
+        if clave:
+            claves.add(clave)
 
     return len(claves)
 
@@ -378,10 +377,11 @@ def get_resumen_inicio(
         requerir_permisos_institucionales(*PERMISOS_RESUMEN)
     ),
 ):
+    snapshot_centro = ahora_local()
     return construir_resumen(
         db,
-        hoy=date.today(),
-        ahora=datetime.now(),
+        hoy=snapshot_centro.date(),
+        ahora=snapshot_centro,
         incluir_incidencias=tiene_permiso_efectivo(
             db, current_user, Permission.AUDITORIA_VER
         ),

@@ -1,32 +1,29 @@
-# -*- coding: utf-8 -*-
-"""
-SESAES — Zona horaria del proceso.
-
-Las citas, los horarios y las reglas ("no cancelar con menos de 5 horas",
-"citas de hoy", "hora ya pasada") están en HORA DE CHILE, pero un servidor en la
-nube suele correr en UTC. Con UTC, `datetime.now()` y `date.today()` se desfasan
-3 o 4 horas respecto de la hora de la cita:
-
-  * la regla de las 5 horas para cancelar se calculaba mal (se podía cancelar
-    una cita con menos de 5 horas de anticipación);
-  * pasadas las 21:00 de Chile, el servidor creía que ya era "mañana".
-
-En vez de cambiar los ~37 puntos del código que leen la hora local, se fija la zona
-horaria del PROCESO al arrancar: así `datetime.now()` y `date.today()` devuelven la
-hora de Chile en cualquier servidor. No afecta a `datetime.utcnow()` ni a las
-fechas con zona explícita (`datetime.now(timezone.utc)`).
-
-Solo se aplica en sistemas POSIX (Linux, macOS), que es donde corre el servidor.
-En Windows (desarrollo local) se usa la zona del propio equipo.
-Se puede cambiar con la variable SESAES_TZ.
-"""
-
-from __future__ import annotations
-
+"""Zona de negocio del centro; los instantes técnicos se conservan en UTC."""
 import os
 import time
 
-ZONA_POR_DEFECTO = "America/Santiago"
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
+NOMBRE_ZONA_CENTRO = "America/Santiago"
+ZONA_CENTRO = ZoneInfo(NOMBRE_ZONA_CENTRO)
+
+
+def ahora_local():
+    """Hora civil del centro para columnas históricas sin zona horaria."""
+    return datetime.now(ZONA_CENTRO).replace(tzinfo=None)
+
+
+def instante_utc(valor: datetime) -> datetime:
+    """Un valor legacy sin offset representa hora civil de Santiago, no del host."""
+    if valor.tzinfo is None:
+        valor = valor.replace(tzinfo=ZONA_CENTRO)
+    return valor.astimezone(timezone.utc)
+
+
+# Compatibilidad con el arranque POSIX incorporado por el equipo.
+# Las reglas de negocio usan ZONA_CENTRO explícitamente, incluso en Windows.
+ZONA_POR_DEFECTO = NOMBRE_ZONA_CENTRO
 
 
 def fijar_zona_horaria() -> str | None:

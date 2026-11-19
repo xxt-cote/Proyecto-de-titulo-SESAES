@@ -1,3 +1,4 @@
+import { FechaCentroPipe } from '../../shared/fecha-centro.pipe';
 import { CommonModule } from '@angular/common';
 import { Component, DoCheck, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -62,7 +63,7 @@ function minutosDeHora(texto: unknown): number | null {
 @Component({
   selector: 'app-admin-horario',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [FechaCentroPipe, CommonModule, FormsModule],
   templateUrl: './admin-horario.html',
   styleUrls: ['./admin-horario.css']
 })
@@ -358,10 +359,18 @@ export class AdminHorarioComponent implements DoCheck {
   // Semana (o cinco si soloDiasLaborables). La vista Mes usa mesCeldas y
   // no esta grilla.
   get diasGrilla(): any[] {
-    if (this.vista === 'dia') return this.diaActual ? [this.diaActual] : [];
+    if (this.vista === 'dia') return this.diaActual && (!this.soloDiasLaborables || this.esDiaLaborable(this.diaActual.fecha)) ? [this.diaActual] : [];
     const dias = this.semanaActual ?? [];
     if (!this.soloDiasLaborables) return dias;
     return dias.filter(dia => this.esDiaLaborable(dia?.fecha));
+  }
+
+  get nombresDiasVisibles(): string[] {
+    return this.soloDiasLaborables ? this.nombresDiasSemana.slice(0, 5) : this.nombresDiasSemana;
+  }
+
+  get celdasMesVisibles(): any[] {
+    return this.soloDiasLaborables ? this.mesCeldas.filter(c => this.esDiaLaborable(c.fecha)) : this.mesCeldas;
   }
 
   private esDiaLaborable(fecha: string | undefined): boolean {

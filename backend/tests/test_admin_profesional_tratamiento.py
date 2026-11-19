@@ -73,7 +73,7 @@ def db_session():
 # ══════════════════════════════════════
 
 def test_crear_profesional_con_tratamiento(db_session):
-    datos = ProfesionalCreate(
+    datos = ProfesionalCreate(password="PruebaSegura123!",
         nombre="Eduardo Carvajal",
         tratamiento="Dr.",
         especialidad="Medicina General",
@@ -91,7 +91,7 @@ def test_crear_profesional_con_tratamiento(db_session):
 # ══════════════════════════════════════
 
 def test_crear_profesional_sin_tratamiento(db_session):
-    datos = ProfesionalCreate(
+    datos = ProfesionalCreate(password="PruebaSegura123!",
         nombre="Carlos Muñoz",
         especialidad="Nutrición",
         correo="carlos.munoz@utem.cl",
@@ -110,7 +110,7 @@ def test_crear_profesional_sin_tratamiento(db_session):
 
 def test_actualizar_tratamiento_de_profesional_existente(db_session):
     creado = crear_profesional(
-        ProfesionalCreate(nombre="Rodrigo Céspedes", especialidad="Kinesiología", correo="rodrigo@utem.cl"),
+        ProfesionalCreate(password="PruebaSegura123!", nombre="Rodrigo Céspedes", especialidad="Kinesiología", correo="rodrigo@utem.cl"),
         db_session, FAKE_ADMIN
     )
     assert creado.tratamiento is None  # estado inicial: sin tratamiento, como los datos reales hoy
@@ -128,7 +128,7 @@ def test_actualizar_tratamiento_de_profesional_existente(db_session):
 
 def test_limpiar_tratamiento_explicitamente(db_session):
     creado = crear_profesional(
-        ProfesionalCreate(nombre="Ana Martínez", tratamiento="Dra.", especialidad="Psicología", correo="ana@utem.cl"),
+        ProfesionalCreate(password="PruebaSegura123!", nombre="Ana Martínez", tratamiento="Dra.", especialidad="Psicología", correo="ana@utem.cl"),
         db_session, FAKE_ADMIN
     )
     assert creado.tratamiento == "Dra."
@@ -145,7 +145,7 @@ def test_no_tocar_tratamiento_si_no_se_envia(db_session):
     actual (regresión del bug 'is not None' que impedía limpiar, pero
     aplicada al revés: tampoco debe borrar sin querer)."""
     creado = crear_profesional(
-        ProfesionalCreate(nombre="Diego Soto", tratamiento="Dr.", especialidad="Kinesiología", correo="diego@utem.cl"),
+        ProfesionalCreate(password="PruebaSegura123!", nombre="Diego Soto", tratamiento="Dr.", especialidad="Kinesiología", correo="diego@utem.cl"),
         db_session, FAKE_ADMIN
     )
     assert creado.tratamiento == "Dr."
@@ -165,7 +165,7 @@ def test_tratamiento_acepta_valor_historico_libre_por_compatibilidad(db_session)
     el admin pueda elegir hoy desde el formulario, es una garantía de que
     no se rompen filas antiguas."""
     creado = crear_profesional(
-        ProfesionalCreate(nombre="Roberto Fuentes", tratamiento="Psic.", especialidad="Psicología", correo="roberto@utem.cl"),
+        ProfesionalCreate(password="PruebaSegura123!", nombre="Roberto Fuentes", tratamiento="Psic.", especialidad="Psicología", correo="roberto@utem.cl"),
         db_session, FAKE_ADMIN
     )
     assert creado.tratamiento == "Psic."
@@ -177,12 +177,12 @@ def test_tratamiento_acepta_valor_historico_libre_por_compatibilidad(db_session)
 
 def test_resumen_dia_incluye_tratamiento_y_color(db_session):
     crear_profesional(
-        ProfesionalCreate(nombre="Eduardo Carvajal", tratamiento="Dr.", especialidad="Medicina General",
+        ProfesionalCreate(password="PruebaSegura123!", nombre="Eduardo Carvajal", tratamiento="Dr.", especialidad="Medicina General",
                            correo="eduardo2@utem.cl", color_identificador="#4F8EF7"),
         db_session, FAKE_ADMIN
     )
     crear_profesional(
-        ProfesionalCreate(nombre="Carlos Muñoz", especialidad="Nutrición", correo="carlos2@utem.cl"),
+        ProfesionalCreate(password="PruebaSegura123!", nombre="Carlos Muñoz", especialidad="Nutrición", correo="carlos2@utem.cl"),
         db_session, FAKE_ADMIN
     )
 
@@ -200,7 +200,7 @@ def test_resumen_dia_incluye_tratamiento_y_color(db_session):
 
 def test_listado_profesionales_incluye_tratamiento(db_session):
     crear_profesional(
-        ProfesionalCreate(nombre="Ana Martínez", tratamiento="Dra.", especialidad="Psicología", correo="ana2@utem.cl"),
+        ProfesionalCreate(password="PruebaSegura123!", nombre="Ana Martínez", tratamiento="Dra.", especialidad="Psicología", correo="ana2@utem.cl"),
         db_session, FAKE_ADMIN
     )
 
@@ -237,7 +237,7 @@ def test_permisos_profesionales_gestionar_sin_cambios():
 def test_crear_profesional_con_color_valido(db_session):
     color = next(iter(COLORES_PERMITIDOS))
     creado = crear_profesional(
-        ProfesionalCreate(nombre="Joaquín Rodríguez", especialidad="Medicina General",
+        ProfesionalCreate(password="PruebaSegura123!", nombre="Joaquín Rodríguez", especialidad="Medicina General",
                            correo="joaquin@utem.cl", color_identificador=color),
         db_session, FAKE_ADMIN
     )
@@ -248,7 +248,7 @@ def test_crear_profesional_con_color_valido(db_session):
 
 def test_crear_profesional_sin_color(db_session):
     creado = crear_profesional(
-        ProfesionalCreate(nombre="Diego Soto", especialidad="Kinesiología", correo="diego3@utem.cl"),
+        ProfesionalCreate(password="PruebaSegura123!", nombre="Diego Soto", especialidad="Kinesiología", correo="diego3@utem.cl"),
         db_session, FAKE_ADMIN
     )
     assert creado.color_identificador is None
@@ -256,7 +256,7 @@ def test_crear_profesional_sin_color(db_session):
 
 def test_actualizar_color_de_profesional_existente(db_session):
     creado = crear_profesional(
-        ProfesionalCreate(nombre="Ana Martínez", especialidad="Psicología", correo="ana3@utem.cl"),
+        ProfesionalCreate(password="PruebaSegura123!", nombre="Ana Martínez", especialidad="Psicología", correo="ana3@utem.cl"),
         db_session, FAKE_ADMIN
     )
     assert creado.color_identificador is None
@@ -270,7 +270,7 @@ def test_actualizar_color_de_profesional_existente(db_session):
 
 def test_limpiar_color_explicitamente(db_session):
     creado = crear_profesional(
-        ProfesionalCreate(nombre="Carlos Muñoz", especialidad="Nutrición", correo="carlos3@utem.cl",
+        ProfesionalCreate(password="PruebaSegura123!", nombre="Carlos Muñoz", especialidad="Nutrición", correo="carlos3@utem.cl",
                            color_identificador="#D96C8A"),
         db_session, FAKE_ADMIN
     )
@@ -284,7 +284,7 @@ def test_limpiar_color_explicitamente(db_session):
 
 def test_no_tocar_color_si_no_se_envia(db_session):
     creado = crear_profesional(
-        ProfesionalCreate(nombre="Rodrigo Céspedes", especialidad="Kinesiología", correo="rodrigo2@utem.cl",
+        ProfesionalCreate(password="PruebaSegura123!", nombre="Rodrigo Céspedes", especialidad="Kinesiología", correo="rodrigo2@utem.cl",
                            color_identificador="#D9A441"),
         db_session, FAKE_ADMIN
     )
@@ -302,7 +302,7 @@ def test_color_invalido_es_rechazado_en_creacion_con_http_400(db_session):
     Pydantic. ProfesionalCreate en sí acepta cualquier string en este
     campo; es admin.py quien decide rechazarlo."""
     for valor_invalido in ["red", "url(javascript:alert(1))", "var(--admin-primary)", "#FFFFFF", "#4f8ef7"]:
-        datos = ProfesionalCreate(nombre="X", especialidad="Y", correo="x@utem.cl", color_identificador=valor_invalido)
+        datos = ProfesionalCreate(password="PruebaSegura123!", nombre="X", especialidad="Y", correo="x@utem.cl", color_identificador=valor_invalido)
         with pytest.raises(HTTPException) as exc_info:
             crear_profesional(datos, db_session, FAKE_ADMIN)
         assert exc_info.value.status_code == 400
@@ -311,7 +311,7 @@ def test_color_invalido_es_rechazado_en_creacion_con_http_400(db_session):
 
 def test_color_invalido_es_rechazado_en_actualizacion_con_http_400(db_session):
     creado = crear_profesional(
-        ProfesionalCreate(nombre="Diego Soto", especialidad="Kinesiología", correo="diego4@utem.cl"),
+        ProfesionalCreate(password="PruebaSegura123!", nombre="Diego Soto", especialidad="Kinesiología", correo="diego4@utem.cl"),
         db_session, FAKE_ADMIN
     )
     datos = ProfesionalUpdate(color_identificador="not-a-color")
@@ -327,7 +327,7 @@ def test_color_invalido_es_rechazado_en_actualizacion_con_http_400(db_session):
 
 def test_listado_profesionales_incluye_color(db_session):
     crear_profesional(
-        ProfesionalCreate(nombre="Eduardo Carvajal", especialidad="Medicina General", correo="eduardo3@utem.cl",
+        ProfesionalCreate(password="PruebaSegura123!", nombre="Eduardo Carvajal", especialidad="Medicina General", correo="eduardo3@utem.cl",
                            color_identificador="#4F8EF7"),
         db_session, FAKE_ADMIN
     )

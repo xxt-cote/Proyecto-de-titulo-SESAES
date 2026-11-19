@@ -1,3 +1,4 @@
+import { calendarioCentro } from '../../shared/tiempo-centro';
 import {
   Component,
   EventEmitter,
@@ -43,7 +44,7 @@ export class AdminHistorialComponent implements OnChanges {
   @Input() histFiltroCarrera = '';
   @Output() histFiltroCarreraChange = new EventEmitter<string>();
 
-  @Input() cgrAnio: number | string = new Date().getFullYear();
+  @Input() cgrAnio: number | string = calendarioCentro().getFullYear();
   @Output() cgrAnioChange = new EventEmitter<number | string>();
 
   @Input() cgrAniosDisponibles: number[] = [];

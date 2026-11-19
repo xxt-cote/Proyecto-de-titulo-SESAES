@@ -1,8 +1,10 @@
 <div class="dashboard estudiante-shell" [class.sidebar-movil-abierto]="sidebarMovilAbierto">
+  <a class="skip-link" (click)="$event.preventDefault(); contenidoPrincipal.focus()" href="#contenido-principal">Saltar al contenido</a>
 
   <!-- SIDEBAR -->
   <div class="sidebar-backdrop" *ngIf="sidebarMovilAbierto" (click)="toggleSidebarMovil()"></div>
-  <aside class="sidebar">
+  <aside class="sidebar" id="menu-lateral">
+    <button type="button" class="sesaes-menu-cerrar" aria-label="Cerrar menú lateral" (click)="toggleSidebarMovil()"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
     <div class="sidebar-logo">
       <img src="temporal.jpg" alt="UTEM">
       <div class="sidebar-logo-divider"></div>
@@ -12,35 +14,35 @@
       </div>
     </div>
 
-    <nav class="sidebar-nav">
-      <button class="nav-item" [class.active]="seccionActiva === 'inicio'" (click)="navegarA('inicio')">
+    <nav class="sidebar-nav" aria-label="Navegación principal">
+      <button class="nav-item" [class.active]="seccionActiva === 'inicio'" [attr.aria-current]="(seccionActiva === 'inicio') ? 'page' : null" (click)="navegarA('inicio')">
         <span class="material-symbols-outlined" aria-hidden="true">home</span>
         Inicio
       </button>
-      <button class="nav-item" [class.active]="seccionActiva === 'citas' && citasTab === 'solicitar'" (click)="navegarA('citas', 'solicitar')">
+      <button class="nav-item" [class.active]="seccionActiva === 'citas' && citasTab === 'solicitar'" [attr.aria-current]="(seccionActiva === 'citas' && citasTab === 'solicitar') ? 'page' : null" (click)="navegarA('citas', 'solicitar')">
         <span class="material-symbols-outlined" aria-hidden="true">event_available</span>
         Agendar cita
       </button>
-      <button class="nav-item" [class.active]="seccionActiva === 'citas' && citasTab === 'proximas'" (click)="navegarA('citas', 'proximas')">
+      <button class="nav-item" [class.active]="seccionActiva === 'citas' && citasTab === 'proximas'" [attr.aria-current]="(seccionActiva === 'citas' && citasTab === 'proximas') ? 'page' : null" (click)="navegarA('citas', 'proximas')">
         <span class="material-symbols-outlined" aria-hidden="true">calendar_month</span>
         Mis citas
       </button>
-      <button class="nav-item" [class.active]="seccionActiva === 'atenciones'" (click)="navegarA('atenciones')">
+      <button class="nav-item" [class.active]="seccionActiva === 'atenciones'" [attr.aria-current]="(seccionActiva === 'atenciones') ? 'page' : null" (click)="navegarA('atenciones')">
         <span class="material-symbols-outlined" aria-hidden="true">favorite</span>
         Mis atenciones
       </button>
-      <button class="nav-item" [class.active]="seccionActiva === 'cuestionarios'" (click)="navegarA('cuestionarios')">
+      <button class="nav-item" [class.active]="seccionActiva === 'cuestionarios'" [attr.aria-current]="(seccionActiva === 'cuestionarios') ? 'page' : null" (click)="navegarA('cuestionarios')">
         <span class="material-symbols-outlined" aria-hidden="true">assignment</span>
         Cuestionarios
       </button>
-      <button class="nav-item" [class.active]="seccionActiva === 'configuracion'" (click)="navegarA('configuracion')">
+      <button class="nav-item" [class.active]="seccionActiva === 'configuracion'" [attr.aria-current]="(seccionActiva === 'configuracion') ? 'page' : null" (click)="navegarA('configuracion')">
         <span class="material-symbols-outlined" aria-hidden="true">person</span>
         Mi perfil
       </button>
     </nav>
 
     <div class="sidebar-nav-ayuda">
-      <button class="nav-item" [class.active]="seccionActiva === 'ayuda'" (click)="navegarA('ayuda')">
+      <button class="nav-item" [class.active]="seccionActiva === 'ayuda'" [attr.aria-current]="(seccionActiva === 'ayuda') ? 'page' : null" (click)="navegarA('ayuda')">
         <span class="material-symbols-outlined" aria-hidden="true">help</span>
         Ayuda
       </button>
@@ -57,7 +59,7 @@
 
   <!-- CONTENIDO PRINCIPAL -->
   <div class="main-wrapper">
-  <main class="main-content">
+  <main #contenidoPrincipal class="main-content" id="contenido-principal" tabindex="-1">
 
     <div class="blob blob-green"></div>
     <div class="blob blob-yellow"></div>
@@ -67,18 +69,18 @@
     <!-- ══ TOPBAR ══ -->
 <header class="topbar-est">
   <div class="topbar-left-est">
-  <button class="btn-hamburguesa" (click)="toggleSidebarMovil()">
+  <button type="button" class="btn-hamburguesa" aria-controls="menu-lateral" [attr.aria-expanded]="sidebarMovilAbierto" [attr.aria-label]="sidebarMovilAbierto ? 'Cerrar menú' : 'Abrir menú'" (click)="toggleSidebarMovil()">
     <span class="material-symbols-outlined" aria-hidden="true">menu</span>
   </button>
-    <h1 class="topbar-title-est" [style.visibility]="seccionActiva === 'inicio' ? 'hidden' : 'visible'">{{ tituloSeccionEst }}</h1>
-    <span class="topbar-sub-est" [style.visibility]="seccionActiva === 'inicio' ? 'hidden' : 'visible'">{{ subtituloSeccionEst }}</span>
+    <h1 class="topbar-title-est">{{ seccionActiva === 'inicio' ? 'Hola, ' + estudianteNombre : tituloSeccionEst }} <span *ngIf="seccionActiva === 'inicio'" class="material-symbols-outlined icono-saludo" aria-hidden="true">waving_hand</span></h1>
+    <span class="topbar-sub-est">{{ seccionActiva === 'inicio' ? 'Aquí puedes gestionar tu atención de salud en SESAES.' : subtituloSeccionEst }}</span>
   </div>
   <div class="topbar-actions-est">
-    <button class="topbar-icon-btn-est" (click)="toggleTemaRapido()" [title]="temaOscuro ? 'Modo claro' : 'Modo oscuro'">
+    <button class="topbar-icon-btn-est" (click)="toggleTemaRapido()" [attr.aria-label]="temaOscuro ? 'Activar modo claro' : 'Activar modo oscuro'" [title]="temaOscuro ? 'Modo claro' : 'Modo oscuro'">
       <span *ngIf="!temaOscuro" class="material-symbols-outlined" aria-hidden="true">light_mode</span>
       <span *ngIf="temaOscuro" class="material-symbols-outlined" aria-hidden="true">dark_mode</span>
     </button>
-    <button class="topbar-icon-btn-est" (click)="toggleNotificaciones()">
+    <button class="topbar-icon-btn-est" (click)="toggleNotificaciones()" aria-controls="panel-notificaciones" [attr.aria-expanded]="notifPanelAbierto" aria-label="Notificaciones">
       <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
       <span class="notif-badge-est" *ngIf="notifNoLeidas > 0">{{ notifNoLeidas }}</span>
     </button>
@@ -93,7 +95,7 @@
   </div>
 </header>
   <!-- PANEL DE NOTIFICACIONES -->
-<div class="notif-panel-est" *ngIf="notifPanelAbierto">
+<div class="notif-panel-est" id="panel-notificaciones" role="region" aria-label="Notificaciones" *ngIf="notifPanelAbierto">
   <div class="notif-panel-header-est">
     <label class="notif-select-all-est">
       <input type="checkbox" [checked]="notifTodasSeleccionadas" (change)="toggleSeleccionarTodasNotif()" [disabled]="notificaciones.length===0" />
@@ -101,7 +103,7 @@
     </label>
     <div class="notif-panel-header-acciones-est">
       <button class="notif-leer-todas-est" (click)="marcarTodasLeidas()" *ngIf="!notifHaySeleccionadas && notificaciones.length > 0">Marcar todas como leídas</button>
-      <button class="notif-cerrar" aria-label="Cerrar" (click)="notifPanelAbierto = false"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
+      <button type="button" class="sesaes-notif-cerrar" aria-label="Cerrar notificaciones" (click)="notifPanelAbierto = false"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
     </div>
   </div>
 
@@ -116,7 +118,7 @@
   <div class="notif-lista-est">
     <div *ngIf="notificaciones.length === 0" class="notif-vacia-est">Sin notificaciones</div>
     <div *ngFor="let n of notificaciones" class="notif-item-est" [class.no-leida]="!n.leida">
-      <input type="checkbox" [checked]="notifSeleccionadas.has(n.id)" (change)="toggleSeleccionNotif(n)" (click)="$event.stopPropagation()" />
+      <input type="checkbox" [attr.aria-label]="'Seleccionar notificación: ' + n.mensaje" [checked]="notifSeleccionadas.has(n.id)" (change)="toggleSeleccionNotif(n)" (click)="$event.stopPropagation()" />
       <div class="notif-dot" [ngClass]="n.tipo"></div>
       <div class="notif-texto-est" (click)="marcarNotifLeida(n)">
         <p>{{ n.mensaje }}</p>
@@ -125,11 +127,11 @@
             <span class="material-symbols-outlined icono-inline" aria-hidden="true">autorenew</span> Reagendar cita
           </button>
         </div>
-        <span>{{ n.fecha_creacion }}</span>
+        <span>{{ n.fecha_creacion | fechaCentro:'dd/MM HH:mm' }}</span>
       </div>
       <div class="notif-item-acciones-est">
-        <button *ngIf="!n.leida" title="Marcar como leída" (click)="marcarNotifLeida(n)"><span class="material-symbols-outlined" aria-hidden="true">check</span></button>
-        <button title="Eliminar" (click)="eliminarNotificacion(n)"><span class="material-symbols-outlined" aria-hidden="true">delete</span></button>
+        <button *ngIf="!n.leida" title="Marcar como leída" aria-label="Marcar notificación como leída" (click)="marcarNotifLeida(n)"><span class="material-symbols-outlined" aria-hidden="true">check</span></button>
+        <button title="Eliminar" aria-label="Eliminar notificación" (click)="eliminarNotificacion(n)"><span class="material-symbols-outlined" aria-hidden="true">delete</span></button>
       </div>
     </div>
   </div>
@@ -182,13 +184,7 @@
       <div class="inicio-layout-est">
 
         <div class="inicio-principal-est">
-          <header class="inicio-saludo-est">
-            <div>
-              <h2 class="inicio-saludo-titulo">Hola, {{ estudianteNombre }} <span class="material-symbols-outlined icono-saludo" aria-hidden="true">waving_hand</span></h2>
-              <p class="inicio-saludo-sub">Aquí puedes gestionar tu atención de salud en SESAES.</p>
-            </div>
-            <p class="inicio-frase-est"><span class="material-symbols-outlined" aria-hidden="true">favorite</span> Tu bienestar también es parte de tu vida universitaria</p>
-          </header>
+          <p class="inicio-frase-est"><span class="material-symbols-outlined" aria-hidden="true">favorite</span> Tu bienestar también es parte de tu vida universitaria</p>
 
           <div class="inicio-kpis-est">
             <button type="button" class="kpi-inicio-est" (click)="navegarA('citas','proximas')">
@@ -316,7 +312,7 @@
 
           <section class="card-inicio-est">
             <div class="card-inicio-cabecera">
-              <h3 class="card-inicio-titulo"><span class="material-symbols-outlined" aria-hidden="true">favorite</span> Mis últimas atenciones</h3>
+              <h3 class="card-inicio-titulo"><span class="material-symbols-outlined" aria-hidden="true">favorite</span> Actividad reciente de mis citas</h3>
               <button class="enlace-inicio-est" (click)="navegarA('atenciones')">Ver todas <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span></button>
             </div>
             <p class="card-inicio-vacio" *ngIf="ultimasAtenciones.length === 0">Aún no tienes atenciones registradas.</p>
@@ -341,19 +337,7 @@
 
         <aside class="inicio-lateral-est">
           <section class="card-inicio-est">
-            <h3 class="card-inicio-titulo"><span class="material-symbols-outlined" aria-hidden="true">calendar_month</span> Tu calendario</h3>
-            <div class="cal-inicio-cabecera">
-              <button class="cal-inicio-nav" (click)="calInicioMesAnterior()" aria-label="Mes anterior"><span class="material-symbols-outlined" aria-hidden="true">chevron_left</span></button>
-              <strong>{{ calInicioTitulo }}</strong>
-              <button class="cal-inicio-nav" (click)="calInicioMesSiguiente()" aria-label="Mes siguiente"><span class="material-symbols-outlined" aria-hidden="true">chevron_right</span></button>
-            </div>
-            <div class="cal-inicio-grid cal-inicio-semana">
-              <span *ngFor="let d of DIAS_SEMANA_INICIO; trackBy: trackPorIndice">{{ d }}</span>
-            </div>
-            <div class="cal-inicio-grid">
-              <span class="cal-inicio-celda" *ngFor="let dia of calInicioDias; trackBy: trackPorIndice"
-                    [class.hoy]="dia?.hoy" [class.con-cita]="dia?.conCita">{{ dia?.num }}</span>
-            </div>
+            <app-calendario-institucional titulo="Tu calendario" [fechasConCita]="fechasCitasInicio"></app-calendario-institucional>
           </section>
 
           <section class="card-inicio-est">
@@ -531,6 +515,7 @@
         </div>
 
         <p class="horario-semana">Selecciona una fecha disponible (próximos 7 días, lunes a viernes)</p>
+        <p class="sin-horas-msg" role="status" *ngIf="!fechaSeleccionada && mensajeDisponibilidad">{{ mensajeDisponibilidad }}</p>
 
         <div class="fecha-selector-wrap">
           <button class="fecha-selector-btn" (click)="toggleCalendario()" [class.abierto]="calendarioAbierto">
@@ -550,8 +535,10 @@
               <span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span>
             </div>
             <div class="cal-grid">
-              <div *ngFor="let dia of diasMes"
+              <button type="button" *ngFor="let dia of diasMes"
                    class="cal-celda"
+                   [disabled]="!dia || dia.deshabilitado"
+                   [attr.aria-label]="dia?.fecha"
                    [class.vacia]="!dia"
                    [class.deshabilitada]="dia?.deshabilitado"
                    [class.hoy]="dia?.esHoy"
@@ -561,7 +548,7 @@
                    [title]="dia?.esCerrado ? ('El centro no atiende este día. ' + dia.motivoCerrado) : nombreFeriado(dia?.fecha)"
                    (click)="seleccionarDia(dia)">
                 <span *ngIf="dia">{{ dia.num }}</span>
-              </div>
+              </button>
             </div>
           </div>
         </div>

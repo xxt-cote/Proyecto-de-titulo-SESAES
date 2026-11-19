@@ -1,3 +1,4 @@
+from app.tiempo import ahora_local
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import date
@@ -299,7 +300,7 @@ def get_estadisticas_dia(
     current_user: dict = Depends(get_current_user),
 ):
     _exigir_permiso_y_ownership_propio(current_user, prof_id, db, Permission.AGENDA_VER_PROFESIONAL)
-    hoy = date.today().isoformat()
+    hoy = ahora_local().date().isoformat()
     citas_hoy = db.query(Cita).filter(Cita.profesional_id == prof_id, Cita.fecha == hoy).all()
     return {
         "total_hoy":     len(citas_hoy),
@@ -322,7 +323,7 @@ def get_citas_sin_cerrar(
     current_user: dict = Depends(get_current_user),
 ):
     _exigir_permiso_y_ownership_propio(current_user, prof_id, db, Permission.AGENDA_VER_PROFESIONAL)
-    hoy = date.today().isoformat()
+    hoy = ahora_local().date().isoformat()
     citas = db.query(Cita).filter(
         Cita.profesional_id == prof_id,
         Cita.estado == "pendiente",
@@ -405,7 +406,7 @@ def completar_cita(
     cita = db.query(Cita).filter(Cita.id == cita_id, Cita.profesional_id == prof_id).first()
     if not cita:
         raise HTTPException(status_code=404, detail="Cita no encontrada")
-    if cita.fecha > date.today().isoformat():
+    if cita.fecha > ahora_local().date().isoformat():
         raise HTTPException(status_code=400, detail="No puedes completar una cita que todavía no ocurre")
 
     # Normalización (SA-11.3B): None, "" y strings de solo espacios se
@@ -495,7 +496,7 @@ def marcar_inasistencia(
     cita = db.query(Cita).filter(Cita.id == cita_id, Cita.profesional_id == prof_id).first()
     if not cita:
         raise HTTPException(status_code=404, detail="Cita no encontrada")
-    if cita.fecha > date.today().isoformat():
+    if cita.fecha > ahora_local().date().isoformat():
         raise HTTPException(status_code=400, detail="No puedes marcar inasistencia de una cita que todavía no ocurre")
     est = db.query(Usuario).filter(Usuario.id == cita.estudiante_id).first()
     cita.estado = "inasistencia"

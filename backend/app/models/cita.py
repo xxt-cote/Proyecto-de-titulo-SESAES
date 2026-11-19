@@ -1,10 +1,14 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Index
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.database import Base
 
 class Cita(Base):
     __tablename__ = "cita"
+    # No es único: el sobrecupo autorizado admite varias citas en un slot.
+    __table_args__ = (
+        Index("ix_cita_profesional_fecha_estado", "profesional_id", "fecha", "estado"),
+    )
 
     id                    = Column(Integer, primary_key=True, index=True)
     estudiante_id         = Column(Integer, ForeignKey("usuario.id"))
@@ -33,7 +37,6 @@ class Cita(Base):
     # única fuente que arma estos tres valores). Los tres son nullable
     # por compatibilidad histórica: las citas creadas antes de A.4.1 no
     # tienen esta información y NUNCA se le inventa un valor retroactivo
-    # (ver migración backend/scripts/migrar_a4_1_trazabilidad.py).
     #
     # creado_por_usuario_id: SIEMPRE el actor autenticado
     # (current_user["id"]) — NO necesariamente igual a estudiante_id;
@@ -60,12 +63,8 @@ class Cita(Base):
     creado_por_perfil     = Column(String, nullable=True)
     # fecha_creacion: momento real de creación para filas NUEVAS
     # (DEFAULT a nivel de motor, aplicado por SQLAlchemy vía
-    # server_default tanto en create_all() de test como, en
-    # producción, por el ALTER ... SET DEFAULT explícito de la
-    # migración — ver su docstring). Nullable=True porque las filas
-    # históricas (anteriores a A.4.1) no tienen este dato real y la
-    # migración las deja en NULL a propósito, en vez de asignarles la
-    # fecha de la migración como si fuera su fecha de creación real.
+    # server_default desde los modelos). Nullable=True porque las filas
+    # históricas pueden importarse sin inventar su fecha de creación.
     fecha_creacion        = Column(DateTime, server_default=func.now(), nullable=True)
 
     profesional = relationship("Profesional", back_populates="citas")

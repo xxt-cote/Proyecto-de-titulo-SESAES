@@ -15,7 +15,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../config';
-import { normalizarTexto } from '../../shared/text-normalization';
+import { normalizarTexto, etiquetasUnicas } from '../../shared/text-normalization';
 import {
   ItemPagina,
   OPCIONES_RANGO,
@@ -52,19 +52,6 @@ export interface CitasKpi {
   nota: string;
 }
 
-interface TabEstado {
-  valor: EstadoCitaFiltro;
-  etiqueta: string;
-}
-
-const TABS: ReadonlyArray<TabEstado> = [
-  { valor: '', etiqueta: 'Todas' },
-  { valor: 'pendiente', etiqueta: 'Pendientes' },
-  { valor: 'completada', etiqueta: 'Completadas' },
-  { valor: 'cancelada', etiqueta: 'Canceladas' },
-  { valor: 'inasistencia', etiqueta: 'Inasistencias' },
-];
-
 const ETIQUETA_ESTADO: Record<string, string> = {
   pendiente: 'Pendiente',
   completada: 'Completada',
@@ -84,7 +71,7 @@ const ETIQUETA_ESTADO: Record<string, string> = {
  * Datos: una sola consulta a GET /agenda/citas (agenda.ver, con alcance
  * administrativo aplicado por el backend) que cubre el período visible y el
  * período previo. Los filtros de texto, servicio, estado y prioridad se
- * aplican en el cliente para que las pestañas puedan mostrar conteos reales.
+ * aplican en el cliente sin repetir consultas al cambiar el selector.
  * Ninguna cifra se inventa: si no hay período previo comparable, no se muestra
  * variación.
  */
@@ -116,8 +103,6 @@ export class AdminCitasComponent implements OnInit, OnChanges, OnDestroy {
   @Output() verDetalle = new EventEmitter<any>();
   @Output() marcarPrioridad = new EventEmitter<{ cita: any; urgente: boolean }>();
   @Output() cancelarCita = new EventEmitter<any>();
-  /** "Agendar cita": requiere agenda.gestionar. */
-  @Output() irAHorario = new EventEmitter<void>();
   /** "Ver agenda": solo lectura, basta agenda.ver. */
   @Output() irAAgenda = new EventEmitter<void>();
   @Output() irAProfesionales = new EventEmitter<void>();
@@ -145,14 +130,6 @@ export class AdminCitasComponent implements OnInit, OnChanges, OnDestroy {
   // ── Derivados (se recalculan en ngDoCheck) ──
   citasFiltradas: any[] = [];
   citasPaginadas: any[] = [];
-  conteos: Record<string, number> = {
-    todas: 0,
-    pendiente: 0,
-    completada: 0,
-    cancelada: 0,
-    inasistencia: 0,
-  };
-  tabsVisibles: TabEstado[] = TABS.slice(0, 4) as TabEstado[];
   especialidades: string[] = [];
   kpis: CitasKpi[] = [];
   paginas: ItemPagina[] = [];
@@ -183,7 +160,7 @@ export class AdminCitasComponent implements OnInit, OnChanges, OnDestroy {
 
   ngOnInit(): void {
     document.addEventListener('scroll', this.alHacerScroll, true);
-    // Deriva el estado inicial (pestañas en 0, KPIs en "—") antes de que
+    // Deriva el estado inicial (listado vacío y KPIs en "—") antes de que
     // lleguen los datos, para que la primera pintura no quede en blanco.
     this.recalcular();
     this.cargarCitas();
@@ -305,9 +282,13 @@ export class AdminCitasComponent implements OnInit, OnChanges, OnDestroy {
     this.recalcular();
   }
 
-  alternarSoloUrgentes(): void {
-    this.citasFiltroPrioridad = this.citasFiltroPrioridad === 'urgente' ? '' : 'urgente';
-    this.recalcular();
+  get filtroEstadoSeleccionado(): EstadoCitaFiltro | 'urgente' {
+    return this.citasFiltroPrioridad === 'urgente' ? 'urgente' : this.citasFiltroEstado;
+  }
+
+  seleccionarFiltroEstado(valor: EstadoCitaFiltro | 'urgente'): void {
+    this.citasFiltroPrioridad = valor === 'urgente' ? 'urgente' : '';
+    this.seleccionarEstado(valor === 'urgente' ? '' : valor);
   }
 
   verTodasLasFechas(): void {
@@ -336,7 +317,7 @@ export class AdminCitasComponent implements OnInit, OnChanges, OnDestroy {
   // ═══════════════ Cálculo de derivados ═══════════════
 
   /**
-   * Recalcula todo lo derivado de citasAdmin/filtros: pestañas, conteos,
+   * Recalcula todo lo derivado de citasAdmin/filtros: listado,
    * especialidades y KPIs, y termina paginando. Se llama explícitamente
    * (carga de datos, cambio de filtro, mutación externa vía citasVersion),
    * nunca en cada ciclo de detección de cambios.
@@ -346,7 +327,7 @@ export class AdminCitasComponent implements OnInit, OnChanges, OnDestroy {
     this.paginar();
   }
 
-  /** Filtra citasAdmin según búsqueda/servicio/estado/prioridad y arma pestañas, KPIs y especialidades. */
+  /** Filtra citasAdmin según búsqueda/servicio/estado/prioridad y arma KPIs y especialidades. */
   private refiltrar(): void {
     const consulta = normalizarTexto(this.citasFiltroEstudiante);
     const consultaRut = consulta.replace(/[.\-\s]/g, '');
@@ -367,28 +348,10 @@ export class AdminCitasComponent implements OnInit, OnChanges, OnDestroy {
     // exactamente lo que mostraría al seleccionarla.
     const base = this.citasAdmin.filter(
       (c) =>
-        (!this.citasFiltroServicio || c.especialidad === this.citasFiltroServicio) &&
+        (!this.citasFiltroServicio || normalizarTexto(c.especialidad) === normalizarTexto(this.citasFiltroServicio)) &&
         this.coincidePrioridad(c) &&
         this.coincideBusqueda(c, consulta, consultaRut),
     );
-
-    const conteos: Record<string, number> = {
-      todas: base.length,
-      pendiente: 0,
-      completada: 0,
-      cancelada: 0,
-      inasistencia: 0,
-    };
-    for (const c of base) {
-      if (c.estado in conteos) conteos[c.estado]++;
-    }
-    this.conteos = conteos;
-    this.tabsVisibles = TABS.filter(
-      (t) =>
-        t.valor !== 'inasistencia' ||
-        conteos['inasistencia'] > 0 ||
-        this.citasFiltroEstado === 'inasistencia',
-    ) as TabEstado[];
 
     this.citasFiltradas = this.citasFiltroEstado
       ? base.filter((c) => c.estado === this.citasFiltroEstado)
@@ -440,16 +403,15 @@ export class AdminCitasComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   private armarEspecialidades(): string[] {
-    const set = new Set<string>();
-    for (const p of this.profesionalesCatalogo) if (p?.especialidad) set.add(p.especialidad);
-    for (const c of this.citasAdmin)
-      if (c?.especialidad && c.especialidad !== '?') set.add(c.especialidad);
-    return [...set].sort((a, b) => a.localeCompare(b, 'es'));
+    return etiquetasUnicas([
+      ...this.profesionalesCatalogo.map(p => p?.especialidad),
+      ...this.citasAdmin.filter(c => c?.especialidad !== '?').map(c => c?.especialidad)
+    ]).sort((a, b) => a.localeCompare(b, 'es'));
   }
 
   /**
    * KPIs del período visible. Solo dependen del rango de fechas (no de la
-   * búsqueda ni de las pestañas) para poder compararse con el período previo.
+   * búsqueda ni del selector) para poder compararse con el período previo.
    */
   private armarKpis(): CitasKpi[] {
     const cargadas = this.citasCargadas;
@@ -551,10 +513,6 @@ export class AdminCitasComponent implements OnInit, OnChanges, OnDestroy {
 
   // ═══════════════ Presentación ═══════════════
 
-  contar(estado: EstadoCitaFiltro): number {
-    return estado ? (this.conteos[estado] ?? 0) : this.conteos['todas'];
-  }
-
   etiquetaEstado(estado: string): string {
     return ETIQUETA_ESTADO[estado] ?? estado;
   }
@@ -578,7 +536,6 @@ export class AdminCitasComponent implements OnInit, OnChanges, OnDestroy {
   trackKpi = (_: number, k: CitasKpi) => k.clave;
   trackCita = (_: number, c: any) => c.id;
   trackPagina = (i: number, p: ItemPagina) => (p.elipsis ? 'e' + i : p.num);
-  trackTab = (_: number, t: TabEstado) => t.valor;
 
   /**
    * Número de fila mostrado en la primera columna: sigue la posición real
@@ -660,11 +617,6 @@ export class AdminCitasComponent implements OnInit, OnChanges, OnDestroy {
     if (!this.puedeGestionarAgenda) return;
     this.cerrarMenu();
     this.cancelarCita.emit(cita);
-  }
-
-  onIrAHorario(): void {
-    if (!this.puedeGestionarAgenda) return;
-    this.irAHorario.emit();
   }
 
   onIrAAgenda(): void {

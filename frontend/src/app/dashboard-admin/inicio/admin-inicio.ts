@@ -1,3 +1,5 @@
+import { CalendarioInstitucionalComponent } from '../../shared/calendario-institucional/calendario-institucional';
+import { calendarioCentro } from '../../shared/tiempo-centro';
 import { CommonModule } from '@angular/common';
 import {
   AfterViewInit,
@@ -13,15 +15,13 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Chart, registerables } from 'chart.js';
-import { obtenerFeriado } from '../../shared/feriados-chile';
-import { obtenerDiasInternacionales } from '../../shared/dias-internacionales';
 
 Chart.register(...registerables);
 
 @Component({
   selector: 'app-admin-inicio',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CalendarioInstitucionalComponent, CommonModule, FormsModule],
   templateUrl: './admin-inicio.html'
 })
 export class AdminInicioComponent implements AfterViewInit, OnChanges, OnDestroy {
@@ -41,7 +41,7 @@ export class AdminInicioComponent implements AfterViewInit, OnChanges, OnDestroy
   @Input() proximasCitas: any[] = [];
   @Input() actividadReciente: any[] = [];
 
-  @Input() filtroGraficoAnio: number | string = new Date().getFullYear();
+  @Input() filtroGraficoAnio: number | string = calendarioCentro().getFullYear();
   @Output() filtroGraficoAnioChange = new EventEmitter<number | string>();
 
   @Input() filtroGraficoCarrera = '';
@@ -82,29 +82,14 @@ export class AdminInicioComponent implements AfterViewInit, OnChanges, OnDestroy
     '#5C706D'
   ];
 
-  private readonly meses = [
-    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-  ];
-
-  calMesVisible = new Date().getMonth();
-  calAnioVisible = new Date().getFullYear();
-  calDiasMes: any[] = [];
-  diaSeleccionadoInfo: string | null = null;
-
   get aniosDisponiblesGrafico(): number[] {
-    const actual = new Date().getFullYear();
+    const actual = calendarioCentro().getFullYear();
     const anios: number[] = [];
     for (let a = actual + 1; a >= actual - 3; a--) anios.push(a);
     return anios;
   }
 
-  get calNombreMesVisible(): string {
-    return `${this.meses[this.calMesVisible]} ${this.calAnioVisible}`;
-  }
-
   ngAfterViewInit(): void {
-    this.generarCalendarioInicio();
     this.crearGraficos();
   }
 
@@ -194,90 +179,6 @@ export class AdminInicioComponent implements AfterViewInit, OnChanges, OnDestroy
 
     const fechaLocal = new Date(anio, mes - 1, dia);
     return `${dias[fechaLocal.getDay()]} ${dia} de ${meses[mes - 1]}`;
-  }
-
-  generarCalendarioInicio(): void {
-    const primerDia = new Date(this.calAnioVisible, this.calMesVisible, 1);
-    const ultimoDia = new Date(this.calAnioVisible, this.calMesVisible + 1, 0);
-    const offset = (primerDia.getDay() + 6) % 7;
-    const hoy = new Date();
-    const hoyStr =
-      `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
-
-    const celdas: any[] = [];
-
-    for (let i = 0; i < offset; i++) {
-      celdas.push(null);
-    }
-
-    for (let dia = 1; dia <= ultimoDia.getDate(); dia++) {
-      const fechaStr =
-        `${this.calAnioVisible}-${String(this.calMesVisible + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
-
-      celdas.push({
-        num: dia,
-        fecha: fechaStr,
-        esHoy: fechaStr === hoyStr
-      });
-    }
-
-    this.calDiasMes = celdas;
-  }
-
-  calMesAnterior(): void {
-    this.calMesVisible--;
-
-    if (this.calMesVisible < 0) {
-      this.calMesVisible = 11;
-      this.calAnioVisible--;
-    }
-
-    this.diaSeleccionadoInfo = null;
-    this.generarCalendarioInicio();
-  }
-
-  calMesSiguiente(): void {
-    this.calMesVisible++;
-
-    if (this.calMesVisible > 11) {
-      this.calMesVisible = 0;
-      this.calAnioVisible++;
-    }
-
-    this.diaSeleccionadoInfo = null;
-    this.generarCalendarioInicio();
-  }
-
-  seleccionarDiaInfo(dia: any): void {
-    if (!dia) return;
-
-    this.diaSeleccionadoInfo =
-      this.diaSeleccionadoInfo === dia.fecha ? null : dia.fecha;
-  }
-
-  infoDelDia(fecha: string | undefined): string[] {
-    if (!fecha) return [];
-
-    const info: string[] = [];
-    const feriado = obtenerFeriado(fecha);
-
-    if (feriado) {
-      info.push(`🇨🇱 Feriado: ${feriado.nombre}`);
-    }
-
-    for (const dia of obtenerDiasInternacionales(fecha)) {
-      info.push(`🌍 ${dia.nombre}`);
-    }
-
-    return info;
-  }
-
-  esFeriado(fecha: string | undefined): boolean {
-    return !!(fecha && obtenerFeriado(fecha));
-  }
-
-  nombreFeriado(fecha: string | undefined): string {
-    return fecha ? obtenerFeriado(fecha)?.nombre ?? '' : '';
   }
 
   private crearGraficos(): void {

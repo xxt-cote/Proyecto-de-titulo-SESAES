@@ -28,6 +28,9 @@ de slot_ocupado.
 
 from __future__ import annotations
 
+from tests.agenda_fixtures import aprobar_jornada
+
+
 from datetime import date, timedelta, time
 
 import pytest
@@ -348,6 +351,7 @@ def _crear_cita_existente(db, *, profesional_id, hora, fecha, sobrecupo=False):
 def test_a_una_cita_existente_mas_solicitud_normal_es_409(db_session):
     fecha = _dia_habil_futuro()
     prof = _profesional(db_session)
+    aprobar_jornada(db_session, prof)
     db_session.commit()
     _crear_cita_existente(db_session, profesional_id=prof.id, hora="10:00", fecha=fecha)
     db_session.commit()
@@ -396,6 +400,10 @@ def test_b_a_g_sobrecupo_autorizado_sobre_una_cita_existente(db_session):
     assert nueva.sobrecupo is True
     original_recargada = db_session.query(Cita).filter(Cita.id == original.id).one()
     assert original_recargada.sobrecupo is False
+    assert original_recargada.fecha == fecha
+    assert original_recargada.hora == "10:00"
+    assert original_recargada.estado == "pendiente"
+    assert nueva.estado == "pendiente"
 
     # D — CitaSobrecupo creado, asociado a la nueva cita.
     detalle = db_session.query(CitaSobrecupo).filter(CitaSobrecupo.cita_id == nueva.id).one()
@@ -410,6 +418,7 @@ def test_b_a_g_sobrecupo_autorizado_sobre_una_cita_existente(db_session):
 
     # F — motivo normalizado (trim) persistido exacto.
     assert detalle.motivo == "Paciente con indicación urgente del profesional"
+    assert detalle.estado_revision is None
 
     # G — auditoría creada exactamente una vez, solo por el sobrecupo
     # efectivo (la creación de la cita ORIGINAL, sin sobrecupo, no
@@ -558,7 +567,8 @@ def test_t_tres_conflictos_superables_con_capacidad_se_autoriza_y_persisten_los_
 
 # --- N: flag sobrecupo en slot libre -> cita normal (A.4.1, sin cambios) --
 
-def test_n_flag_sobrecupo_en_slot_libre_crea_cita_normal(db_session):
+@pytest.mark.parametrize("forzado", [False, True])
+def test_n_flag_sobrecupo_en_slot_libre_crea_cita_normal(db_session, forzado):
     fecha = _dia_habil_futuro()
     prof = _profesional(db_session)
     db_session.commit()
@@ -569,7 +579,7 @@ def test_n_flag_sobrecupo_en_slot_libre_crea_cita_normal(db_session):
 
     payload = CitaCreate(
         estudiante_id=paciente.id, profesional_id=prof.id, fecha=fecha, hora="10:00",
-        sobrecupo=True, sobrecupo_motivo="Motivo válido",
+        sobrecupo=True, sobrecupo_motivo="Motivo válido", sobrecupo_forzado=forzado,
     )
     citas.crear_cita(cita=payload, db=db_session, current_user=_current_user(admin_superadmin))
 

@@ -105,15 +105,15 @@
         Nueva cita
       </button>
       <button
-        *ngIf="puedeGestionarAgenda && puedeSobrecupo"
+        *ngIf="puedeGestionarAgenda"
         type="button"
         class="agenda-btn agenda-btn-sobrecupo"
         (click)="onAbrirSobrecupo()"
-        [disabled]="!filtroProfesionalId || profesionalActualBloqueado"
-        [attr.title]="filtroProfesionalId ? 'Solicitar un sobrecupo en la hora que elijas' : 'Selecciona un profesional para solicitar un sobrecupo'"
+        [disabled]="!puedeSobrecupo || !filtroProfesionalId || profesionalActualBloqueado"
+        [attr.title]="!puedeSobrecupo ? 'Requiere que el superadmin asigne el permiso agenda.sobrecupo' : filtroProfesionalId ? 'Agendar directamente un sobrecupo con motivo' : 'Selecciona un profesional para agendar un sobrecupo'"
       >
         <span class="material-symbols-outlined" aria-hidden="true">add_circle</span>
-        Solicitar sobrecupo
+        Agendar sobrecupo
       </button>
     </div>
   </div>
@@ -232,16 +232,21 @@
           <div class="hora-celda pie-hora-celda" aria-hidden="true"></div>
         </div>
         <div class="dia-col" *ngFor="let dia of diasGrilla; let i = index" [class.dia-cerrado]="diaCerrado(dia.fecha)">
-          <div
+          <button
+            type="button"
             class="dia-header"
             [class.hoy]="dia.esHoy"
             [class.feriado]="esFeriadoFn(dia.fecha)"
-            [title]="nombreFeriadoFn(dia.fecha)"
+            [class.seleccionado]="diaSeleccionado === dia.fecha"
+            [attr.aria-pressed]="diaSeleccionado === dia.fecha"
+            [attr.aria-label]="'Ver todas las citas del ' + formatearFechaFn(dia.fecha)"
+            [title]="nombreFeriadoFn(dia.fecha) || 'Ver todas las citas del día'"
+            (click)="diaSeleccionadoChange.emit(dia.fecha)"
           >
             <span class="dia-nombre">{{ dia.nombre }}</span>
             <span class="dia-num">{{ dia.num }}</span>
             <span *ngIf="esFeriadoFn(dia.fecha)" class="dia-feriado-label">Feriado</span>
-          </div>
+          </button>
           <div
             class="bloque-celda"
             *ngFor="let h of horasGrilla"
@@ -322,12 +327,12 @@
            real que entrega backend. Un día sin datos NUNCA se muestra como
            disponible. -->
       <div *ngIf="vista === 'mes'" class="agenda-month" role="grid" aria-label="Vista mensual de la agenda">
-        <div class="agenda-month-weekdays" role="row">
-          <span *ngFor="let nombre of nombresDiasSemana" role="columnheader">{{ nombre }}</span>
+        <div class="agenda-month-weekdays" role="row" [style.grid-template-columns]="soloDiasLaborables ? 'repeat(5, minmax(0, 1fr))' : null">
+          <span *ngFor="let nombre of nombresDiasVisibles" role="columnheader">{{ nombre }}</span>
         </div>
-        <div class="agenda-month-body">
+        <div class="agenda-month-body" [style.grid-template-columns]="soloDiasLaborables ? 'repeat(5, minmax(0, 1fr))' : null">
           <button
-            *ngFor="let celda of mesCeldas"
+            *ngFor="let celda of celdasMesVisibles"
             type="button"
             role="gridcell"
             class="agenda-month-cell"
@@ -438,7 +443,7 @@
         <div class="agenda-panel-empty agenda-panel-empty-large">
           <span class="material-symbols-outlined" aria-hidden="true">touch_app</span>
           <strong>Selecciona un día</strong>
-          <span>Haz clic en un bloque del calendario para consultar el resumen operativo.</span>
+          <span>Haz clic en el encabezado de un día o en un bloque para ver todas las citas de ese día.</span>
         </div>
       </ng-template>
     </aside>
@@ -474,7 +479,7 @@
           <td><span class="esp-badge">{{ s.especialidad }}</span></td>
           <td>{{ tipoSolicitudLabel(s) }}</td>
           <td>{{ horarioSolicitado(s) }}</td>
-          <td>{{ s.fecha_solicitud | date:'dd/MM/yyyy HH:mm' }}</td>
+          <td>{{ s.fecha_solicitud | fechaCentro:'dd/MM/yyyy HH:mm' }}</td>
           <td>
             <div class="tabla-acciones">
               <button class="btn-tabla ver" (click)="onAprobarSolicitud(s)" title="Aprobar">

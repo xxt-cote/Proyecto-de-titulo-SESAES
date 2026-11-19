@@ -1,3 +1,4 @@
+from app.tiempo import ahora_local
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -7,7 +8,7 @@ from datetime import datetime, date, timedelta
 import io
 
 from app.database import get_db
-from app.security import hash_password
+from app.security import hash_password, password_cumple_politica, PASSWORD_POLICY_MESSAGE
 from app.models.cita import Cita
 from app.models.profesional import Profesional
 from app.models.usuario import Usuario
@@ -27,13 +28,14 @@ from app.schemas import (
     ProfesionalCreate, ProfesionalUpdate, ConfiguracionOut, ConfiguracionUpdate, CitaCreate,
     color_identificador_es_valido
 )
+from app.schemas import EstudianteCreate, EstudianteOut
 from app.auth_dependencies import get_current_user
 from app.rbac.dependencies import (
     require_permission,
     require_effective_permission,
 )
 from app.rbac.permissions import Permission
-from app.busqueda import filtro_texto, igual_normalizado
+from app.busqueda import filtro_texto, igual_normalizado, normalizar_busqueda
 from app.rbac.admin_authorization import (
     obtener_alcance_administrativo_efectivo,
     especialidad_permitida_por_alcance,
@@ -110,7 +112,7 @@ def validar_rut(rut: str) -> bool:
 
 @router.get("/estadisticas")
 def get_estadisticas(db: Session = Depends(get_db), current_user: dict = Depends(require_effective_permission(Permission.REPORTES_VER))):
-    hoy = date.today().isoformat()
+    hoy = ahora_local().date().isoformat()
 
     alcance = obtener_alcance_administrativo_efectivo(
         db,
@@ -200,7 +202,7 @@ def get_estadisticas(db: Session = Depends(get_db), current_user: dict = Depends
 
 @router.get("/resumen-dia")
 def get_resumen_dia(db: Session = Depends(get_db), current_user: dict = Depends(require_effective_permission(Permission.AGENDA_VER))):
-    hoy = date.today().isoformat()
+    hoy = ahora_local().date().isoformat()
 
     alcance = obtener_alcance_administrativo_efectivo(
         db,
@@ -247,7 +249,7 @@ def get_resumen_dia(db: Session = Depends(get_db), current_user: dict = Depends(
 
 @router.get("/proximas-citas")
 def get_proximas_citas(db: Session = Depends(get_db), current_user: dict = Depends(require_effective_permission(Permission.AGENDA_VER))):
-    hoy = date.today().isoformat()
+    hoy = ahora_local().date().isoformat()
 
     alcance = obtener_alcance_administrativo_efectivo(
         db,
@@ -309,6 +311,46 @@ def get_proximas_citas(db: Session = Depends(get_db), current_user: dict = Depen
 # ══════════════════════════════════════
 # BUSCAR ESTUDIANTE
 # ══════════════════════════════════════
+
+@router.post("/estudiantes", response_model=EstudianteOut, status_code=201)
+def crear_estudiante(
+    datos: EstudianteCreate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_effective_permission(Permission.USUARIOS_GESTIONAR)),
+):
+    """Alta de alumno sin SQL manual, restringida a gestión institucional."""
+    alcance = obtener_alcance_administrativo_efectivo(db, current_user)
+    if alcance is None or not alcance.institucional:
+        raise HTTPException(status_code=403, detail="El alta de alumnos requiere alcance institucional.")
+    if not password_cumple_politica(datos.password) or len(datos.password.encode("utf-8")) > 72:
+        raise HTTPException(status_code=422, detail=PASSWORD_POLICY_MESSAGE)
+    if datos.rut and not validar_rut(datos.rut):
+        raise HTTPException(status_code=400, detail="El RUT ingresado no es válido.")
+    correo = datos.correo.lower()
+    if db.query(Usuario.id).filter(func.lower(Usuario.correo) == correo).first():
+        raise HTTPException(status_code=409, detail="Ya existe un usuario con ese correo.")
+    nuevo = Usuario(
+        nombre=datos.nombre, correo=correo, password=hash_password(datos.password),
+        carrera=datos.carrera, rut=datos.rut, telefono=datos.telefono,
+        rol="estudiante", activo=True, debe_cambiar_password=False,
+    )
+    try:
+        db.add(nuevo)
+        db.flush()
+        registrar_evento_auditoria(
+            db, current_user, "Creó estudiante", entidad="usuario", entidad_id=nuevo.id,
+            detalle="Alta institucional de estudiante",
+        )
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Ya existe un usuario con ese correo.")
+    except Exception:
+        db.rollback()
+        raise
+    db.refresh(nuevo)
+    return nuevo
+
 
 @router.get("/estudiantes")
 def buscar_estudiantes(
@@ -763,8 +805,13 @@ def get_grafico_especialidad(
     if condicion_carrera is not None:
         query = query.filter(condicion_carrera)
     resultados = query.group_by(Profesional.especialidad).all()
-    total = sum(r[1] for r in resultados) or 1
-    return [{"especialidad": r[0], "cantidad": r[1], "porcentaje": round((r[1]/total)*100)} for r in resultados]
+    agrupados = {}
+    for etiqueta, cantidad in resultados:
+        clave = normalizar_busqueda(etiqueta)
+        fila = agrupados.setdefault(clave, {"especialidad": etiqueta, "cantidad": 0})
+        fila["cantidad"] += cantidad
+    total = sum(f["cantidad"] for f in agrupados.values()) or 1
+    return [{**fila, "porcentaje": round(fila["cantidad"] / total * 100)} for fila in agrupados.values()]
 
 
 @router.get("/graficos/semana")
@@ -774,7 +821,7 @@ def get_grafico_semana(
         require_effective_permission(Permission.REPORTES_VER)
     ),
 ):
-    hoy = date.today()
+    hoy = ahora_local().date()
     lunes = hoy - timedelta(days=hoy.weekday())
     dias = ["Lun", "Mar", "Mi?", "Jue", "Vie", "S?b", "Dom"]
 
@@ -893,13 +940,15 @@ def get_profesionales_admin(db: Session = Depends(get_db), current_user: dict = 
                 "tipo": b.tipo,
             })
 
+    usuarios_contacto = {u.id: u for u in db.query(Usuario).filter(Usuario.id.in_([p.usuario_id for p in profesionales if p.usuario_id])).all()}
+
     return [
         {
             "id": p.id, "nombre": p.nombre, "tratamiento": p.tratamiento,
             "especialidad": p.especialidad,
             "iniciales": p.iniciales, "descripcion": p.descripcion,
             "duracion_min": p.duracion_min, "estado": p.estado or "activo",
-            "correo": p.correo, "rut": p.rut, "usuario_id": p.usuario_id,
+            "correo": p.correo or getattr(usuarios_contacto.get(p.usuario_id), "correo", None), "rut": p.rut, "usuario_id": p.usuario_id,
             "foto_url": p.foto_url, "color_identificador": p.color_identificador,
             # Jornada y colación vigentes: la agenda administrativa las muestra
             # (franja de colación y hora de salida). Sin estos campos la
@@ -963,6 +1012,9 @@ def crear_profesional(
             detail="Color identificador no permitido",
         )
 
+    if not password_cumple_politica(datos.password) or len(datos.password.encode("utf-8")) > 72:
+        raise HTTPException(status_code=422, detail=PASSWORD_POLICY_MESSAGE + " Máximo 72 bytes UTF-8.")
+
     iniciales = datos.iniciales
 
     if not iniciales and datos.nombre:
@@ -971,7 +1023,7 @@ def crear_profesional(
     nuevo_usuario = Usuario(
         correo=datos.correo,
         password=hash_password(
-            datos.password or "prof123"
+            datos.password
         ),
         rol="profesional",
         nombre=datos.nombre,
@@ -1100,6 +1152,19 @@ def actualizar_profesional(
             detail="Color identificador no permitido",
         )
 
+    usuario_contacto = db.query(Usuario).filter(Usuario.id == prof.usuario_id).first() if prof.usuario_id else None
+    if datos.correo is not None:
+        correo_ocupado = db.query(Usuario.id).filter(
+            func.lower(Usuario.correo) == datos.correo,
+            Usuario.id != prof.usuario_id,
+        ).first()
+        profesional_correo_ocupado = db.query(Profesional.id).filter(
+            func.lower(Profesional.correo) == datos.correo,
+            Profesional.id != prof.id,
+        ).first()
+        if correo_ocupado or profesional_correo_ocupado:
+            raise HTTPException(status_code=409, detail="Ya existe un usuario o profesional con ese correo.")
+
     if datos.nombre is not None:
         prof.nombre = datos.nombre
 
@@ -1125,9 +1190,13 @@ def actualizar_profesional(
 
     if datos.correo is not None:
         prof.correo = datos.correo
+        if usuario_contacto:
+            usuario_contacto.correo = datos.correo
 
     if datos.rut is not None:
         prof.rut = datos.rut
+        if usuario_contacto:
+            usuario_contacto.rut = datos.rut
 
     if datos.estado is not None:
         prof.estado = datos.estado
@@ -1153,7 +1222,11 @@ def actualizar_profesional(
         detalle=prof.nombre,
     )
 
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="El correo ya está en uso.")
     db.refresh(prof)
 
     return prof
@@ -1357,7 +1430,7 @@ def cambiar_estado_profesional(
     )
     fecha_afectada = body.get(
         "fecha",
-        date.today().isoformat(),
+        ahora_local().date().isoformat(),
     )
     motivo = body.get("motivo")
 

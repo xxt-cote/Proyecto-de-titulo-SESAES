@@ -1,3 +1,6 @@
+import { By } from '@angular/platform-browser';
+import { calendarioCentro } from '../shared/tiempo-centro';
+import { CalendarioInstitucionalComponent } from '../shared/calendario-institucional/calendario-institucional';
 import { ChangeDetectorRef } from '@angular/core';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { vi } from 'vitest';
@@ -57,13 +60,17 @@ describe('DashboardEstudianteComponent — Inicio', () => {
     expect(texto).toContain('Tu salud importa');
   });
 
-  it('el Inicio no muestra título en la barra superior', () => {
+  it('el Inicio saluda en la barra superior y las otras secciones conservan su título', () => {
     const el = render();
     const titulo = el.querySelector('.topbar-title-est') as HTMLElement;
-    expect(titulo.style.visibility).toBe('hidden');
+    expect(titulo.closest('header.topbar-est')).not.toBeNull();
+    expect(titulo.textContent).toContain('Hola,');
+    expect(getComputedStyle(titulo).visibility).toBe('visible');
+    expect(el.querySelector('.inicio-saludo-est')).toBeNull();
     c.navegarA('atenciones');
     repintar();
-    expect(titulo.style.visibility).toBe('visible');
+    expect(titulo.textContent?.trim()).toBe('Mis Atenciones');
+    expect(getComputedStyle(titulo).visibility).toBe('visible');
   });
 
   describe('indicadores superiores', () => {
@@ -266,11 +273,11 @@ describe('DashboardEstudianteComponent — Inicio', () => {
     });
 
     it('en el calendario del Inicio el día de una cita de sobrecupo queda marcado como día con cita', () => {
-      const hoy = new Date();
+      const hoy = calendarioCentro();
       const iso = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
       c.proximasCitas = [{ id: 1, especialidad: 'Medicina General', fecha: iso, hora: '10:30', profesional: 'Dra. Ana Martínez', tipo: 'sobrecupo' }];
-      const celdaHoy = c.calInicioDias.find((d: any) => d?.hoy);
-      expect(celdaHoy?.conCita).toBe(true);
+      const el = render();
+      expect(el.querySelector('.cal-celda.hoy.con-cita')?.getAttribute('data-fecha')).toBe(iso);
     });
   });
 
@@ -590,24 +597,45 @@ describe('DashboardEstudianteComponent — Inicio', () => {
   });
 
   describe('calendario del Inicio', () => {
+    const calendario = () => {
+      render();
+      return fixture.debugElement.query(By.directive(CalendarioInstitucionalComponent)).componentInstance as CalendarioInstitucionalComponent;
+    };
     it('marca el día de hoy y los días con cita', () => {
-      const hoy = new Date();
+      const hoy = calendarioCentro();
       const iso = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
       c.proximasCitas = [{ fecha: iso }];
-      const dias = c.calInicioDias.filter(d => d !== null);
-      expect(dias.filter(d => d!.hoy).length).toBe(1);
-      expect(dias.find(d => d!.hoy)!.conCita).toBe(true);
+      const cal = calendario();
+      const dias = cal.celdas.filter(d => d !== null);
+      expect(dias.filter(d => d.esHoy).length).toBe(1);
+      expect(cal.tieneCita(dias.find(d => d.esHoy)!.fecha)).toBe(true);
+      expect((fixture.nativeElement as HTMLElement).querySelector('.cal-celda.hoy.con-cita')).toBeTruthy();
+    });
+
+    it('permite consultar el feriado desde el mini calendario compartido', () => {
+      const cal = calendario();
+      cal.anioVisible = 2026;
+      cal.mesVisible = 8;
+      cal.generar();
+      fixture.debugElement.query(By.directive(CalendarioInstitucionalComponent)).injector.get(ChangeDetectorRef).markForCheck();
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+      el.querySelector<HTMLButtonElement>('app-calendario-institucional [data-fecha="2026-09-18"]')!.click();
+      fixture.detectChanges();
+      expect(el.querySelector('[data-testid="cal-info"]')?.textContent).toContain('Feriado: Fiestas Patrias');
+      expect(c.pasoAgendar).toBe(1);
     });
 
     it('la semana empieza en lunes y navega entre meses', () => {
-      const primera = c.calInicioDias.findIndex(d => d?.num === 1);
-      const ref = new Date(); ref.setDate(1);
+      const cal = calendario();
+      const primera = cal.celdas.findIndex(d => d?.num === 1);
+      const ref = calendarioCentro(); ref.setDate(1);
       expect(primera).toBe((ref.getDay() + 6) % 7);
-      const titulo = c.calInicioTitulo;
-      c.calInicioMesSiguiente();
-      expect(c.calInicioTitulo).not.toBe(titulo);
-      c.calInicioMesAnterior();
-      expect(c.calInicioTitulo).toBe(titulo);
+      const titulo = cal.tituloMes;
+      cal.mesSiguiente();
+      expect(cal.tituloMes).not.toBe(titulo);
+      cal.mesAnterior();
+      expect(cal.tituloMes).toBe(titulo);
     });
   });
 

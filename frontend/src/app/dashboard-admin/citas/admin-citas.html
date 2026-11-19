@@ -51,12 +51,13 @@
         <label class="citas-campo">
           <span class="citas-campo-etiqueta">Estado</span>
           <span class="citas-select">
-            <select [ngModel]="citasFiltroEstado" (ngModelChange)="seleccionarEstado($event)">
+            <select [ngModel]="filtroEstadoSeleccionado" (ngModelChange)="seleccionarFiltroEstado($event)">
               <option value="">Todos</option>
               <option value="pendiente">Pendiente</option>
               <option value="completada">Completada</option>
               <option value="cancelada">Cancelada</option>
               <option value="inasistencia">Inasistencia</option>
+              <option value="urgente">Solo urgentes</option>
             </select>
             <span class="material-symbols-outlined citas-select-flecha" aria-hidden="true">expand_more</span>
           </span>
@@ -77,30 +78,8 @@
       <!-- Listado -->
       <div class="citas-lista">
 
-        <div class="citas-tabs-fila">
-          <div class="citas-tabs" role="tablist" aria-label="Filtrar por estado de la cita">
-            <button
-              *ngFor="let t of tabsVisibles; trackBy: trackTab"
-              type="button"
-              role="tab"
-              class="citas-tab"
-              [class.activa]="citasFiltroEstado === t.valor"
-              [attr.aria-selected]="citasFiltroEstado === t.valor"
-              (click)="seleccionarEstado(t.valor)"
-            >{{ t.etiqueta }}</button>
-          </div>
-
-          <div class="citas-tabs-extra">
-            <button
-              type="button"
-              class="citas-chip-filtro"
-              [class.activa]="citasFiltroPrioridad === 'urgente'"
-              [attr.aria-pressed]="citasFiltroPrioridad === 'urgente'"
-              (click)="alternarSoloUrgentes()"
-            >
-              <span class="material-symbols-outlined" aria-hidden="true">warning</span>
-              Solo urgentes
-            </button>
+        <div class="citas-lista-acciones" *ngIf="hayFiltrosActivos">
+          <div class="citas-limpiar">
             <button type="button" class="citas-link" *ngIf="hayFiltrosActivos" (click)="limpiarFiltrosCitas()">
               Limpiar filtros
             </button>
@@ -253,15 +232,6 @@
       <section class="citas-panel">
         <h2 class="citas-panel-titulo">Acciones rápidas</h2>
         <div class="citas-accion-lista">
-          <button type="button" class="citas-accion tono-mint" *ngIf="puedeGestionarAgenda" (click)="onIrAHorario()">
-            <span class="citas-accion-icono" aria-hidden="true"><span class="material-symbols-outlined">calendar_add_on</span></span>
-            <span class="citas-accion-texto">
-              <strong>Agendar cita</strong>
-              <small>Nueva cita para un estudiante</small>
-            </span>
-            <span class="material-symbols-outlined citas-accion-flecha" aria-hidden="true">chevron_right</span>
-          </button>
-
           <button type="button" class="citas-accion tono-lavanda" (click)="onIrAAgenda()">
             <span class="citas-accion-icono" aria-hidden="true"><span class="material-symbols-outlined">calendar_month</span></span>
             <span class="citas-accion-texto">

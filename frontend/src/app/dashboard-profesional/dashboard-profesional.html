@@ -1,9 +1,11 @@
 <!-- dashboard-profesional.html -->
+  <a class="skip-link" (click)="$event.preventDefault(); contenidoPrincipal.focus()" href="#contenido-principal">Saltar al contenido</a>
 <div class="dashboard-prof profesional-shell" [class.tema-oscuro]="temaOscuro" [class.sidebar-movil-abierto]="sidebarMovilAbierto">
 
   <!-- ═══════════ SIDEBAR ═══════════ -->
   <div class="sidebar-backdrop" *ngIf="sidebarMovilAbierto" (click)="toggleSidebarMovil()"></div>
-  <aside class="sidebar-prof">
+  <aside class="sidebar-prof" id="menu-lateral">
+    <button type="button" class="sesaes-menu-cerrar" aria-label="Cerrar menú lateral" (click)="toggleSidebarMovil()"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
     <div class="sidebar-logo">
       <img src="temporal.jpg" alt="UTEM">
       <div class="sidebar-logo-divider"></div>
@@ -13,24 +15,24 @@
       </div>
     </div>
 
-    <nav class="sidebar-nav">
-      <button class="nav-item" [class.active]="seccionActiva==='inicio'" (click)="navegarA('inicio')">
+    <nav class="sidebar-nav" aria-label="Navegación principal">
+      <button class="nav-item" [class.active]="seccionActiva==='inicio'" [attr.aria-current]="(seccionActiva==='inicio') ? 'page' : null" (click)="navegarA('inicio')">
         <span class="material-symbols-outlined" aria-hidden="true">home</span>
         Inicio
       </button>
-      <button class="nav-item" [class.active]="seccionActiva==='horario'" (click)="navegarA('horario')">
+      <button class="nav-item" [class.active]="seccionActiva==='horario'" [attr.aria-current]="(seccionActiva==='horario') ? 'page' : null" (click)="navegarA('horario')">
         <span class="material-symbols-outlined" aria-hidden="true">calendar_month</span>
         Agenda
       </button>
-      <button class="nav-item" [class.active]="seccionActiva==='pacientes'" (click)="navegarA('pacientes')">
+      <button class="nav-item" [class.active]="seccionActiva==='pacientes'" [attr.aria-current]="(seccionActiva==='pacientes') ? 'page' : null" (click)="navegarA('pacientes')">
         <span class="material-symbols-outlined" aria-hidden="true">group</span>
         Pacientes
       </button>
-      <button class="nav-item" [class.active]="seccionActiva==='historial-clinico'" (click)="navegarA('historial-clinico')">
+      <button class="nav-item" [class.active]="seccionActiva==='historial-clinico'" [attr.aria-current]="(seccionActiva==='historial-clinico') ? 'page' : null" (click)="navegarA('historial-clinico')">
         <span class="material-symbols-outlined" aria-hidden="true">description</span>
         Historial Clínico
       </button>
-      <button class="nav-item" [class.active]="seccionActiva==='solicitudes'" (click)="navegarA('solicitudes')">
+      <button class="nav-item" [class.active]="seccionActiva==='solicitudes'" [attr.aria-current]="(seccionActiva==='solicitudes') ? 'page' : null" (click)="navegarA('solicitudes')">
         <span class="material-symbols-outlined" aria-hidden="true">inbox</span>
         Solicitudes
         <span class="nav-badge" *ngIf="(citasPendientes.length + solicitudesHorario.length) > 0">{{ citasPendientes.length + solicitudesHorario.length }}</span>
@@ -39,13 +41,9 @@
 
     <div class="menu-label-prof">Sistema</div>
     <nav class="sidebar-nav">
-      <button class="nav-item" [class.active]="seccionActiva==='perfil'" (click)="navegarA('perfil')">
+      <button class="nav-item" [class.active]="seccionActiva==='perfil'" [attr.aria-current]="(seccionActiva==='perfil') ? 'page' : null" (click)="navegarA('perfil')">
         <span class="material-symbols-outlined" aria-hidden="true">settings</span>
         Configuración
-      </button>
-      <button class="nav-item" [class.active]="seccionActiva==='ayuda'" (click)="navegarA('ayuda')">
-        <span class="material-symbols-outlined" aria-hidden="true">help</span>
-        Ayuda
       </button>
     </nav>
 
@@ -63,24 +61,25 @@
     <!-- TOPBAR -->
     <header class="topbar-prof">
       <div class="topbar-left">
-        <button class="btn-hamburguesa" (click)="toggleSidebarMovil()">
+        <button type="button" class="btn-hamburguesa" aria-controls="menu-lateral" [attr.aria-expanded]="sidebarMovilAbierto" [attr.aria-label]="sidebarMovilAbierto ? 'Cerrar menú' : 'Abrir menú'" (click)="toggleSidebarMovil()">
           <span class="material-symbols-outlined" aria-hidden="true">menu</span>
         </button>
-        <h1 class="topbar-title" [style.visibility]="seccionActiva === 'inicio' ? 'hidden' : 'visible'">{{ tituloSeccion }}</h1>
+        <h1 class="topbar-title">{{ seccionActiva === 'inicio' ? '¡Hola, ' + (perfil.nombre || 'Profesional') + '!' : tituloSeccion }}</h1>
+        <span class="topbar-sub-prof" *ngIf="seccionActiva === 'inicio'">Aquí tienes un resumen de tu jornada y la información más relevante.</span>
       </div>
 
       <div class="topbar-buscador-prof">
         <span class="material-symbols-outlined" aria-hidden="true">search</span>
-        <input type="text" placeholder="Buscar paciente, RUT o carrera…"
+        <input type="text" aria-label="Buscar paciente, RUT o carrera; presiona Enter" placeholder="Buscar paciente, RUT o carrera…"
                [(ngModel)]="busquedaGlobal" (keyup.enter)="buscarGlobal()" />
       </div>
 
       <div class="topbar-actions">
-        <button class="tema-toggle-btn" (click)="toggleTema()" [title]="temaOscuro ? 'Modo claro' : 'Modo oscuro'">
+        <button class="tema-toggle-btn" (click)="toggleTema()" [attr.aria-label]="temaOscuro ? 'Activar modo claro' : 'Activar modo oscuro'" [title]="temaOscuro ? 'Modo claro' : 'Modo oscuro'">
           <span *ngIf="!temaOscuro" class="material-symbols-outlined" aria-hidden="true">light_mode</span>
           <span *ngIf="temaOscuro" class="material-symbols-outlined" aria-hidden="true">dark_mode</span>
         </button>
-        <button class="topbar-icon-btn" (click)="toggleNotificaciones()">
+        <button class="topbar-icon-btn" (click)="toggleNotificaciones()" aria-controls="panel-notificaciones" [attr.aria-expanded]="notifPanelAbierto" aria-label="Notificaciones">
           <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
           <span class="notif-badge" *ngIf="notifNoLeidas > 0">{{ notifNoLeidas }}</span>
         </button>
@@ -96,13 +95,16 @@
     </header>
 
     <!-- PANEL NOTIFICACIONES -->
-    <div class="notif-panel" *ngIf="notifPanelAbierto">
+    <div class="notif-panel" id="panel-notificaciones" role="region" aria-label="Notificaciones" *ngIf="notifPanelAbierto">
       <div class="notif-panel-header">
         <label class="notif-select-all">
           <input type="checkbox" [checked]="notifTodasSeleccionadas" (change)="toggleSeleccionarTodasNotif()" [disabled]="notificaciones.length===0" />
           <span>Notificaciones</span>
         </label>
-        <button class="notif-leer-todas" (click)="marcarTodasLeidas()" *ngIf="!notifHaySeleccionadas">Marcar todas como leídas</button>
+        <div class="sesaes-notif-acciones">
+          <button class="notif-leer-todas" (click)="marcarTodasLeidas()" *ngIf="!notifHaySeleccionadas && notificaciones.length > 0">Marcar todas como leídas</button>
+          <button type="button" class="sesaes-notif-cerrar" aria-label="Cerrar notificaciones" (click)="notifPanelAbierto = false"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
+        </div>
       </div>
 
       <div class="notif-acciones-masivas" *ngIf="notifHaySeleccionadas">
@@ -116,22 +118,22 @@
       <div class="notif-lista">
         <div *ngIf="notificaciones.length === 0" class="notif-vacia">Sin notificaciones</div>
         <div *ngFor="let n of notificaciones" class="notif-item" [class.no-leida]="!n.leida">
-          <input type="checkbox" [checked]="notifSeleccionadas.has(n.id)" (change)="toggleSeleccionNotif(n)" (click)="$event.stopPropagation()" />
+          <input type="checkbox" [attr.aria-label]="'Seleccionar notificación: ' + n.mensaje" [checked]="notifSeleccionadas.has(n.id)" (change)="toggleSeleccionNotif(n)" (click)="$event.stopPropagation()" />
           <div class="notif-icono" [ngClass]="n.tipo"></div>
           <div class="notif-texto" (click)="marcarLeida(n)">
             <p>{{ n.mensaje }}</p>
-            <span>{{ n.fecha_creacion | date:'dd/MM HH:mm' }}</span>
+            <span>{{ n.fecha_creacion | fechaCentro:'dd/MM HH:mm' }}</span>
           </div>
           <div class="notif-item-acciones">
-            <button *ngIf="!n.leida" title="Marcar como leída" (click)="marcarLeida(n)"><span class="material-symbols-outlined icono-inline" aria-hidden="true">check</span></button>
-            <button title="Eliminar" (click)="eliminarNotificacion(n)"><span class="material-symbols-outlined icono-inline" aria-hidden="true">delete</span></button>
+            <button *ngIf="!n.leida" title="Marcar como leída" aria-label="Marcar notificación como leída" (click)="marcarLeida(n)"><span class="material-symbols-outlined icono-inline" aria-hidden="true">check</span></button>
+            <button title="Eliminar" aria-label="Eliminar notificación" (click)="eliminarNotificacion(n)"><span class="material-symbols-outlined icono-inline" aria-hidden="true">delete</span></button>
           </div>
         </div>
       </div>
     </div>
 
 
-    <main class="main-content-prof">
+    <main #contenidoPrincipal class="main-content-prof" id="contenido-principal" tabindex="-1">
 
       <!-- ══ AVISO: CITAS SIN CERRAR (fecha ya pasó, siguen "pendiente") ══ -->
       <div class="banner-citas-sin-cerrar-prof" *ngIf="citasSinCerrar.length > 0">
@@ -157,12 +159,8 @@
           <span class="material-symbols-outlined icono-inline" aria-hidden="true">warning</span> Tu estado actual es <strong>{{ perfil.estado }}</strong>. El administrador fue notificado.
         </div>
 
-        <!-- ENCABEZADO -->
+        <!-- FECHA DE LA JORNADA -->
         <div class="inicio-cab-prof">
-          <div>
-            <h2 class="inicio-cab-titulo-prof">¡Hola, {{ perfil.nombre || 'Profesional' }}!</h2>
-            <p class="inicio-cab-sub-prof">Aquí tienes un resumen de tu jornada y la información más relevante.</p>
-          </div>
           <div class="inicio-cab-fecha-prof">
             <span class="material-symbols-outlined" aria-hidden="true">calendar_today</span>
             <span>Hoy, {{ fechaHoyLarga }}</span>
@@ -333,28 +331,8 @@
               <button type="button" class="inicio-recuerda-cerrar-prof" (click)="cerrarRecuerda()" aria-label="Cerrar recordatorio"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
             </div>
 
-            <!-- Calendario -->
             <div class="card-prof inicio-calendario-prof">
-              <div class="inicio-cal-cab-prof">
-                <h3 class="card-title-prof"><span class="material-symbols-outlined icono-inline" aria-hidden="true">calendar_month</span> Calendario</h3>
-                <span class="inicio-cal-mes-prof">{{ calNombreMesVisible }}</span>
-                <button type="button" class="cal-nav-btn" (click)="calMesAnterior()" aria-label="Mes anterior"><span class="material-symbols-outlined icono-inline" aria-hidden="true">chevron_left</span></button>
-                <button type="button" class="cal-nav-btn" (click)="calMesSiguiente()" aria-label="Mes siguiente"><span class="material-symbols-outlined icono-inline" aria-hidden="true">chevron_right</span></button>
-              </div>
-              <div class="cal-grid-dias-nombre-prof">
-                <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span>
-              </div>
-              <div class="cal-grid-prof">
-                <div *ngFor="let dia of calDiasMes" class="cal-celda-prof clickeable" (click)="seleccionarDiaInfo(dia)">
-                  <span [class.hoy]="dia.esHoy" [class.otro-mes]="dia.otroMes" [class.feriado]="esFeriado(dia.fecha)" [title]="nombreFeriado(dia.fecha)">{{ dia.num }}</span>
-                </div>
-              </div>
-              <div class="info-dia-prof" *ngIf="diaSeleccionadoInfo && infoDelDia(diaSeleccionadoInfo).length > 0">
-                <span class="info-dia-prof-item" *ngFor="let info of infoDelDia(diaSeleccionadoInfo)">{{ info }}</span>
-              </div>
-              <p class="info-dia-prof-vacio" *ngIf="diaSeleccionadoInfo && infoDelDia(diaSeleccionadoInfo).length === 0">
-                Nada especial que celebrar este día.
-              </p>
+              <app-calendario-institucional [mostrarAdyacentes]="true"></app-calendario-institucional>
             </div>
 
             <div class="card-prof">
@@ -568,8 +546,8 @@
       <div *ngIf="seccionActiva==='pacientes'">
         <div class="card-prof">
         <div class="atenciones-filtros">
-          <input class="search-input-prof" [(ngModel)]="filtroBusquedaAt" (ngModelChange)="pagAtenciones=1" placeholder="Buscar paciente o RUT..." />
-          <select class="select-prof" [(ngModel)]="filtroEstadoAt" (change)="cargarAtenciones()">
+          <input class="search-input-prof" [(ngModel)]="filtroBusquedaAt" (ngModelChange)="pagAtenciones=1" aria-label="Buscar paciente o RUT" placeholder="Buscar paciente o RUT..." />
+          <select class="select-prof" aria-label="Filtrar pacientes por estado de cita" [(ngModel)]="filtroEstadoAt" (change)="cargarAtenciones()">
             <option value="">Todos los estados</option>
             <option value="pendiente">Pendiente</option>
             <option value="completada">Completada</option>
@@ -595,7 +573,7 @@
                     </div>
                   </div>
                 </td>
-                <td>{{ a.fecha }}</td>
+                <td>{{ a.fecha | fechaCentro:'dd/MM/yyyy' }}</td>
                 <td>{{ a.hora }}</td>
                 <td><span class="estado-badge-prof" [ngClass]="a.estado">{{ a.estado }}</span></td>
                 <td>{{ a.medicamento || '—' }}</td>
@@ -611,17 +589,17 @@
                 </td>
               </tr>
               <tr *ngIf="atencionesPaginadas.length === 0">
-                <td colspan="6" class="tabla-vacia-prof">No hay pacientes registrados</td>
+                <td colspan="6" class="tabla-vacia-prof">No hay citas de pacientes que coincidan con los filtros.</td>
               </tr>
             </tbody>
           </table>
 
           <div class="paginacion-prof">
-            <span>Mostrando {{ (pagAtenciones-1)*8+1 }}–{{ minVal(pagAtenciones*8, atencionesFiltradas.length) }} de {{ atencionesFiltradas.length }}</span>
+            <span>Mostrando {{ atencionesFiltradas.length ? (pagAtenciones-1)*8+1 : 0 }}–{{ minVal(pagAtenciones*8, atencionesFiltradas.length) }} de {{ atencionesFiltradas.length }}</span>
             <div class="pag-btns-prof">
-              <button class="btn-pag-prof" [disabled]="pagAtenciones===1" (click)="pagAtenciones=pagAtenciones-1"><span class="material-symbols-outlined icono-inline" aria-hidden="true">chevron_left</span></button>
-              <button class="btn-pag-prof" *ngFor="let p of getPaginasAt()" [class.active]="p===pagAtenciones" (click)="pagAtenciones=p">{{ p }}</button>
-              <button class="btn-pag-prof" [disabled]="pagAtenciones*8>=atencionesFiltradas.length" (click)="pagAtenciones=pagAtenciones+1"><span class="material-symbols-outlined icono-inline" aria-hidden="true">chevron_right</span></button>
+              <button class="btn-pag-prof" aria-label="Página anterior de pacientes" [disabled]="pagAtenciones===1" (click)="pagAtenciones=pagAtenciones-1"><span class="material-symbols-outlined icono-inline" aria-hidden="true">chevron_left</span></button>
+              <button class="btn-pag-prof" *ngFor="let p of getPaginasAt()" [class.active]="p===pagAtenciones" [attr.aria-current]="p===pagAtenciones ? 'page' : null" [attr.aria-label]="'Página ' + p" (click)="pagAtenciones=p">{{ p }}</button>
+              <button class="btn-pag-prof" aria-label="Página siguiente de pacientes" [disabled]="pagAtenciones*8>=atencionesFiltradas.length" (click)="pagAtenciones=pagAtenciones+1"><span class="material-symbols-outlined icono-inline" aria-hidden="true">chevron_right</span></button>
             </div>
           </div>
         </div>
@@ -676,7 +654,7 @@
               <div class="cita-hoy-info">
                 <strong><span class="material-symbols-outlined icono-inline" aria-hidden="true">{{ s.tipo === 'colacion' ? 'restaurant' : s.tipo === 'bloques' ? 'calendar_view_week' : 'schedule' }}</span> {{ s.tipo === 'colacion' ? 'Colación' : s.tipo === 'bloques' ? 'Horario semanal' : 'Jornada' }}: {{ s.tipo === 'bloques' ? (s.bloques?.length || 0) + ' bloques' : s.hora_inicio + ' a ' + s.hora_fin }}</strong>
                 <span *ngIf="s.estado !== 'pendiente' && s.fecha_respuesta">
-                  {{ s.estado === 'rechazado' ? 'Rechazada' : 'Aprobada' }} el {{ s.fecha_respuesta | date:'dd/MM/yyyy HH:mm' }}
+                  {{ s.estado === 'rechazado' ? 'Rechazada' : 'Aprobada' }} el {{ s.fecha_respuesta | fechaCentro:'dd/MM/yyyy HH:mm' }}
                 </span>
                 <span *ngIf="s.estado === 'rechazado' && s.motivo_rechazo">Motivo: {{ s.motivo_rechazo }}</span>
               </div>
@@ -687,12 +665,6 @@
 
         </div>
       </div>
-
-      <!-- ══ AYUDA ══ -->
-      <app-professional-ayuda
-        *ngIf="seccionActiva==='ayuda'"
-        (navegar)="navegarA($event)">
-      </app-professional-ayuda>
 
       <!-- ══ HISTORIAL CLÍNICO ══ -->
       <div *ngIf="seccionActiva==='historial-clinico'">
@@ -847,7 +819,7 @@
               <span class="stat-icon-prof"><span class="material-symbols-outlined" aria-hidden="true">menu_book</span></span>
               <span class="stat-label-prof">Ficha clínica</span>
               <strong class="stat-mini-valor-prof">{{ fichaExiste ? fichaCompletitudPct + '% completa' : 'Sin completar' }}</strong>
-              <span class="stat-sub-prof" *ngIf="fichaFechaModificacion">Actualizada el {{ fichaFechaModificacion | date:'dd/MM/yyyy' }}</span>
+              <span class="stat-sub-prof" *ngIf="fichaFechaModificacion">Actualizada el {{ fichaFechaModificacion | fechaCentro:'dd/MM/yyyy' }}</span>
             </div>
           </div>
 
@@ -949,7 +921,7 @@
               <p class="detail-box-texto-prof">
                 <strong>{{ perfil.nombre }}</strong><br>
                 {{ perfil.especialidad || 'Profesional' }} · SESAES
-                <ng-container *ngIf="fichaFechaModificacion"><br>Última actualización: {{ fichaFechaModificacion | date:'dd/MM/yyyy HH:mm' }}</ng-container>
+                <ng-container *ngIf="fichaFechaModificacion"><br>Última actualización: {{ fichaFechaModificacion | fechaCentro:'dd/MM/yyyy HH:mm' }}</ng-container>
               </p>
             </div>
           </div>
@@ -960,7 +932,7 @@
               <h3 class="card-title-prof"><span class="material-symbols-outlined icono-inline" aria-hidden="true">assignment</span> Ficha de antecedentes</h3>
               <button class="btn-editar-perfil" (click)="abrirGestionPlantilla()"><span class="material-symbols-outlined icono-inline" aria-hidden="true">settings</span> Gestionar preguntas</button>
             </div>
-            <p class="modal-desc" *ngIf="fichaFechaModificacion">Última modificación: {{ fichaFechaModificacion | date:'dd/MM/yyyy HH:mm' }}</p>
+            <p class="modal-desc" *ngIf="fichaFechaModificacion">Última modificación: {{ fichaFechaModificacion | fechaCentro:'dd/MM/yyyy HH:mm' }}</p>
             <app-cuestionario-opcional [profId]="profDbId" [estudianteId]="pacienteSeleccionado.estudiante_id" [solicitado]="fichaCuestionarioSolicitado" [yaExiste]="fichaExiste" (cambio)="recargarFicha()"></app-cuestionario-opcional>
             <p class="cuestionario-aviso-prof" *ngIf="fichaCompletadoPor === 'estudiante' && !fichaRevisada">
               <span class="material-symbols-outlined icono-inline" aria-hidden="true">stethoscope</span> Este cuestionario lo respondió el estudiante antes de su atención. Revísalo y guarda para confirmarlo.

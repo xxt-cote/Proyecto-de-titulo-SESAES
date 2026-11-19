@@ -308,7 +308,7 @@
   min-width: 0;
 }
 
-.citas-tabs-fila {
+.citas-lista-acciones {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -317,63 +317,10 @@
   margin-bottom: 16px;
 }
 
-.citas-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.citas-tab {
-  height: 38px;
-  padding: 0 18px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  background: var(--c-fondo);
-  color: var(--c-suave);
-  font-size: 13px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  cursor: pointer;
-  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
-}
-
-.citas-tab:hover { color: var(--c-texto); border-color: var(--c-borde); }
-
-.citas-tab.activa {
-  background: var(--c-superficie);
-  border-color: var(--c-primario);
-  color: var(--c-primario-fuerte);
-}
-
-.citas-tabs-extra {
+.citas-limpiar {
   display: flex;
   align-items: center;
   gap: 14px;
-}
-
-.citas-chip-filtro {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 34px;
-  padding: 0 14px 0 10px;
-  border: 1px solid var(--c-borde);
-  border-radius: 999px;
-  background: var(--c-campo);
-  color: var(--c-suave);
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
-}
-
-.citas-chip-filtro .material-symbols-outlined { font-size: 17px; }
-.citas-chip-filtro:hover { border-color: var(--est-cancelada-fg); color: var(--est-cancelada-fg); }
-
-.citas-chip-filtro.activa {
-  background: var(--est-cancelada-bg);
-  border-color: var(--est-cancelada-fg);
-  color: var(--est-cancelada-fg);
 }
 
 .citas-link {
@@ -936,8 +883,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .citas-girando { animation: none; }
-  .citas-tab,
-  .citas-chip-filtro,
   .citas-btn-icono,
   .citas-pag-btn,
   .citas-accion,

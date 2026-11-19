@@ -1,13 +1,12 @@
 import os
+from alembic.util import CommandError
 
-from app.database import Base, engine, SessionLocal
+from app.database import engine, SessionLocal
+from app.migrations import upgrade_schema
+import app.models.init  # noqa: F401 — registra el esquema completo
 from app.models.usuario import Usuario
-from app.models.acceso_administrativo import AccesoAdministrativo, AccesoAdminEspecialidad
 from app.models.profesional import Profesional
-from app.models.horario import HorarioDisponible
-from app.models.cita import Cita
-from app.models.solicitud_horario import SolicitudHorario
-from app.models.especialidad_capability import EspecialidadCapability  # SA-11.2 — tabla nueva/aditiva
+from app.models.bloque_horario_semanal import BloqueHorarioSemanal
 from app.security import hash_password
 
 
@@ -52,7 +51,7 @@ def _obtener_password_seed() -> str:
 def init_db():
     # ── A. INICIALIZACIÓN DE ESQUEMA ─────────────────────────────
     # Esto se ejecuta siempre, sin importar si el seed demo está habilitado.
-    Base.metadata.create_all(bind=engine)
+    upgrade_schema(engine)
 
     # ── B. SEED DE DATOS DEMO (opt-in explícito) ─────────────────
     if not _seed_demo_habilitado():
@@ -90,7 +89,7 @@ def init_db():
         ]
         for u in usuarios:
             db.add(u)
-        db.commit()
+        db.flush()
 
         # ── PROFESIONALES ─────────────────────────────────────────
         # foto_url, correo y rut se completan luego desde el panel del profesional/admin
@@ -103,38 +102,51 @@ def init_db():
             {"nombre": "Dr. Joaquín Rodríguez", "especialidad": "Oftalmología",      "iniciales": "JR", "descripcion": "Evaluación visual completa y cuidado especializado para la salud de tus ojos.", "usuario_id": 10},
         ]
         for pd in profesionales_data:
-            db.add(Profesional(**pd))
-        db.commit()
+            # Los IDs no se suponen contiguos ni parten necesariamente en uno.
+            pd["usuario_id"] = usuarios[pd["usuario_id"] - 1].id
+            profesional = Profesional(**pd, duracion_min=60)
+            db.add(profesional)
+            db.flush()
+            for dia in range(5):
+                # Misma semana institucional para todos los profesionales demo.
+                # La colación se representa explícitamente: el motor no la infiere.
+                for inicio, fin, tipo in (
+                    ("09:00", "13:00", "disponible"),
+                    ("13:00", "14:00", "colacion"),
+                    ("14:00", "16:30" if dia == 4 else "17:30", "disponible"),
+                ):
+                    db.add(BloqueHorarioSemanal(
+                        profesional_id=profesional.id, dia_semana=dia,
+                        hora_inicio=inicio, hora_fin=fin, tipo=tipo,
+                    ))
+        db.flush()
 
-        # ── HORARIOS DISPONIBLES (semana 23–27 Jun 2026) ──────────
-        horarios = [
-            (1,"LUN",23,"2026-06-23",["09:00 AM","09:15 AM","09:30 AM","10:00 AM","10:15 AM","10:30 AM"]),
-            (1,"MIÉ",25,"2026-06-25",["09:00 AM","09:15 AM","10:00 AM","10:15 AM","10:30 AM"]),
-            (1,"VIE",27,"2026-06-27",["09:00 AM","09:15 AM","10:00 AM","10:15 AM"]),
-            (2,"MAR",24,"2026-06-24",["10:00 AM","10:30 AM","11:00 AM","11:30 AM"]),
-            (2,"JUE",26,"2026-06-26",["10:00 AM","10:30 AM","11:00 AM"]),
-            (3,"LUN",23,"2026-06-23",["08:00 AM","08:20 AM","08:40 AM","09:00 AM"]),
-            (3,"MAR",24,"2026-06-24",["08:00 AM","08:20 AM","09:00 AM"]),
-            (3,"MIÉ",25,"2026-06-25",["08:00 AM","08:20 AM","09:00 AM"]),
-            (3,"JUE",26,"2026-06-26",["08:00 AM","08:20 AM","09:00 AM"]),
-            (3,"VIE",27,"2026-06-27",["08:00 AM","08:20 AM"]),
-            (4,"MAR",24,"2026-06-24",["09:00 AM","09:30 AM","10:00 AM","10:30 AM"]),
-            (4,"JUE",26,"2026-06-26",["09:00 AM","09:30 AM","10:00 AM"]),
-            (5,"MIÉ",25,"2026-06-25",["11:00 AM","11:30 AM","12:00 PM"]),
-            (5,"VIE",27,"2026-06-27",["11:00 AM","11:30 AM","12:00 PM"]),
-            (6,"LUN",23,"2026-06-23",["09:00 AM","09:15 AM","09:30 AM"]),
-            (6,"MIÉ",25,"2026-06-25",["09:00 AM","09:15 AM","09:30 AM"]),
-        ]
-        for prof_id, dia_nombre, dia_num, fecha, horas in horarios:
-            for hora in horas:
-                db.add(HorarioDisponible(
-                    profesional_id=prof_id,
-                    dia_nombre=dia_nombre,
-                    dia_num=dia_num,
-                    fecha=fecha,
-                    hora=hora,
-                    estado="disponible"
-                ))
         db.commit()
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
+
+
+def main() -> int:
+    """Flujo único de instalación: esquema, demo opt-in y bootstrap explícito."""
+    import argparse
+    from app.bootstrap_superadmin import bootstrap_superadmin, BootstrapError
+
+    parser = argparse.ArgumentParser(description="Inicializar SESAES desde sus modelos")
+    parser.add_argument("--superadmin", action="store_true", help="Crear el primer superadmin")
+    args = parser.parse_args()
+    try:
+        init_db()
+        if args.superadmin:
+            bootstrap_superadmin()
+    except (SeedConfigError, BootstrapError, CommandError) as exc:
+        print(str(exc))
+        return 1
+    print("Inicialización completada.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -63,6 +63,9 @@ Y en app.routers.citas:
 
 from __future__ import annotations
 
+from tests.agenda_fixtures import aprobar_jornada
+
+
 import json
 from datetime import date, datetime, time, timedelta
 
@@ -750,6 +753,8 @@ def test_motivo_coincide_con_primer_conflicto_en_multiples_escenarios(db_session
 
     for kwargs, hora, ocupar, motivo_esperado in escenarios:
         prof = _profesional(db_session, **kwargs)
+        if ocupar:
+            aprobar_jornada(db_session, prof)
         db_session.commit()
         if ocupar:
             ocupante = _usuario(db_session, correo=f"ocupante-{prof.id}@sesaes.cl", rol="estudiante", rut=f"oc-{prof.id}")
@@ -1027,6 +1032,7 @@ def test_sobrecupo_con_dos_conflictos_persiste_dos_filas(db_session, monkeypatch
 def test_cita_normal_no_persiste_ninguna_fila(db_session):
     fecha = _dia_habil_futuro()
     prof = _profesional(db_session)
+    aprobar_jornada(db_session, prof)
     est = _usuario(db_session, correo="est-normal-a42@sesaes.cl", rol="estudiante", rut="a42-5")
     db_session.commit()
 
@@ -1066,6 +1072,7 @@ def test_conflicto_absoluto_junto_a_overridable_rechaza_sobrecupo(db_session, mo
 def test_slot_ocupado_sigue_rechazado_pese_a_sobrecupo(db_session, monkeypatch):
     fecha = _dia_habil_futuro()
     prof = _profesional(db_session, duracion_min=30)
+    aprobar_jornada(db_session, prof)
     ocupante = _usuario(db_session, correo="ocupante-a42@sesaes.cl", rol="estudiante", rut="a42-8")
     db_session.commit()
 

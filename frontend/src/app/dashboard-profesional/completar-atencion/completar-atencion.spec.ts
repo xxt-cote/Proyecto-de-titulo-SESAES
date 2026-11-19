@@ -42,24 +42,6 @@ describe('CompletarAtencionComponent', () => {
     expect(texto).not.toContain('¿Se emite receta');
   });
 
-  it('al activar la receta avisa que no sirve para estupefacientes ni psicotrópicos', async () => {
-    const { fixture, http } = crear(TODAS);
-    // El aviso de firma (Mi firma) consulta el estado de la firma al aparecer.
-    http.expectOne(`${API}/profesional/5/firma`).flush({ tiene_firma: false, metodo: null, actualizada_en: null, imagen: null });
-    const el = fixture.nativeElement as HTMLElement;
-    // ngModel conecta el campo al formulario en una microtarea: se le da un turno antes de pulsar.
-    await new Promise<void>(resolver => setTimeout(resolver));
-    fixture.detectChanges();
-    expect(el.querySelector('.ca-aviso-legal')).toBeNull();
-    const interruptor = el.querySelector('input[aria-label="Emitir receta médica"]') as HTMLInputElement;
-    interruptor.click();            // el cambio del checkbox actualiza el modelo en el acto
-    fixture.detectChanges();
-    const aviso = el.querySelector('.ca-aviso-legal');
-    expect(aviso?.getAttribute('role')).toBe('note');
-    expect(aviso?.textContent).toContain('estupefacientes ni psicotrópicos');
-    expect(aviso?.textContent).toContain('receta retenida o receta cheque');
-  });
-
   it('sin capacidades (o si falla la consulta) no ofrece documentos: fail-closed', () => {
     const { c, fixture } = crear('error');
     expect(c.puedeReceta).toBe(false);
@@ -76,6 +58,7 @@ describe('CompletarAtencionComponent', () => {
   it('receta activa sin medicamento completo bloquea la revisión', () => {
     const { c } = crear(TODAS);
     c.recetaActiva = true;
+    c.recetaValidaHasta = '2099-12-31';
     expect(c.problemas.length).toBe(1);
     expect(c.puedeRevisar).toBe(false);
     c.irARevisar();
@@ -90,6 +73,7 @@ describe('CompletarAtencionComponent', () => {
   it('el payload incluye la receta limpia y omite opcionales vacíos', () => {
     const { c } = crear(TODAS);
     c.recetaActiva = true;
+    c.recetaValidaHasta = '2099-12-31';
     c.items = [
       { medicamento: ' Amoxicilina 500 mg ', dosis: '1 cápsula', via: 'Oral', frecuencia: 'Cada 8 horas', periodo: '7 días', cantidad: '', marca: '', indicacion: 'Con alimentos' },
       { medicamento: '', dosis: '', via: 'Oral', frecuencia: '', periodo: '', cantidad: '', marca: '', indicacion: '' },
@@ -189,4 +173,49 @@ describe('CompletarAtencionComponent', () => {
     expect(c.medicamento).toBe('');
     expect(c.construirPayload()).toEqual({ observaciones_atencion: null, medicamento: null });
   });
+
+  it('exige fecha límite explícita, rechaza pasado y la incluye separada del tratamiento', () => {
+    const { c } = crear(TODAS);
+    c.recetaActiva = true;
+    c.items[0] = { ...c.items[0], medicamento: 'Medicamento de prueba', dosis: '1', frecuencia: 'cada día', periodo: '5 días' };
+    c.recetaValidaHasta = '';
+    expect(c.problemas.join(' ')).toContain('fecha límite');
+    c.recetaValidaHasta = '2000-01-01';
+    expect(c.problemas.join(' ')).toContain('anterior a hoy');
+    c.recetaValidaHasta = '2099-12-31';
+    expect(c.problemas).toEqual([]);
+    expect(c.construirPayload().receta.valida_hasta).toBe('2099-12-31');
+    expect(c.construirPayload().receta.medicamentos[0].periodo).toBe('5 días');
+  });
+
+  it('conserva la fecha elegida en el borrador y la limpia al empezar de cero', () => {
+    const { c } = crear(TODAS);
+    c.recetaValidaHasta = '2099-12-31';
+    c.guardarBorrador(true);
+    expect(JSON.parse(sessionStorage.getItem('sesaes_borrador_atencion_7')!).recetaValidaHasta).toBe('2099-12-31');
+    c.empezarDeCero();
+    expect(c.recetaValidaHasta).toBe('');
+  });
+
+  it('la emisión no ofrece registrar firma gráfica', () => {
+    const { fixture } = crear(TODAS);
+    expect(fixture.nativeElement.querySelector('app-mi-firma')).toBeNull();
+  });
+  it('al activar la receta avisa que no sirve para estupefacientes ni psicotrópicos', async () => {
+    const { fixture } = crear(TODAS);
+    const el = fixture.nativeElement as HTMLElement;
+    // ngModel conecta el campo al formulario en una microtarea: se le da un turno antes de pulsar.
+    await new Promise<void>(resolver => setTimeout(resolver));
+    fixture.detectChanges();
+    expect(el.querySelector('.ca-aviso-legal')).toBeNull();
+    const interruptor = el.querySelector('input[aria-label="Emitir receta médica"]') as HTMLInputElement;
+    interruptor.click();            // el cambio del checkbox actualiza el modelo en el acto
+    fixture.detectChanges();
+    const aviso = el.querySelector('.ca-aviso-legal');
+    expect(aviso?.getAttribute('role')).toBe('note');
+    expect(aviso?.textContent).toContain('estupefacientes ni psicotrópicos');
+    expect(aviso?.textContent).toContain('receta retenida o receta cheque');
+  });
+
+
 });

@@ -101,27 +101,8 @@
             </div>
           </div>
 
-          <!-- Calendario del mes (solo visual) -->
           <div class="card inicio-calendario">
-            <div class="calendario-header">
-              <button class="cal-nav-btn" (click)="calMesAnterior()"><span class="material-symbols-outlined">chevron_left</span></button>
-              <span>{{ calNombreMesVisible }}</span>
-              <button class="cal-nav-btn" (click)="calMesSiguiente()"><span class="material-symbols-outlined">chevron_right</span></button>
-            </div>
-            <div class="cal-grid-dias-nombre-admin">
-              <span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span>
-            </div>
-            <div class="cal-grid-admin">
-              <div *ngFor="let dia of calDiasMes" class="cal-celda-admin" [class.vacia]="!dia" [class.clickeable]="dia" (click)="seleccionarDiaInfo(dia)">
-                <span *ngIf="dia" [class.hoy]="dia.esHoy" [class.feriado]="esFeriado(dia.fecha)" [title]="nombreFeriado(dia.fecha)">{{ dia.num }}</span>
-              </div>
-            </div>
-            <div class="info-dia-admin" *ngIf="diaSeleccionadoInfo && infoDelDia(diaSeleccionadoInfo).length > 0">
-              <span class="info-dia-admin-item" *ngFor="let info of infoDelDia(diaSeleccionadoInfo)">{{ info }}</span>
-            </div>
-            <p class="info-dia-admin-vacio" *ngIf="diaSeleccionadoInfo && infoDelDia(diaSeleccionadoInfo).length === 0">
-              Nada especial que celebrar este día.
-            </p>
+            <app-calendario-institucional></app-calendario-institucional>
           </div>
         </div>
 

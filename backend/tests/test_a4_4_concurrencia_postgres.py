@@ -76,6 +76,7 @@ from app.database import Base
 from app.models.cita import Cita
 from app.models.cita_sobrecupo import CitaSobrecupo
 from app.models.profesional import Profesional
+from app.models.bloque_horario_semanal import BloqueHorarioSemanal
 from app.models.usuario import Usuario
 from app.routers import citas
 from app.schemas import CitaCreate
@@ -141,6 +142,12 @@ def datos_base(engine_postgres):
     setup.add_all([prof, actor_superadmin, *estudiantes])
     setup.commit()
     setup.refresh(prof)
+    setup.add_all([
+        BloqueHorarioSemanal(profesional_id=prof.id, dia_semana=dia,
+                             hora_inicio="09:00", hora_fin="16:30", tipo="disponible")
+        for dia in range(5)
+    ])
+    setup.commit()
     setup.refresh(actor_superadmin)
     for est in estudiantes:
         setup.refresh(est)
@@ -161,6 +168,7 @@ def datos_base(engine_postgres):
             )
         ).delete(synchronize_session=False)
         limpieza.query(Cita).filter(Cita.profesional_id == ids["profesional_id"]).delete()
+        limpieza.query(BloqueHorarioSemanal).filter(BloqueHorarioSemanal.profesional_id == ids["profesional_id"]).delete()
         limpieza.query(Profesional).filter(Profesional.id == ids["profesional_id"]).delete()
         limpieza.query(Usuario).filter(
             Usuario.id.in_([ids["actor_superadmin_id"], *ids["estudiante_ids"]])

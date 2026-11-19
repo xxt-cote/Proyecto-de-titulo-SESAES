@@ -8,7 +8,7 @@ Cubre exclusivamente el alcance autorizado para SA-0:
     (SeedConfigError) sin tocar la base de datos.
   - Las contraseñas sembradas quedan hasheadas (bcrypt), nunca en texto plano.
   - Idempotencia: una segunda ejecución no duplica usuarios.
-  - Base.metadata.create_all() se sigue ejecutando siempre (A y B separados).
+  - Alembic upgrade head se sigue ejecutando siempre (esquema y seed separados).
 
 Sigue la convención del proyecto: unittest de la biblioteca estándar
 (pytest no está declarado como dependencia). Ejecutar desde backend/:
@@ -25,9 +25,11 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app import init_db as init_db_module
-from app.database import Base
+from app.migrations import upgrade_schema
 from app.init_db import init_db, SeedConfigError
 from app.models.usuario import Usuario
+from app.models.profesional import Profesional
+from app.models.bloque_horario_semanal import BloqueHorarioSemanal
 from app.security import is_legacy_plaintext, verify_password
 
 
@@ -101,8 +103,8 @@ class SA0SeedSeguridadTests(unittest.TestCase):
                     init_db()
                     self.assertEqual(self._contar_usuarios(), 0)
 
-    # ── create_all sigue funcionando aunque el seed esté desactivado ──
-    def test_create_all_sigue_ejecutandose_con_seed_desactivado(self):
+    # ── Las migraciones funcionan aunque el seed esté desactivado ──
+    def test_migraciones_se_ejecutan_con_seed_desactivado(self):
         init_db()
         tablas = self._tablas_existentes()
         self.assertIn("usuario", tablas)
@@ -113,6 +115,31 @@ class SA0SeedSeguridadTests(unittest.TestCase):
         os.environ["SEED_DEMO_PASSWORD"] = "clave-demo-de-prueba"
         init_db()
         self.assertEqual(self._contar_usuarios(), 11)
+
+        with self.SessionLocal() as db:
+            profesionales = db.query(Profesional).all()
+            bloques = db.query(BloqueHorarioSemanal).all()
+            self.assertEqual(len(profesionales), 6)
+            self.assertEqual(len(bloques), 90)
+            self.assertEqual(sum(b.tipo == "disponible" for b in bloques), 60)
+            self.assertEqual(sum(b.tipo == "colacion" for b in bloques), 30)
+            self.assertEqual({b.profesional_id for b in bloques}, {p.id for p in profesionales})
+            for profesional in profesionales:
+                with self.subTest(profesional=profesional.id):
+                    self.assertEqual(profesional.duracion_min, 60)
+                    semanales = [b for b in bloques if b.profesional_id == profesional.id]
+                    self.assertEqual(len(semanales), 15)
+                    self.assertEqual({b.dia_semana for b in semanales}, set(range(5)))
+                    for dia in range(5):
+                        diarios = sorted(
+                            (b.hora_inicio, b.hora_fin, b.tipo)
+                            for b in semanales if b.dia_semana == dia
+                        )
+                        self.assertEqual(diarios, [
+                            ("09:00", "13:00", "disponible"),
+                            ("13:00", "14:00", "colacion"),
+                            ("14:00", "16:30" if dia == 4 else "17:30", "disponible"),
+                        ])
 
     # ── Caso 4: seed habilitado pero falta SEED_DEMO_PASSWORD ─────
     def test_seed_true_sin_password_falla_seguro(self):
@@ -172,7 +199,7 @@ class SA0SeedSeguridadTests(unittest.TestCase):
     def test_bd_ya_inicializada_no_exige_password_ni_duplica(self):
         # Preparamos manualmente una BD "ya inicializada" con un usuario
         # cualquiera, sin pasar por el seed (para no depender de él acá).
-        Base.metadata.create_all(bind=self.engine)
+        upgrade_schema(self.engine)
         db = self.SessionLocal()
         try:
             db.add(Usuario(correo="ya.existente@utem.cl", password="hash-preexistente", rol="admin"))

@@ -1,7 +1,9 @@
+import { FechaCentroPipe } from '../shared/fecha-centro.pipe';
+import { CalendarioInstitucionalComponent } from '../shared/calendario-institucional/calendario-institucional';
+import { calendarioCentro } from '../shared/tiempo-centro';
 import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 
@@ -15,7 +17,7 @@ import { EstudianteHistorialComponent } from './historial/estudiante-historial';
 import { EstudianteCitasProximasComponent } from './citas-proximas/estudiante-citas-proximas';
 import { EstudianteTipoCitaBadgeComponent } from './tipo-cita-badge/estudiante-tipo-cita-badge';
 import { evaluarPassword, type PasswordChecklist } from '../shared/password-validation';
-import { coincideBusqueda } from '../shared/text-normalization';
+import { coincideBusqueda, normalizarTexto, etiquetasUnicas } from '../shared/text-normalization';
 import { fechaCorta, fechaLarga } from '../shared/formato-fecha';
 import { guardarBlob, mensajeErrorDescarga } from '../shared/descarga-archivo';
 import type { DocumentoResumen } from '../shared/documentos-cita/documentos-cita';
@@ -24,7 +26,7 @@ const API = environment.apiUrl;
 @Component({
   selector: 'app-dashboard-estudiante',
   standalone: true,
-  imports: [CommonModule, FormsModule, PhotoCropperComponent, PhotoViewerComponent, EstudianteHistorialComponent, EstudianteCitasProximasComponent, EstudianteTipoCitaBadgeComponent],
+  imports: [FechaCentroPipe, CalendarioInstitucionalComponent, CommonModule, FormsModule, PhotoCropperComponent, PhotoViewerComponent, EstudianteHistorialComponent, EstudianteCitasProximasComponent, EstudianteTipoCitaBadgeComponent],
   templateUrl: './dashboard-estudiante.html',
   styleUrl: './dashboard-estudiante.css'
 })
@@ -108,7 +110,6 @@ get subtituloSeccionEst(): string {
   }
 
   constructor(
-    private router: Router,
     private http: HttpClient,
     private cdr: ChangeDetectorRef,
     private sanitizer: DomSanitizer,
@@ -477,7 +478,7 @@ get subtituloSeccionEst(): string {
   get profesionalesFiltradosTotal(): any[] {
     return this.profesionales.filter(p =>
       coincideBusqueda(this.busqueda, p.nombre, p.especialidad)
-      && (this.filtroArea === '' || p.especialidad === this.filtroArea)
+      && (this.filtroArea === '' || normalizarTexto(p.especialidad) === normalizarTexto(this.filtroArea))
     );
   }
 
@@ -510,20 +511,22 @@ get subtituloSeccionEst(): string {
 
   // Especialidades dinámicas desde backend
   get especialidadesDisponibles(): string[] {
-    return Array.from(new Set(this.profesionales.map(p => p.especialidad).filter(Boolean)));
+    return etiquetasUnicas(this.profesionales.map(p => p.especialidad));
   }
 
   // ══════════════════════════════════════
   // CALENDARIO MENSUAL
   // ══════════════════════════════════════
 
-  mesVisible    = new Date().getMonth();
-  anioVisible   = new Date().getFullYear();
+  mesVisible    = calendarioCentro().getMonth();
+  anioVisible   = calendarioCentro().getFullYear();
   diasMes: any[] = [];
   fechaSeleccionada: string | null = null;
   horasDisponibles: string[] = [];
   mensajeDisponibilidad: string | null = null;
   calendarioAbierto = false;
+  fechasHabilitadas = new Set<string>();
+  private solicitudCalendario = 0;
 
   private _cargandoDisponibilidad = false;
   private _ultimaFechaPedida: string | null = null;
@@ -535,35 +538,8 @@ get subtituloSeccionEst(): string {
     return `${this.NOMBRES_MES[this.mesVisible]} ${this.anioVisible}`;
   }
 
-  // ── Calendario del Inicio (solo lectura): marca hoy y los días con cita ──
-  readonly DIAS_SEMANA_INICIO = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
-  private calInicioRef = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-
-  get calInicioTitulo(): string {
-    return `${this.NOMBRES_MES[this.calInicioRef.getMonth()]} ${this.calInicioRef.getFullYear()}`;
-  }
-
-  get calInicioDias(): ({ num: number; hoy: boolean; conCita: boolean } | null)[] {
-    const anio = this.calInicioRef.getFullYear();
-    const mes = this.calInicioRef.getMonth();
-    const vacias = (new Date(anio, mes, 1).getDay() + 6) % 7; // semana desde el lunes
-    const diasMes = new Date(anio, mes + 1, 0).getDate();
-    const hoy = this.hoyStr();
-    const conCita = new Set(this.proximasCitas.map(c => this.fechaIsoDe(c)));
-    const celdas: ({ num: number; hoy: boolean; conCita: boolean } | null)[] = Array(vacias).fill(null);
-    for (let d = 1; d <= diasMes; d++) {
-      const iso = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      celdas.push({ num: d, hoy: iso === hoy, conCita: conCita.has(iso) });
-    }
-    return celdas;
-  }
-
-  calInicioMesAnterior(): void {
-    this.calInicioRef = new Date(this.calInicioRef.getFullYear(), this.calInicioRef.getMonth() - 1, 1);
-  }
-
-  calInicioMesSiguiente(): void {
-    this.calInicioRef = new Date(this.calInicioRef.getFullYear(), this.calInicioRef.getMonth() + 1, 1);
+  get fechasCitasInicio(): string[] {
+    return this.proximasCitas.map(c => this.fechaIsoDe(c));
   }
 
   trackPorIndice = (indice: number): number => indice;
@@ -573,7 +549,7 @@ get subtituloSeccionEst(): string {
   trackPorDocumento = (_: number, item: { doc: DocumentoResumen }): number => item.doc.id;
 
   private hoyStr(): string {
-    const h = new Date();
+    const h = calendarioCentro();
     return `${h.getFullYear()}-${String(h.getMonth()+1).padStart(2,'0')}-${String(h.getDate()).padStart(2,'0')}`;
   }
 
@@ -584,10 +560,35 @@ get subtituloSeccionEst(): string {
     this.horasDisponibles = []; this.mensajeDisponibilidad = null;
     this.calendarioAbierto = false; this._ultimaFechaPedida = null;
     this.pasoAgendar = 2;
-    const hoy = new Date();
+    const hoy = calendarioCentro();
     this.mesVisible  = hoy.getMonth();
     this.anioVisible = hoy.getFullYear();
+    this.cargarCalendarioProfesional();
     this.generarCalendario();
+  }
+
+  private cargarCalendarioProfesional(): void {
+    const solicitud = ++this.solicitudCalendario;
+    this._cargandoDisponibilidad = false;
+    this.cargando = false;
+    const id = this.profesionalSeleccionado.profesional_id ?? this.profesionalSeleccionado.id;
+    this.fechasHabilitadas = new Set();
+    this.mensajeDisponibilidad = 'Cargando fechas disponibles...';
+    this.http.get<{ fechas: string[] }>(`${API}/disponibilidad/${id}/calendario`).subscribe({
+      next: (data) => {
+        if (solicitud !== this.solicitudCalendario || !this.profesionalSeleccionado) return;
+        this.fechasHabilitadas = new Set(data.fechas);
+        this.mensajeDisponibilidad = data.fechas.length ? null : 'El profesional no tiene fechas disponibles en los próximos 7 días.';
+        this.generarCalendario();
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        if (solicitud !== this.solicitudCalendario || !this.profesionalSeleccionado) return;
+        this.mensajeDisponibilidad = 'No se pudo cargar el calendario del profesional. Vuelve a seleccionarlo.';
+        this.generarCalendario();
+        this.cdr.detectChanges();
+      }
+    });
   }
 
   toggleCalendario(): void { this.calendarioAbierto = !this.calendarioAbierto; }
@@ -610,7 +611,7 @@ get subtituloSeccionEst(): string {
         num: dia, fecha: fechaStr, esFinde, esPasado, esHoy: fechaStr === hoyStr,
         esCerrado: !!diaCerradoInfo,
         motivoCerrado: diaCerradoInfo?.motivo || '',
-        deshabilitado: esFinde || esPasado || !!diaCerradoInfo
+        deshabilitado: esFinde || esPasado || !!diaCerradoInfo || !this.fechasHabilitadas.has(fechaStr)
       });
     }
     this.diasMes = celdas;
@@ -637,7 +638,7 @@ get subtituloSeccionEst(): string {
   }
 
   seleccionarDia(dia: any): void {
-    if (!dia || dia.deshabilitado) return;
+    if (!dia || dia.deshabilitado || !this.fechasHabilitadas.has(dia.fecha)) return;
     if (this.fechaSeleccionada === dia.fecha) { this.calendarioAbierto = false; return; }
     this.fechaSeleccionada = dia.fecha;
     this.horaSeleccionada  = '';
@@ -651,12 +652,15 @@ get subtituloSeccionEst(): string {
     const profesionalId = this.profesionalSeleccionado.profesional_id ?? this.profesionalSeleccionado.id;
     if (!profesionalId) { this.mensajeDisponibilidad = 'No se pudo identificar al profesional.'; return; }
     this._ultimaFechaPedida      = this.fechaSeleccionada;
+    const fechaPedida = this.fechaSeleccionada;
+    const calendarioPedido = this.solicitudCalendario;
     this._cargandoDisponibilidad = true;
     this.cargando                = true;
     this.horasDisponibles        = [];
     this.mensajeDisponibilidad   = null;
     this.http.get<any>(`${API}/disponibilidad/${profesionalId}?fecha=${this.fechaSeleccionada}`).subscribe({
       next: (data) => {
+          if (calendarioPedido !== this.solicitudCalendario || fechaPedida !== this.fechaSeleccionada) return;
         this.horasDisponibles      = data?.horas   ?? [];
         this.mensajeDisponibilidad = data?.mensaje ?? null;
         if (this.horasDisponibles.length > 0) this.mensajeDisponibilidad = null;
@@ -664,6 +668,7 @@ get subtituloSeccionEst(): string {
         this.cdr.detectChanges();
       },
       error: (err) => {
+          if (calendarioPedido !== this.solicitudCalendario || fechaPedida !== this.fechaSeleccionada) return;
         this.mensajeDisponibilidad   = err?.error?.detail ?? 'No se pudo cargar la disponibilidad.';
         this.cargando = false; this._cargandoDisponibilidad = false;
         this.cdr.detectChanges();
@@ -687,8 +692,14 @@ get subtituloSeccionEst(): string {
   confirmarCita(): void {
     if (this.enviandoCita) return; // evita doble envío por doble clic
     this.mensajeError = '';
+    if (!this.profesionalSeleccionado || !this.fechaSeleccionada ||
+        !this.fechasHabilitadas.has(this.fechaSeleccionada) ||
+        !this.horasDisponibles.includes(this.horaSeleccionada)) {
+      this.mensajeError = 'Selecciona una fecha y una hora disponibles.';
+      return;
+    }
     const duplicada = this.proximasCitas.find(
-      c => c.especialidad === this.profesionalSeleccionado?.especialidad && c.estado === 'pendiente'
+      c => normalizarTexto(c.especialidad) === normalizarTexto(this.profesionalSeleccionado?.especialidad) && c.estado === 'pendiente'
     );
     if (duplicada) {
       this.mensajeError = 'Ya tienes una cita pendiente en esta especialidad.';
@@ -728,6 +739,10 @@ get subtituloSeccionEst(): string {
   }
 
   private resetAgendar(): void {
+    ++this.solicitudCalendario;
+    this.fechasHabilitadas = new Set();
+    this._cargandoDisponibilidad = false;
+    this.cargando = false;
     this.pasoAgendar = 1; this.profesionalSeleccionado = null;
     this.horaSeleccionada = ''; this.fechaSeleccionada = null;
     this.horasDisponibles = []; this.observaciones = '';

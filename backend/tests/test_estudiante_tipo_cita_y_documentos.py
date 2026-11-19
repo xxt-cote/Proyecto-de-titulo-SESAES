@@ -60,7 +60,7 @@ def _cita(db, estado="pendiente", fecha="2026-10-20", hora="10:30", **extra) -> 
 def _emitir(db, cita, receta=True, justificativo=True):
     prof = db.query(Profesional).get(5)
     est = db.query(Usuario).get(99)
-    r = RecetaIn(medicamentos=[MedicamentoRecetaIn(medicamento="Paracetamol 500 mg", dosis="1 comprimido", frecuencia="cada 8 horas", periodo="3 días")]) if receta else None
+    r = RecetaIn(valida_hasta="2099-12-31", medicamentos=[MedicamentoRecetaIn(medicamento="Paracetamol 500 mg", dosis="1 comprimido", frecuencia="cada 8 horas", periodo="3 días")]) if receta else None
     j = JustificativoIn() if justificativo else None
     docs = emitir_documentos(db, cita, prof, est, r, j)
     db.commit()

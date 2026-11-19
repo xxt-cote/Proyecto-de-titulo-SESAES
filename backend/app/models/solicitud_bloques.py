@@ -7,8 +7,7 @@ class SolicitudBloques(Base):
     """
     Detalle de una SolicitudHorario de tipo "bloques": la lista completa de
     bloques pedidos, en JSON. Vive en una tabla aparte para no modificar
-    solicitud_horario: asi la tabla se crea sola al arrancar el backend
-    (create_all) y no hace falta ninguna migracion manual.
+    solicitud_horario. La tabla forma parte de la revisión base Alembic.
 
     bloques_json: '[{"dia_semana":0,"hora_inicio":"09:00","hora_fin":"13:00","tipo":"disponible"}, ...]'
     """

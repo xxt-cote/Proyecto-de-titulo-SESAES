@@ -1,3 +1,4 @@
+from app.tiempo import ahora_local, instante_utc
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -30,6 +31,7 @@ from app.services.agenda_disponibilidad_service import (
     excede_ventana_agendamiento_estudiante,
     adquirir_lock_agenda_profesional_fecha,
     canonicalizar_fecha_valida,
+    tiene_dia_aprobado,
     ConflictoSlot,
     SlotInvalidoError,
 )
@@ -407,6 +409,13 @@ def crear_cita(
         profesional_id=cita.profesional_id,
         fecha=fecha_canon,
     )
+    if not puede_gestionar_agenda and not tiene_dia_aprobado(
+        db, cita.profesional_id, datetime.strptime(fecha_canon, "%Y-%m-%d").date(),
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="El profesional no tiene bloques aprobados para este día.",
+        )
     resultado_disponibilidad = evaluar_disponibilidad_slot(
         db,
         profesional_id=cita.profesional_id,
@@ -462,7 +471,7 @@ def crear_cita(
                 Cita.estado == "pendiente"
             ).all()
         )
-        ahora = datetime.now()
+        ahora = ahora_local()
         duplicada = None
         for c in candidatas:
             try:
@@ -537,13 +546,8 @@ def crear_cita(
         # protección real contra doble reserva. El modelo vigente
         # (app/models/cita.py) no define ningún UniqueConstraint/Index
         # único sobre (profesional_id, fecha, hora) que este INSERT
-        # pudiera violar. Sin embargo, bases legacy pueden conservar
-        # físicamente índices parciales incompatibles creados fuera
-        # del modelo (p. ej. ux_cita_profesional_fecha_hora_pendiente)
-        # — A.4.4.1 los detecta y sanea mediante una migración
-        # controlada e idempotente (ver
-        # scripts/migrar_a4_4_1_eliminar_indice_unico_slot.py), en vez
-        # de asumir que "nunca existieron ni podrían existir". La
+        # pudiera violar. El esquema definitivo permite los sobrecupos.
+        # La
         # protección de concurrencia vigente sigue siendo
         # adquirir_lock_agenda_profesional_fecha() + la re-evaluación
         # de evaluar_disponibilidad_slot() DENTRO de ese lock, arriba.
@@ -663,6 +667,7 @@ def crear_cita(
         "fecha":        nueva.fecha,
         "hora":         nueva.hora,
         "urgente":      nueva.urgente or False,
+        "sobrecupo":    bool(nueva.sobrecupo),
         "aviso":        "Cancelación hasta 5 horas antes",
         "estado":       nueva.estado
     }
@@ -715,7 +720,7 @@ def cancelar_cita(
     # Un admin puede cancelar sin la restricción de las 5 horas (ej. por
     # ausencia del profesional o motivos operativos).
     if fecha_hora_cita and not puede_gestionar_agenda:
-        horas_restantes = (fecha_hora_cita - datetime.now()).total_seconds() / 3600
+        horas_restantes = (instante_utc(fecha_hora_cita) - instante_utc(ahora_local())).total_seconds() / 3600
         # La restricción de "mínimo 5 horas antes" solo tiene sentido si la
         # cita todavía está por venir. Si ya pasó la fecha/hora (horas_restantes
         # negativo) y el profesional nunca la cerró, el estudiante debe poder

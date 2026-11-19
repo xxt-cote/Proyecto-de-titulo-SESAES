@@ -1,9 +1,9 @@
+import { ZONA_CENTRO, fechaCentro } from '../../shared/tiempo-centro';
 import { ChangeDetectorRef, Component, EventEmitter, Input, OnDestroy, OnInit, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../config';
-import { MiFirmaComponent } from '../mi-firma/mi-firma';
 
 const API = environment.apiUrl;
 
@@ -22,7 +22,7 @@ export interface DocumentoEmitido { id: number; tipo: string; nombre_tipo: strin
 
 interface Borrador {
   observaciones: string; medicamento: string;
-  recetaActiva: boolean; items: ItemReceta[];
+  recetaActiva: boolean; items: ItemReceta[]; recetaValidaHasta?: string;
   justActiva: boolean; just: FormJustificativo;
 }
 
@@ -63,7 +63,7 @@ function justVacio(): FormJustificativo {
 @Component({
   selector: 'app-completar-atencion',
   standalone: true,
-  imports: [CommonModule, FormsModule, MiFirmaComponent],
+  imports: [CommonModule, FormsModule],
   templateUrl: './completar-atencion.html',
   styleUrls: ['./completar-atencion.css']
 })
@@ -89,6 +89,8 @@ export class CompletarAtencionComponent implements OnInit, OnDestroy {
   observaciones = '';
   medicamento = '';
   recetaActiva = false;
+  recetaValidaHasta = '';
+  get fechaMinimaReceta(): string { return fechaCentro(); }
   items: ItemReceta[] = [itemVacio()];
   justActiva = false;
   just: FormJustificativo = justVacio();
@@ -169,6 +171,8 @@ export class CompletarAtencionComponent implements OnInit, OnDestroy {
   get problemas(): string[] {
     const p: string[] = [];
     if (this.recetaActiva && this.puedeReceta) {
+      if (!this.recetaValidaHasta) p.push('Indica la fecha límite de uso de la receta.');
+      else if (this.recetaValidaHasta < this.fechaMinimaReceta) p.push('La fecha límite de uso no puede ser anterior a hoy.');
       const parciales = this.items.filter(it => !this.itemValido(it) && (this.lleno(it.medicamento) || this.lleno(it.dosis) || this.lleno(it.frecuencia) || this.lleno(it.periodo)));
       if (this.itemsCompletos === 0) p.push('La receta está activada pero no tiene ningún medicamento completo (medicamento, dosis, vía, frecuencia y período).');
       else if (parciales.length) p.push('Hay medicamentos de la receta a medias: complétalos o quítalos.');
@@ -213,6 +217,7 @@ export class CompletarAtencionComponent implements OnInit, OnDestroy {
 
     if (this.recetaActiva && this.puedeReceta) {
       body.receta = {
+        valida_hasta: this.recetaValidaHasta,
         medicamentos: this.items.filter(it => this.itemValido(it)).map(it => ({
           medicamento: it.medicamento.trim(),
           dosis: it.dosis.trim(),
@@ -281,6 +286,7 @@ export class CompletarAtencionComponent implements OnInit, OnDestroy {
       this.observaciones = b.observaciones ?? this.observaciones;
       this.medicamento   = b.medicamento ?? this.medicamento;
       this.recetaActiva  = !!b.recetaActiva;
+      this.recetaValidaHasta = b.recetaValidaHasta ?? '';
       this.items         = b.items?.length ? b.items : [itemVacio()];
       this.justActiva    = !!b.justActiva;
       this.just          = { ...justVacio(), ...(b.just ?? {}) };
@@ -293,7 +299,7 @@ export class CompletarAtencionComponent implements OnInit, OnDestroy {
     if (this.finalizado) return;
     const b: Borrador = {
       observaciones: this.observaciones, medicamento: this.medicamento,
-      recetaActiva: this.recetaActiva, items: this.items,
+      recetaActiva: this.recetaActiva, items: this.items, recetaValidaHasta: this.recetaValidaHasta,
       justActiva: this.justActiva, just: this.just
     };
     const crudo = JSON.stringify(b);
@@ -301,7 +307,7 @@ export class CompletarAtencionComponent implements OnInit, OnDestroy {
     try {
       sessionStorage.setItem(this.claveBorrador, crudo);
       this.ultimoBorrador = crudo;
-      this.borradorGuardadoA = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+      this.borradorGuardadoA = new Date().toLocaleTimeString('es-CL', { timeZone: ZONA_CENTRO, hour: '2-digit', minute: '2-digit' });
       this.cdr.detectChanges();
     } catch { /* sin almacenamiento disponible: no es crítico */ }
   }
@@ -315,7 +321,7 @@ export class CompletarAtencionComponent implements OnInit, OnDestroy {
     this.descartarBorrador();
     this.observaciones = this.cita?.observaciones_atencion || '';
     this.medicamento = this.cita?.medicamento || '';
-    this.recetaActiva = false; this.items = [itemVacio()];
+    this.recetaActiva = false; this.recetaValidaHasta = ''; this.items = [itemVacio()];
     this.justActiva = false; this.just = justVacio();
     this.borradorRecuperado = false;
     this.sanearSegunCapacidades();

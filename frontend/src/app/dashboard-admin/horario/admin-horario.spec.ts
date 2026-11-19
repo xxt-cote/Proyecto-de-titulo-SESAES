@@ -32,6 +32,40 @@ describe('AdminHorarioComponent', () => {
     );
   });
 
+  it('el encabezado selecciona el día en modo lectura sin abrir una reserva y el panel muestra sus distintas horas y sobrecupos', () => {
+    fixture.componentRef.setInput('filtroProfesionalId', '10');
+    fixture.componentRef.setInput('puedeGestionarAgenda', false);
+    fixture.componentRef.setInput('semanaActual', [
+      { fecha: '2026-11-19', nombre: 'Jue', num: 19, esHoy: false }
+    ]);
+    const bloqueSpy = vi.spyOn(component.bloqueClick, 'emit');
+    const nuevaSpy = vi.spyOn(component.abrirNuevaCita, 'emit');
+    const seleccionSpy = vi.spyOn(component.diaSeleccionadoChange, 'emit');
+    fixture.detectChanges();
+
+    const encabezado = fixture.nativeElement.querySelector('button.dia-header') as HTMLButtonElement;
+    expect(encabezado.type).toBe('button');
+    expect(encabezado.getAttribute('aria-pressed')).toBe('false');
+    encabezado.click();
+    expect(seleccionSpy).toHaveBeenCalledWith('2026-11-19');
+    expect(bloqueSpy).not.toHaveBeenCalled();
+    expect(nuevaSpy).not.toHaveBeenCalled();
+
+    // El padre recibe la fecha mediante el binding existente y entrega sus citas.
+    fixture.componentRef.setInput('diaSeleccionado', '2026-11-19');
+    fixture.componentRef.setInput('citasDiaSeleccionado', [
+      { id: 1, hora: '09:00', estudiante: 'Alumno A', estado: 'pendiente' },
+      { id: 2, hora: '09:00', estudiante: 'Alumno B', estado: 'pendiente', sobrecupo: true },
+      { id: 3, hora: '11:00', estudiante: 'Alumno C', estado: 'pendiente' }
+    ]);
+    fixture.detectChanges();
+    expect(encabezado.getAttribute('aria-pressed')).toBe('true');
+    const citas = fixture.nativeElement.querySelectorAll('.agenda-context-list .detalle-cita');
+    expect(citas.length).toBe(3);
+    expect(citas[1].textContent).toContain('Sobrecupo');
+    expect(citas[2].textContent).toContain('11:00');
+  });
+
   it('debe crearse', () => {
     fixture.detectChanges();
     expect(component).toBeTruthy();
@@ -1122,15 +1156,19 @@ describe('AdminHorarioComponent', () => {
       expect(component.alturaHora('08:00')).toBe(48);
     });
 
-    it('el botón «Solicitar sobrecupo» solo aparece con ambos permisos y emite el evento', () => {
+    it('el botón «Agendar sobrecupo» explica el permiso faltante y solo se habilita con ambos permisos', () => {
       fixture.detectChanges();
       const buscar = () => Array.from(fixture.nativeElement.querySelectorAll('button'))
-        .find(b => (b as HTMLElement).textContent?.includes('Solicitar sobrecupo')) as HTMLButtonElement | undefined;
+        .find(b => (b as HTMLElement).textContent?.includes('Agendar sobrecupo')) as HTMLButtonElement | undefined;
 
       fixture.componentRef.setInput('puedeGestionarAgenda', true);
       fixture.componentRef.setInput('puedeSobrecupo', false);
       fixture.detectChanges();
-      expect(buscar()).toBeUndefined();
+      expect(buscar()?.disabled).toBe(true);
+      expect(buscar()?.title).toContain('agenda.sobrecupo');
+      const denegado = vi.spyOn(component.abrirSobrecupo, 'emit');
+      component.onAbrirSobrecupo();
+      expect(denegado).not.toHaveBeenCalled();
 
       fixture.componentRef.setInput('puedeSobrecupo', true);
       fixture.detectChanges();
@@ -1149,7 +1187,7 @@ describe('AdminHorarioComponent', () => {
       fixture.componentRef.setInput('filtroProfesionalId', '');
       fixture.detectChanges();
       const boton = Array.from(fixture.nativeElement.querySelectorAll('button'))
-        .find(b => (b as HTMLElement).textContent?.includes('Solicitar sobrecupo')) as HTMLButtonElement;
+        .find(b => (b as HTMLElement).textContent?.includes('Agendar sobrecupo')) as HTMLButtonElement;
       expect(boton.disabled).toBe(true);
     });
   });
@@ -1181,7 +1219,7 @@ describe('AdminHorarioComponent', () => {
 
       const texto = fixture.nativeElement.textContent as string;
       expect(texto).not.toContain('Nueva cita');
-      expect(texto).not.toContain('Solicitar sobrecupo');
+      expect(texto).not.toContain('Agendar sobrecupo');
       expect(texto).not.toContain('Solicitudes de horario pendientes');
     });
 
@@ -1320,4 +1358,19 @@ describe('AdminHorarioComponent', () => {
     });
   });
 
+
+  it('el mes y el día ocultan fines de semana cuando solo se atiende de lunes a viernes', () => {
+    component.soloDiasLaborables = true;
+    component.mesCeldas = [
+      { fecha: '2026-11-20', num: 20, enMes: true, esHoy: false },
+      { fecha: '2026-11-21', num: 21, enMes: true, esHoy: false },
+      { fecha: '2026-11-22', num: 22, enMes: true, esHoy: false },
+      { fecha: '2026-11-23', num: 23, enMes: true, esHoy: false }
+    ];
+    expect(component.nombresDiasVisibles).toEqual(['Lun', 'Mar', 'Mié', 'Jue', 'Vie']);
+    expect(component.celdasMesVisibles.map(c => c.num)).toEqual([20, 23]);
+    component.vista = 'dia';
+    component.diaActual = { fecha: '2026-11-21', num: 21, nombre: 'Sáb', esHoy: false };
+    expect(component.diasGrilla).toEqual([]);
+  });
 });

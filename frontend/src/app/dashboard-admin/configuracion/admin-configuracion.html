@@ -333,7 +333,7 @@
               </thead>
               <tbody>
                 <tr *ngFor="let a of auditoria">
-                  <td>{{ a.fecha | date:'dd/MM/yyyy HH:mm' }}</td>
+                  <td>{{ a.fecha | fechaCentro:'dd/MM/yyyy HH:mm' }}</td>
                   <td>{{ a.accion }}</td>
                   <td>{{ a.detalle }}</td>
                   <td>{{ a.entidad }}{{ a.entidad_id ? ' #' + a.entidad_id : '' }}</td>

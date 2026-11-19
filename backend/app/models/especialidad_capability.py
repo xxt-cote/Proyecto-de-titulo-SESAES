@@ -13,14 +13,9 @@ es un UPDATE de `activo`, no un DELETE — se conserva el registro para
 auditoría/histórico, igual criterio que el resto del proyecto (ver
 decisiones de SA-2 sobre no ocultar historial).
 
-Este modelo debe importarse explícitamente en algún punto cargado antes
-de `Base.metadata.create_all(bind=engine)` (init_db.py y/o
-app/models/init.py, según el patrón ya usado por el resto de modelos)
-para que SQLAlchemy registre la tabla. No se detectó Alembic propio en
-el proyecto (solo create_all), así que esta tabla se crea de forma
-aditiva la primera vez que corra init_db() contra una BD que no la
-tenga — no se requiere migración destructiva ni recrear tablas
-existentes.
+El registro central app.models.init importa este modelo para compartir
+Base.metadata con Alembic. La tabla está incluida en la revisión base;
+los cambios posteriores requieren una revisión versionada.
 """
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+import { calendarioCentro } from '../../shared/tiempo-centro';
 import { ChangeDetectorRef, Component, DestroyRef, EventEmitter, Input, OnInit, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -6,7 +7,7 @@ import { Observable } from 'rxjs';
 
 import { AuthService } from '../../auth.service';
 import { Permission } from '../../shared/auth/permission.model';
-import { SuperadminInicioCalendarioComponent } from './superadmin-inicio-calendario';
+import { CalendarioInstitucionalComponent } from '../../shared/calendario-institucional/calendario-institucional';
 import {
   AccionInicio,
   AdministradorResumen,
@@ -122,7 +123,7 @@ export const ETIQUETA_INCIDENCIAS = 'Incidencias (eventos de error/denegación)'
 @Component({
   selector: 'app-superadmin-inicio',
   standalone: true,
-  imports: [CommonModule, SuperadminInicioCalendarioComponent],
+  imports: [CommonModule, CalendarioInstitucionalComponent],
   templateUrl: './superadmin-inicio.html',
   styleUrl: './superadmin-inicio.css'
 })
@@ -221,7 +222,7 @@ export class SuperadminInicioComponent implements OnInit {
   }
 
   cargarEspecialidades(): void {
-    const hoy = new Date();
+    const hoy = calendarioCentro();
     const mes = hoy.getMonth() + 1;
     const anio = hoy.getFullYear();
     this.periodoEspecialidades = etiquetaMesLargo(`${anio}-${String(mes).padStart(2, '0')}`);
@@ -443,7 +444,7 @@ export class SuperadminInicioComponent implements OnInit {
         valor: String(k.especialidades), nota: 'Distintas en profesionales', disponible: true,
         definicion: 'Cantidad de especialidades distintas registradas en los profesionales. '
           + 'No existe un catálogo de especialidades: se cuentan los valores del campo, '
-          + 'ignorando mayúsculas y espacios sobrantes (no unifica variantes con y sin tilde).'
+          + 'ignorando mayúsculas, tildes y espacios sobrantes.'
       },
       {
         clave: 'solicitudes', etiqueta: 'Solicitudes pendientes', icono: 'pending_actions', tono: 'orange',

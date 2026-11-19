@@ -5,7 +5,9 @@ from app.database import get_db
 from app.models.configuracion_centro import ConfiguracionCentro
 from app.models.usuario import Usuario
 from app.schemas import ConfiguracionCentroOut, ConfiguracionCentroUpdate
-from app.security import verify_password, hash_password
+from app.security import (
+    verify_password, hash_password, password_cumple_politica, PASSWORD_POLICY_MESSAGE,
+)
 from app.auth_dependencies import get_current_user, verificar_rol
 from app.rbac.permissions import Permission, has_permission
 
@@ -134,11 +136,16 @@ def cambiar_password_admin(
     contrasena_actual = body.get("contrasena_actual")
     contrasena_nueva = body.get("contrasena_nueva")
 
-    if not contrasena_actual or not contrasena_nueva:
+    if not isinstance(contrasena_actual, str) or not isinstance(contrasena_nueva, str) or not contrasena_actual or not contrasena_nueva:
         raise HTTPException(
             status_code=400,
             detail="Debes ingresar la contraseña actual y la nueva",
         )
+
+    if not password_cumple_politica(contrasena_nueva):
+        raise HTTPException(status_code=400, detail=PASSWORD_POLICY_MESSAGE)
+    if len(contrasena_nueva.encode("utf-8")) > 72:
+        raise HTTPException(status_code=400, detail="La contraseña admite como máximo 72 bytes UTF-8.")
 
     usuario = (
         db.query(Usuario)
@@ -157,6 +164,9 @@ def cambiar_password_admin(
             status_code=400,
             detail="La contraseña actual es incorrecta",
         )
+
+    if verify_password(contrasena_nueva, usuario.password):
+        raise HTTPException(status_code=400, detail="La nueva contraseña debe ser diferente a la actual.")
 
     usuario.password = hash_password(contrasena_nueva)
     db.commit()

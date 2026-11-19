@@ -11,6 +11,17 @@ venv/
 
 # Environment
 .env
+.env.*
+!.env.example
+*.dump
+*.backup
+*.sql
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.sqlite-*
+build/
 
 # Angular / Node
 node_modules/

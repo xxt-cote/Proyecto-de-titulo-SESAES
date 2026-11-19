@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { AdminProfesionalesComponent } from './admin-profesionales';
+import { etiquetasUnicas } from '../../shared/text-normalization';
 
 /**
  * AdminProfesionalesComponent no tiene dependencias inyectadas en su
@@ -31,6 +32,53 @@ describe('AdminProfesionalesComponent.nombreConTratamiento', () => {
       tratamiento: null
     });
     expect(resultado).toBe('Carlos Muñoz');
+  });
+});
+
+describe('Alta profesional con contraseña propia', () => {
+  const preparar = () => {
+    const c = new AdminProfesionalesComponent();
+    c.puedeGestionarProfesionales = true;
+    c.abrirModalAgregar();
+    Object.assign(c.profNuevoDatos, { nombre: 'Profesional ficticio', correo: 'prueba@utem.cl', especialidad: 'Nutrición' });
+    return c;
+  };
+  it('abre sin contraseña predeterminada y rechaza claves débiles o distintas', () => {
+    const c = preparar();
+    expect(c.profNuevoDatos.password).toBe('');
+    expect(c.continuarCrearProf()).toBe(false);
+    c.profNuevoDatos.password = 'debil';
+    c.passwordConfirmacion = 'debil';
+    expect(c.continuarCrearProf()).toBe(false);
+    c.profNuevoDatos.password = 'PropiaSegura123!';
+    expect(c.continuarCrearProf()).toBe(false);
+  });
+  it('envía la contraseña indicada y limpia los campos al cerrar', () => {
+    const c = preparar();
+    c.profNuevoDatos.password = c.passwordConfirmacion = 'PropiaSegura123!';
+    const emit = vi.spyOn(c.crearProfesional, 'emit');
+    expect(c.continuarCrearProf()).toBe(true);
+    c.confirmarCrearProf();
+    expect(emit).toHaveBeenCalledWith(expect.objectContaining({ password: 'PropiaSegura123!' }));
+    c.cerrarModal();
+    expect(c.profNuevoDatos.password).toBe('');
+    expect(c.passwordConfirmacion).toBe('');
+  });
+  it('no emite si se invalida la contraseña en confirmación', () => {
+    const c = preparar();
+    const emit = vi.spyOn(c.crearProfesional, 'emit');
+    c.confirmarCrearProf();
+    expect(emit).not.toHaveBeenCalled();
+  });
+});
+
+describe('Especialidades normalizadas', () => {
+  it('agrupa acentos, mayúsculas y espacios conservando una etiqueta', () => {
+    expect(etiquetasUnicas([' Nutrición ', 'nutricion', 'NUTRICIÓN', 'Medicina  General', ' medicina general ', '']))
+      .toEqual(['Nutrición', 'Medicina General']);
+    const c = new AdminProfesionalesComponent();
+    c.profesionales = ['Nutricion', 'nutrición', 'NUTRICIÓN'].map(especialidad => ({ especialidad }));
+    expect(c.especialidadesReales.length).toBe(1);
   });
 });
 
@@ -145,5 +193,25 @@ describe('AdminProfesionalesComponent — SA-10.2B read-only vs gestionar', () =
     expect(tratamientoSpy).not.toHaveBeenCalled();
     expect(colorSpy).not.toHaveBeenCalled();
     expect(eliminarSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('Edición de contacto del profesional', () => {
+  it('normaliza correo, valida RUT y mantiene el control de permisos', () => {
+    const c = new AdminProfesionalesComponent();
+    c.puedeGestionarProfesionales = true;
+    c.abrirModalAcciones({ id: 7, nombre: 'Profesional', duracion_min: 60, estado: 'activo', correo: 'original@utem.cl' });
+    const emit = vi.spyOn(c.cambiarContacto, 'emit');
+    c.profSeleccionado.nuevoCorreo = ' NUEVO@UTEM.CL ';
+    c.profSeleccionado.nuevoRut = '12.345.678-0';
+    c.guardarContactoProfesional();
+    expect(emit).not.toHaveBeenCalled();
+    c.profSeleccionado.nuevoRut = '12.345.678-5';
+    c.guardarContactoProfesional();
+    expect(emit).toHaveBeenCalledWith(expect.objectContaining({ correo: 'nuevo@utem.cl', rut: '12.345.678-5' }));
+    emit.mockClear();
+    c.puedeGestionarProfesionales = false;
+    c.guardarContactoProfesional();
+    expect(emit).not.toHaveBeenCalled();
   });
 });

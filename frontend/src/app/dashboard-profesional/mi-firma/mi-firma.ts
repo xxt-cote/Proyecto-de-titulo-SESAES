@@ -1,3 +1,4 @@
+import { FechaCentroPipe } from '../../shared/fecha-centro.pipe';
 import { ChangeDetectorRef, Component, Input, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
@@ -31,7 +32,7 @@ const NOMBRE_METODO: Record<string, string> = {
 @Component({
   selector: 'app-mi-firma',
   standalone: true,
-  imports: [CommonModule, FirmaPadComponent],
+  imports: [FechaCentroPipe, CommonModule, FirmaPadComponent],
   templateUrl: './mi-firma.html',
   styleUrl: './mi-firma.css',
 })

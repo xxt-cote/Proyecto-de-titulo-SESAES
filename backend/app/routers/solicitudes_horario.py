@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 
 from app.database import get_db
@@ -567,7 +567,7 @@ def aprobar_solicitud(
         )
 
     solicitud.estado = "aprobado"
-    solicitud.fecha_resolucion = datetime.utcnow()
+    solicitud.fecha_resolucion = datetime.now(timezone.utc)
 
     _notificar_profesional(
         db,
@@ -668,7 +668,7 @@ def rechazar_solicitud(
 
     solicitud.estado = "rechazado"
     solicitud.motivo_rechazo = motivo
-    solicitud.fecha_resolucion = datetime.utcnow()
+    solicitud.fecha_resolucion = datetime.now(timezone.utc)
 
     tipo_desc = {
         "colacion": "colaci?n",

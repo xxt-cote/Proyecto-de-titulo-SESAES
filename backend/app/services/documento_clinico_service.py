@@ -21,13 +21,12 @@ import hashlib
 import json
 import os
 import secrets
-from datetime import datetime, timezone, timedelta
+from datetime import date, datetime, timezone, timedelta
 from typing import Optional
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.services import firma_profesional_service as _firma_svc
 from app.models.cita import Cita
 from app.models.documento_clinico import (
     DocumentoClinico,
@@ -142,13 +141,12 @@ def fecha_corta(valor) -> str:
 
 
 def a_hora_local(iso: str) -> datetime:
-    """'emitido_en' se guarda en UTC; se muestra en hora de Chile (con respaldo a UTC)."""
+    """Los timestamps sin zona de columnas aware se interpretan como UTC."""
+    from app.tiempo import ZONA_CENTRO
     dt = datetime.fromisoformat(iso)
-    try:
-        from zoneinfo import ZoneInfo
-        return dt.astimezone(ZoneInfo("America/Santiago"))
-    except Exception:  # sin base de zonas horarias instalada
-        return dt
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(ZONA_CENTRO)
 
 
 def url_validacion(folio: str) -> str:
@@ -189,6 +187,9 @@ def validar_emision(db: Session, prof: Profesional, receta, justificativo, cita_
     """
     if receta is not None:
         _exigir_capacidad(db, prof, TIPO_RECETA)
+        from app.tiempo import ahora_local
+        if receta.valida_hasta < ahora_local().date():
+            raise HTTPException(status_code=400, detail='La fecha límite de uso de la receta no puede ser anterior a su emisión.')
         _exigir_sin_vigente(db, cita_id, TIPO_RECETA)
     if justificativo is not None:
         _exigir_capacidad(db, prof, TIPO_JUSTIFICATIVO)
@@ -197,7 +198,7 @@ def validar_emision(db: Session, prof: Profesional, receta, justificativo, cita_
 
 def _base_contenido(cita: Cita, prof: Profesional, est: Usuario, ahora: datetime) -> dict:
     return {
-        "version": 1,
+        "version": 2,
         "emitido_en": ahora.replace(microsecond=0).isoformat(),
         "profesional": {
             "nombre": nombre_profesional(prof),
@@ -216,6 +217,7 @@ def _base_contenido(cita: Cita, prof: Profesional, est: Usuario, ahora: datetime
 def _contenido_receta(cita, prof, est, receta, ahora) -> dict:
     c = _base_contenido(cita, prof, est, ahora)
     c["medicamentos"] = [m.model_dump() for m in receta.medicamentos]
+    c["valida_hasta"] = receta.valida_hasta.isoformat()
     return c
 
 
@@ -259,7 +261,6 @@ def emitir_documentos(
         pedidos.append((TIPO_JUSTIFICATIVO, _contenido_justificativo(cita, prof, est, justificativo, ahora)))
 
     for tipo, contenido in pedidos:
-        contenido = _firma_svc.agregar_firma(db, prof, contenido)  # copia de la firma vigente, dentro de la huella
         folio = generar_folio(db)
         doc = DocumentoClinico(
             tipo=tipo,
@@ -343,7 +344,43 @@ def documentos_por_citas(db: Session, cita_ids: list[int]) -> dict[int, list[dic
 # ══════════════════════════════════════
 # Validación pública
 # ══════════════════════════════════════
-def validar_publicamente(db: Session, codigo: str) -> dict:
+def verificar_periodo_uso(doc: DocumentoClinico, fecha_consulta: date | None = None, *, ahora: datetime | None = None) -> dict:
+    """Autenticidad no implica cobertura de una ausencia ni autorización de entrega."""
+    c = doc.contenido
+    if doc.tipo == TIPO_JUSTIFICATIVO:
+        reposo = c.get("reposo") or {}
+        desde = reposo.get("desde") if reposo.get("indicado") else c["atencion"]["fecha"]
+        hasta = reposo.get("hasta") if reposo.get("indicado") else desde
+        base = {"desde": desde, "hasta": hasta,
+                "fecha_consultada": fecha_consulta.isoformat() if fecha_consulta else None}
+        if not desde or not hasta:
+            return {**base, "estado": "sin_periodo", "apto_para_uso": None,
+                    "mensaje": "No hay un período definido para comprobar la ausencia."}
+        if fecha_consulta is None:
+            return {**base, "estado": "requiere_fecha", "apto_para_uso": None,
+                    "mensaje": "Consulta la fecha de la ausencia para comprobar si está cubierta; la fecha de presentación puede ser posterior."}
+        cubre = desde <= fecha_consulta.isoformat() <= hasta
+        return {**base, "estado": "cubierto" if cubre else "fuera_de_periodo",
+                "apto_para_uso": cubre,
+                "mensaje": "La fecha consultada está cubierta." if cubre else "La fecha consultada no está cubierta por este justificativo."}
+    # Una fecha elegida por el visitante NO cambia la vigencia actual de una receta.
+    actual = ahora or datetime.now(timezone.utc)
+    hoy = a_hora_local(actual.isoformat()).date().isoformat()
+    desde = a_hora_local(c["emitido_en"]).date().isoformat()
+    hasta = c.get("valida_hasta")
+    base = {"desde": desde, "hasta": hasta, "fecha_consultada": hoy}
+    if not hasta:
+        return {**base, "estado": "sin_vigencia_definida", "apto_para_uso": None,
+                "mensaje": "Documento antiguo sin fecha límite de uso registrada. Su autenticidad no confirma vigencia para dispensación."}
+    vigente = desde <= hoy <= hasta
+    estado = "vigente" if vigente else ("vencida" if hoy > hasta else "aun_no_vigente")
+    return {**base, "estado": estado, "apto_para_uso": vigente,
+            "mensaje": ("Dentro del período de uso indicado por el profesional." if vigente else
+                        "Fuera del período de uso indicado por el profesional.") +
+                       " Esta consulta no registra entregas ni autoriza repeticiones."}
+
+
+def validar_publicamente(db: Session, codigo: str, fecha_consulta: date | None = None, *, ahora: datetime | None = None) -> dict:
     """
     Resultado seguro para mostrar SIN sesión. Solo expone tipo, profesional,
     fecha de emisión y nombre del estudiante enmascarado — nunca el
@@ -367,7 +404,8 @@ def validar_publicamente(db: Session, codigo: str) -> dict:
     }
     if doc.estado == ESTADO_ANULADO:
         return {"valido": False, "estado": "anulado", **base}
-    return {"valido": True, "estado": "vigente", **base}
+    return {"valido": True, "estado": "vigente", **base,
+            "verificacion_uso": verificar_periodo_uso(doc, fecha_consulta, ahora=ahora)}
 
 
 # ══════════════════════════════════════
@@ -506,14 +544,38 @@ def renderizar_pdf(doc: DocumentoClinico) -> bytes:
     )
 
     if es_receta:
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.set_text_color(*_TINTA)
+        limite = c.get("valida_hasta")
+        pdf.multi_cell(0, 5, _l1("Fecha limite de uso (inclusive): " + (fecha_corta(limite) if limite else "no registrada en este documento antiguo")), new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Helvetica", "", 7)
+        pdf.set_text_color(*_GRIS)
+        pdf.multi_cell(0, 4, _l1("La duracion del tratamiento es independiente. La verificacion no registra entregas ni autoriza repeticiones."), new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(3)
         pdf.set_font("Helvetica", "B", 8)
         pdf.set_text_color(*_VERDE)
         pdf.cell(0, 6, "RP (PRESCRIPCIÓN)", ln=True)
         for m in c["medicamentos"]:
+            col = ancho_util / 4
+            valores = [("Dosis", m["dosis"]), ("Vía", m["via"]),
+                       ("Frecuencia", m["frecuencia"]), ("Periodo", m["periodo"])]
+            extra = []
+            if m.get("cantidad"):
+                extra.append(f"Cantidad: {m['cantidad']}")
+            if m.get("marca"):
+                extra.append(f"Alternativa comercial: {m['marca']}")
+            if m.get("indicacion"):
+                extra.append(f"Indicación: {m['indicacion']}")
+            texto_extra = "  |  ".join(extra)
+            pdf.set_font("Helvetica", "B", 10)
+            alto_titulo = max(8, pdf.multi_cell(ancho_util - 6, 5, _l1(m["medicamento"]), dry_run=True, output="HEIGHT") + 3)
+            pdf.set_font("Helvetica", "B", 9)
+            alto_valores = max(pdf.multi_cell(col - 6, 5, _l1(v), dry_run=True, output="HEIGHT") for _, v in valores)
+            pdf.set_font("Helvetica", "", 8)
+            alto_extra = pdf.multi_cell(ancho_util - 6, 4, _l1(texto_extra), dry_run=True, output="HEIGHT") if texto_extra else 0
+            alto = alto_titulo + 4 + alto_valores + 5 + (alto_extra + 3 if texto_extra else 0)
             y0 = pdf.get_y()
-            alto = 34 if (m.get("indicacion") or m.get("marca")) else 24
             if y0 + alto > 215:
-                # No cortar la receta en silencio: continúa en otra hoja.
                 pdf.set_xy(15, y0)
                 pdf.set_font("Helvetica", "I", 8)
                 pdf.set_text_color(*_GRIS)
@@ -523,35 +585,34 @@ def renderizar_pdf(doc: DocumentoClinico) -> bytes:
                 pdf.rect(0, 0, pdf.w, 3, style="F")
                 pdf.set_xy(15, 12)
                 pdf.set_font("Helvetica", "B", 8)
-                pdf.set_text_color(*_VERDE)
-                pdf.cell(0, 6, _l1("RP (continuación) - Folio " + doc.folio), ln=True)
+                pdf.cell(0, 6, _l1("RP (continuación) - Folio " + doc.folio), new_x="LMARGIN", new_y="NEXT", align="L")
                 y0 = pdf.get_y()
             pdf.set_draw_color(226, 232, 240)
             pdf.rect(15, y0, ancho_util, alto)
             pdf.set_fill_color(*_FONDO)
-            pdf.rect(15, y0, ancho_util, 8, style="DF")
+            pdf.rect(15, y0, ancho_util, alto_titulo, style="DF")
             pdf.set_xy(18, y0 + 1.5)
             pdf.set_font("Helvetica", "B", 10)
             pdf.set_text_color(*_TINTA)
-            pdf.cell(ancho_util - 6, 5, _l1(m["medicamento"]))
-            col = ancho_util / 4
-            _campo(pdf, 18, y0 + 10, col, "Dosis", m["dosis"])
-            _campo(pdf, 18 + col, y0 + 10, col, "Vía", m["via"])
-            _campo(pdf, 18 + 2 * col, y0 + 10, col, "Frecuencia", m["frecuencia"])
-            _campo(pdf, 18 + 3 * col, y0 + 10, col, "Periodo", m["periodo"])
-            if m.get("indicacion") or m.get("marca") or m.get("cantidad"):
-                extra = []
-                if m.get("cantidad"):
-                    extra.append(f"Cantidad: {m['cantidad']}")
-                if m.get("marca"):
-                    extra.append(f"Alternativa comercial: {m['marca']}")
-                if m.get("indicacion"):
-                    extra.append(f"Indicación: {m['indicacion']}")
-                pdf.set_xy(18, y0 + 21)
+            pdf.multi_cell(ancho_util - 6, 5, _l1(m["medicamento"]), new_x="LMARGIN", new_y="NEXT", align="L")
+            for indice, (etiqueta, valor) in enumerate(valores):
+                x = 18 + indice * col
+                y = y0 + alto_titulo + 2
+                pdf.set_xy(x, y)
+                pdf.set_font("Helvetica", "", 7)
+                pdf.set_text_color(*_GRIS)
+                pdf.cell(col - 6, 4, _l1(etiqueta))
+                pdf.set_xy(x, y + 4)
+                pdf.set_font("Helvetica", "B", 9)
+                pdf.set_text_color(*_TINTA)
+                pdf.multi_cell(col - 6, 5, _l1(valor), new_x="LMARGIN", new_y="NEXT", align="L")
+            if texto_extra:
+                pdf.set_xy(18, y0 + alto_titulo + 4 + alto_valores + 5)
                 pdf.set_font("Helvetica", "", 8)
                 pdf.set_text_color(*_GRIS)
-                pdf.multi_cell(ancho_util - 6, 4, _l1("  |  ".join(extra)))
+                pdf.multi_cell(ancho_util - 6, 4, _l1(texto_extra), new_x="LMARGIN", new_y="NEXT", align="L")
             pdf.set_xy(15, y0 + alto + 4)
+
     else:
         pdf.set_font("Helvetica", "", 9)
         pdf.set_text_color(*_TINTA)
@@ -591,23 +652,20 @@ def renderizar_pdf(doc: DocumentoClinico) -> bytes:
         pdf.set_text_color(*_GRIS)
         pdf.multi_cell(0, 4, _l1("Diagnóstico: no incluido. Este documento justifica la inasistencia del estudiante en la fecha indicada y no constituye licencia médica."))
 
-    # Firma: imagen manuscrita digitalizada (si el profesional la registró) y una
-    # leyenda honesta: el documento se verifica por folio y QR; NO usa certificado
-    # de firma electrónica avanzada.
-    y_firma = 235
-    firma = c.get("firma") or {}
-    con_imagen = bool(firma.get("imagen")) and _firma_svc.dibujar_imagen(pdf, firma["imagen"], pdf.w / 2, y_firma - 1)
-    pdf.set_draw_color(*_TINTA)
-    pdf.line(pdf.w / 2 - 35, y_firma, pdf.w / 2 + 35, y_firma)
-    pdf.set_xy(15, y_firma + 1)
-    pdf.set_font("Helvetica", "B", 9)
+    # El folio aleatorio existente es el identificador único: barras y QR lo reutilizan.
+    # No se dibuja firma ni línea para firmar, incluso en documentos históricos.
+    pdf.set_fill_color(0, 0, 0)
+    texto_barras = "*" + doc.folio + "*"
+    ancho_barra = 1.0
+    ancho_codigo = len(texto_barras) * (16 / 3) * ancho_barra
+    pdf.code39(texto_barras, (pdf.w - ancho_codigo) / 2, 229, w=ancho_barra, h=10)
+    pdf.set_xy(15, 241)
+    pdf.set_font("Helvetica", "B", 8)
     pdf.set_text_color(*_TINTA)
-    pdf.cell(ancho_util, 5, _l1(prof["nombre"]), align="C", ln=True)
+    pdf.cell(ancho_util, 4, doc.folio, align="C")
+    pdf.set_xy(15, 246)
     pdf.set_font("Helvetica", "", 7)
-    pdf.set_text_color(*_GRIS)
-    leyenda = ("Firma manuscrita digitalizada. " if con_imagen else "") + \
-        "Documento electrónico verificable emitido el " + fecha_larga(emitido_local) + ", " + emitido_local.strftime("%H:%M") + " h"
-    pdf.cell(ancho_util, 4, _l1(leyenda), align="C")
+    pdf.cell(ancho_util, 4, _l1("Emitido por " + prof["nombre"] + " - " + emitido_local.strftime("%d/%m/%Y %H:%M")), align="C")
 
     # Verificación + QR
     y_ver = 252

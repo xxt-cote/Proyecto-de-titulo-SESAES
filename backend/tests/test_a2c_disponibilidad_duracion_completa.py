@@ -28,6 +28,9 @@ este archivo es adicional.
 
 from __future__ import annotations
 
+from tests.agenda_fixtures import aprobar_jornada
+
+
 from datetime import date, timedelta
 
 import pytest
@@ -70,9 +73,10 @@ def db_session():
         engine.dispose()
 
 
-def _dia_habil_futuro(dias_calendario: int = 1) -> str:
+def _dia_habil_futuro(dias_calendario: int = 1, *, lunes_a_jueves: bool = False) -> str:
     fecha = date.today() + timedelta(days=dias_calendario)
-    while fecha.weekday() >= 5:
+    # Los casos que esperan atención después de las 16:30 no aplican al viernes.
+    while fecha.weekday() >= (4 if lunes_a_jueves else 5):
         fecha += timedelta(days=1)
     return fecha.isoformat()
 
@@ -243,7 +247,7 @@ def test_cita_que_termina_exactamente_al_final_de_jornada_es_valida(db_session):
     db_session.commit()
 
     resultado = evaluar_disponibilidad_slot(
-        db_session, profesional_id=prof.id, fecha=_dia_habil_futuro(), hora="16:30",
+        db_session, profesional_id=prof.id, fecha=_dia_habil_futuro(lunes_a_jueves=True), hora="16:30",
     )
 
     assert resultado.disponible is True
@@ -289,7 +293,7 @@ def test_cita_que_termina_exactamente_al_cierre_institucional_es_valida(db_sessi
     db_session.commit()
 
     resultado = evaluar_disponibilidad_slot(
-        db_session, profesional_id=prof.id, fecha=_dia_habil_futuro(), hora="17:00",
+        db_session, profesional_id=prof.id, fecha=_dia_habil_futuro(lunes_a_jueves=True), hora="17:00",
     )
 
     assert resultado.disponible is True
@@ -423,6 +427,7 @@ def test_crear_cita_estudiante_rechaza_solapamiento_parcial_aunque_hora_inicio_s
     prof = _profesional(
         db_session, horario_inicio="09:00", horario_fin="17:00", duracion_min=45,
     )
+    aprobar_jornada(db_session, prof)
     ocupante = _estudiante(db_session, correo="ocupante-a2c-3@sesaes.cl", rut="10-3")
     nuevo = _estudiante(db_session, correo="nuevo-a2c-3@sesaes.cl", rut="10-4")
     _cita(db_session, estudiante_id=ocupante.id, profesional_id=prof.id, fecha=fecha, hora="10:00")
@@ -631,7 +636,7 @@ def test_listar_horas_disponibles_excluye_hora_que_excederia_cierre_centro(db_se
     db_session.commit()
 
     horas, _mensaje = listar_horas_disponibles(
-        db_session, profesional_id=prof.id, fecha=_dia_habil_futuro(),
+        db_session, profesional_id=prof.id, fecha=_dia_habil_futuro(lunes_a_jueves=True),
     )
 
     # 17:00–17:45 excede el cierre institucional (17:30): no debe listarse.

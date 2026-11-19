@@ -21,6 +21,21 @@ Plataforma web para la gestión de atenciones y agenda del servicio de salud est
 
 SESAES centraliza la gestión de estudiantes, profesionales de salud, agenda, citas y administración del servicio. La aplicación utiliza una arquitectura con frontend Angular y backend FastAPI, con autorización aplicada en backend mediante roles, permisos y alcance.
 
+## Instalación desde cero
+
+La entrega contiene **solo código: la base se entrega vacía, sin dump ni datos locales**.
+Seguir [Guía de instalación](PLAN_DE_MEJORAS.md#guia-instalacion), guía autocontenida con comandos y ejemplos.
+Crear una base PostgreSQL propia y configurar `backend/.env` desde `.env.example`.
+Aplicar Alembic con `python -m alembic upgrade head` (o `python -m app.init_db`) y crear el primer superadmin con `python -m app.init_db --superadmin`.
+Cargar profesionales/especialidades y alumnos por las vías documentadas, y aprobar los bloques horarios.
+Levantar FastAPI y Angular y verificar el login y una reserva; **no hacen falta archivos `.sql` ni migraciones sueltas**.
+
+El alta profesional del panel exige contraseña explícita y confirmación; no tiene clave fija. El alta de alumnos permanece solo por `POST /admin/estudiantes` (limitación visible y ejemplos en la guía). Las listas de especialidades normalizan tildes, mayúsculas y espacios (`Nutricion` y `Nutrición` se agrupan); cada profesional conserva una sola especialidad y no hay catálogo autónomo. Catálogo y múltiples especialidades quedan como deuda técnica.
+
+Para desplegar el frontend: definir `NG_APP_API_URL` en el entorno y ejecutar `npm run build`; no editar TypeScript. El valor por defecto para desarrollo es `http://localhost:8080`. La variable no es un secreto y se incorpora al bundle.
+
+Revisión completa: [Cierre de entrega](PLAN_DE_MEJORAS.md#cierre-entrega). Migraciones activas y revisión base Alembic: [Guía de migraciones](PLAN_DE_MEJORAS.md#guia-migraciones), [Cierre Alembic y demo](PLAN_DE_MEJORAS.md#cierre-alembic). Requisitos de producción con información de salud: [Datos sensibles](PLAN_DE_MEJORAS.md#datos-sensibles).
+
 ## Estado actual
 
 | Área                          | Estado                 |
@@ -118,38 +133,129 @@ Reglas actuales de interfaz:
 - Los nuevos componentes deben ser responsive cuando corresponda.
 - No introducir nuevas librerías de iconos sin una decisión explícita de arquitectura.
 
-## Desarrollo local
+## Desarrollo local y PostgreSQL desde cero
 
-### Backend
+Requisitos: Python 3.13, PostgreSQL 17 y Node.js compatible con Angular 22.
+
+### Crear una base vacía
+
+Desde `psql` con una cuenta autorizada para crear bases y roles:
+
+```sql
+CREATE ROLE sesaes LOGIN PASSWORD 'REEMPLAZAR_POR_UN_SECRETO_PROPIO';
+CREATE DATABASE sesaes OWNER sesaes;
+```
+
+No importar dumps antiguos ni ejecutar parches de `backend/scripts/`. Los modelos
+SQLAlchemy son la fuente del esquema, incluidas auditoría, solicitudes de bloques,
+documentos, firmas, permisos, índices y restricciones de unicidad.
+
+### Backend y esquema completo
 
 ```powershell
 cd backend
 python -m venv venv
-.env\Scripts\Activate.ps1
-pip install -r requirements.txt
+.\venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+Copy-Item .env.example .env
 ```
 
-Configura las variables de entorno en `backend/.env`.
+Editar `.env` con la URL de la base recién creada y un secreto JWT propio:
 
-Ejecutar:
+```dotenv
+DATABASE_URL=postgresql+psycopg2://sesaes:TU_PASSWORD@localhost:5432/sesaes
+JWT_SECRET_KEY=TU_SECRETO_ALEATORIO_LARGO
+CORS_ORIGINS=http://localhost:4200
+SEED_DEMO_DATA=false
+```
+
+Generar un secreto, por ejemplo, con `python -c "import secrets; print(secrets.token_urlsafe(48))"`.
+Codificar los caracteres especiales de usuario/contraseña al construir la URL PostgreSQL.
 
 ```powershell
+python -m app.init_db
 python -m uvicorn app.main:app --reload --port 8080
 ```
+
+El inicializador ejecuta **Alembic upgrade head**, revisión base `253cae9c234a`.
+Ya no usa `create_all`. El arranque de FastAPI ejecuta el mismo flujo, que es
+idempotente en bases versionadas. Una base histórica SESAES sin versión Alembic
+se rechaza antes de ejecutar DDL; no se adopta ni migra por accidente.
+No borrar ni estampar a ciegas una base con datos.
+
+### Migraciones futuras
+
+Desde `backend/`, con `DATABASE_URL` de desarrollo/pruebas y su esquema en head:
+
+```powershell
+python -m alembic revision --autogenerate -m "descripcion del cambio"
+# Revisar upgrade/downgrade antes de aplicar:
+python -m alembic upgrade head
+python -m alembic current
+python -m alembic check
+```
+
+Modelo, revisión y pruebas se versionan juntos. No crear parches de esquema sueltos
+en `backend/scripts/`. Ver [Guía de migraciones](PLAN_DE_MEJORAS.md#guia-migraciones) para revisión,
+reversión, backup y límites de autogenerate. Alembic está instalado y probado;
+ya no es una deuda pendiente.
+
+### Primer superadministrador
+
+Definir temporalmente en el entorno `SUPERADMIN_BOOTSTRAP_EMAIL`, `SUPERADMIN_BOOTSTRAP_PASSWORD` y,
+opcionalmente, `SUPERADMIN_BOOTSTRAP_NAME`. La contraseña debe cumplir la política
+vigente: mínimo ocho caracteres, mayúscula, minúscula, número y carácter especial, sin espacios.
+
+```powershell
+python -m app.init_db --superadmin
+```
+
+Crea primero el esquema y luego el primer superadmin. Rechaza un correo ocupado
+y una segunda ejecución del bootstrap; no cambia roles de cuentas existentes.
+Retirar las credenciales de bootstrap del entorno después de utilizarlo.
+El comando antiguo `python -m app.bootstrap_superadmin` se conserva por compatibilidad
+y requiere que el esquema ya exista. El arranque HTTP nunca crea superadmins.
+
+### Datos demo opcionales
+
+Solo en una base sin usuarios, establecer `SEED_DEMO_DATA=true` y
+`SEED_DEMO_PASSWORD` con una contraseña propia, y ejecutar `python -m app.init_db`.
+Se crean once cuentas demo (cuatro estudiantes, seis profesionales y un admin),
+con hashes bcrypt, seis profesionales de duración 60 minutos y 90 bloques aprobados:
+disponible 09:00–13:00, colación 13:00–14:00 y disponible 14:00–17:30
+de lunes a jueves o hasta 16:30 el viernes. Una única transacción evita semillas parciales y otra ejecución
+no duplica usuarios. El admin demo no obtiene permisos efectivos sin configurar
+su acceso administrativo. Si se necesitan demo y superadmin, activar el seed antes
+de ejecutar `python -m app.init_db --superadmin`. Desactivar el seed al terminar.
 
 ### Frontend
 
 ```powershell
 cd frontend
 npm ci
-npx ng serve
+npm start
 ```
 
-La aplicación queda disponible normalmente en:
+Frontend: http://localhost:4200. API local: http://127.0.0.1:8080.
+La API local predeterminada es `http://localhost:8080`. Para otra URL, definir `NG_APP_API_URL` antes de `npm start` o `npm run build`, como explica la guía.
 
-```text
-http://localhost:4200
-```
+## Agendamiento por días aprobados
+
+El estudiante solo puede seleccionar fechas con horas reales disponibles dentro
+de los próximos siete días y bloques disponibles en la agenda semanal aprobada
+del profesional. Se bloquean visualmente fines de semana, cierres institucionales,
+días sin bloques y días sin cupos. Mientras carga el calendario o falla la consulta,
+las fechas permanecen deshabilitadas. Cambiar de profesional descarta respuestas anteriores.
+
+`GET /disponibilidad/{id}/calendario` publica esas fechas y `GET /disponibilidad/{id}`
+publica sus horas. El servidor comprueba nuevamente al crear la cita: forzar por
+API un día sin bloques aprobados devuelve HTTP 400. Una jornada genérica o una
+solicitud pendiente/rechazada no habilitan días; aprobar una solicitud de bloques
+reemplaza la agenda semanal vigente. Se mantienen RBAC, alcance administrativo,
+auditoría y las políticas de urgencia/sobrecupo.
+
+Ver el inventario de módulos, archivos eliminados y decisiones en
+[Historial técnico](PLAN_DE_MEJORAS.md#historial-tecnico).
 
 ## Pruebas
 
@@ -158,14 +264,18 @@ http://localhost:4200
 ```powershell
 cd backend
 python -m pytest -q
+# Solo integración de esquema en PostgreSQL, con schema temporal aislado:
+$env:TEST_POSTGRES_URL = 'postgresql+psycopg2://usuario:password@localhost:5432/sesaes_test'
+python -m pytest tests/test_esquema_inicial.py -q
 ```
 
 ### Frontend
 
 ```powershell
 cd frontend
-npx ng test --watch=false
-npx ng build
+npm test -- --watch=false
+npm run build
+npx tsc --noEmit --noUnusedLocals --noUnusedParameters -p tsconfig.app.json
 ```
 
 Antes de integrar una rama a `main`, los cambios deben quedar sin errores de tests/build relacionados con su alcance.
@@ -236,3 +346,17 @@ Evitar reutilizar ramas antiguas para tareas nuevas.
 ---
 
 SESAES se desarrolla de manera incremental: cada módulo debe conservar seguridad, trazabilidad y compatibilidad con la arquitectura vigente antes de integrarse a `main`.
+
+
+## Versión integrada del equipo
+
+Esta copia combina main (854a727) con los avances locales. Las decisiones,
+procedencia y comprobaciones están en la sección 9.11 de [PLAN_DE_MEJORAS.md](PLAN_DE_MEJORAS.md).
+La revisión base 253cae9c234a se conserva y el head actual es 8d2e4f6a901b
+(seguridad de cuenta): 28 tablas de dominio y alembic_version.
+
+El login ofrece recuperación en /recuperar y restablecimiento en /restablecer.
+Se requieren FRONTEND_BASE_URL y SMTP configurado para enviar enlaces reales;
+RESET_TOKEN_MINUTES controla el vencimiento (30 minutos por defecto).
+Cinco fallos bloquean la cuenta quince minutos. Esta copia no incluye cuentas,
+contraseñas ni una base de datos local.

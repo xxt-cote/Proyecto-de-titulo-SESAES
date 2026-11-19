@@ -1,7 +1,8 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { normalizarTexto } from '../../shared/text-normalization';
+import { normalizarTexto, etiquetasUnicas } from '../../shared/text-normalization';
+import { evaluarPassword } from '../../shared/password-validation';
 
 /**
  * Fase 3.4C — extracción de la sección "Gestión de Profesionales" del
@@ -37,6 +38,7 @@ export class AdminProfesionalesComponent {
   // ── Intenciones emitidas al shell (el shell ejecuta el CRUD real) ──
   @Output() crearProfesional  = new EventEmitter<any>();
   @Output() cambiarEstado     = new EventEmitter<{ profesional: any; nuevoEstado: string; motivo: string }>();
+  @Output() cambiarContacto = new EventEmitter<{ profesional: any; correo: string; rut: string }>();
   @Output() cambiarDuracion   = new EventEmitter<{ profesional: any; duracionMin: number }>();
   @Output() cambiarTratamiento = new EventEmitter<{ profesional: any; tratamiento: string | null }>();
   @Output() cambiarColorIdentificador = new EventEmitter<{ profesional: any; color: string | null }>();
@@ -52,7 +54,7 @@ export class AdminProfesionalesComponent {
   /** Especialidades realmente presentes en profesionales[], sin mezclar
    * con la lista base usada como opciones del <select> de creación. */
   get especialidadesReales(): string[] {
-    return Array.from(new Set(this.profesionales.map(p => p.especialidad).filter(Boolean)));
+    return etiquetasUnicas(this.profesionales.map(p => p.especialidad));
   }
 
   get porcentajeActivos(): number {
@@ -147,7 +149,11 @@ export class AdminProfesionalesComponent {
   // ══════════════════════════════════════
   modalProfAbierto = false;
   mostrarConfirmacionProf = false;
-  profNuevoDatos: any = { nombre: '', tratamiento: '', especialidad: '', especialidadNueva: '', correo: '', rut: '', estado: 'activo', password: 'prof123', color_identificador: null };
+  profNuevoDatos: any = { nombre: '', tratamiento: '', especialidad: '', especialidadNueva: '', correo: '', rut: '', estado: 'activo', password: '', color_identificador: null };
+  passwordConfirmacion = '';
+  get passwordValida(): boolean {
+    return evaluarPassword(this.profNuevoDatos.password).valida && new TextEncoder().encode(this.profNuevoDatos.password).length <= 72;
+  }
   readonly tratamientosDisponibles = ['Dr.', 'Dra.'];
   rutValido = true;
   correoValido = true;
@@ -160,7 +166,8 @@ export class AdminProfesionalesComponent {
 
   abrirModalAgregar(): void {
     if (!this.puedeGestionarProfesionales) return;
-    this.profNuevoDatos = { nombre: '', tratamiento: '', especialidad: '', especialidadNueva: '', correo: '', rut: '', estado: 'activo', password: 'prof123', color_identificador: null };
+    this.profNuevoDatos = { nombre: '', tratamiento: '', especialidad: '', especialidadNueva: '', correo: '', rut: '', estado: 'activo', password: '', color_identificador: null };
+    this.passwordConfirmacion = '';
     this.duracionNumero = 45; this.duracionUnidad = 'minutos';
     this.mostrarConfirmacionProf = false; this.rutValido = true; this.correoValido = true;
     this.modalProfAbierto = true;
@@ -191,9 +198,12 @@ export class AdminProfesionalesComponent {
     if (!this.puedeGestionarProfesionales) return false;
     if (!this.profNuevoDatos.nombre.trim()) { this.errorValidacion.emit('El nombre es obligatorio.'); return false; }
     if (!this.profNuevoDatos.especialidad)  { this.errorValidacion.emit('Selecciona una especialidad.'); return false; }
+    if (this.profNuevoDatos.especialidad === 'otra' && !this.profNuevoDatos.especialidadNueva.trim()) { this.errorValidacion.emit('Escribe la nueva especialidad.'); return false; }
     if (!this.profNuevoDatos.correo.trim()) { this.errorValidacion.emit('El correo es obligatorio.'); return false; }
     if (!this.correoValido) { this.errorValidacion.emit('El correo debe ser @utem.cl.'); return false; }
     if (this.profNuevoDatos.rut && !this.rutValido) { this.errorValidacion.emit('El RUT ingresado no es válido.'); return false; }
+    if (!this.passwordValida) { this.errorValidacion.emit('La contraseña debe tener al menos 8 caracteres, mayúscula, minúscula, número y carácter especial, sin espacios, y como máximo 72 bytes UTF-8.'); return false; }
+    if (this.profNuevoDatos.password !== this.passwordConfirmacion) { this.errorValidacion.emit('Las contraseñas no coinciden.'); return false; }
     this.mostrarConfirmacionProf = true;
     return true;
   }
@@ -203,18 +213,22 @@ export class AdminProfesionalesComponent {
   /** Emite la intención final al shell; el shell ejecuta el POST real. */
   confirmarCrearProf(): void {
     if (!this.puedeGestionarProfesionales) return;
+    if (!this.continuarCrearProf()) return;
     const especialidadFinal = this.profNuevoDatos.especialidad === 'otra' ? this.profNuevoDatos.especialidadNueva : this.profNuevoDatos.especialidad;
     this.crearProfesional.emit({
       nombre: this.profNuevoDatos.nombre, tratamiento: this.profNuevoDatos.tratamiento || null,
       especialidad: especialidadFinal,
       correo: this.profNuevoDatos.correo, rut: this.profNuevoDatos.rut,
-      duracion_min: this.duracionEnMinutos, estado: 'activo', password: 'prof123',
+      duracion_min: this.duracionEnMinutos, estado: 'activo', password: this.profNuevoDatos.password,
       color_identificador: this.profNuevoDatos.color_identificador || null
     });
   }
 
   /** Público: el shell lo invoca (vía ViewChild) al confirmar la creación con éxito. */
-  cerrarModal(): void { this.modalProfAbierto = false; this.mostrarConfirmacionProf = false; }
+  cerrarModal(): void {
+    this.modalProfAbierto = false; this.mostrarConfirmacionProf = false;
+    this.profNuevoDatos.password = ''; this.passwordConfirmacion = '';
+  }
 
   // ══════════════════════════════════════
   // MODAL: ACCIONES / GESTIONAR PROFESIONAL
@@ -224,7 +238,7 @@ export class AdminProfesionalesComponent {
 
   abrirModalAcciones(p: any): void {
     if (!this.puedeGestionarProfesionales) return;
-    this.profSeleccionado = { ...p, nuevoEstado: p.estado, motivoCambio: '', nuevoTratamiento: p.tratamiento || '', nuevoColor: p.color_identificador || null };
+    this.profSeleccionado = { ...p, nuevoCorreo: p.correo || '', nuevoRut: p.rut || '', nuevoEstado: p.estado, motivoCambio: '', nuevoTratamiento: p.tratamiento || '', nuevoColor: p.color_identificador || null };
     this.duracionNumero = p.duracion_min <= 60 ? p.duracion_min : Math.round(p.duracion_min / 60);
     this.duracionUnidad = p.duracion_min > 60 ? 'horas' : 'minutos';
     this.modalAccionesAbierto = true;
@@ -262,6 +276,19 @@ export class AdminProfesionalesComponent {
   }
 
   /** Emite la intención al shell; el shell ejecuta el PATCH real. */
+  guardarContactoProfesional(): void {
+    if (!this.puedeGestionarProfesionales || !this.profSeleccionado) return;
+    const correo = this.profSeleccionado.nuevoCorreo.trim().toLowerCase();
+    const rut = this.profSeleccionado.nuevoRut.trim();
+    if (!/^[a-zA-Z0-9._%+\-]+@utem\.cl$/.test(correo)) {
+      this.errorValidacion.emit('El correo debe ser @utem.cl.'); return;
+    }
+    if (rut && !this.validarRut(rut)) {
+      this.errorValidacion.emit('El RUT ingresado no es válido.'); return;
+    }
+    this.cambiarContacto.emit({ profesional: this.profSeleccionado, correo, rut });
+  }
+
   guardarDuracionProfesional(): void {
     if (!this.puedeGestionarProfesionales) return;
     if (!this.profSeleccionado) return;

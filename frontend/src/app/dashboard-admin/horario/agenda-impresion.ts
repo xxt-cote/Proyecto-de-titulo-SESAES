@@ -1,3 +1,4 @@
+import { ZONA_CENTRO } from '../../shared/tiempo-centro';
 // Impresión aislada de la Agenda Admin.
 //
 // Problema que resuelve: imprimir con window.print() sobre la página
@@ -164,6 +165,7 @@ function crearEncabezado(destino: Document, opciones: OpcionesImpresionAgenda): 
   };
 
   const impreso = (opciones.fechaImpresion ?? new Date()).toLocaleString('es-CL', {
+    timeZone: ZONA_CENTRO,
     dateStyle: 'short',
     timeStyle: 'short'
   });

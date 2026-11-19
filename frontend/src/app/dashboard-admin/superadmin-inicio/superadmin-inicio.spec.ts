@@ -808,14 +808,13 @@ describe('SuperadminInicioComponent', () => {
       }
     });
 
-    it('Especialidades explicita que no hay catálogo y qué normaliza (sin unificar tildes)', async () => {
+    it('Especialidades explicita que no hay catálogo y normaliza también tildes', async () => {
       await montar();
       responderTodo();
 
       const def = q('[data-kpi="especialidades"]')!.getAttribute('title')!;
       expect(def).toContain('No existe un catálogo');
-      expect(def).toContain('mayúsculas y espacios sobrantes');
-      expect(def).toContain('no unifica variantes con y sin tilde');
+      expect(def).toContain('mayúsculas, tildes y espacios sobrantes');
     });
 
     it('Incidencias aclara que no es un módulo formal', async () => {
@@ -850,7 +849,7 @@ describe('SuperadminInicioComponent', () => {
       await montar();
       responderTodo();
 
-      expect(q('[data-testid="card-calendario"] app-superadmin-inicio-calendario')).toBeTruthy();
+      expect(q('[data-testid="card-calendario"] app-calendario-institucional')).toBeTruthy();
       const inst = texto('[data-testid="card-institucional"]');
       expect(inst).toContain('SESAES');
       expect(inst).toContain('Salud Estudiantil');

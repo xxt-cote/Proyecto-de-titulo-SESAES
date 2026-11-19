@@ -1,5 +1,5 @@
+declare const NG_APP_API_URL: string | undefined;
+
 export const environment = {
-  apiUrl: window.location.hostname === 'localhost'
-    ? 'http://localhost:8080'
-    : 'https://sesaes-backend.onrender.com'
+  apiUrl: typeof NG_APP_API_URL === 'string' ? NG_APP_API_URL : 'http://localhost:8080'
 };

@@ -19,7 +19,7 @@
   <ng-container *ngIf="!cargando && !errorCarga && !editando">
     <div class="mf-actual" *ngIf="tieneFirma">
       <div class="mf-vista"><img [src]="firma!.imagen" alt="Vista previa de tu firma registrada" /></div>
-      <p class="mf-meta" *ngIf="!compacto">Registrada: {{ metodoTexto }}<span *ngIf="firma!.actualizada_en"> · {{ firma!.actualizada_en | date:'dd/MM/yyyy HH:mm' }}</span></p>
+      <p class="mf-meta" *ngIf="!compacto">Registrada: {{ metodoTexto }}<span *ngIf="firma!.actualizada_en"> · {{ firma!.actualizada_en | fechaCentro:'dd/MM/yyyy HH:mm' }}</span></p>
       <p class="mf-ok" *ngIf="compacto">Se incorporará a los documentos que emitas.</p>
       <div class="mf-acciones">
         <button type="button" class="mf-btn" (click)="abrirEditor()">Cambiar firma</button>

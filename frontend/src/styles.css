@@ -49,3 +49,33 @@ body {
   text-decoration: none;
 }
 .skip-link:focus { top: 8px; outline: 2px solid #fff; outline-offset: 2px; }
+
+/* Controles comunes de los tres portales: foco y cierre de notificaciones. */
+:is(.admin-shell, .profesional-shell, .estudiante-shell) :is(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--focus-ring, #0d9488);
+  outline-offset: 3px;
+}
+:is(.admin-shell, .profesional-shell).tema-oscuro,
+.tema-oscuro .estudiante-shell { --focus-ring: #2dd4bf; }
+.sesaes-notif-acciones { display: flex; align-items: center; gap: 10px; }
+.sesaes-notif-cerrar {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; flex-shrink: 0; padding: 4px;
+  background: transparent; color: inherit; border: 1px solid transparent;
+  border-radius: 8px; cursor: pointer;
+}
+.sesaes-notif-cerrar:hover { border-color: currentColor; }
+
+.sesaes-menu-cerrar {
+  display: none; position: absolute; top: 18px; right: 8px;
+  align-items: center; justify-content: center; width: 32px; height: 32px;
+  padding: 4px; background: transparent; border: 1px solid transparent;
+  border-radius: 8px; color: inherit; cursor: pointer;
+}
+.sesaes-menu-cerrar:hover { border-color: currentColor; }
+@media (max-width: 1024px) {
+  :is(.admin-shell, .estudiante-shell) .sesaes-menu-cerrar { display: inline-flex; }
+}
+@media (max-width: 768px) {
+  .profesional-shell .sesaes-menu-cerrar { display: inline-flex; }
+}

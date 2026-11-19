@@ -1,19 +1,19 @@
 <div class="vd-page">
 
-  <a class="skip-link" href="#main">Saltar al contenido</a>
+  <a class="skip-link" (click)="$event.preventDefault(); contenidoPrincipal.focus()" href="#main">Saltar al contenido</a>
 
   <header class="vd-header">
     <span class="vd-logo">SESAES</span>
     <a class="vd-login-link" routerLink="/login">Iniciar sesión</a>
   </header>
 
-  <main class="vd-main" id="main">
+  <main #contenidoPrincipal class="vd-main" id="main" tabindex="-1">
 
     <section class="vd-card">
       <h1>Validar documento</h1>
       <p class="vd-sub">
         Ingresa el código impreso en tu receta o justificativo, o escanea su código QR,
-        para comprobar que es auténtico.
+        para comprobar su registro y consultar su período de uso.
       </p>
 
       <label class="vd-label" for="vd-codigo">Código del documento</label>
@@ -64,10 +64,24 @@
           <div><dt>Estudiante</dt><dd>{{ resultado.estudiante }}</dd></div>
         </dl>
 
+        <section *ngIf="resultado.valido && resultado.verificacion_uso as uso" class="vd-uso"
+                 [class.vd-uso-rechazado]="uso.apto_para_uso === false">
+          <h3>{{ resultado.tipo === 'Justificativo médico' ? 'Cobertura del justificativo' : 'Vigencia de uso de la receta' }}</h3>
+          <p *ngIf="uso.desde && uso.hasta">Desde {{ fechaLegible(uso.desde) }} hasta {{ fechaLegible(uso.hasta) }}, ambas fechas incluidas.</p>
+          <p *ngIf="uso.fecha_consultada">Fecha comprobada: {{ fechaLegible(uso.fecha_consultada) }}</p>
+          <p><strong>{{ uso.mensaje }}</strong></p>
+          <ng-container *ngIf="resultado.tipo === 'Justificativo médico'">
+            <label class="vd-label" for="vd-fecha">Fecha de la ausencia que necesitas justificar</label>
+            <input id="vd-fecha" class="vd-input" type="date" [(ngModel)]="fechaConsulta" />
+            <button class="vd-btn vd-btn-secundario" (click)="validar()" [disabled]="!fechaConsulta || cargando">Comprobar fecha de ausencia</button>
+            <p>La fecha de presentación puede ser posterior. El documento solo cubre las fechas indicadas por el profesional.</p>
+          </ng-container>
+        </section>
+
         <p class="vd-mensaje" *ngIf="mensaje">{{ mensaje }}</p>
 
         <p class="vd-nota">
-          Solo se muestran datos de verificación. Si el documento fue anulado o modificado,
+          La autenticidad y el período autorizado se comprueban por separado. No se muestran medicamentos ni diagnóstico. Si el documento fue anulado o modificado,
           aparecerá como no válido.
         </p>
       </ng-container>

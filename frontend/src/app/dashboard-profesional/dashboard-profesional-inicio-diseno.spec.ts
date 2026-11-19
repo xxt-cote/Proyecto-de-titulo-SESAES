@@ -1,3 +1,6 @@
+import { By } from '@angular/platform-browser';
+import { CalendarioInstitucionalComponent } from '../shared/calendario-institucional/calendario-institucional';
+import { fechaISOLocal } from '../dashboard-admin/citas/admin-citas.utils';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
@@ -11,7 +14,7 @@ describe('DashboardProfesionalComponent — Inicio según el diseño', () => {
   let fixture: ComponentFixture<DashboardProfesionalComponent>;
   let c: DashboardProfesionalComponent;
   let el: HTMLElement;
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = fechaISOLocal(new Date());
   const cita = (id: number, hora: string, estado: string) =>
     ({ id, hora, estado, fecha: hoy, estudiante: `Estudiante ${id}`, estudiante_id: 100 + id, carrera: 'Kinesiología', observaciones: 'Control', urgente: false });
 
@@ -37,10 +40,15 @@ describe('DashboardProfesionalComponent — Inicio según el diseño', () => {
   });
 
   describe('calendario', () => {
+    const calendario = () => {
+      fixture.detectChanges();
+      return fixture.debugElement.query(By.directive(CalendarioInstitucionalComponent)).componentInstance as CalendarioInstitucionalComponent;
+    };
     it('octubre de 2026 empieza en jueves: tres días de septiembre en gris y semanas completas', () => {
-      c.calAnioVisible = 2026; c.calMesVisible = 9;
-      c.generarCalendarioInicio();
-      const celdas = c.calDiasMes;
+      const cal = calendario();
+      cal.anioVisible = 2026; cal.mesVisible = 9;
+      cal.generar();
+      const celdas = cal.celdas.filter(d => d !== null);
       expect(celdas.length % 7).toBe(0);
       expect(celdas.slice(0, 3).map(d => [d.num, d.otroMes])).toEqual([[28, true], [29, true], [30, true]]);
       expect(celdas[3]).toMatchObject({ num: 1, fecha: '2026-10-01', otroMes: false });
@@ -49,19 +57,20 @@ describe('DashboardProfesionalComponent — Inicio según el diseño', () => {
     });
 
     it('enero y diciembre usan el año vecino correcto en las fechas de relleno', () => {
-      c.calAnioVisible = 2026; c.calMesVisible = 0;           // enero 2026 empieza en jueves
-      c.generarCalendarioInicio();
-      expect(c.calDiasMes[0].fecha).toBe('2025-12-29');
-      c.calAnioVisible = 2026; c.calMesVisible = 11;          // diciembre 2026 termina en jueves
-      c.generarCalendarioInicio();
-      expect(c.calDiasMes.at(-1).fecha).toBe('2027-01-03');
+      const cal = calendario();
+      cal.anioVisible = 2026; cal.mesVisible = 0;           // enero 2026 empieza en jueves
+      cal.generar();
+      expect(cal.celdas[0]?.fecha).toBe('2025-12-29');
+      cal.anioVisible = 2026; cal.mesVisible = 11;          // diciembre 2026 termina en jueves
+      cal.generar();
+      expect(cal.celdas.at(-1)?.fecha).toBe('2027-01-03');
     });
 
-    it('muestra los días de tres letras, el mes junto a las flechas y sin enlace extra', () => {
+    it('muestra los días de semana compartidos, el mes junto a las flechas y sin enlace extra', () => {
       fixture.detectChanges();
       const cal = el.querySelector('.inicio-calendario-prof') as HTMLElement;
-      expect(Array.from(cal.querySelectorAll('.cal-grid-dias-nombre-prof span')).map(s => s.textContent)).toEqual(['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']);
-      expect(cal.querySelector('.inicio-cal-mes-prof')?.textContent?.trim()).toBe(c.calNombreMesVisible);
+      expect(Array.from(cal.querySelectorAll('.cal-semana span')).map(s => s.textContent)).toEqual(['L', 'M', 'M', 'J', 'V', 'S', 'D']);
+      expect(cal.querySelector('.cal-mes')?.textContent?.trim()).toBe(calendario().tituloMes);
       expect(cal.querySelectorAll('.cal-nav-btn')).toHaveLength(2);
       expect(cal.textContent).not.toContain('Ver calendario');
     });

@@ -20,7 +20,6 @@ export class LoginComponent {
   cargando = false;
   cargandoLento = false;
   private timeoutLento: any;
-  recordarme = false;
   mostrarPassword = false;
   errorCorreo = false;
 
@@ -56,7 +55,11 @@ export class LoginComponent {
         this.redirigir(res.rol);
       },
       error: (err) => {
-        this.error = err?.error?.detail || 'Correo o contraseña incorrectos.';
+        this.error = err?.status === 0
+          ? 'No pudimos conectar con el servidor. Verifica tu conexión e inténtalo de nuevo.'
+          : err?.status >= 500
+            ? 'El servicio no está disponible en este momento. Inténtalo de nuevo en unos minutos.'
+            : err?.error?.detail || 'Correo o contraseña incorrectos.';
         this.finalizarCarga();
         this.cdr.detectChanges();
       }

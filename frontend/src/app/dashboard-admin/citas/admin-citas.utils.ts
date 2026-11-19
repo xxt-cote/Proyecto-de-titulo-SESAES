@@ -1,3 +1,4 @@
+import { calendarioCentro } from '../../shared/tiempo-centro';
 /**
  * Helpers puros de la sección "Gestión de Citas" (Admin / SUPERADMIN).
  *
@@ -59,7 +60,7 @@ function desplazar(fecha: Date, dias: number): Date {
  * El previo siempre termina el día anterior al inicio del actual, así ambos
  * pueden pedirse al backend en una sola consulta contigua.
  */
-export function ventanasRango(rango: RangoCitas, hoy: Date = new Date()): VentanasRango {
+export function ventanasRango(rango: RangoCitas, hoy: Date = calendarioCentro()): VentanasRango {
   const base = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
 
   switch (rango) {

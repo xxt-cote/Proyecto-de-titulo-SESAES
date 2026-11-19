@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { coincideBusqueda } from '../../shared/text-normalization';
+import { coincideBusqueda, normalizarTexto } from '../../shared/text-normalization';
 import { fechaCorta } from '../../shared/formato-fecha';
 import type { DocumentoResumen } from '../../shared/documentos-cita/documentos-cita';
 import { EstudianteTipoCitaBadgeComponent } from '../tipo-cita-badge/estudiante-tipo-cita-badge';
@@ -78,7 +78,7 @@ export class EstudianteHistorialComponent implements OnChanges {
     this.filtrado = true;
     this.historialMostrado = this.historial.filter(h => {
       const matchTexto = !this.filtroBusqueda || coincideBusqueda(this.filtroBusqueda, h.profesional, h.especialidad);
-      const matchEsp   = !this.filtroEspecialidad || h.especialidad === this.filtroEspecialidad;
+      const matchEsp   = !this.filtroEspecialidad || normalizarTexto(h.especialidad) === normalizarTexto(this.filtroEspecialidad);
       const matchFecha = !this.filtroFecha || h.fechaRaw === this.filtroFecha;
       return matchTexto && matchEsp && matchFecha;
     });

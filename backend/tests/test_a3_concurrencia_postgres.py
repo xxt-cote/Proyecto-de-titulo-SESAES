@@ -69,6 +69,7 @@ from fastapi import HTTPException
 from app.database import Base
 from app.models.cita import Cita
 from app.models.profesional import Profesional
+from app.models.bloque_horario_semanal import BloqueHorarioSemanal
 from app.models.usuario import Usuario
 from app.routers import admin, citas
 from app.schemas import CitaCreate
@@ -154,6 +155,12 @@ def datos_base(engine_postgres):
     setup.add_all([prof, est_a, est_b, actor_superadmin])
     setup.commit()
     setup.refresh(prof)
+    setup.add_all([
+        BloqueHorarioSemanal(profesional_id=prof.id, dia_semana=dia,
+                             hora_inicio="09:00", hora_fin="16:30", tipo="disponible")
+        for dia in range(5)
+    ])
+    setup.commit()
     setup.refresh(est_a)
     setup.refresh(est_b)
     setup.refresh(actor_superadmin)
@@ -170,6 +177,7 @@ def datos_base(engine_postgres):
     limpieza = SessionLocal()
     try:
         limpieza.query(Cita).filter(Cita.profesional_id == ids["profesional_id"]).delete()
+        limpieza.query(BloqueHorarioSemanal).filter(BloqueHorarioSemanal.profesional_id == ids["profesional_id"]).delete()
         limpieza.query(Profesional).filter(Profesional.id == ids["profesional_id"]).delete()
         limpieza.query(Usuario).filter(
             Usuario.id.in_([
@@ -414,7 +422,11 @@ def test_dos_representaciones_de_fecha_mismo_slot_solo_una_gana(
     equivalente a 409), exactamente 1 cita activa al final, y esa fila
     con Cita.fecha almacenada en su forma canónica — nunca el string
     crudo con el que llegó cualquiera de las dos peticiones."""
-    fecha_canonica = _dia_habil_futuro()
+    # Garantizar que quitar ceros produzca dos strings distintos en cualquier mes.
+    fecha = date.fromisoformat(_dia_habil_futuro())
+    while fecha.weekday() >= 5 or (fecha.month >= 10 and fecha.day >= 10):
+        fecha += timedelta(days=1)
+    fecha_canonica = fecha.isoformat()
     fecha_sin_ceros = _fecha_sin_ceros(fecha_canonica)
     assert fecha_sin_ceros != fecha_canonica  # strings distintos, misma fecha real
 

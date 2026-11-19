@@ -175,15 +175,16 @@
 /* ══════════════════════════════════════ */
 
 .topbar-prof { display: flex; align-items: center; justify-content: space-between; padding: 16px max(32px, calc((100% - 1560px) / 2)); background: var(--prof-chrome); border-bottom: 1px solid var(--prof-border); position: sticky; top: 0; z-index: 10; }
-.topbar-left { display: flex; flex-direction: column; gap: 2px; }
-.topbar-title { font-size: 20px; font-weight: 700; color: var(--prof-text); margin: 0; }
+.topbar-left { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.topbar-title { font-size: 20px; font-weight: 700; color: var(--prof-text); margin: 0; overflow-wrap: anywhere; }
+.topbar-sub-prof { font-size: 12px; line-height: 1.4; color: var(--prof-text-2); }
 
 
 .topbar-buscador-prof { display: flex; align-items: center; gap: 8px; background: var(--prof-inset); border: 1px solid var(--prof-border); border-radius: 10px; padding: 8px 14px; flex: 1; max-width: 340px; margin: 0 20px; color: var(--prof-muted); }
 .topbar-buscador-prof input { border: none; background: transparent; outline: none; font-size: 12.5px; color: var(--prof-text); width: 100%; }
 .topbar-buscador-prof input::placeholder { color: var(--prof-muted); }
 
-.topbar-actions { display: flex; align-items: center; gap: 10px; }
+.topbar-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 
 .topbar-icon-btn { position: relative; width: 36px; height: 36px; border-radius: 8px; border: 1.5px solid var(--prof-border); background: var(--prof-card); color: var(--prof-text-2); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .15s; }
 .topbar-icon-btn:hover { border-color: var(--prof-primary); color: var(--prof-primary); }
@@ -260,10 +261,6 @@
 /* -- Layout de dos columnas (Perfil y Mi Horario) -- */
 .perfil-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
 .perfil-layout .card-prof:nth-child(3) { grid-column: 1 / -1; }
-
-/* -- Botón circular de navegación (Inicio: calendario mes / Agenda: semana) -- */
-.cal-nav-btn { width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid var(--prof-border); background: var(--prof-card); color: var(--prof-text-2); cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; }
-.cal-nav-btn:hover { border-color: var(--prof-primary); color: var(--prof-primary); }
 /* -- Formularios (Perfil, Mi Horario, Modales) -- */
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
 .campo-grupo-prof { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
@@ -351,18 +348,18 @@
 
 .btn-ver-mas { font-size: 12px; color: var(--prof-primary); background: none; border: none; cursor: pointer; font-weight: 500; }
 
-.calendario-header-prof { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-.calendario-header-prof span { font-size: 13px; font-weight: 700; color: var(--prof-text); text-transform: capitalize; }
 
-.cal-grid-dias-nombre-prof { display: grid; grid-template-columns: repeat(7, 1fr); padding-bottom: 8px; margin-bottom: 6px; border-bottom: 1px solid var(--prof-border); }
-.cal-grid-dias-nombre-prof span { text-align: center; font-size: 9.5px; font-weight: 700; color: var(--prof-text-2); letter-spacing: .3px; }
 
-.cal-grid-prof { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
-.cal-celda-prof { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; }
-.cal-celda-prof span { width: 27px; height: 27px; display: flex; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 500; color: var(--prof-text-body); border-radius: 50%; }
-.cal-celda-prof span.hoy { background: var(--prof-primary); color: #fff; font-weight: 700; }
-.cal-celda-prof span.feriado { background: var(--prof-warn-tint); color: var(--prof-warn); font-weight: 600; }
-.cal-celda-prof span.feriado.hoy { background: var(--prof-primary); color: white; }
+
+
+
+
+
+
+
+
+
+
 
 /* ══ Acciones rápidas ══ */
 .acciones-rapidas-prof { display: flex; flex-direction: column; gap: 8px; }
@@ -805,17 +802,6 @@
 .tabla-usuario-clickeable-prof:hover strong { color: var(--prof-primary); text-decoration: underline; }
 
 /* ══════════════════════════════════════ */
-/* INFO DEL DÍA (mini-calendario profesional) */
-/* ══════════════════════════════════════ */
-.cal-celda-prof.clickeable { cursor: pointer; }
-.info-dia-prof {
-  margin-top: 10px; padding: 10px 12px; background: var(--prof-inset); border: 1px solid var(--prof-border);
-  border-radius: 10px; display: flex; flex-direction: column; gap: 4px;
-}
-.info-dia-prof-item { font-size: 12px; color: var(--prof-text-body); line-height: 1.4; }
-.info-dia-prof-vacio { margin: 10px 0 0 0; font-size: 12px; color: var(--prof-text-2); text-align: center; }
-
-/* ══════════════════════════════════════ */
 /* BANNER: CITAS SIN CERRAR                */
 /* ══════════════════════════════════════ */
 .banner-citas-sin-cerrar-prof {
@@ -881,7 +867,6 @@
   .semana-grilla-prof { -webkit-overflow-scrolling: touch; }
   .card-title-prof { flex-wrap: wrap; }
 }
-.cal-nav-btn,
 .btn-pag,
 .btn-pag-prof { display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
 
@@ -924,7 +909,6 @@
 .topbar-icon-btn,
 .tema-toggle-btn,
 .btn-hamburguesa,
-.cal-nav-btn,
 .btn-completar,
 .btn-inasistencia,
 .btn-editar-perfil,
@@ -948,9 +932,7 @@
 /* ══════════════════════════════════════ */
 /* INICIO DEL PROFESIONAL                 */
 /* ══════════════════════════════════════ */
-.inicio-cab-prof { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
-.inicio-cab-titulo-prof { margin: 0; font-size: 26px; color: var(--prof-text); }
-.inicio-cab-sub-prof { margin: 4px 0 0; font-size: 13px; color: var(--prof-text-2); }
+.inicio-cab-prof { display: flex; justify-content: flex-end; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
 .inicio-cab-fecha-prof { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--prof-text-2); background: var(--prof-card); border: 1px solid var(--prof-border); border-radius: 10px; padding: 8px 14px; }
 .inicio-cab-fecha-prof .material-symbols-outlined { font-size: 18px; color: var(--prof-primary); }
 
@@ -1070,9 +1052,9 @@ button.inicio-kpi-prof:disabled { cursor: default; }
 .patient-aviso-prof { flex-basis: 100%; margin: 6px 0 0; font-size: 12px; color: var(--prof-text-2); text-align: right; }
 .estado-antecedentes-prof { margin-left: 8px; font-size: 11px; font-weight: 600; border-radius: 999px; padding: 2px 8px; background: var(--prof-surface); color: var(--prof-text-2); }
 
-/* Calendario del Inicio: filas compactas (antes eran cuadradas y muy altas) */
-.inicio-calendario-prof .cal-grid-prof { gap: 2px; }
-.inicio-calendario-prof .cal-celda-prof { aspect-ratio: auto; height: 32px; }
+
+
+
 
 /* ══════════════════════════════════════ */
 /* INICIO — ajustes al diseño de referencia */
@@ -1099,14 +1081,14 @@ button.inicio-kpi-prof:disabled { cursor: default; }
 .inicio-requiere-item-prof.rojo { background: var(--prof-danger-tint); border-color: transparent; }
 .inicio-recuerda-prof { background: var(--prof-primary-tint-weak); border-color: var(--prof-primary-tint); }
 
-.inicio-cal-cab-prof { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-.inicio-cal-cab-prof .card-title-prof { margin: 0; flex: 1; }
-.inicio-cal-mes-prof { font-size: 13px; font-weight: 700; color: var(--prof-text); margin-right: 4px; }
-.inicio-calendario-prof .cal-celda-prof span.otro-mes { color: var(--prof-muted); }
-.inicio-calendario-prof .cal-celda-prof span.feriado { background: none; color: var(--prof-text-body); position: relative; font-weight: 500; }
-.inicio-calendario-prof .cal-celda-prof span.feriado::after { content: ''; position: absolute; bottom: 1px; width: 4px; height: 4px; border-radius: 50%; background: var(--prof-danger); }
-.inicio-calendario-prof .cal-celda-prof span.hoy { background: var(--prof-primary); color: #fff; font-weight: 700; }
-.inicio-calendario-prof .cal-celda-prof span.hoy::after { display: none; }
+
+
+
+
+
+
+
+
 
 @media (max-width: 900px) {
   .inicio-agenda-lista-prof::before { display: none; }
