@@ -1521,6 +1521,15 @@ entorno; se repitió fuera de ese aislamiento. No se atribuye ese error al códi
 El build de producción también pasa; conserva los dos avisos de presupuesto CSS
 de los dashboards administrativo y profesional. `git diff --check` pasa.
 
+**Resultado remoto y publicación.** GitHub aprobó backend, frontend (tests y
+build), los análisis Python/TypeScript de CodeQL y su check agregado para el
+commit `7392e5b`. El estado externo de Vercel también informó éxito, sin que eso
+constituya una prueba funcional del despliegue. Tras volver a consultar main y
+comprobar su ascendencia, se ejecutó `git push origin HEAD:refs/heads/main`:
+GitHub confirmó el avance de `854a727` a `7392e5b`, sin `--force`. La copia de
+integración local quedó también en `main`. Este cierre documental se registra
+en un commit posterior que no modifica código de aplicación.
+
 ## 10. Guías operativas e historial consolidado
 
 Se conservan los seis documentos retirados. Las guías vigentes están ahora en [docs/INDICE.md](docs/INDICE.md).
