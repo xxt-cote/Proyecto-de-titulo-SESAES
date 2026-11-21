@@ -1,6 +1,6 @@
 import { By } from '@angular/platform-browser';
 import { CalendarioInstitucionalComponent } from '../shared/calendario-institucional/calendario-institucional';
-import { fechaISOLocal } from '../dashboard-admin/citas/admin-citas.utils';
+import { fechaCentro as fechaISOLocal } from '../shared/tiempo-centro';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';

@@ -7,7 +7,8 @@ describe('EstudianteCitasProximasComponent', () => {
   let fixture: ComponentFixture<EstudianteCitasProximasComponent>;
 
   // Fecha de referencia fija para todos los cálculos de "horas para cancelar".
-  const AHORA = new Date('2026-08-31T10:00:00');
+  // Santiago está en UTC-04 en esta fecha; no usar la zona local del runner.
+  const AHORA = new Date('2026-08-31T10:00:00-04:00');
 
   const crearCita = (overrides: Partial<any> = {}) => ({
     id: 1,

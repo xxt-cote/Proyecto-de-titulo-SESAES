@@ -41,7 +41,8 @@ describe('Inicio SUPERADMIN — formato de fechas', () => {
   });
 
   it('calcula el tiempo relativo como el Inicio de ADMIN', () => {
-    const ahora = new Date('2026-09-19T12:00:00').getTime();
+    // Santiago está en UTC-03 en septiembre, con independencia del equipo.
+    const ahora = new Date('2026-09-19T12:00:00-03:00').getTime();
     expect(tiempoRelativo('2026-09-19T11:59:40', ahora)).toBe('Hace un momento');
     expect(tiempoRelativo('2026-09-19T11:30:00', ahora)).toBe('Hace 30 min');
     expect(tiempoRelativo('2026-09-19T09:00:00', ahora)).toBe('Hace 3 h');

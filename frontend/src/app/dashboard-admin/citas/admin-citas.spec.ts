@@ -4,7 +4,8 @@ import { provideHttpClientTesting, HttpTestingController } from '@angular/common
 import { vi } from 'vitest';
 
 import { AdminCitasComponent } from './admin-citas';
-import { indiceColorAvatar, fechaISOLocal } from './admin-citas.utils';
+import { indiceColorAvatar } from './admin-citas.utils';
+import { fechaCentro as fechaISOLocal } from '../../shared/tiempo-centro';
 
 /**
  * Cada respuesta HTTP se refleja en la vista recién cuando Angular corre un

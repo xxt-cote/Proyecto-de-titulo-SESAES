@@ -4,6 +4,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { AuthService } from '../../auth.service';
+import { formatoCentro } from '../../shared/tiempo-centro';
 import {
   ACCIONES_INICIO,
   ETIQUETA_INCIDENCIAS,
@@ -118,12 +119,9 @@ function evento(over: Partial<EventoAuditoria> = {}): EventoAuditoria {
   };
 }
 
-/** Timestamp naive en HORA LOCAL (como los que entrega el backend): independiente de la zona del runner. */
+/** Timestamp sin offset en hora de Santiago, como el backend histórico. */
 function haceMinutosLocal(min: number): string {
-  const d = new Date(Date.now() - min * 60000);
-  const dos = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}`
-    + `T${dos(d.getHours())}:${dos(d.getMinutes())}:${dos(d.getSeconds())}`;
+  return formatoCentro(Date.now() - min * 60000, 'yyyy-MM-ddTHH:mm') + ':00';
 }
 
 // ── Suite ───────────────────────────────────────────────────────

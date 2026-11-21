@@ -128,11 +128,11 @@ semana, administración debe revisar las reservas afectadas.
 sequenceDiagram
     actor A as Admin autorizado
     participant W as Panel Profesionales
-    participant API as POST /admin/profesionales
+    participant API as API SESAES
     participant DB as PostgreSQL
     actor P as Profesional nuevo
     A->>W: Datos, especialidad y contraseña explícita
-    W->>API: Solicitar alta
+    W->>API: POST /admin/profesionales
     API->>API: Verificar permiso, alcance, datos y duplicados
     API->>DB: Crear cuenta y registro Profesional vinculados
     API->>DB: Registrar auditoría y confirmar

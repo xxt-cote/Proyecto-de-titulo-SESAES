@@ -1435,6 +1435,92 @@ No se modificaron rutas, modelos, permisos ni reglas de negocio.
 - [ ] Revisar render de Mermaid y Markdown en el Pull Request de GitHub.
 - [ ] Ejecutar los checks remotos tras publicar estos archivos.
 
+### 9.13. Manual integral en Word — 19-11-2026
+
+**Qué se hizo y por qué.** Se preparó una edición independiente y editable en
+Word para leer, imprimir y entregar las guías sin navegar por archivos Markdown.
+El archivo se llama `SESAES_documentacion_integral.docx` y queda en la carpeta
+`.integracion` del espacio de trabajo, junto a la copia integrada del repositorio.
+Es un entregable separado; los Markdown siguen siendo las fuentes de mantenimiento.
+
+**Cómo se hizo.** Se consolidaron las guías vigentes y los archivos de comunidad
+en 19 capítulos: uso de los cuatro roles, arquitectura, diagramas y secuencias,
+instalación, Docker, configuración, API, modelo de datos, operación, pruebas,
+integración institucional, problemas, seguridad, contribución, cambios y licencia.
+Se añadieron portada, índice navegable, numeración, tablas y figuras. Las secuencias
+Mermaid se adaptaron a tablas de pasos; las relaciones completas se presentan en
+una página A3 horizontal para conservar legibilidad. El historial del plan se
+referencia sin duplicar instrucciones antiguas sustituidas.
+
+**Revisión documental.** Se corrigió en `docs/DIAGRAMAS.md` la etiqueta del
+participante API del alta profesional: representa la API SESAES, porque también
+recibe el login y la solicitud de bloques; la operación de alta conserva su ruta
+explícita. No se cambió ningún endpoint ni comportamiento de la aplicación.
+
+**Validación.** Se abrió y exportó el DOCX con Microsoft Word en segundo plano,
+se actualizaron índice y campos, y se revisaron visualmente las 77 páginas
+renderizadas. Se ajustaron encabezados de tablas para que no queden solos al
+final de página y se corrigió la representación de enlaces con corchetes.
+No se consultaron bases de datos ni se incluyeron credenciales o registros reales.
+La revisión corresponde al documento; no se repitió la suite de aplicación.
+
+**Archivos.** Entregable nuevo: `SESAES_documentacion_integral.docx`, fuera de la
+raíz Git integrada. Modificados: `docs/DIAGRAMAS.md` y este plan. Los recursos de
+generación y revisión se conservan fuera del repositorio, en
+`.integracion/documentacion-word-qa`, sin formar parte de la entrega del código.
+
+- [x] Edición Word editable con índice y capítulos.
+- [x] Revisión de paginación, tablas y figuras en Word.
+- [x] Conservación de los límites y pendientes técnicos de las guías originales.
+- [ ] Regenerar la edición Word cuando cambien las guías de origen.
+- [ ] Completar autores e identidad institucional de portada si el equipo lo requiere.
+
+### 9.14. Preparación de publicación en main oficial — 20-11-2026
+
+**Solicitud y destino.** Se autoriza incorporar los avances al `main` oficial de
+`xxt-cote/Proyecto-de-titulo-SESAES`. GitHub identifica ese repositorio como
+original, no fork. Al consultar el remoto, main sigue en `854a727`; ese commit
+es ancestro de la integración. No se requiere reescribir el historial ni usar
+force push. El PR existente es el número 17.
+
+**Conservación de aportes.** Recuperación/restablecimiento de contraseña,
+bloqueo de cuentas y sus servicios, pantallas y workflows del compañero se
+conservan sin diferencias respecto al main de referencia. Los cruces adaptados
+se detallan en 9.11. Sí existen eliminaciones intencionales: Ayuda profesional,
+modelo sin referencias `ausencia_profesional.py`, dump/parche SQL y scripts y
+pruebas de migraciones manuales sustituidos por Alembic y sus pruebas. No debe
+describirse la integración como una copia donde no se eliminó ningún archivo.
+Las versiones anteriores continúan en el historial Git.
+
+**Incidencia remota detectada.** El CI del commit `194d3c5` aprobó backend y
+CodeQL, pero falló frontend. Las anotaciones muestran fixtures que construían
+instantes con la zona local del runner y después los comparaban con hora de
+Santiago. Esto hacía variar cancelaciones y tiempos relativos en servidores UTC.
+
+**Corrección limitada.** Se ajustan únicamente seis archivos de pruebas:
+`estudiante-citas-proximas.spec.ts` fija el instante de agosto con UTC-04;
+`superadmin-inicio.utils.spec.ts` fija septiembre con UTC-03;
+`superadmin-inicio.spec.ts` genera timestamps históricos mediante `formatoCentro`
+para expresar la hora civil de Santiago. Las pruebas de citas administrativas y
+los dos archivos de inicio profesional usan `fechaCentro` para el día actual:
+UTC puede estar en otro día entre las 21:00 y las 23:59 de Chile. La ejecución
+local bajo UTC detectó 22 fallos adicionales por ese cruce de fecha.
+No se eliminan casos ni se cambian
+aserciones, permisos, endpoints o reglas de aplicación para hacer pasar CI.
+
+**Publicación y comprobación.** Se prepara la rama de integración con la
+documentación pendiente de 9.12–9.13 y esta corrección, se comprueban pruebas y
+build, y se verifica CI antes de actualizar main. No se ejecutan migraciones ni
+se accede a las bases locales durante esta tarea. La actualización del código
+no certifica ni ejecuta un despliegue o una migración productiva.
+
+**Resultado local de esta ronda.** Las 1.007 pruebas de frontend en 55 archivos
+pasan tanto con `TZ=UTC` como con `TZ=America/Santiago`, sin cambiar aserciones.
+La primera ejecución aislada no pudo resolver los archivos por permisos del
+entorno; se repitió fuera de ese aislamiento. No se atribuye ese error al código.
+El build de producción también pasa; conserva los dos avisos de presupuesto CSS
+de los dashboards administrativo y profesional. `git diff --check` pasa.
+
 ## 10. Guías operativas e historial consolidado
 
 Se conservan los seis documentos retirados. Las guías vigentes están ahora en [docs/INDICE.md](docs/INDICE.md).
